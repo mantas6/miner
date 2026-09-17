@@ -264,11 +264,17 @@ export function load(state: GameState): void {
     // version used — and rebuild the capacity on today's scale, so a returning
     // player keeps every level they bought.
     const version = numeric(save.version, 1, 1);
-    const rawCargoMax = numeric(save.cargoMax, STARTING.cargoMax, 0, LIMITS.cargoMax.max);
-    const cargoLevel = version < CARGO_REBALANCE_SAVE_VERSION
-      ? Math.max(0, Math.round((rawCargoMax - LEGACY_CARGO_START) / (version < CARGO_BALANCE_SAVE_VERSION ? LEGACY_CARGO_STEP : V2_CARGO_STEP)))
-      : Math.max(0, Math.round((rawCargoMax - STARTING.cargoMax) / ECONOMY.cargo.step));
-    p.cargoMax = Math.max(LIMITS.cargoMax.min, Math.min(LIMITS.cargoMax.max, STARTING.cargoMax + cargoLevel * ECONOMY.cargo.step));
+    // A save with no `cargoMax` at all cannot say how many upgrades were bought,
+    // so it starts at the base rather than being run through the migration — which
+    // would otherwise read the stand-in default as if it were a stored capacity
+    // and inflate it a level or two.
+    if (Number.isFinite(Number(save.cargoMax))) {
+      const rawCargoMax = numeric(save.cargoMax, STARTING.cargoMax, 0, LIMITS.cargoMax.max);
+      const cargoLevel = version < CARGO_REBALANCE_SAVE_VERSION
+        ? Math.max(0, Math.round((rawCargoMax - LEGACY_CARGO_START) / (version < CARGO_BALANCE_SAVE_VERSION ? LEGACY_CARGO_STEP : V2_CARGO_STEP)))
+        : Math.max(0, Math.round((rawCargoMax - STARTING.cargoMax) / ECONOMY.cargo.step));
+      p.cargoMax = Math.max(LIMITS.cargoMax.min, Math.min(LIMITS.cargoMax.max, STARTING.cargoMax + cargoLevel * ECONOMY.cargo.step));
+    }
     p.drill = numeric(save.drill, p.drill, LIMITS.drill.min, LIMITS.drill.max);
     // The Sensor Array upgrade is gone: any stored `visibility` is ignored and the
     // reveal footprint stays fixed at its base for every ship.
