@@ -11,7 +11,7 @@
 // the screen holds no copy of anything and cannot disagree with the simulation.
 //
 // The shell/card split, the fixed header over a scrolling body, and the backdrop
-// press are the cargo and shop dialogs', for the same reasons.
+// press are the cargo and info dialogs', for the same reasons.
 
 import { useEffect, useRef, type RefObject } from 'react';
 import { isUpgradeKind, type UpgradeKind } from '../core/inventory';

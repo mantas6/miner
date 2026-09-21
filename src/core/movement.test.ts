@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { FUEL, HULL, STARTING } from './balance';
-import { partialFill } from './economy';
 import { activeSprintDirection, fuelAfterMovement, isOpenSpaceDestination, isSprintActive, keyboardMovementRepeatMs, movementDestination, movementFuelCost, sprintCrashDamage, sprintMomentumAfterMove } from './movement';
 
 describe('world boundaries', () => {
@@ -12,17 +11,13 @@ describe('world boundaries', () => {
   });
 });
 
-describe('surface fuel', () => {
+describe('open-space flight fuel', () => {
   it('charges lateral open-space flight without passively refueling', () => {
     const flyCost = FUEL.baseMove * FUEL.flyMult;
     const fuel = fuelAfterMovement(50, flyCost, false, true, false);
 
     expect(fuel).toBeCloseTo(49.875);
     expect(fuel).toBeLessThan(50);
-  });
-
-  it('still allows explicit paid refueling at the depot', () => {
-    expect(partialFill(50, 100, 20, 20)).toEqual({ value: 100, pay: 20, ratio: 1 });
   });
 });
 

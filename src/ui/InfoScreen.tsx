@@ -10,7 +10,6 @@
 // re-render a tab nobody is looking at.
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
-import { ECONOMY } from '../core/balance';
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import { buildDangerGuideRows } from '../core/danger';
 import { DYNAMITE } from '../core/dynamite';
@@ -230,11 +229,10 @@ function ControlsPanel() {
       <ul className={styles.controlList}>
         <li><span className={styles.controlKeys}><kbd>WASD</kbd> / <kbd>Arrows</kbd></span><span>Move, fly, and dig</span></li>
         <li><span className={styles.controlKeys}><strong>Fog map</strong></span><span>Movement permanently reveals a 3x3 footprint around the ship. Co-op miners share explored tiles.</span></li>
-        <li><span className={styles.controlKeys}><kbd>Shift</kbd> + movement</span><span>Sprint through open space at increased fuel cost; open-space descent is free and drilling stays normal. Slamming a boosted ship into rock, a ceiling, or a wall buckles the hull.</span></li>
-        <li><span className={styles.controlKeys}><kbd>Enter</kbd></span><span>Sell cargo at the surface depot</span></li>
-        <li><span className={styles.controlKeys}><kbd>Space</kbd></span><span>Repair or refuel at the surface</span></li>
-        <li><span className={styles.controlKeys}><kbd>E</kbd> / <strong>Dynamite slot</strong> then a mine tile</span><span>Plant one carried stick on explored, cleared ground. It blows a {ECONOMY.dynamite.radius}-tile radius after a {DYNAMITE.fuseSeconds}-second fuse: blasts yield no cargo, destroyed artifacts grant no cash, and a ship still inside the radius takes hull damage. Escape cancels.</span></li>
-        <li><span className={styles.controlKeys}><kbd>T</kbd> / <kbd>Teleport</kbd></span><span>At 100 m or deeper, spend one teleporter from the cargo bay to visit the depot, then press T again to return to the same underground location for free</span></li>
+        <li><span className={styles.controlKeys}><kbd>Shift</kbd> + movement</span><span>Boost through open space at increased fuel cost (requires a Booster fitted). Open-space descent is free and drilling stays normal. Slamming a boosted ship into rock, a ceiling, or a wall buckles the hull.</span></li>
+        <li><span className={styles.controlKeys}><kbd>Space</kbd></span><span>Use the nearby home station: the Manufacturing Station to stow cargo and craft, the Oil Extractor to refuel</span></li>
+        <li><span className={styles.controlKeys}><kbd>E</kbd> / <strong>Dynamite slot</strong> then a mine tile</span><span>Plant one carried stick on explored, cleared ground. It blows a {DYNAMITE.radius}-tile radius after a {DYNAMITE.fuseSeconds}-second fuse: blasts yield no cargo, and a ship still inside the radius takes hull damage. Escape cancels.</span></li>
+        <li><span className={styles.controlKeys}><kbd>T</kbd> / <kbd>Teleport</kbd></span><span>At 100 m or deeper, spend one teleporter from the cargo bay to visit home base, then press T again to return to the same underground location for free</span></li>
         <li><span className={styles.controlKeys}><strong>Scanner slot</strong> then a mine tile</span><span>Deploy one carried scanner onto explored, cleared ground; it maps its {SCANNER_DEVICE.size}×{SCANNER_DEVICE.size} surroundings, one fogged tile every {SCANNER_DEVICE.intervalSeconds} seconds, then goes inert. Escape cancels.</span></li>
         <li><span className={styles.controlKeys}><strong>Container slot</strong> then a mine tile</span><span>Set one carried cargo container down on explored, cleared ground. Escape cancels.</span></li>
         <li><span className={styles.controlKeys}><kbd>C</kbd> / press the crate</span><span>Open a placed container the ship is standing on or beside. Press a stack in either column to move it across; the crate holds up to {CARGO_CONTAINER.capacity} items and keeps them through death and reload, and anything taken back aboard still obeys the cargo-bay limit.</span></li>

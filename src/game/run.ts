@@ -113,7 +113,7 @@ export function createRun(deps: GameRunDeps): GameRun {
     const p = state.player;
     // The save carries a tile, not a guarantee: a capped or quota-dropped diff
     // can leave that coordinate solid again. Anything but open air returns to the
-    // depot, because a ship buried in dirt cannot drill its way back up.
+    // home base, because a ship buried in dirt cannot drill its way back up.
     if (ensureWorldRow(state.world, p.y)?.[p.x]?.type !== 'air') placeAtHome(p);
     // Fuel, hull and cargo are never saved, so a resumed run is a fresh ship
     // parked where the last one left off — carrying the equipment the save

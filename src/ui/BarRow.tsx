@@ -77,7 +77,7 @@ function Bar({id, label, value, max, text, alert}: BarProps) {
 
 /**
  * The fuel meter, split where the climb home ends: the first slice is fuel the
- * return trip will burn, the second is what would still be aboard at the depot.
+ * return trip will burn, the second is what would still be aboard at home base.
  *
  * The forecast used to be its own widget under the meter, which said the same
  * thing twice in two places. Now the gauge is the forecast — a shrinking bright

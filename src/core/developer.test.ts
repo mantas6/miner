@@ -1,122 +1,63 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEVELOPER_CASH_GRANT, developerRefuel, developerRepairHull, formatDeveloperServiceControl, grantDeveloperCash } from './developer';
+import {
+  DEVELOPER_EXTRACTOR_COAL,
+  DEVELOPER_ORE_BUNDLE,
+  fillDeveloperExtractor,
+  grantDeveloperOres
+} from './developer';
+import { EXTRACTOR } from './balance';
+import { ORES } from '../../shared/constants';
+import { totalItems } from './inventory';
 import { load, save } from '../persistence';
-import { createInitialState, respawnPlayer } from './state';
+import { createInitialState } from './state';
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('developer money cheat', () => {
-  it('grants the full cheat amount to local cash without changing earned-cash stats', () => {
+describe('developer grant ores', () => {
+  it('fills the cargo bay first, then overflows into the station stock', () => {
     const state = createInitialState();
-    const startingCash = state.cash;
 
-    grantDeveloperCash(state);
+    const granted = grantDeveloperOres(state);
 
-    expect(state.cash).toBe(startingCash + DEVELOPER_CASH_GRANT);
+    expect(granted).toBe(DEVELOPER_ORE_BUNDLE * ORES.length);
+    // The bay fills to its capacity; the rest lands in the station warehouse.
+    expect(totalItems(state.player.inventory)).toBe(state.player.cargoMax);
+    expect(totalItems(state.home.station.inventory)).toBe(DEVELOPER_ORE_BUNDLE * ORES.length - state.player.cargoMax);
+    // A grant is free — no cash and no earned-cash statistics move.
     expect(state.stats.totalCashEarned).toBe(0);
   });
 
-  it('allows repeated grants', () => {
-    const state = createInitialState();
-    const startingCash = state.cash;
-
-    grantDeveloperCash(state);
-    grantDeveloperCash(state);
-    grantDeveloperCash(state);
-
-    expect(state.cash).toBe(startingCash + DEVELOPER_CASH_GRANT * 3);
-  });
-
-  it('persists granted cash through the regular save path', () => {
+  it('persists the ore banked in the station stock through the save path', () => {
     const stored = new Map<string, string>();
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => stored.get(key) ?? null,
       setItem: (key: string, value: string) => stored.set(key, value)
     });
     const state = createInitialState();
-    const startingCash = state.cash;
-    grantDeveloperCash(state);
+    grantDeveloperOres(state);
+    const stationTotal = totalItems(state.home.station.inventory);
     save(state);
 
     const restored = createInitialState();
     load(restored);
 
-    expect(restored.cash).toBe(startingCash + DEVELOPER_CASH_GRANT);
+    // Ore in the bay is lost with the run and never saved; the station warehouse
+    // keeps what was banked there.
+    expect(totalItems(restored.player.inventory)).toBe(0);
+    expect(totalItems(restored.home.station.inventory)).toBe(stationTotal);
   });
 });
 
-describe('developer ship services', () => {
-  it('restores base and upgraded resources exactly to their current maxima', () => {
-    const state = createInitialState();
-    state.player.fuel = 1;
-    state.player.hull = 2;
-
-    expect(developerRefuel(state.player)).toBe(true);
-    expect(developerRepairHull(state.player)).toBe(true);
-    expect(state.player).toMatchObject({ fuel: 100, fuelMax: 100, hull: 100, hullMax: 100 });
-
-    state.player.fuelMax = 240;
-    state.player.hullMax = 360;
-    state.player.fuel = 12;
-    state.player.hull = 34;
-    developerRefuel(state.player);
-    developerRepairHull(state.player);
-
-    expect(state.player).toMatchObject({ fuel: 240, fuelMax: 240, hull: 360, hullMax: 360 });
-  });
-
-  it('charges no cash and changes no statistics', () => {
-    const state = createInitialState();
-    state.cash = 0;
-    state.player.fuel = 10;
-    state.player.hull = 20;
-    state.stats.maxDepth = 80;
-    const stats = { ...state.stats };
-
-    developerRefuel(state.player);
-    developerRepairHull(state.player);
-
-    expect(state.cash).toBe(0);
-    expect(state.stats).toEqual(stats);
-  });
-
-  it('is a no-op at full and disables controls with clear full-state copy', () => {
+describe('developer fill extractor', () => {
+  it('queues coal and fills stored fuel to the cap', () => {
     const state = createInitialState();
 
-    expect(developerRefuel(state.player)).toBe(false);
-    expect(developerRepairHull(state.player)).toBe(false);
-    expect(formatDeveloperServiceControl(state.player, 'fuel')).toMatchObject({buttonDisabled: true});
-    expect(formatDeveloperServiceControl(state.player, 'fuel').buttonLabel).toContain('already full');
-    expect(formatDeveloperServiceControl(state.player, 'hull')).toMatchObject({buttonDisabled: true});
-  });
+    fillDeveloperExtractor(state);
 
-  it('updates controls immediately, but the derived maxima reset to base on restart', () => {
-    // The developer services fill to whatever maxima the ship currently has, and
-    // the controls reflect it at once. Those maxima are no longer persisted,
-    // though — they are derived from fitted equipment (Phase 3) — so a fresh boot
-    // comes back at the starting base.
-    const stored = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => stored.get(key) ?? null,
-      setItem: (key: string, value: string) => stored.set(key, value)
-    });
-    const state = createInitialState();
-    state.player.fuelMax = 220;
-    state.player.hullMax = 180;
-    state.player.fuel = 20;
-    state.player.hull = 30;
-
-    developerRefuel(state.player);
-    developerRepairHull(state.player);
-    save(state);
-
-    expect(formatDeveloperServiceControl(state.player, 'fuel').level).toBe('Fuel 220/220');
-    expect(formatDeveloperServiceControl(state.player, 'hull').buttonDisabled).toBe(true);
-    const restored = createInitialState();
-    load(restored);
-    respawnPlayer(restored.player);
-    expect(restored.player).toMatchObject({ fuel: 100, fuelMax: 100, hull: 100, hullMax: 100 });
+    expect(state.home.extractor.coal).toBe(DEVELOPER_EXTRACTOR_COAL);
+    expect(state.home.extractor.fuel).toBe(EXTRACTOR.fuelCap);
+    expect(state.cash).toBe(createInitialState().cash);
   });
 });

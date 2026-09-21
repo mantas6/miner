@@ -80,7 +80,7 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
     if (state.gameOver) return;
     if (countItem(state.player.inventory, SCANNER_ITEM.kind) <= 0) {
       audio.alarm();
-      return toast('No scanner aboard. Buy one at the surface depot.');
+      return toast('No scanner aboard. Craft one at the Manufacturing Station.');
     }
     if (state.scannerDevices.length >= SCANNER_DEVICE.maxPlaced) {
       audio.alarm();

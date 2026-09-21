@@ -10,8 +10,8 @@
 // together for the sum of both. `booster` is the odd one out: it has no stat, it
 // only flips `boost` on, which gates the Shift sprint in `input.ts`.
 //
-// This module replaces the role of `core/upgrades.ts` (the old cash-priced shop
-// upgrades); that file lives on until Phase 6 deletes it.
+// This module is where ship upgrades live now: the old cash-priced shop upgrades
+// (`core/upgrades.ts`) were removed with the shop.
 
 import { STARTING } from './balance';
 import {

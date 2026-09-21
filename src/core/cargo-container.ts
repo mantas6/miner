@@ -1,10 +1,10 @@
 // The cargo container: a second cargo bay, left behind in the mine.
 //
-// Bought at the depot like the other consumables, carried in the bay like them,
-// and dropped onto a tile like the scanner and the stick of dynamite — but unlike
-// any of those it is never spent. What it buys is slots: five more of them,
-// stacking by exactly the rules `inventory.ts` already enforces, parked wherever
-// the player chose to put them.
+// Crafted at the Manufacturing Station like the other consumables, carried in the
+// bay like them, and dropped onto a tile like the scanner and the stick of
+// dynamite — but unlike any of those it is never spent. What it buys is slots:
+// more of them, stacking by exactly the rules `inventory.ts` already enforces,
+// parked wherever the player chose to put them.
 //
 // So there is no second inventory implementation here. A placed container *is* an
 // `Inventory`, and every question about it — is there room, which stack is open,
@@ -35,8 +35,8 @@ import { placementRefusal, type PlacementCopy } from './placement';
 export const CARGO_CONTAINER = Object.freeze({
   /**
    * Total items one crate holds, across every stack inside it. Generous next to a
-   * fresh bay, because a crate is bought for storage and never spent — a single
-   * $200 purchase keeps paying out for the rest of the save.
+   * fresh bay, because a crate is crafted for storage and never spent — one keeps
+   * paying out for the rest of the save.
    */
   capacity: 50,
   /**
@@ -189,7 +189,7 @@ export function takeFromContainer(
 ): ContainerTransfer {
   const room = roomLeft(ship, cargoMax);
   if (room <= 0) {
-    return {ok: false, refusal: `Cargo bay is full at ${cargoMax} items. Sell or unload before taking more aboard.`};
+    return {ok: false, refusal: `Cargo bay is full at ${cargoMax} items. Stow or unload before taking more aboard.`};
   }
   const moved = moveStack(container, ship, kind, Math.min(room, maxUnits));
   if (!moved) return {ok: false, refusal: 'Nothing of that kind is in the container.'};

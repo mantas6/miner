@@ -1,59 +1,91 @@
 import { describe, expect, it } from 'vitest';
 import { STARTING } from './balance';
 import { formatExpeditionObjective, nextOreMilestone } from './objective';
+import { addItem, createInventory, oreItem, type Inventory, type UpgradeKind } from './inventory';
 import { ORES, START_Y } from '../../shared/constants';
 
 const player = {
   y: START_Y,
   fuel: STARTING.fuel,
   fuelMax: STARTING.fuelMax,
-  hull: STARTING.hull,
-  hullMax: STARTING.hullMax,
   cargoMax: STARTING.cargoMax,
-  drill: STARTING.drill
+  equipment: [null, null] as (UpgradeKind | null)[]
 };
 
+const empty = createInventory();
+
+/** A station stock holding `count` of a named ore. */
+function withOre(name: string, count: number, base: Inventory = createInventory()): Inventory {
+  const ore = ORES.find(entry => entry.name === name)!;
+  return addItem(base, oreItem(ore), count);
+}
+
+/** The materials a Fuel Tank Mk I needs: 4 Iron + 2 Copper. */
+function tankMaterials(): Inventory {
+  return withOre('Copper', 2, withOre('Iron', 4));
+}
+
 describe('expedition objective helper', () => {
-  it('starts new runs with starter seam guidance', () => {
+  it('nudges a fresh save toward mining the first upgrade materials', () => {
     expect(formatExpeditionObjective({
       player,
-      cash: STARTING.cash,
       cargoCount: 0,
-      currentCargoValue: 0,
-      atSurface: true
-    })).toBe('Objective: mine the starter Coal/Copper seam below the depot, then return to sell.');
+      atSurface: true,
+      bay: empty,
+      station: empty
+    })).toBe('Objective: mine Iron and Copper for Fuel Tank Mk I.');
   });
 
-  it('turns starter Coal/Iron cargo into return-and-upgrade guidance', () => {
-    const cargoValue = ORES[0].value + ORES[1].value;
-
+  it('switches to crafting once the station holds the materials', () => {
     expect(formatExpeditionObjective({
-      player: { ...player, y: START_Y + 4 },
-      cash: 100,
-      cargoCount: 2,
-      currentCargoValue: cargoValue,
-      atSurface: false
-    })).toBe(`Objective: return and sell $${cargoValue}; Cargo +10 is ready after sale.`);
+      player,
+      cargoCount: 0,
+      atSurface: true,
+      bay: empty,
+      station: tankMaterials()
+    })).toBe('Objective: craft Fuel Tank Mk I at the Manufacturing Station.');
   });
 
   it('prioritizes low fuel return warnings underground', () => {
     expect(formatExpeditionObjective({
       player: { ...player, y: START_Y + 12, fuel: 20 },
-      cash: 20,
       cargoCount: 0,
-      currentCargoValue: 0,
-      atSurface: false
-    })).toBe('Objective: return to the surface now — fuel is 20/100.');
+      atSurface: false,
+      bay: empty,
+      station: empty
+    })).toBe('Objective: return home and refuel at the Oil Extractor.');
   });
 
-  it('points deeper players toward the next ore band', () => {
+  it('sends a full bay home to stow', () => {
+    expect(formatExpeditionObjective({
+      player: { ...player, y: START_Y + 12 },
+      cargoCount: player.cargoMax,
+      atSurface: false,
+      bay: empty,
+      station: empty
+    })).toBe('Objective: return home and stow cargo at the Manufacturing Station.');
+  });
+
+  it('points players with an upgrade fitted toward the next ore band', () => {
     expect(nextOreMilestone(80)).toEqual({ name: 'Silver', depthMeters: 600 });
     expect(formatExpeditionObjective({
-      player: { ...player, y: START_Y + 8 },
-      cash: 20,
+      player: { ...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null] },
       cargoCount: 0,
-      currentCargoValue: 0,
-      atSurface: false
+      atSurface: false,
+      bay: empty,
+      station: empty
+    })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
+  });
+
+  it('counts an upgrade waiting in the bay or station as progress made', () => {
+    const bay = addItem(createInventory(), oreItem(ORES.find(o => o.name === 'Iron')!), 0);
+    const withUpgrade = addItem(createInventory(), {kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', color: '#000', value: 0});
+    expect(formatExpeditionObjective({
+      player: { ...player, y: START_Y + 8 },
+      cargoCount: 0,
+      atSurface: false,
+      bay,
+      station: withUpgrade
     })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
   });
 
@@ -62,11 +94,11 @@ describe('expedition objective helper', () => {
     // The mine has no bottom, so the deep-run objective must never name a final
     // target such as the old Motherlode-core-at-10,000 m goal.
     const objective = formatExpeditionObjective({
-      player: { ...player, y: START_Y + 860 },
-      cash: 200,
+      player: { ...player, y: START_Y + 860, equipment: ['upgrade:tank:1', null] },
       cargoCount: 0,
-      currentCargoValue: 0,
-      atSurface: false
+      atSurface: false,
+      bay: empty,
+      station: empty
     });
 
     expect(objective).toBe('Objective: work the Core Shard depths, fill the bay, and get home alive.');

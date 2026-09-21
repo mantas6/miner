@@ -44,10 +44,9 @@ export interface Player {
   cargoMax: number;
   drill: number;
   /**
-   * The slot-based cargo bay. Mined ore stacks here awaiting sale at the depot
-   * (artifacts are banked instead), capped by both a free slot and `cargoMax`.
-   * Bought equipment — dynamite, scanners, teleporters, cargo containers — rides
-   * here too.
+   * The cargo bay. Mined ore stacks here awaiting stowage at the Manufacturing
+   * Station, capped by `cargoMax`. Crafted equipment — dynamite, scanners,
+   * teleporters, cargo containers, upgrades — rides here too.
    */
   inventory: Inventory;
   /**

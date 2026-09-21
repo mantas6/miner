@@ -1,10 +1,10 @@
-// The emergency round trip: up to the depot on a carried teleporter, and back
+// The emergency round trip: up to the home base on a carried teleporter, and back
 // down to the tile it was used on.
 //
-// The teleporter is a single-use item, not a fitting: it is bought at the depot,
-// it rides in the cargo bay like a stick of dynamite, and the trip up spends it.
-// The trip *back* is free — the return point is the receipt for the item already
-// spent — so only the outbound jump touches the bay.
+// The teleporter is a single-use item, not a fitting: it is crafted at the
+// Manufacturing Station, it rides in the cargo bay like a stick of dynamite, and
+// the trip up spends it. The trip *back* is free — the return point is the receipt
+// for the item already spent — so only the outbound jump touches the bay.
 
 import { HOME_ROW, HOME_X } from '../../shared/constants';
 import { countItem, removeItem } from './inventory';

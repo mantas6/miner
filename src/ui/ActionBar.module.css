@@ -13,7 +13,7 @@
 .actionBar button[hidden] {
   display: none;
 }
-.openShopBtn {
+.openShipBtn {
   background: var(--btn-bg-gold);
   color: #fff2bd;
 }

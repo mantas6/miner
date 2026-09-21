@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ECONOMY, HULL } from './balance';
+import { HULL } from './balance';
 import { WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import {
@@ -20,7 +20,7 @@ function dirt(): Tile {
 describe('dynamite blast targets', () => {
   it('selects a radius-two circular area of destructible blocks', () => {
     const world = Array.from({length: 12}, () => Array.from({length: 12}, dirt));
-    const targets = getDynamiteBlastTargets(world, 6, 7, ECONOMY.dynamite.radius);
+    const targets = getDynamiteBlastTargets(world, 6, 7, DYNAMITE.radius);
 
     expect(targets).toHaveLength(13);
     expect(targets).toContainEqual({x: 6, y: 5});
@@ -142,7 +142,7 @@ describe('placing a stick', () => {
 
 describe('blast damage to a ship', () => {
   it('hits hardest at the centre, halves toward the rim, and stops at the radius', () => {
-    const radius = ECONOMY.dynamite.radius;
+    const radius = DYNAMITE.radius;
 
     expect(dynamiteHullDamage(0, 0)).toBe(HULL.dynamiteBlast);
     expect(dynamiteHullDamage(1, 0)).toBeLessThan(HULL.dynamiteBlast);

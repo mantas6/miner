@@ -97,32 +97,4 @@ export const EXTRACTOR = Object.freeze({
   fuelCap: 500
 });
 
-export const ECONOMY = Object.freeze({
-  refuel: Object.freeze({ base: 20, perTank: 0.35 }),
-  repair: Object.freeze({ base: 30, perHull: 0.45 }),
-  cargo: Object.freeze({ base: 120, growth: 1.32, step: 10 }),
-  tank: Object.freeze({ base: 150, growth: 1.34, step: 20 }),
-  hull: Object.freeze({ base: 180, growth: 1.38, step: 20 }),
-  drill: Object.freeze({ base: 200, growth: 1.55, step: 1 }),
-  dynamite: Object.freeze({ price: 50, radius: 2 }),
-  /**
-   * One disposable teleporter: a round trip to the depot and back to the tile it
-   * was used on. The dearest consumable on the shelf, and the price it always
-   * carried, because it saves the whole fuel-and-hull cost of the climb home and
-   * hands back the deep position afterwards.
-   */
-  teleporter: Object.freeze({ price: 250 }),
-  scanner: Object.freeze({ price: 50 }),
-  /**
-   * One cargo container, dropped in the mine and left there for good.
-   *
-   * The shelf is a ladder of what a purchase buys: $50 buys one hole in the rock
-   * (dynamite) or one small map (scanner), $250 buys one whole climb home and back
-   * (teleporter). A container buys none of those — it does nothing on the turn it
-   * is used — but it is the only thing on the shelf that is never spent, so a
-   * single purchase keeps paying for the rest of the save. It sits one rung under
-   * the teleporter for that reason: dearer than everything that resolves in a
-   * single press, cheaper than the one consumable that rescues a run outright.
-   */
-  container: Object.freeze({ price: 200 })
-});
+

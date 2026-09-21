@@ -27,7 +27,6 @@ import { Hud } from './Hud';
 import { InfoScreen } from './InfoScreen';
 import { Intro } from './Intro';
 import { ShipScreen } from './ShipScreen';
-import { ShopScreen } from './ShopScreen';
 import { StationHint } from './StationHint';
 import { StationScreen } from './StationScreen';
 import { useUiStore } from './store';
@@ -68,17 +67,16 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         {/* Both of these are for screen readers only: the mine itself is pixels,
             so without them the surface has a name and nothing else. */}
         <p id="game-instructions" className={common.srOnly}>
-          Drill for ore and sell it at the surface depot before the fuel runs out.
-          WASD or the arrow keys move, fly and dig. Enter sells cargo at the depot,
-          Space refuels or repairs there. E plants dynamite, T uses a teleporter,
-          C opens a cargo container the ship is standing on or beside. Escape
-          closes an open screen.
-          The readouts and meters after this surface report cash, depth, fuel, hull
+          Drill for ore and bring it back to the home base before the fuel runs out.
+          WASD or the arrow keys move, fly and dig. Space uses the nearby home
+          station — the Manufacturing Station to stow and craft, the Oil Extractor
+          to refuel. E plants dynamite, T uses a teleporter, C opens a cargo
+          container the ship is standing on or beside. Escape closes an open screen.
+          The readouts and meters after this report cash, depth, fuel, hull
           and cargo; the Info and Cargo button has the full rules.
         </p>
         <GameStatus />
         <Hud />
-        <ShopScreen />
         <ShipScreen />
         <InfoScreen />
         <CargoScreen />

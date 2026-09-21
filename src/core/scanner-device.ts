@@ -1,9 +1,9 @@
-// The deployable survey scanner: the depot's third consumable.
+// The deployable survey scanner.
 //
 // Not to be confused with `scanner.ts`, which is the HUD readout for the tile the
-// drill is pointed at. This is a physical device: bought at the depot, carried in
-// the cargo bay, dropped onto a tile of the mine, and left behind to map the fog
-// around itself while the ship goes elsewhere.
+// drill is pointed at. This is a physical device: crafted at the Manufacturing
+// Station, carried in the cargo bay, dropped onto a tile of the mine, and left
+// behind to map the fog around itself while the ship goes elsewhere.
 //
 // Everything here is pure and DOM-free. A device is three numbers — where it
 // sits and how long since it last reported — because the interesting part of its
@@ -21,7 +21,7 @@ import { placementRefusal, type PlacementCopy } from './placement';
 export const SCANNER_DEVICE = Object.freeze({
   /** Side of the square it maps, centred on the device. */
   size: 7,
-  /** Seconds between reveals, as the shop and the toasts word it. */
+  /** Seconds between reveals, as the toasts word it. */
   intervalSeconds: 3.75,
   /** The same wait in fixed 60 Hz simulation steps. */
   intervalTicks: 3.75 * 60,
@@ -75,7 +75,7 @@ export function isScannerDone(device: ScannerDevice, explored: ReadonlySet<numbe
   return scannerFootprint(device).every(index => explored.has(index));
 }
 
-/** How much of the square is mapped, for the shop copy and the HUD toasts. */
+/** How much of the square is mapped, for the HUD toasts. */
 export function scannerProgress(device: ScannerDevice, explored: ReadonlySet<number>): {mapped: number; total: number} {
   const footprint = scannerFootprint(device);
   return {mapped: footprint.filter(index => explored.has(index)).length, total: footprint.length};

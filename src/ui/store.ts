@@ -39,7 +39,6 @@ export interface HudSnapshot {
   hullMax: number;
   cargo: number;
   cargoMax: number;
-  cargoValue: number;
   fuelAlert: boolean;
   hullAlert: boolean;
   cargoAlert: boolean;
@@ -76,7 +75,7 @@ export interface HudSnapshot {
 }
 
 const HUD_KEYS = [
-  'cash', 'depthMeters', 'fuel', 'fuelMax', 'hull', 'hullMax', 'cargo', 'cargoMax', 'cargoValue',
+  'cash', 'depthMeters', 'fuel', 'fuelMax', 'hull', 'hullMax', 'cargo', 'cargoMax',
   'fuelAlert', 'hullAlert', 'cargoAlert', 'objective',
   'atSurface', 'gameOver', 'stationHint', 'teleporters',
   'teleportReturn', 'teleportDepthReached', 'teleportUsable',
@@ -84,12 +83,12 @@ const HUD_KEYS = [
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
 
-/** The ship stats the shop and the developer panel price and label their rows from. */
+/** The ship stats the ship screen and the HUD read to label their rows. */
 export type PlayerSnapshot = Pick<
   Player,
   'fuel' | 'fuelMax' | 'hull' | 'hullMax' | 'cargoMax' | 'drill'
 > & {
-  /** Consumables in the cargo bay, counted out of the inventory for the shop rows. */
+  /** Consumables in the cargo bay, counted out of the inventory. */
   scanners: number;
   dynamite: number;
   teleporters: number;
@@ -151,7 +150,7 @@ export type UiPhase = 'intro' | 'playing';
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'shop' | 'info' | 'container' | 'ship' | 'station' | 'extractor';
+export type OverlayId = 'info' | 'container' | 'ship' | 'station' | 'extractor';
 
 /** The oil extractor's buffers, as the extractor screen paints them, plus its tick progress. */
 export interface ExtractorView {
@@ -178,7 +177,7 @@ export interface ShipSlotView {
 
 /**
  * Which overlay is up. One field rather than a flag per overlay, because
- * "shop and info at the same time" is not a state the game has any answer for:
+ * "ship and info at the same time" is not a state the game has any answer for:
  * they are both modal `<dialog>`s over the same canvas, so the second one to open
  * would steal focus while the first still claimed the top of the stack.
  */
@@ -276,16 +275,15 @@ function initialHud(): HudSnapshot {
     hullMax: player.hullMax,
     cargo: 0,
     cargoMax: player.cargoMax,
-    cargoValue: 0,
     fuelAlert: false,
     hullAlert: false,
     cargoAlert: false,
     objective: formatExpeditionObjective({
       player,
-      cash: initialState.cash,
       cargoCount: 0,
-      currentCargoValue: 0,
-      atSurface: true
+      atSurface: true,
+      bay: initialState.player.inventory,
+      station: initialState.home.station.inventory
     }),
     atSurface: true,
     gameOver: false,

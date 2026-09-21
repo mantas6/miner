@@ -33,9 +33,9 @@ describe('fuel reserve forecast helper', () => {
     expect(formatFuelReserveForecast({ ...underground, fuel: 3.3 }))
       .toBe('Fuel reserve: URGENT — turn back now; need 4 fuel (clear-shaft return + 2× detour reserve).');
     expect(formatFuelReserveForecast({ playerY: 2, startY: 2, fuel: 100, atSurface: true }))
-      .toBe('Fuel reserve: SAFE — at depot; refuel before the next descent.');
+      .toBe('Fuel reserve: SAFE — at home base; refuel at the Oil Extractor before the next descent.');
     expect(formatFuelReserveForecast({ ...underground, fuel: 0, gameOver: true }))
-      .toBe('Fuel reserve: URGENT — ship disabled; restart at the depot.');
+      .toBe('Fuel reserve: URGENT — ship disabled; restart at home base.');
   });
 });
 

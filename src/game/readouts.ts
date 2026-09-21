@@ -143,7 +143,7 @@ export function createReadouts({state, grid, enemies, atSurface, toast}: HudRead
   /**
    * The helper reports the *next* landmark, so a landmark counts as cleared the
    * moment the reported target moves deeper. `announcedDepth` is a high-water
-   * mark, so selling at the depot and diving again never re-announces a seam.
+   * mark, so stowing at home base and diving again never re-announces a seam.
    */
   function announceCrossing(milestone: DepthMilestone): void {
     if (milestone.depthMeters === pendingDepth) return;

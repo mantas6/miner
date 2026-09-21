@@ -3,7 +3,7 @@
 // Behaviour of the app shell: the DOM contract the game runtime and the keyboard
 // layer still depend on, store-driven HUD updates, tab switching, toasts, and the
 // developer-tools gate. Copy is not asserted here — it lives in one place now and
-// is checked where it is produced (core/shop-catalog, core/stats, core/objective).
+// is checked where it is produced (core/stats, core/objective).
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,18 +22,14 @@ const DOM_CONTRACT = [
   'fuel', 'fuelLabel', 'fuelReturn', 'fuelSurplus', 'hull', 'hullLabel', 'cargo', 'cargoLabel',
   // The inventory panel ships expanded, so its slot list is part of the contract.
   'inventory', 'inventoryToggleBtn', 'inventorySlots',
-  'sell', 'shipBtn', 'teleporterBtn', 'infoBtn',
+  'shipBtn', 'teleporterBtn', 'infoBtn',
   // Every overlay keeps its dialog shell mounted; their contents do not.
-  'shop-screen', 'ship-screen', 'info-screen', 'cargo-screen',
+  'ship-screen', 'info-screen', 'cargo-screen',
   'fuel-warning', 'toast'
 ];
 
-/** Ids that exist only while the shop is the overlay on screen. */
-const SHOP_CONTRACT = [
-  'shop-card', 'shopCloseBtn',
-  'fuelBtn', 'repairBtn', 'cargoBtn', 'tankBtn', 'hullBtn', 'drillBtn',
-  'shopDynamiteBtn', 'shopTeleporterBtn', 'shopScannerBtn', 'shopContainerBtn'
-];
+/** Ids that exist only while the ship equipment screen is the overlay on screen. */
+const SHIP_CONTRACT = ['ship-card', 'shipCloseBtn', 'shipBay'];
 
 /** Ids that exist only while a cargo container's transfer menu is up. */
 const CARGO_CONTRACT = ['cargo-card', 'cargoCloseBtn', 'containerSlots', 'shipSlots'];
@@ -74,8 +70,8 @@ afterEach(() => {
 /** The overlay commands the running game installs, in store terms. */
 function installOverlayCommands(): void {
   setUiCommands({
-    openShop: () => uiStore.getState().setActiveOverlay('shop'),
-    closeShop: () => uiStore.getState().closeOverlay('shop'),
+    openShip: () => uiStore.getState().setActiveOverlay('ship'),
+    closeShip: () => uiStore.getState().closeOverlay('ship'),
     openInfo: () => uiStore.getState().setActiveOverlay('info'),
     closeInfo: () => uiStore.getState().closeOverlay('info')
   });
@@ -116,7 +112,7 @@ describe('app shell', () => {
     // A description that points nowhere is worse than none at all.
     const description = document.getElementById(canvas.getAttribute('aria-describedby')!);
     expect(description?.textContent).toContain('WASD');
-    expect(description?.textContent).toContain('Space refuels or repairs');
+    expect(description?.textContent).toContain('Space uses the nearby home');
   });
 
   /**
@@ -129,41 +125,41 @@ describe('app shell', () => {
     const status = document.getElementById('game-status')!;
 
     expect(status.getAttribute('aria-live')).toBe('polite');
-    expect(status.textContent).toBe('At the surface depot.');
+    expect(status.textContent).toBe('At home base.');
 
     patchHud({announcement: 'In the mine. Cargo hold full.'});
     expect(status.textContent).toBe('In the mine. Cargo hold full.');
   });
 
-  it('uses native modal dialogs for the shop and info overlays', () => {
+  it('uses native modal dialogs for the ship and info overlays', () => {
     render(<MinerApp />);
 
-    const shop = dialog('shop-screen');
+    const ship = dialog('ship-screen');
     const info = dialog('info-screen');
-    expect(shop.tagName).toBe('DIALOG');
+    expect(ship.tagName).toBe('DIALOG');
     expect(info.tagName).toBe('DIALOG');
-    expect(shop.open).toBe(false);
+    expect(ship.open).toBe(false);
     expect(info.open).toBe(false);
 
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
-    expect(shop.open).toBe(true);
-    expect(document.activeElement?.id).toBe('shopCloseBtn');
+    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    expect(ship.open).toBe(true);
+    expect(document.activeElement?.id).toBe('shipCloseBtn');
 
     act(() => { uiStore.getState().setActiveOverlay('info'); });
     expect(info.open).toBe(true);
   });
 
   it('reports a close the browser performed itself back to the game', () => {
-    const closeShop = vi.fn();
+    const closeShip = vi.fn();
     const closeInfo = vi.fn();
-    setUiCommands({closeShop, closeInfo});
+    setUiCommands({closeShip, closeInfo});
     render(<MinerApp />);
 
     // What Escape reaching the UA does: the dialog closes without the store or
     // the close button being involved at all.
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
-    act(() => { dialog('shop-screen').close(); });
-    expect(closeShop).toHaveBeenCalled();
+    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    act(() => { dialog('ship-screen').close(); });
+    expect(closeShip).toHaveBeenCalled();
 
     act(() => { uiStore.getState().setActiveOverlay('info'); });
     act(() => { dialog('info-screen').close(); });
@@ -172,17 +168,17 @@ describe('app shell', () => {
 });
 
 describe('one overlay at a time', () => {
-  it('puts the shop away when info is opened, and restores focus for it', () => {
+  it('puts the ship screen away when info is opened, and restores focus for it', () => {
     installOverlayCommands();
     render(<MinerApp />);
 
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
-    expect(dialog('shop-screen').open).toBe(true);
+    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    expect(dialog('ship-screen').open).toBe(true);
 
     act(() => { fireEvent.click(document.getElementById('infoBtn')!); });
 
     expect(uiStore.getState().activeOverlay).toBe('info');
-    expect(dialog('shop-screen').open).toBe(false);
+    expect(dialog('ship-screen').open).toBe(false);
     expect(dialog('info-screen').open).toBe(true);
     expect(document.activeElement?.id).toBe('infoCloseBtn');
   });
@@ -191,9 +187,9 @@ describe('one overlay at a time', () => {
     installOverlayCommands();
     render(<MinerApp />);
 
-    // Swapping overlays closes the shop's `<dialog>`, whose `close` event asks the
-    // game to clear the overlay state that info has already claimed.
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
+    // Swapping overlays closes the ship screen's `<dialog>`, whose `close` event
+    // asks the game to clear the overlay state that info has already claimed.
+    act(() => { uiStore.getState().setActiveOverlay('ship'); });
     act(() => { uiStore.getState().setActiveOverlay('info'); });
 
     expect(uiStore.getState().activeOverlay).toBe('info');
@@ -220,25 +216,25 @@ describe('one overlay at a time', () => {
 
 describe('closed overlays', () => {
   it('builds overlay contents only while that overlay is on screen', () => {
-    const all = [...SHOP_CONTRACT, ...INFO_CONTRACT, ...CARGO_CONTRACT];
+    const all = [...SHIP_CONTRACT, ...INFO_CONTRACT];
     render(<MinerApp />);
 
     for (const id of all) expect(document.getElementById(id), id).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
-    for (const id of SHOP_CONTRACT) expect(document.getElementById(id), id).not.toBeNull();
-    for (const id of [...INFO_CONTRACT, ...CARGO_CONTRACT]) expect(document.getElementById(id), id).toBeNull();
+    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    for (const id of SHIP_CONTRACT) expect(document.getElementById(id), id).not.toBeNull();
+    for (const id of INFO_CONTRACT) expect(document.getElementById(id), id).toBeNull();
 
     act(() => { uiStore.getState().setActiveOverlay('info'); });
     for (const id of INFO_CONTRACT) expect(document.getElementById(id), id).not.toBeNull();
-    for (const id of [...SHOP_CONTRACT, ...CARGO_CONTRACT]) expect(document.getElementById(id), id).toBeNull();
+    for (const id of SHIP_CONTRACT) expect(document.getElementById(id), id).toBeNull();
 
     act(() => { uiStore.getState().setActiveOverlay('container'); });
     for (const id of CARGO_CONTRACT) expect(document.getElementById(id), id).not.toBeNull();
-    for (const id of [...SHOP_CONTRACT, ...INFO_CONTRACT]) expect(document.getElementById(id), id).toBeNull();
+    for (const id of [...SHIP_CONTRACT, ...INFO_CONTRACT]) expect(document.getElementById(id), id).toBeNull();
 
     act(() => { uiStore.getState().setActiveOverlay(null); });
-    for (const id of all) expect(document.getElementById(id), id).toBeNull();
+    for (const id of [...all, ...CARGO_CONTRACT]) expect(document.getElementById(id), id).toBeNull();
   });
 
   it('mounts only the selected info panel', () => {
@@ -273,7 +269,7 @@ describe('closed overlays', () => {
     act(() => { uiStore.getState().setActiveOverlay('info'); });
     expect(live).toBeGreaterThan(closed);
 
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
+    act(() => { uiStore.getState().setActiveOverlay('ship'); });
     expect(live).toBeGreaterThan(closed);
 
     act(() => { uiStore.getState().setActiveOverlay(null); });
@@ -393,16 +389,14 @@ describe('store-driven HUD', () => {
     }
   });
 
-  it('hides surface actions underground and dispatches the ones it shows', () => {
+  it('shows the underground actions and dispatches the ones it shows', () => {
     const useTeleporter = vi.fn();
     setUiCommands({useTeleporter});
     render(<MinerApp />);
 
     patchHud({atSurface: false, teleporters: 2, teleportDepthReached: true, teleportUsable: true});
 
-    const sell = document.getElementById('sell') as HTMLButtonElement;
     const teleporter = document.getElementById('teleporterBtn') as HTMLButtonElement;
-    expect(sell.hidden).toBe(true);
     // The ship screen needs no station, so its button stays visible underground.
     expect(document.getElementById('shipBtn')?.hasAttribute('hidden')).toBe(false);
     expect(teleporter.hidden).toBe(false);
@@ -839,10 +833,9 @@ describe('cheat menu', () => {
   });
 
   it('dispatches the cheats and keeps the resets inside the menu', () => {
-    const grantDeveloperCash = vi.fn();
-    const grantDeveloperUpgrade = vi.fn();
-    const runDeveloperService = vi.fn();
-    setUiCommands({grantDeveloperCash, grantDeveloperUpgrade, runDeveloperService});
+    const grantDeveloperOres = vi.fn();
+    const fillExtractor = vi.fn();
+    setUiCommands({grantDeveloperOres, fillExtractor});
     render(<MinerApp />);
     openSettings();
     act(() => { fireEvent.click(document.getElementById('cheatsToggleBtn')!); });
@@ -851,18 +844,11 @@ describe('cheat menu', () => {
     expect(menu.contains(document.getElementById('resetPlayerDataBtn'))).toBe(true);
     expect(menu.contains(document.getElementById('resetWorldStateBtn'))).toBe(true);
 
-    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-developer-cash]')!);
-    expect(grantDeveloperCash).toHaveBeenCalledOnce();
+    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-developer-grant-ores]')!);
+    expect(grantDeveloperOres).toHaveBeenCalledOnce();
 
-    // A full ship leaves the free services disabled; a granted upgrade dispatches.
-    expect(document.querySelector<HTMLButtonElement>('[data-developer-service="fuel"]')?.disabled).toBe(true);
-    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-developer-upgrade="cargo"]')!);
-    expect(grantDeveloperUpgrade).toHaveBeenCalledWith('cargo');
-
-    act(() => { uiStore.getState().syncPlayer({...uiStore.getState().player, fuel: 10}); });
-    expect(document.querySelector<HTMLButtonElement>('[data-developer-service="fuel"]')?.disabled).toBe(false);
-    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-developer-service="fuel"]')!);
-    expect(runDeveloperService).toHaveBeenCalledWith('fuel');
+    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-developer-fill-extractor]')!);
+    expect(fillExtractor).toHaveBeenCalledOnce();
   });
 
   /** The panel unmounts with the tab, so the 60 Hz sync cannot re-render it. */

@@ -8,18 +8,8 @@
 // double-mount, after a crash — is harmless.
 
 import type { DecorKind, InventoryItemKind, UpgradeKind } from '../core/inventory';
-import type { DeveloperServiceId } from '../core/developer';
-import type { PlayerUpgradeId } from '../core/upgrades';
 
 export interface UiCommands {
-  sell(): void;
-  refuel(): void;
-  repair(): void;
-  buyUpgrade(id: PlayerUpgradeId): void;
-  buyDynamite(): void;
-  buyTeleporter(): void;
-  buyScanner(): void;
-  buyContainer(): void;
   useTeleporter(): void;
   /**
    * Arm a carried scanner for placement, or disarm the one already waiting. The
@@ -42,8 +32,6 @@ export interface UiCommands {
   storeInContainer(kind: InventoryItemKind, single?: boolean): void;
   /** Move it back, as far as the cargo-bay limit allows; `single` moves one. */
   takeFromContainer(kind: InventoryItemKind, single?: boolean): void;
-  openShop(): void;
-  closeShop(): void;
   /** Open the ship equipment screen, from anywhere. */
   openShip(): void;
   /** Shut the ship equipment screen; also what its dialog's close request reports. */
@@ -79,9 +67,10 @@ export interface UiCommands {
   toggleSfx(): void;
   /** Start the run. The splash's default: any press on the card lands here. */
   playSolo(event?: Event): void;
-  grantDeveloperCash(): void;
-  runDeveloperService(id: DeveloperServiceId): void;
-  grantDeveloperUpgrade(id: PlayerUpgradeId): void;
+  /** Grant a bundle of every ore into the bay and the station stock. */
+  grantDeveloperOres(): void;
+  /** Queue coal and fill the oil extractor's stored fuel. */
+  fillExtractor(): void;
   resetPlayerData(): void;
   resetWorldState(): void;
   /**
@@ -102,14 +91,6 @@ function noop(): void {
  */
 function noopCommands(): UiCommands {
   return {
-    sell: noop,
-    refuel: noop,
-    repair: noop,
-    buyUpgrade: noop,
-    buyDynamite: noop,
-    buyTeleporter: noop,
-    buyScanner: noop,
-    buyContainer: noop,
     useTeleporter: noop,
     toggleScannerPlacement: noop,
     toggleDynamitePlacement: noop,
@@ -117,8 +98,6 @@ function noopCommands(): UiCommands {
     closeContainer: noop,
     storeInContainer: noop,
     takeFromContainer: noop,
-    openShop: noop,
-    closeShop: noop,
     openShip: noop,
     closeShip: noop,
     equipUpgrade: noop,
@@ -137,9 +116,8 @@ function noopCommands(): UiCommands {
     toggleMusic: noop,
     toggleSfx: noop,
     playSolo: noop,
-    grantDeveloperCash: noop,
-    runDeveloperService: noop,
-    grantDeveloperUpgrade: noop,
+    grantDeveloperOres: noop,
+    fillExtractor: noop,
     resetPlayerData: noop,
     resetWorldState: noop,
     resetGame: noop

@@ -71,8 +71,8 @@ export function getFuelGaugeSegments(fuel: number, fuelMax: number, reserve: num
 /** Formats an always-visible, route-honest return-fuel forecast. */
 export function formatFuelReserveForecast(input: FuelReserveInput): string {
   const forecast = getFuelReserveForecast(input);
-  if (input.gameOver) return 'Fuel reserve: URGENT — ship disabled; restart at the depot.';
-  if (input.atSurface) return 'Fuel reserve: SAFE — at depot; refuel before the next descent.';
+  if (input.gameOver) return 'Fuel reserve: URGENT — ship disabled; restart at home base.';
+  if (input.atSurface) return 'Fuel reserve: SAFE — at home base; refuel at the Oil Extractor before the next descent.';
 
   const reserve = Math.ceil(forecast.reserve);
   const remaining = Math.floor(forecast.fuelAfterReturn);

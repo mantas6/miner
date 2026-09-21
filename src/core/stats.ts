@@ -37,7 +37,7 @@ export function formatExpeditionStats(stats: Partial<GameStats> = {}): Expeditio
     {
       label: 'Cash earned',
       value: money(totalCashEarned),
-      detail: totalCashEarned > 0 ? 'From cargo, bounties, and relics' : 'Sell your first haul to begin'
+      detail: totalCashEarned > 0 ? 'From tunnel-fiend bounties' : 'Destroy a tunnel fiend to begin'
     },
     {
       label: 'Ore mined',

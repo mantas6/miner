@@ -3,7 +3,7 @@
 // Everything else the HUD says is on screen: the meters carry fuel, hull and
 // cargo, the scanner carries what the drill is pointed at, and the toasts carry
 // events. What was only ever legible from the canvas is the ship's *situation* —
-// parked at the depot or out in the mine, holds full, hull about to give — so
+// parked at home base or out in the mine, holds full, hull about to give — so
 // this is the one readout that exists for the live region rather than for the
 // layout.
 //
@@ -12,7 +12,7 @@
 // there is no depth, no litre count and no cash here: those are numbers a reader
 // can go and read, while these are the four transitions worth interrupting for.
 //
-// Like the depot prompt next door, the wording is a lookup rather than a joined
+// Like the home prompt next door, the wording is a lookup rather than a joined
 // string, because this runs once per animation frame.
 
 export interface ShipStatusInput {
@@ -36,10 +36,10 @@ const STATUS_BY_FLAGS: readonly string[] = [
   'In the mine. Hull critical.',
   'In the mine. Cargo hold full.',
   'In the mine. Cargo hold full. Hull critical.',
-  'At the surface depot.',
-  'At the surface depot. Hull critical.',
-  'At the surface depot. Cargo hold full.',
-  'At the surface depot. Cargo hold full. Hull critical.'
+  'At home base.',
+  'At home base. Hull critical.',
+  'At home base. Cargo hold full.',
+  'At home base. Cargo hold full. Hull critical.'
 ];
 
 /** What a player who cannot see the mine needs to hear about the ship in it. */

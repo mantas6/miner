@@ -1,5 +1,4 @@
 import { MAX_WORLD_ROW, ORES, START_Y } from '../../shared/constants';
-import { ECONOMY } from './balance';
 import type { Ore } from './types';
 
 export interface ProspectingGuideRow {
@@ -35,4 +34,4 @@ export function buildProspectingGuideRows(ores: Ore[] = ORES, startY = START_Y):
   }));
 }
 
-export const PROSPECTING_TIP = `Early goal: dig below home into the first Coal/Iron seam, then stow it and save toward Cargo +${ECONOMY.cargo.step}.`;
+export const PROSPECTING_TIP = 'Early goal: dig below home into the first Coal/Iron seam, stow it at the Manufacturing Station, and craft a Fuel Tank Mk I.';

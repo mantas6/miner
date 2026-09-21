@@ -69,7 +69,7 @@ export function Intro() {
           <h2>Stalinload</h2>
           <p className={styles.tagline}>Dig for the Motherland. Fill the quota.</p>
           <p className={styles.hint}>
-            <kbd>WASD</kbd> dig · <kbd>Enter</kbd> sell · <kbd>Space</kbd> refuel · rest in Info / Cargo
+            <kbd>WASD</kbd> dig · <kbd>Space</kbd> use station · rest in Info / Cargo
           </p>
           <div className={styles.actions}>
             {/* A pointer press has already been handled by the card above by the

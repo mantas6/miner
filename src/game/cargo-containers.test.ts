@@ -78,13 +78,13 @@ describe('arming a container', () => {
     expect(h.toasts.saw('cancelled')).toBe(true);
   });
 
-  it('refuses to arm with an empty bay, and says where to buy one', () => {
+  it('refuses to arm with an empty bay, and says where to craft one', () => {
     const h = harness(0);
 
     h.containers.toggleArmed();
 
     expect(h.containers.armed).toBe(false);
-    expect(h.toasts.saw('surface depot')).toBe(true);
+    expect(h.toasts.saw('Manufacturing Station')).toBe(true);
     expect(h.audio.played).toContain('alarm');
   });
 

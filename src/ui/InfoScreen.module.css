@@ -1,4 +1,7 @@
-/* See ShopScreen.module.css for why the modal `<dialog>` is fixed at inset 14px. */
+/* A native modal `<dialog>` lives in the top layer, so it is positioned against
+   the viewport rather than #game-panel — `inset: 14px` reproduces the panel box
+   (#shell's padding) exactly, and the UA backdrop is dropped because the dialog
+   paints the dimmed overlay itself. */
 .screen {
   position: fixed;
   inset: 14px;

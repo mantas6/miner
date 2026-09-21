@@ -19,15 +19,6 @@ import { MAX_ZOOM, MIN_ZOOM } from './zoom';
 
 function createActionsSpy() {
   return {
-    sell: vi.fn(),
-    refuel: vi.fn(),
-    repair: vi.fn(),
-    surfaceService: vi.fn(),
-    buyUpgrade: vi.fn(),
-    buyDynamite: vi.fn(),
-    buyTeleporter: vi.fn(),
-    buyScanner: vi.fn(),
-    buyContainer: vi.fn(),
     useTeleporter: vi.fn(),
     useRepairKit: vi.fn()
   } satisfies GameActions;
@@ -39,7 +30,6 @@ interface Harness {
   actions: ReturnType<typeof createActionsSpy>;
   move: ReturnType<typeof vi.fn>;
   restartGame: ReturnType<typeof vi.fn>;
-  closeShopScreen: ReturnType<typeof vi.fn>;
   closeShipScreen: ReturnType<typeof vi.fn>;
   closeInfoScreen: ReturnType<typeof vi.fn>;
   cancelPlacement: ReturnType<typeof vi.fn>;
@@ -65,7 +55,6 @@ function harness(): Harness {
     actions: createActionsSpy(),
     move: vi.fn(),
     restartGame: vi.fn(),
-    closeShopScreen: vi.fn(),
     closeShipScreen: vi.fn(),
     closeInfoScreen: vi.fn(),
     // Nothing armed by default, so Escape stays as unhandled as it ever was.
@@ -110,17 +99,13 @@ describe('phase gating', () => {
     const h = harness();
 
     press('s');
-    press('Enter');
     h.input.tick();
     expect(h.move).not.toHaveBeenCalled();
-    expect(h.actions.sell).not.toHaveBeenCalled();
 
     uiStore.getState().setPhase('playing');
     press('s');
     h.input.tick();
     expect(h.move).toHaveBeenCalledWith(0, 1, false);
-    press('Enter');
-    expect(h.actions.sell).toHaveBeenCalledOnce();
   });
 
   it('keeps counting ticks before the run so enemy cooldowns stay coherent', () => {
@@ -147,20 +132,15 @@ describe('phase gating', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
 
-    uiStore.getState().setActiveOverlay('shop');
+    uiStore.getState().setActiveOverlay('ship');
     press('Escape');
-    expect(h.closeShopScreen).toHaveBeenCalledOnce();
-    expect(h.actions.sell).not.toHaveBeenCalled();
+    expect(h.closeShipScreen).toHaveBeenCalledOnce();
 
-    // Opening the other overlay replaces the shop rather than stacking on it, so
-    // Escape only ever reaches one of them.
+    // Opening the other overlay replaces the ship screen rather than stacking on
+    // it, so Escape only ever reaches one of them.
     uiStore.getState().setActiveOverlay('info');
     press('Escape');
     expect(h.closeInfoScreen).toHaveBeenCalledOnce();
-    expect(h.closeShopScreen).toHaveBeenCalledOnce();
-
-    uiStore.getState().setActiveOverlay('ship');
-    press('Escape');
     expect(h.closeShipScreen).toHaveBeenCalledOnce();
 
     uiStore.getState().setActiveOverlay('container');
@@ -294,7 +274,7 @@ describe('restarting after a death', () => {
     expect(h.tryAutoAudio).toHaveBeenCalledOnce();
   });
 
-  it('ignores presses inside the shop and info dialogs', () => {
+  it('ignores presses inside the info dialog', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
     h.state.gameOver = true;
@@ -340,7 +320,7 @@ describe('wheel zoom', () => {
    */
   function gameSurface(): HTMLElement {
     document.body.innerHTML = '<section id="game-panel"><canvas id="game"></canvas>'
-      + '<dialog id="shop-screen"><div id="shopBody">Buy</div></dialog></section>';
+      + '<dialog id="info-screen"><div id="infoBody">Info</div></dialog></section>';
     return document.getElementById('game')!;
   }
 
@@ -400,8 +380,8 @@ describe('wheel zoom', () => {
     expect(viewport.targetZoom).toBe(1);
 
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('shop');
-    wheel(document.getElementById('shopBody')!, {deltaY: -120});
+    uiStore.getState().setActiveOverlay('info');
+    wheel(document.getElementById('infoBody')!, {deltaY: -120});
     expect(viewport.targetZoom).toBe(1);
 
     uiStore.getState().setActiveOverlay(null);

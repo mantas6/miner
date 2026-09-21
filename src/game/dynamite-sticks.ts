@@ -11,7 +11,6 @@
 // not survive a reload — an armed pointer restored from a save would swallow the
 // first click of the next run.
 
-import { ECONOMY } from '../core/balance';
 import {
   DYNAMITE,
   DYNAMITE_ITEM,
@@ -82,7 +81,7 @@ export function createDynamiteSticks(deps: DynamiteDeps): DynamiteSim {
     if (state.gameOver) return;
     if (countItem(state.player.inventory, DYNAMITE_ITEM.kind) <= 0) {
       audio.alarm();
-      return toast('No dynamite aboard. Buy a stick at the surface depot.');
+      return toast('No dynamite aboard. Craft a stick at the Manufacturing Station.');
     }
     if (state.placedDynamite.length >= DYNAMITE.maxPlaced) {
       audio.alarm();
@@ -123,7 +122,7 @@ export function createDynamiteSticks(deps: DynamiteDeps): DynamiteSim {
 
   /** The moment the fuse runs out: terrain, noise, and whatever was standing too close. */
   function detonate(stick: PlacedDynamite): void {
-    const radius = ECONOMY.dynamite.radius;
+    const radius = DYNAMITE.radius;
     grid.ensureRow(stick.y + radius);
     const targets = getDynamiteBlastTargets(grid.world, stick.x, stick.y, radius);
     for (const {x, y} of targets) grid.set(x, y, {type: 'air'});

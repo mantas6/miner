@@ -2,8 +2,8 @@
 // takes with it.
 //
 // A charge is no longer something the ship carries and sets off under itself.
-// It is a device: bought at the depot, carried in the cargo bay, planted on a
-// tile of the mine, and left there burning for five seconds. That is the whole
+// It is a device: crafted at the Manufacturing Station, carried in the cargo bay,
+// planted on a tile of the mine, and left there burning for five seconds. That is the whole
 // design — the delay is the cost. Everything the blast destroys is destroyed
 // without payout, and a ship still standing in the radius when the fuse runs out
 // pays for it in hull.
@@ -11,16 +11,18 @@
 // Everything here is pure and DOM-free: the placed stick is three numbers, and
 // the blast is a list of coordinates the caller applies to its own world.
 
-import { ECONOMY, HULL } from './balance';
+import { HULL } from './balance';
 import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
 import type { Tile } from './types';
 
 export const DYNAMITE = Object.freeze({
-  /** Fuse length, as the shop and the toasts word it. */
+  /** Fuse length, as the toasts word it. */
   fuseSeconds: 5,
   /** The same wait in fixed 60 Hz simulation steps. */
   fuseTicks: 5 * 60,
+  /** Blast radius, in tiles, centred on the planted stick. */
+  radius: 2,
   /**
    * Sticks that may burn at once. A soft cap: it keeps a save bounded, and it
    * keeps a whole stack from being emptied into one tunnel faster than the
@@ -104,7 +106,7 @@ export function dynamitePlacementRefusal(x: number, y: number, context: Dynamite
  * something and the centre is worth avoiding entirely.
  */
 export function dynamiteHullDamage(dx: number, dy: number): number {
-  const radius = ECONOMY.dynamite.radius;
+  const radius = DYNAMITE.radius;
   const distance = Math.hypot(dx, dy);
   if (distance > radius) return 0;
   return Math.round(HULL.dynamiteBlast * (1 - .5 * (distance / radius)));

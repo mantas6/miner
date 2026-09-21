@@ -1,20 +1,27 @@
 import { FUEL } from './balance';
 import { ORES, START_Y } from '../../shared/constants';
-import { cheapestUpgrade } from './economy';
+import { canCraft, RECIPES } from './crafting';
+import { isUpgradeKind, type Inventory } from './inventory';
 import { oreMinimumDepthMeters } from './prospecting';
 import type { Ore, Player } from './types';
 
-type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'hull' | 'hullMax' | 'cargoMax' | 'drill'>;
+type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'cargoMax' | 'equipment'>;
 
 export interface ObjectiveInput {
   player: ObjectivePlayer;
-  cash: number;
   cargoCount: number;
-  currentCargoValue: number;
   atSurface: boolean;
+  /** The ship's cargo bay, to see whether an upgrade is aboard waiting to be fitted. */
+  bay: Inventory;
+  /** The manufacturing station's stock, to see stored upgrades and craft materials. */
+  station: Inventory;
   ores?: Ore[];
   startY?: number;
 }
+
+/** The first ship upgrade the guidance nudges a fresh save toward crafting. */
+const FIRST_UPGRADE = 'upgrade:tank:1';
+const FIRST_UPGRADE_LABEL = 'Fuel Tank Mk I';
 
 export function currentDepthMeters(playerY: number, startY = START_Y): number {
   return Math.max(0, playerY - startY) * 10;
@@ -26,49 +33,41 @@ export function nextOreMilestone(depthMeters: number, ores: Ore[] = ORES, startY
   return { name: nextOre.name, depthMeters: oreMinimumDepthMeters(nextOre.min, startY) };
 }
 
+/** Whether any ship upgrade is fitted, in the bay, or stored at the station. */
+function hasAnyUpgrade(player: ObjectivePlayer, bay: Inventory, station: Inventory): boolean {
+  if (player.equipment.some(slot => slot !== null)) return true;
+  return [...bay, ...station].some(stack => isUpgradeKind(stack.kind));
+}
+
 export function formatExpeditionObjective({
   player,
-  cash,
   cargoCount,
-  currentCargoValue,
   atSurface,
+  bay,
+  station,
   ores = ORES,
   startY = START_Y
 }: ObjectiveInput): string {
-  const depth = currentDepthMeters(player.y, startY);
   const lowFuel = player.fuel <= player.fuelMax * FUEL.lowFuelFraction;
-  const nextUpgrade = cheapestUpgrade(player);
-  const projectedCash = cash + currentCargoValue;
 
   if (!atSurface && lowFuel) {
-    return `Objective: return to the surface now — fuel is ${Math.ceil(Math.max(0, player.fuel))}/${player.fuelMax}.`;
+    return 'Objective: return home and refuel at the Oil Extractor.';
   }
 
-  if (atSurface && currentCargoValue > 0) {
-    return `Objective: sell cargo for $${currentCargoValue}, then ${projectedCash >= nextUpgrade.cost ? `buy ${nextUpgrade.label}` : `save for ${nextUpgrade.label}`}.`;
+  if (cargoCount >= player.cargoMax) {
+    return 'Objective: return home and stow cargo at the Manufacturing Station.';
   }
 
-  if (atSurface && cash >= nextUpgrade.cost) {
-    return `Objective: buy ${nextUpgrade.label} for $${nextUpgrade.cost}, then dig deeper.`;
+  if (!hasAnyUpgrade(player, bay, station)) {
+    const recipe = RECIPES.find(entry => entry.output === FIRST_UPGRADE);
+    if (recipe && canCraft(station, recipe)) {
+      return `Objective: craft ${FIRST_UPGRADE_LABEL} at the Manufacturing Station.`;
+    }
+    return `Objective: mine Iron and Copper for ${FIRST_UPGRADE_LABEL}.`;
   }
 
-  if (cargoCount >= player.cargoMax && !atSurface) {
-    return `Objective: cargo full — return to sell $${currentCargoValue} and upgrade.`;
-  }
-
-  if (!atSurface && currentCargoValue > 0 && projectedCash >= nextUpgrade.cost) {
-    return `Objective: return and sell $${currentCargoValue}; ${nextUpgrade.label} is ready after sale.`;
-  }
-
-  if (!atSurface && currentCargoValue > 0 && (depth >= 60 || currentCargoValue >= Math.max(24, nextUpgrade.cost - cash))) {
-    return `Objective: bank this $${currentCargoValue} cargo at the depot before pushing deeper.`;
-  }
-
+  const depth = currentDepthMeters(player.y, startY);
   const nextOre = nextOreMilestone(depth, ores, startY);
-  if (cargoCount === 0 && depth < 60) {
-    return 'Objective: mine the starter Coal/Copper seam below the depot, then return to sell.';
-  }
-
   if (nextOre) {
     return `Objective: dig toward ${nextOre.name} around ${nextOre.depthMeters} m while keeping fuel for the trip home.`;
   }

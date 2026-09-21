@@ -39,7 +39,7 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     },
     {
       title: 'Fuel discipline',
-      detail: `At ${Math.round(FUEL.lowFuelFraction * 100)}% fuel, turn back toward home. Refuel and repair before the next deep push.`
+      detail: `At ${Math.round(FUEL.lowFuelFraction * 100)}% fuel, turn back toward home. Refuel at the Oil Extractor before the next deep push.`
     }
   ];
 }

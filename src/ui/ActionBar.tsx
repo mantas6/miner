@@ -14,7 +14,6 @@ import styles from './ActionBar.module.css';
 export function ActionBar() {
   const atSurface = useUiStore(state => state.hud.atSurface);
   const gameOver = useUiStore(state => state.hud.gameOver);
-  const cargoValue = useUiStore(state => state.hud.cargoValue);
   const teleporters = useUiStore(state => state.hud.teleporters);
   const teleportReturn = useUiStore(state => state.hud.teleportReturn);
   const teleportDepthReached = useUiStore(state => state.hud.teleportDepthReached);
@@ -30,17 +29,16 @@ export function ActionBar() {
     <div className={styles.actionBar}>
       {/* `hidden` is the only gate on where a button applies (the CSS hides it and
           the UA takes it out of the tab order); `disabled` only says why an
-          otherwise-visible button cannot fire, so the two never repeat a term. */}
-      <button id="sell" hidden={!atSurface} disabled={cargoValue <= 0} onClick={() => uiCommands.sell()}>Sell</button>
-      {/* The ship screen fits and unfits upgrades from the cargo bay; it needs no
+          otherwise-visible button cannot fire, so the two never repeat a term.
+          The ship screen fits and unfits upgrades from the cargo bay; it needs no
           proximity to a station, so the button is never hidden. */}
       <button
         id="shipBtn"
-        className={styles.openShopBtn}
+        className={styles.openShipBtn}
         onClick={event => { event.stopPropagation(); uiCommands.openShip(); }}
       >Ship</button>
       {/* Underground the button is only worth showing with a teleporter aboard;
-          at the depot it is the stored return point, not an item, that the trip
+          at home base it is the stored return point, not an item, that the trip
           back spends. */}
       <button
         id="teleporterBtn"

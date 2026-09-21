@@ -13,7 +13,7 @@
 // items held over its capacity — since neither side shows empty slots any more.
 //
 // The shell/card split, the fixed header over a scrolling body, and the backdrop
-// press are the shop's and the info screen's, for the same reasons.
+// press are the ship screen's and the info screen's, for the same reasons.
 
 import { useEffect, useRef, type RefObject } from 'react';
 import { CARGO_CONTAINER } from '../core/cargo-container';

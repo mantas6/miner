@@ -23,7 +23,7 @@ const RESET_CONFIRM_MS = 3500;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
-const DIALOG_SURFACES = '#shop-screen, #info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen';
+const DIALOG_SURFACES = '#info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen';
 
 const movementKeys: Record<string, Direction> = {
   arrowleft: [-1, 0], a: [-1, 0],
@@ -64,7 +64,6 @@ export interface GameInputDeps {
   /** Whether the ship would fly (not drill) into this direction's destination. */
   isOpenMovementDestination(dx: number, dy: number): boolean;
   restartGame(): void;
-  closeShopScreen(): void;
   closeShipScreen(): void;
   closeInfoScreen(): void;
   /** Stand down anything armed for placement. Reports whether the press was consumed. */
@@ -158,13 +157,9 @@ export function createInput(deps: GameInputDeps): GameInput {
     const ui = uiStore.getState();
     // The splash and the lobby are React's; they handle their own keys.
     if (ui.phase !== 'playing') return;
-    if (ui.activeOverlay === 'shop') {
+    if (ui.activeOverlay === 'ship') {
       // Escape is handled here so the dialog closes through the same path as the
       // buttons; preventDefault keeps the UA from also firing its close request.
-      if (key === 'escape') { deps.closeShopScreen(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'ship') {
       if (key === 'escape') { deps.closeShipScreen(); e.preventDefault(); e.stopPropagation(); }
       return;
     }
@@ -201,7 +196,6 @@ export function createInput(deps: GameInputDeps): GameInput {
       e.preventDefault();
       return;
     }
-    if (key === 'enter') { actions.sell(); e.preventDefault(); e.stopPropagation(); return; }
     // Space opens whichever home station the ship is parked beside.
     if (key === ' ') { deps.openNearest(); e.preventDefault(); e.stopPropagation(); return; }
     // E is the shortcut for the dynamite slot, not a detonator: it arms a stick
@@ -237,7 +231,7 @@ export function createInput(deps: GameInputDeps): GameInput {
   function handleRestartPointer(e: Event): void {
     if (!isPlaying() || !state.gameOver) return;
     const target = e.target as Element;
-    if (target.closest && target.closest('#info-screen, #shop-screen')) return;
+    if (target.closest && target.closest('#info-screen')) return;
     deps.tryAutoAudio(e);
     deps.restartGame();
     e.preventDefault();

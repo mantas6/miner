@@ -1,4 +1,4 @@
-/* See ShopScreen.module.css for why the modal `<dialog>` is fixed at inset 14px. */
+/* See InfoScreen.module.css for why the modal `<dialog>` is fixed at inset 14px. */
 .screen {
   position: fixed;
   inset: 14px;

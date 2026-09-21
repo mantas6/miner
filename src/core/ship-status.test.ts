@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatShipStatusAnnouncement, type ShipStatusInput } from './ship-status';
 
-/** A healthy ship parked at the depot with room in the holds. */
+/** A healthy ship parked at home base with room in the holds. */
 const parked: ShipStatusInput = {
   gameOver: false,
   atSurface: true,
@@ -15,7 +15,7 @@ function announcement(patch: Partial<ShipStatusInput>): string {
 
 describe('spoken ship status', () => {
   it('reports where the ship is', () => {
-    expect(announcement({})).toBe('At the surface depot.');
+    expect(announcement({})).toBe('At home base.');
     expect(announcement({atSurface: false})).toBe('In the mine.');
   });
 
@@ -25,7 +25,7 @@ describe('spoken ship status', () => {
     expect(announcement({atSurface: false, cargoFull: true, hullCritical: true}))
       .toBe('In the mine. Cargo hold full. Hull critical.');
     expect(announcement({cargoFull: true, hullCritical: true}))
-      .toBe('At the surface depot. Cargo hold full. Hull critical.');
+      .toBe('At home base. Cargo hold full. Hull critical.');
   });
 
   it('says only that the ship is gone once it is lost, and how to get another', () => {

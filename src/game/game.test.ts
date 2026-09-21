@@ -132,8 +132,8 @@ describe('booting the game', () => {
   });
 
   it('runs the whole input → move → terrain → HUD chain on a keypress', () => {
-    // The spoken status starts where the ship does, at the depot.
-    expect(text('game-status')).toBe('At the surface depot.');
+    // The spoken status starts where the ship does, at home base.
+    expect(text('game-status')).toBe('At home base.');
 
     press('s');
     renderFrame();

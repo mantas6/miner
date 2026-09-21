@@ -31,7 +31,6 @@ import { shouldAttemptAutoAudio } from '../audio/audio-permission';
 import { createDefaultStats, createInitialState, isAtHome } from '../core/state';
 import { createRenderer, type Renderer } from '../render/renderer';
 import { FUEL, REVEAL_FOOTPRINT } from '../core/balance';
-import { cargoCost, tankCost, hullCost, drillCost, cargoValue } from '../core/economy';
 import { countItem, totalItems, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
 import { nearestStation } from '../core/home';
 import { equip, unequip } from '../core/ship-upgrades';
@@ -51,10 +50,9 @@ import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast
 
 import { TELEPORTER_ITEM, advanceTeleportEffect, canTeleport, canUseTeleporter } from '../core/teleporter';
 import type { AudioController } from '../core/types';
-import { applyPlayerUpgrade, type PlayerUpgradeId } from '../core/upgrades';
 import { revealFootprint } from '../../shared/exploration-codec';
 import { confirmPlayerDataReset, resetPlayerData } from '../core/player-data-reset';
-import { DEVELOPER_CASH_GRANT, developerRefuel, developerRepairHull, grantDeveloperCash, type DeveloperServiceId } from '../core/developer';
+import { fillDeveloperExtractor, grantDeveloperOres } from '../core/developer';
 import { confirmWorldStateReset } from '../world/world-state';
 import { createFixedStepper } from '../core/fixed-step';
 import { recordTileDiff } from '../world/tile-diff';
@@ -182,8 +180,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   }
 
   function cargoUsed(){ return totalItems(state.player.inventory); }
-  function currentCargoValue(){ return cargoValue(state.player.inventory); }
-  /** Whether the ship is parked at the home base, where depot-style services live. */
+  /** Whether the ship is parked at the home base, where the stations live. */
   function atSurface(){ return isAtHome(state.player); }
 
   function spawnDust(x: number, y: number, color='#9d6a42', amount=10){
@@ -198,46 +195,26 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     }
   }
   // --- Cheat menu -----------------------------------------------------------
-  function grantDeveloperUpgrade(id: PlayerUpgradeId){
-    if (!applyPlayerUpgrade(state.player, id)) return toast('Developer upgrade already at maximum level.');
+  function grantDeveloperOresCheat(){
+    const granted = grantDeveloperOres(state);
     saveProgress();
     syncPlayerSnapshot();
-    toast('Developer action: upgrade granted for $0.');
+    // Repaint the station screen if it happens to be open, so the overflow shows.
+    if (homeStations.openStation === 'manufacturer') setStationUi(state.home.station.inventory);
+    toast(granted > 0 ? `Developer action: granted ${granted} ore for $0.` : 'Developer action: no room for more ore.');
   }
-  function grantDeveloperMoney(){
-    grantDeveloperCash(state);
+  function fillExtractorCheat(){
+    fillDeveloperExtractor(state);
     saveProgress();
-    toast(`Developer action: +$${DEVELOPER_CASH_GRANT.toLocaleString('en-US')} granted.`);
-  }
-  function runDeveloperService(id: DeveloperServiceId){
-    const changed = id === 'fuel'
-      ? developerRefuel(state.player)
-      : developerRepairHull(state.player);
-    if (!changed) return toast(id === 'fuel' ? 'Fuel tank already full.' : 'Hull already at full strength.');
-    saveProgress();
-    syncPlayerSnapshot();
-    toast(id === 'fuel' ? 'Developer action: refueled for $0.' : 'Developer action: hull repaired for $0.');
+    // Repaint the extractor screen if it is open, so the new buffers show at once.
+    if (homeStations.openStation === 'extractor') setExtractorUi({...state.home.extractor});
+    toast('Developer action: extractor stocked for $0.');
   }
 
   // --- Screens and UI sync -------------------------------------------------
-  /** Purchase confirmations, paired with the price each upgrade is charged at. */
-  const UPGRADE_PURCHASES: Record<PlayerUpgradeId, {cost(): number; message: string}> = {
-    cargo: {cost: () => cargoCost(state.player), message: 'Cargo bay expanded.'},
-    tank: {cost: () => tankCost(state.player), message: 'Fuel tank upgraded.'},
-    hull: {cost: () => hullCost(state.player), message: 'Hull reinforced.'},
-    drill: {cost: () => drillCost(state.player), message: 'Drill power increased.'}
-  };
-
   /** Register the button/dialog dispatch table the React tree calls into. */
   function registerUiCommands(){
     setUiCommands({
-      sell: () => actions.sell(),
-      refuel: () => actions.refuel(),
-      repair: () => actions.repair(),
-      buyUpgrade: id => actions.buyUpgrade(id, UPGRADE_PURCHASES[id].cost(), UPGRADE_PURCHASES[id].message),
-      buyDynamite: () => actions.buyDynamite(),
-      buyTeleporter: () => actions.buyTeleporter(),
-      buyScanner: () => actions.buyScanner(),
       // Only one press on the mine is available, so arming any deployable stands
       // the others down.
       toggleScannerPlacement: () => { dynamite.disarm(); containers.disarm(); scanners.toggleArmed(); },
@@ -246,10 +223,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeContainer: () => containers.close(),
       storeInContainer: (kind, single) => containers.store(kind, single),
       takeFromContainer: (kind, single) => containers.take(kind, single),
-      buyContainer: () => actions.buyContainer(),
       useTeleporter: () => actions.useTeleporter(),
-      openShop: openShopScreen,
-      closeShop: closeShopScreen,
       openShip: openShipScreen,
       closeShip: closeShipScreen,
       equipUpgrade: (kind, slot) => equipUpgrade(kind, slot),
@@ -268,9 +242,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toggleMusic: () => { void audio.toggleMusic(); },
       toggleSfx: () => { void audio.toggleSfx(); },
       playSolo: event => playSolo(event),
-      grantDeveloperCash: grantDeveloperMoney,
-      runDeveloperService,
-      grantDeveloperUpgrade,
+      grantDeveloperOres: grantDeveloperOresCheat,
+      fillExtractor: fillExtractorCheat,
       resetPlayerData: () => {
         if (!confirmPlayerDataReset(message => window.confirm(message))) return;
         progressSave.cancel();
@@ -310,17 +283,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const hadDynamite = dynamite.disarm();
     const hadDecor = decor.disarm();
     return containers.disarm() || hadDecor || hadDynamite || hadScanner;
-  }
-  function openShopScreen(){
-    if (!atSurface()) return toast('Shop is at the home base.');
-    // An overlay covers the mine, so a pointer armed for placement has nothing
-    // left to aim at.
-    disarmPlacements();
-    syncPlayerSnapshot();
-    uiStore.getState().setActiveOverlay('shop');
-  }
-  function closeShopScreen(){
-    uiStore.getState().closeOverlay('shop');
   }
   /** Push the current fitting slots to the store for the Ship screen to paint. */
   function syncShipUpgrades(){
@@ -472,16 +434,15 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     hudScratch.hullMax = p.hullMax;
     hudScratch.cargo = cargoUsed();
     hudScratch.cargoMax = p.cargoMax;
-    hudScratch.cargoValue = currentCargoValue();
     hudScratch.fuelAlert = lowFuel;
     hudScratch.hullAlert = shouldHullBarFlash(state);
     hudScratch.cargoAlert = shouldCargoBarFlash(state);
     hudScratch.objective = formatExpeditionObjective({
       player: p,
-      cash: state.cash,
       cargoCount: hudScratch.cargo,
-      currentCargoValue: hudScratch.cargoValue,
-      atSurface: surf
+      atSurface: surf,
+      bay: p.inventory,
+      station: state.home.station.inventory
     });
     hudScratch.atSurface = surf;
     hudScratch.gameOver = state.gameOver;
@@ -610,7 +571,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     store.setPhase('playing');
     claimFocusForRun();
     tryAutoAudio(event);
-    toast('Drill ready. Mine ore, sell it, and watch your fuel.');
+    toast('Drill ready. Mine ore, stow it at the home base, and watch your fuel.');
   }
 
   /**
@@ -668,7 +629,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       audio,
       toast,
       saveProgress,
-      addCash,
       atSurface
     });
     readouts = createReadouts({state, grid, enemies, atSurface, toast});
@@ -729,7 +689,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       move: movement.move,
       isOpenMovementDestination: movement.isOpenMovementDestination,
       restartGame: run.restartGame,
-      closeShopScreen,
       closeShipScreen,
       closeInfoScreen,
       cancelPlacement: disarmPlacements,

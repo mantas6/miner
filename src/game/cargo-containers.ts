@@ -112,7 +112,7 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
     if (state.gameOver) return;
     if (countItem(state.player.inventory, CARGO_CONTAINER_ITEM.kind) <= 0) {
       audio.alarm();
-      return toast('No container aboard. Buy one at the surface depot.');
+      return toast('No container aboard. Craft one at the Manufacturing Station.');
     }
     if (state.cargoContainers.length >= CARGO_CONTAINER.maxPlaced) {
       audio.alarm();
