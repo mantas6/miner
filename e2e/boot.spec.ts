@@ -26,11 +26,13 @@ test.describe('boot', () => {
   test('the press starts the run, focuses the canvas and shows the HUD', async ({page}) => {
     await startSoloRun(page);
     await expect(page.locator('#intro')).toHaveCount(0);
-    // The chrome the run needs: meters, readouts, and the depot actions.
+    // The chrome the run needs: meters, readouts, and the home-base actions.
     await expect(page.locator('#cash')).toHaveText('$60');
     await expect(page.locator('#depth')).toHaveText('0 m');
     await expect(page.locator('#fuelLabel')).toHaveText('100/100');
-    await expect(page.locator('#shopBtn')).toBeVisible();
+    // The Ship button is always visible: it fits and unfits upgrades from the
+    // cargo bay and needs no proximity to a station.
+    await expect(page.locator('#shipBtn')).toBeVisible();
     await expect(page.locator('#infoBtn')).toBeVisible();
     // The loop has run at least once against the generated world: the scanner is
     // reading the real tile under the ship instead of its pre-boot placeholder.

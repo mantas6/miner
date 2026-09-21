@@ -104,7 +104,7 @@ export async function readFuel(page: Page): Promise<number> {
 /**
  * Open an overlay through the game's own command table instead of its button.
  *
- * Needed for exactly one thing: "shop and info requested at the same time". Both
+ * Needed for exactly one thing: "ship and info requested at the same time". Both
  * are modal `<dialog>`s, so while one is up the button that opens the other is
  * inert and genuinely unclickable — which is the whole point of `activeOverlay`
  * being one field. There is therefore no pointer path into the case, and the
@@ -113,15 +113,15 @@ export async function readFuel(page: Page): Promise<number> {
  * This is not a test hook bolted onto production code: the dev server serves the
  * app's own ES modules, so importing `/src/ui/commands.ts` by its module URL hands
  * back the very table `game.ts` registered into, and the call goes through
- * `openShopScreen()`/`openInfoScreen()` exactly as a click would.
+ * `openShipScreen()`/`openInfoScreen()` exactly as a click would.
  */
-export async function openOverlayDirectly(page: Page, overlay: 'shop' | 'info'): Promise<void> {
+export async function openOverlayDirectly(page: Page, overlay: 'ship' | 'info'): Promise<void> {
   await page.evaluate(async name => {
     // Held in a variable so TypeScript treats it as a runtime URL rather than a
     // module it should resolve from this config.
     const specifier = '/src/ui/commands.ts';
-    const {uiCommands} = await (import(specifier) as Promise<{uiCommands: {openShop(): void; openInfo(): void}}>);
-    if (name === 'shop') uiCommands.openShop();
+    const {uiCommands} = await (import(specifier) as Promise<{uiCommands: {openShip(): void; openInfo(): void}}>);
+    if (name === 'ship') uiCommands.openShip();
     else uiCommands.openInfo();
   }, overlay);
 }

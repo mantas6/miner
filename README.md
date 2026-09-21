@@ -4,7 +4,10 @@
 <https://mantas6.github.io/miner-mp/>; run it locally with Vite (`npm run dev`)
 or build with `npm run build`.
 
-A small browser-based Motherload-style mining game. Mine ore, return to the surface depot, sell cargo, upgrade the ship, and survive deeper hazards/enemies as the mine keeps going down.
+A small browser-based Motherload-style mining game. The ship lives in an
+underground home cavern; mine ore, haul it back to the home base, craft ship
+upgrades and gear at the Manufacturing Station, brew fuel from coal at the Oil
+Extractor, and survive deeper hazards/enemies as the mine keeps going down.
 
 The client is React + TypeScript around a canvas: React paints the chrome from a
 zustand store, the canvas renders the mine, and the simulation runs in fixed
@@ -19,13 +22,26 @@ cracked blocks stay where you left them. The save keeps the newest 20,000
 mutations and forgets older ones rather than outgrowing `localStorage`.
 
 The ship is part of that mine. The save records the tile it parked on, so a
-refresh resumes down the shaft instead of at the depot — with a full tank, a
+refresh resumes down the shaft instead of at the home base — with a full tank, a
 whole hull and an empty cargo bay, since none of those are saved. Only dying
 costs you your position. If the restored mine turns out to be solid rock at that
-tile (a capped save), the ship starts at the depot rather than buried, because
-the drill cannot dig upward.
+tile (a capped save), the ship starts at the home base rather than buried,
+because the drill cannot dig upward.
 
-Underground fog of war is persistent. Movement permanently reveals a fixed 3x3 square around the ship. Surface rows are always visible.
+The save is version 15 and a clean break: every save written by an older build is
+discarded on load rather than migrated, because the underground-home rework
+changed the shape too much to convert honestly (the four ship stats became
+derived from fitted equipment, the item counters became one `bay` of stacks, and
+the home base gained persisted state). A returning player from an older build
+starts fresh. What the save keeps: the parked tile, cash, the tile diff, explored
+tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the home base
+(the Manufacturing Station's stock and the Oil Extractor's coal/fuel), and the
+hardware left running in the mine (scanners, dynamite, crates with their
+contents). Ore aboard the ship is never saved — it is lost with the run.
+
+Underground fog of war is persistent. Movement permanently reveals a fixed 3x3
+square around the ship. The indestructible bedrock ceiling above the home cavern
+is always visible.
 
 ## Project structure
 
@@ -98,15 +114,15 @@ miner-mp/
 |---|---|
 | `AGENTS.md` | Working agreements for anyone changing the code: avoid UI clutter, keep the rules pure, verify with `./test.sh`. |
 | `index.html` | Main game page and root mount node; loaded by Vite. |
-| `shared/constants.ts` | World constants, camera scale (36px tiles), persistence limits, ore and artifact tables. |
+| `shared/constants.ts` | World constants, the home-cavern layout and station positions, camera scale (36px tiles), persistence limits, and the ore table (Iron included). |
 | `shared/exploration-codec.ts` | Fog-of-war index math and the run-length encoding used by persistence. |
 | `shared/world-schema.ts` | Zod schemas and derived types for tiles, enemies, and the persisted world state. |
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, economy, upgrades, shop catalog, movement, dynamite, teleporter, cargo containers, enemies, objectives, extraction, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the home base and oil extractor (`home.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation, the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts` — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
 | `src/audio/tracks.ts` | Track registry for playback: the `TrackId` union, `TRACKS` (title plus mp3/ogg URLs), `DEFAULT_TRACK_ID`. |
@@ -118,7 +134,7 @@ miner-mp/
 | `public/assets/music/` | The shipped soundtrack assets (`golden-signal.mp3`, `golden-signal.ogg`) — build products of `soundtrack/render.py`, copied verbatim into `dist/` by Vite. |
 | `src/ui/` | React components, the zustand UI store (`store.ts`), the command table the buttons dispatch into (`commands.ts`), the effect that owns the runtime's lifetime (`useGameRuntime.ts`), the boot/crash notices (`Failure.tsx`), and co-located CSS modules. |
 | `src/styles/base.css` | Design tokens plus element-level styling (`button`, `ul`, `kbd`, `meter`, `canvas`, `#shell`, `#game-panel`) and the app-wide `:focus-visible` ring. |
-| `src/styles/icons.css` | Global equipment sprite sheet (`icon-*`), addressed by name from the shop catalog. |
+| `src/styles/icons.css` | Global equipment sprite sheet (`icon-*`), addressed by name from the item catalog. |
 | `src/styles/intro-art.css` | Global intro badge art. |
 | `vite.config.ts` | Vite build config (relative `base`, React Fast Refresh) and Vitest test config. Vitest only collects `src/**` and `shared/**`, so `e2e/` is never picked up by `npm test`. |
 | `tsconfig.test.json` | The test half of `npm run typecheck`: the same strict options plus `vitest/globals`, which `tsconfig.json` withholds from production source. |
@@ -198,14 +214,15 @@ npm run preview
 
 ## Cheats
 
-The cheat menu — cash grants, free refuel/repair, free upgrades, and the player
-and world reset controls — lives in the **Settings** tab of Info / Cargo, behind
-a "Show cheat menu" disclosure. It is available in every build with no
-environment opt-in, and it is mounted only while that disclosure is expanded.
+The cheat menu — **Grant ores** (fills the cargo bay, then the station stock,
+with a bundle of every ore), **Fill extractor** (queues coal and stores fuel),
+and the player and world reset controls — lives in the **Settings** tab of Info /
+Cargo, behind a "Show cheat menu" disclosure. It is available in every build with
+no environment opt-in, and it is mounted only while that disclosure is expanded.
 
 The world reset regenerates terrain, enemies, caches, and fog while preserving
-the player's cash, upgrades, inventory/cargo, stats, ship condition, and
-settings.
+the player's cash, fitted equipment, inventory/cargo, home base, stats, ship
+condition, and settings.
 
 ## Controls
 
@@ -217,13 +234,15 @@ zooming the camera with the wheel or a trackpad.
 |---|---|---|
 | Start a run | `Enter` or `Space` | Click/tap intro screen |
 | Move / fly / dig | `WASD` or arrow keys | — |
-| Sprint through open space | Hold `Shift` + direction | — |
+| Sprint through open space (needs a fitted Booster) | Hold `Shift` + direction | — |
 | Zoom the camera (0.5x–2x, remembered) | — | Wheel scroll or trackpad pinch over the mine |
-| Sell cargo at the depot | `Enter` | Sell button |
-| Depot service | `Space` (sells cargo first, then refuels, then repairs) | Shop & Equipment -> Refuel / Repair |
+| Open the home station in reach (Manufacturing Station / Oil Extractor) | `Space` | Press the station tile on the mine |
+| Ship equipment (fit/unfit upgrades) | — | Ship button |
+| Use a repair kit (patch the hull) | — | Repair Kit inventory slot |
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
 | Deploy a scanner | — | Scanner inventory slot, then a mine tile |
 | Set a cargo container down | — | Container inventory slot, then a mine tile |
+| Set a decoration down | — | Decoration inventory slot, then a mine tile |
 | Open a placed cargo container (on it or beside it) | `C` | Press the crate on the mine |
 | Move a stack between the crate and the bay | — | Press the stack in either column |
 | Cancel a placement | `Escape` | The armed slot again |
@@ -248,64 +267,125 @@ zooming the camera with the wheel or a trackpad.
   driven from the keyboard keeps its ring. `e2e/focus-visible.spec.ts` pins both.
 - **State outside the canvas.** The meters and readouts are text, the toast and the
   fuel banner are live regions, and `#game-status` politely announces the ship's
-  situation — at the depot, in the mine, holds full, hull critical, ship lost. It is
+  situation — at home base, in the mine, holds full, hull critical, ship lost. It is
   driven by thresholds, so the 60 Hz HUD sync never makes it talk.
-- **Native dialogs.** The intro prompt is a `<button>`; the shop, info and
-  cargo-container overlays are modal `<dialog>`s, so the browser contains Tab,
-  makes the rest of the page inert, and each close returns focus to the control
-  that opened it.
+- **Native dialogs.** The intro prompt is a `<button>`; the ship, info,
+  Manufacturing Station, Oil Extractor and cargo-container overlays are modal
+  `<dialog>`s, so the browser contains Tab, makes the rest of the page inert, and
+  each close returns focus to the control that opened it.
 - **`prefers-reduced-motion`.** The looping start-prompt, low-fuel and HUD-alert
   animations stop; the alert colours stay.
 
 ## Gameplay notes
 
-- You start with limited cash, fuel, hull, cargo capacity, and drill power.
-- Dig ore, return to the surface, and sell cargo for cash.
+- You start with a full 100-unit tank, a full 100 hull, a 20-item cargo bay, and
+  drill power 1, from the `STARTING` base in `src/core/balance.ts`. Those four ship
+  stats are not fixed — they are *derived* from the upgrades fitted to the ship
+  (see below).
+- Dig ore, fly it back to the home cavern, and stow it at the Manufacturing
+  Station. Ore is only useful as a crafting material now — there is no shop and
+  nothing is bought or sold.
 - The cargo bay (`src/core/inventory.ts`) holds a total *item count*, not a fixed
   number of slots, shown as a collapsible HUD panel. Each ore type stacks in one
-  row, but what limits a load is the sum of every stack against the Cargo Bay
-  upgrade's capacity — equipment counts toward it too, so a bay crammed with tools
-  mines less ore. A fresh bay holds 20 items; each Cargo Bay level adds 10, up to
-  1000. Selling empties every ore stack at once and frees that room again.
-- Refuel and repair at the surface depot.
-- The depot shop sells four upgrades — Cargo Bay, Fuel Tank, Hull, Drill — plus
-  the consumables: dynamite, teleporters, scanners, and cargo containers. Upgrade
-  prices rise with each level; consumables are a flat price each.
-- Artifacts pay out immediately in cash and never take a cargo slot; dynamite
-  destroys valuables without any payout.
-- Dynamite and scanners are carried in the cargo bay and placed from their own
-  inventory slot onto explored, cleared ground. A planted stick blows a 2-tile
-  radius five seconds later — long enough to get clear, and close enough to
+  row, but what limits a load is the sum of every stack against the ship's cargo
+  capacity — equipment counts toward it too, so a bay crammed with tools mines less
+  ore. A fresh bay holds 20 items; each fitted Cargo Hold upgrade adds 10/20/40.
+- Ten ores run Coal, Iron, Copper, Silver, Gold, Ruby, Emerald, Alienite, Uranium,
+  Core Shard, getting richer with depth. Iron sits between Coal and Copper and is
+  the backbone of the low-tier recipes.
+
+### Home base
+
+The ship lives in a small deterministic cavern carved into the top of the mine;
+solid bedrock caps the world above it, so there is no surface and the depth meter
+reads 0 m at home. Two fixed stations sit on the cavern floor — fly onto or beside
+one and press `Space` (or click its tile) to open it.
+
+- **Manufacturing Station.** Stow cargo here (its stock holds up to 500 items),
+  take stacks back aboard, and craft. Crafting consumes from the station stock and
+  the result lands back in the stock — take it aboard afterwards. The recipe table
+  lives in `src/core/crafting.ts`:
+
+  | Output | Inputs |
+  |---|---|
+  | Repair Kit | 3 Iron |
+  | Dynamite | 2 Coal + 1 Iron |
+  | Scanner | 2 Copper + 1 Silver |
+  | Container | 6 Iron |
+  | Teleporter | 3 Silver + 2 Gold |
+  | Fuel Tank / Cargo Hold / Drill / Hull Plating **Mk I** | 4 Iron + 2 Copper |
+  | … **Mk II** | 3 Silver + 3 Gold |
+  | … **Mk III** | 2 Ruby + 2 Emerald + 1 Alienite |
+  | Booster | 3 Copper + 2 Coal + 1 Silver |
+  | Steel Plate (decor) | 2 Iron |
+  | Copper Trim (decor) | 2 Copper |
+  | Lamp Panel (decor) | 1 Copper + 1 Coal |
+
+- **Oil Extractor.** Fuel comes from coal now, not a pump. Load coal here and it
+  converts on the simulation's own clock — 1 coal → 20 fuel every 180 ticks (~3 s),
+  banked up to a 500-fuel store (`EXTRACTOR` in `src/core/balance.ts`). The
+  conversion runs whether or not you are watching; "Refuel ship" tops the tank up
+  from the store.
+
+### Crafting & ship equipment
+
+- The ship carries **2 equipment slots** (`SHIP_UPGRADE_SLOTS`). Fit and unfit
+  crafted upgrades from the bay through the **Ship** button, which opens anywhere.
+  The four stat upgrades come in three marks and their bonuses are additive, so two
+  of the same upgrade stack; duplicates in both slots are allowed
+  (`src/core/ship-upgrades.ts`):
+
+  | Upgrade | Effect | Mk I | Mk II | Mk III |
+  |---|---|---|---|---|
+  | Fuel Tank | +fuel capacity | +50 | +100 | +200 |
+  | Cargo Hold | +cargo capacity | +10 | +20 | +40 |
+  | Drill | +drill power | +1 | +2 | +4 |
+  | Hull Plating | +hull capacity | +50 | +100 | +200 |
+  | Booster | enables the `Shift` sprint | — | — | — |
+
+  The Booster is Mk I only and carries no stat: it is the gate on the `Shift`
+  sprint, which does nothing until one is fitted.
+- The **Repair Kit** is crafted, carried in the bay, and spent from its own slot to
+  patch 25% of the hull maximum; it is refused at a full hull.
+- Dynamite and scanners are crafted, carried in the cargo bay, and placed from
+  their own inventory slot onto explored, cleared ground. A planted stick blows a
+  2-tile radius five seconds later — long enough to get clear, and close enough to
   wreck a ship that did not.
-- Teleporters ride in the bay too, and are also spent rather than placed: from
-  100 m or deeper one takes the ship to the depot and leaves a return point
-  behind. The trip up costs the item; the trip back is free.
-- Cargo containers (`src/core/cargo-container.ts`) are the one purchase that is
-  never used up. Set one down on explored, cleared ground from its inventory slot
-  and it becomes a 50-item store standing in the mine, obeying the same stacking
-  rules as the bay. Press it from an adjacent tile — or `C` while on or beside it —
-  to open a two-column transfer menu; a press on a stack sends it to the other
-  side, up to whatever room the destination has left, and Ctrl-click (⌘ on a Mac)
-  moves just one item of the stack. A crate keeps what it holds
-  through death, reload and the sale of everything aboard, which makes it the only
-  way to protect ore from a lost run. Anything taken back out still counts against
-  the Cargo Bay upgrade's capacity, so a crate buys storage, never carrying
-  capacity. Six may stand in the mine at once.
-- Low fuel warnings appear below 25%; return to the surface quickly.
+- Teleporters ride in the bay too, and are spent rather than placed: from 100 m or
+  deeper one takes the ship home and leaves a return point behind. The trip up
+  costs the item; the trip back is free.
+- **Decorations** — Steel Plate, Copper Trim, Lamp Panel — are crafted panels set
+  down as solid tiles from their inventory slot onto explored, cleared ground
+  (never on a station tile). Drilling one back out returns the panel to the bay;
+  a blast destroys it outright.
+- Cargo containers (`src/core/cargo-container.ts`) are the one piece of gear that
+  is never used up. Set one down on explored, cleared ground from its inventory
+  slot and it becomes a 50-item store standing in the mine, obeying the same
+  stacking rules as the bay. Press it from an adjacent tile — or `C` while on or
+  beside it — to open a two-column transfer menu; a press on a stack sends it to
+  the other side, up to whatever room the destination has left, and Ctrl-click (⌘
+  on a Mac) moves just one item of the stack. A crate keeps what it holds through
+  death and reload, which makes it the only way to protect ore from a lost run.
+  Anything taken back out still counts against the ship's cargo capacity, so a
+  crate buys storage, never carrying capacity. Six may stand in the mine at once.
+
+### Hazards and descent
+
+- Low fuel warnings appear below 25%; head home to refuel quickly.
 - The HUD reserve readout forecasts the climb home (safe/caution/urgent), the
   scanner reads the tile the drill is aimed at, and the depth readout counts
   down to the next landmark and toasts when you cross one.
 - Drilling upward is blocked; use tunnels to fly back up.
 - Side-drilling requires solid ground under the ship.
 - Rock, magma pockets, depth, and enemies make deeper mining more dangerous:
-  Tunnel Fiends first, then Skitterlings, Ironbacks, and Abyss Stalkers.
+  Tunnel Fiends first, then Skitterlings, Ironbacks, and Abyss Stalkers. They are
+  drawn as rusted, haunted versions of the player's own ship.
 - Enemies wake when exposed nearby; drill them before they chew through the hull.
-- The mine has no bottom: the run's goal is to keep hauling richer loads up alive,
-  upgrading, and setting depth records. A Motherlode core sits at 10,000 m as a
-  bonus landmark — crack it, then return alive to the depot to bank the extraction.
-- Progress (cash, upgrades, stats, explored tiles, the mine you dug, and where you
-  parked) is saved locally; death keeps all of it and costs you the cargo and your
-  position.
+- The mine has no bottom: the run's goal is to keep hauling richer loads home
+  alive, crafting better equipment, and setting depth records.
+- Progress (cash, fitted equipment, the bay, the home base, stats, explored tiles,
+  the mine you dug, and where you parked) is saved locally; death keeps all of it
+  and costs you the cargo aboard and your position.
 - The camera zoom is remembered too, but as a preference rather than progress:
   it is stored under `moleload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
   clamped back into the 0.5x–2x range on load, and survives a death, a fresh
@@ -445,8 +525,8 @@ the boot flow gets from the splash to a live run without the browser complaining
 | Spec | Covers |
 |---|---|
 | `e2e/boot.spec.ts` | The title card and its start button; `Enter` and "press anywhere" both starting a run with the canvas focused, the HUD painted and the scanner reading real terrain; the canvas being the surface's only tab stop; the whole flow producing no console errors and no page errors. |
-| `e2e/gameplay.spec.ts` | One keypress charged exactly once and clearing exactly one tile (the fence against a doubled input/step pipeline); depth rising and fuel falling over a descent; the depot actions swapping for the underground ones, live region included; focus staying on the canvas while mining. |
-| `e2e/dialogs.spec.ts` | Shop and info opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the two overlays handing the screen over rather than stacking. |
+| `e2e/gameplay.spec.ts` | One keypress charged exactly once and clearing exactly one tile (the fence against a doubled input/step pipeline); depth rising and fuel falling over a descent; digging below the home cavern dropping the ship into the mine, live region included; crafting a scanner at the Manufacturing Station and taking it aboard; deploying a scanner and planting dynamite on the mine; focus staying on the canvas while mining. |
+| `e2e/dialogs.spec.ts` | Ship, station and info dialogs opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the ship and info overlays handing the screen over rather than stacking. |
 | `e2e/focus-visible.spec.ts` | The ring drawn for `Tab` (3px, and inset on the canvas) and gone for a click that moves focus, including the focus a clicked-shut dialog restores. |
 | `e2e/failure.spec.ts` | A refused 2D context — stubbed with an init script — surfacing as the "Mine offline" notice with its detail line, its `role="alert"` and a working Reload, while the crash boundary stays out of it. |
 
@@ -457,7 +537,7 @@ Two notes on how the suite is wired:
   there. `playwright.config.ts` starts `npm run dev` on port 5199 itself.
 - **One deliberate white box.** `openOverlayDirectly()` in `e2e/support/game.ts`
   imports the app's own `src/ui/commands.ts` through the dev server to request an
-  overlay. It exists because "shop and info at once" has no pointer path — while one
+  overlay. It exists because "ship and info at once" has no pointer path — while one
   is up the other's button is inert, which is the property being tested. Everything
   else in the suite is keys and clicks on documented element ids.
 

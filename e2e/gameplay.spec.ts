@@ -9,9 +9,10 @@
 //   drilling   + 0.90 surcharge, then x1.5        = 1.845 fuel per drill hit
 //
 // and the HUD rounds up, so 100 → 98.155 reads `99/100` and 96.31 reads `97/100`.
-// The surface shaft's first tile is dirt with 2 hp against a starting drill of 1,
-// so it takes exactly two hits to clear and the ship then stands one tile down —
-// 10 m. If balance moves, these constants move with it.
+// The ship spawns on the home-cavern floor (`HOME_ROW`, depth 0 m), and the first
+// tile below it is dirt with 2 hp against a starting drill of 1, so it takes
+// exactly two hits to clear and the ship then stands one tile down — 10 m. If
+// balance moves, these constants move with it.
 
 import { expect, test } from '@playwright/test';
 import { collectPageFailures, drillDown, readDepth, readFuel, startSoloRun } from './support/game';
@@ -41,8 +42,8 @@ test.describe('gameplay', () => {
     await startSoloRun(page);
 
     let fuel = await readFuel(page);
-    // Ten hits are more than enough to get clear of the surface shaft, whatever
-    // the generator put under it.
+    // Ten hits are more than enough to get clear of the home cavern floor,
+    // whatever the generator put under it.
     for (let hit = 0; hit < 10; hit++) {
       await drillDown(page);
       const remaining = await readFuel(page);
@@ -54,93 +55,99 @@ test.describe('gameplay', () => {
     expect(failures).toEqual([]);
   });
 
-  test('leaving the surface swaps the depot actions for the underground ones', async ({page}) => {
-    // The teleport button is the underground action here, and it only appears
-    // with a teleporter in the bay, so the run starts with one aboard.
-    await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({version: 9, teleporters: 1}));
-    });
+  test('digging below home leaves the base and drops into the mine', async ({page}) => {
     await startSoloRun(page);
-    await expect(page.locator('#shopBtn')).toBeVisible();
-    await expect(page.locator('#teleporterBtn')).toBeHidden();
-    // The live region is at the depot until the ship is actually below it.
-    await expect(page.locator('#game-status')).toHaveText('At the surface depot.');
+    // The ship spawns on the home-cavern floor, so depth reads zero and the live
+    // region says it is at the base. The Ship button is always available.
+    await expect(page.locator('#depth')).toHaveText('0 m');
+    await expect(page.locator('#shipBtn')).toBeVisible();
+    await expect(page.locator('#game-status')).toHaveText('At home base.');
 
+    // Two hits clear the dirt tile below and the ship stands one tile down.
     await drillDown(page);
     await drillDown(page);
     await expect(page.locator('#depth')).toHaveText('10 m');
 
-    await expect(page.locator('#shopBtn')).toBeHidden();
-    await expect(page.locator('#sell')).toBeHidden();
-    await expect(page.locator('#teleporterBtn')).toBeVisible();
+    // Below the cavern floor the ship is out in the mine, and the depth tracker
+    // counts down to the next landmark rather than up from zero.
     await expect(page.locator('#game-status')).toHaveText('In the mine.');
-    // The depth tracker counts down to the next landmark rather than up from zero.
     await expect(page.locator('#depthTarget')).toContainText('m to');
   });
 
   /**
-   * The scanner's whole control surface is the slot that holds it, so this walks
-   * the browser path the unit tests cannot: a restored save putting one in the
-   * bay, a real purchase stacking onto it, and the armed state a press and an
-   * Escape move it between.
+   * The manufacturing station is where consumables come from now, so this walks
+   * the browser path the unit tests cannot: a restored save parking the ship
+   * beside the station with the scanner recipe's materials in its stock, then the
+   * craft-and-take round trip that lands the device in the bay as its own armable
+   * slot.
    *
-   * The wallet and the first device are seeded through the save file rather than
-   * earned, because everything under test here happens at the depot and mining
-   * $50 of ore first would test the drill instead.
+   * The materials are seeded into the station rather than mined, because
+   * everything under test here happens at the base and digging up 2 Copper and a
+   * Silver first would test the drill instead. The ship's `x`/`y` put it one tile
+   * from the manufacturing station (`STATIONS.manufacturer` at `HOME_X-3`).
    */
-  test('a bought scanner is carried in the bay and arms from its own slot', async ({page}) => {
+  test('a scanner crafted at the manufacturing station is taken aboard', async ({page}) => {
     await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({version: 6, cash: 5000, scanners: 1}));
+      localStorage.setItem('moleload-progress-v1', JSON.stringify({
+        version: 15,
+        x: 43,
+        y: 10,
+        home: {station: [{kind: 'ore:Copper', count: 2}, {kind: 'ore:Silver', count: 1}]}
+      }));
     });
     await startSoloRun(page);
+
+    // Space opens the station the ship is parked beside; its stock holds the
+    // recipe's ore.
+    await page.keyboard.press(' ');
+    await expect(page.locator('#station-screen')).toBeVisible();
+    await expect(page.locator('[data-station-take="ore:Copper"]')).toBeVisible();
+
+    // Crafting the scanner consumes the ore and lands the device in the stock.
+    await page.locator('[data-craft="scanner"]').click();
+    await expect(page.locator('[data-station-take="scanner"]')).toBeVisible();
+    await expect(page.locator('[data-station-take="ore:Copper"]')).toHaveCount(0);
+
+    // Take it aboard and close the station: it shows up in the cargo bay as its
+    // own armable slot, counting toward the bay's capacity.
+    await page.locator('[data-station-take="scanner"]').click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#station-screen')).toBeHidden();
 
     const slot = page.locator('#scannerSlotBtn');
     await expect(slot).toHaveText('Scanner×1');
     await expect(slot).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#inventoryToggleBtn')).toContainText('1/20');
 
-    await page.locator('#shopBtn').click();
-    await page.locator('#shopScannerBtn').click();
-    await expect(page.locator('[data-shop-item="scanner"] [data-shop-current]')).toHaveText('Carried: 2');
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#shop-screen')).toBeHidden();
-
-    await expect(slot).toHaveText('Scanner×2');
+    // Arming and standing the device down again is the slot's whole control
+    // surface, and it never leaves the bay while doing so.
     await slot.click();
     await expect(slot).toHaveAttribute('aria-pressed', 'true');
-
-    // A press on the mine is answered by the tile it actually landed on: halfway
-    // down the canvas is deep, unsurveyed rock, and a refusal costs nothing.
-    const canvas = page.locator('#game');
-    const box = (await canvas.boundingBox())!;
-    await canvas.click({position: {x: box.width * 0.55, y: box.height * 0.5}});
-    await expect(page.locator('#toast')).toContainText('already explored');
-    await expect(slot).toHaveText('Scanner×2');
-    await expect(slot).toHaveAttribute('aria-pressed', 'true');
-
-    // Escape stands the pointer down again without spending the device.
     await page.keyboard.press('Escape');
     await expect(slot).toHaveAttribute('aria-pressed', 'false');
-    await expect(slot).toHaveText('Scanner×2');
+    await expect(slot).toHaveText('Scanner×1');
   });
 
   /**
    * The other half of the gesture: a press on the mine puts the device on the
-   * tile that was pressed. The save below hollows out and surveys rows 5–20 of
-   * the whole mine, so every point in the middle of the canvas is a legal target
-   * whatever size the browser window happens to be — the test is about the
-   * screen-to-tile conversion, not about aiming.
+   * tile that was pressed. The save below hollows out and surveys rows 8–45 of
+   * the whole mine — the band starts at the cavern ceiling (`HOME_CAVERN_TOP`),
+   * the first row exploration is allowed to record, and runs deep enough that the
+   * middle of the canvas is a legal target whatever the framing, since the ship
+   * now spawns down at the home cavern floor rather than at the top of the world.
+   * The test is about the screen-to-tile conversion, not about aiming.
    */
   test('a press on the mine deploys the armed scanner and spends it', async ({page}) => {
     await page.addInitScript(() => {
       const worldWidth = 90;
       const tiles = [];
-      for (let y = 5; y <= 20; y++) {
+      for (let y = 8; y <= 45; y++) {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 6,
-        scanners: 1,
-        explored: `${5 * worldWidth}-${21 * worldWidth - 1}`,
+        version: 15,
+        bay: [{kind: 'scanner', count: 1}],
+        explored: `${8 * worldWidth}-${46 * worldWidth - 1}`,
         tiles
       }));
     });
@@ -166,19 +173,21 @@ test.describe('gameplay', () => {
    * Dynamite is placed the same way, but it is the fuse that makes it worth an
    * end-to-end test: the stick has to leave the bay on the press, sit on the tile
    * for five real seconds, and then go off on its own with nothing else touching
-   * it. The same hollowed-out, surveyed mine as the scanner test above.
+   * it. The same hollowed-out, surveyed mine as the scanner test above; the stick
+   * goes well below the ship (which sits near the middle of the canvas now that it
+   * spawns at the cavern floor) so the blast is not the ship's own.
    */
   test('a planted stick leaves the bay, burns its fuse, and blows on its own', async ({page}) => {
     await page.addInitScript(() => {
       const worldWidth = 90;
       const tiles = [];
-      for (let y = 5; y <= 20; y++) {
+      for (let y = 8; y <= 45; y++) {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 7,
-        dynamite: 2,
-        explored: `${5 * worldWidth}-${21 * worldWidth - 1}`,
+        version: 15,
+        bay: [{kind: 'dynamite', count: 2}],
+        explored: `${8 * worldWidth}-${46 * worldWidth - 1}`,
         tiles
       }));
     });
@@ -197,7 +206,9 @@ test.describe('gameplay', () => {
 
     const canvas = page.locator('#game');
     const box = (await canvas.boundingBox())!;
-    await canvas.click({position: {x: box.width * 0.55, y: box.height * 0.5}});
+    // Low on the canvas: several tiles below the centred ship, clear of the
+    // 2-tile blast so the detonation is not a "caught in your own blast" refusal.
+    await canvas.click({position: {x: box.width * 0.55, y: box.height * 0.85}});
 
     await expect(page.locator('#toast')).toContainText('Fuse lit');
     // The stick left the bay with the press; the other one is still aboard.

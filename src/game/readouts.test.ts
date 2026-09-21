@@ -42,7 +42,7 @@ function setup(fill: (x: number, y: number) => Tile = () => ({type: 'dirt', hp: 
       readouts.sync(hud);
       return hud;
     },
-    /** Put the ship this many tiles below the depot, all of it mapped. */
+    /** Put the ship this many tiles below the home base, all of it mapped. */
     descend(tiles: number) {
       state.player.y = START_Y + tiles;
       for (let y = START_Y; y <= state.player.y + 1; y++) {
@@ -105,7 +105,7 @@ describe('return-fuel forecast', () => {
     expect(game.sync()).toMatchObject({fuelReserveStatus: 'urgent', fuelReserveMargin: 0});
   });
 
-  it('has nothing to reserve at the depot and gives up once the ship is disabled', () => {
+  it('has nothing to reserve at the home base and gives up once the ship is disabled', () => {
     const game = setup();
     game.state.player.fuel = 12;
     expect(game.sync()).toMatchObject({fuelReserveStatus: 'safe', fuelReserveNeeded: 0, fuelReserveMargin: 12});

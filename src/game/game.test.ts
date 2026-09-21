@@ -86,7 +86,7 @@ describe('booting the game', () => {
     localStorage.clear();
   });
 
-  it('deploys a fresh drill at the surface shaft and fills the HUD', () => {
+  it('deploys a fresh drill at the home base and fills the HUD', () => {
     expect(text('toast')).toBe('Fresh drill deployed.');
     expect(text('depth')).toBe('0 m');
     expect(text('cash')).toBe('$60');
@@ -138,7 +138,7 @@ describe('booting the game', () => {
     press('s');
     renderFrame();
 
-    // The starter shaft below the depot is diggable dirt, so the first press
+    // The starter shaft below the home base is diggable dirt, so the first press
     // spends fuel drilling; a later one drops the ship into the cleared tile.
     for (let attempt = 0; attempt < 12 && text('depth') === '0 m'; attempt++) {
       press('s');
@@ -147,7 +147,7 @@ describe('booting the game', () => {
 
     expect(text('depth')).toBe('10 m');
     expect(text('fuelLabel')).not.toBe('100/100');
-    // Leaving the depot is a state change nothing outside the canvas showed before.
+    // Leaving the home base is a state change nothing outside the canvas showed before.
     expect(text('game-status')).toBe('In the mine.');
   });
 

@@ -25,7 +25,7 @@ describe('fuel reserve forecast helper', () => {
     expect(classifyFuelReserve(3.3, 3.3)).toBe('urgent');
   });
 
-  it('formats transparent return guidance for underground, surface, and game-over states', () => {
+  it('formats transparent return guidance for underground, home-base, and game-over states', () => {
     expect(formatFuelReserveForecast({ ...underground, fuel: 50 }))
       .toBe('Fuel reserve: SAFE — about 46 fuel after return (clear-shaft return + 2× detour reserve).');
     expect(formatFuelReserveForecast({ ...underground, fuel: 4.5 }))
@@ -52,7 +52,7 @@ describe('fuel gauge split', () => {
     expect(getFuelGaugeSegments(30, 100, 30)).toEqual({ returnFraction: 0.3, surplusFraction: 0 });
   });
 
-  it('is all surplus at the depot, where there is no climb to pay for', () => {
+  it('is all surplus at the home base, where there is no climb to pay for', () => {
     expect(getFuelGaugeSegments(80, 100, 0)).toEqual({ returnFraction: 0, surplusFraction: 0.8 });
   });
 

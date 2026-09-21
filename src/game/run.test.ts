@@ -30,7 +30,7 @@ interface Harness {
   run: GameRun;
 }
 
-/** A miner mid-run: upgraded, loaded with cargo, and away from the depot. */
+/** A miner mid-run: upgraded, loaded with cargo, and away from the home base. */
 function harness(): Harness {
   const state = createInitialState();
   Object.assign(state.player, {
@@ -196,7 +196,7 @@ describe('resuming a saved run', () => {
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.cash).toBe(900);
     expect(h.toasts.saw('500 m')).toBe(true);
-    // The camera opens on the ship instead of panning down from the depot.
+    // The camera opens on the ship instead of panning down from the home base.
     expect(h.state.camY).toBeGreaterThan(0);
   });
 
@@ -210,7 +210,7 @@ describe('resuming a saved run', () => {
     expect(h.state.world[dug.y][dug.x]).toEqual(dug.tile);
   });
 
-  it('returns a ship the mine has swallowed to the depot', () => {
+  it('returns a ship the mine has swallowed to the home base', () => {
     const h = harness();
     // No diff: a capped or quota-dropped save leaves the parked tile solid, and
     // a buried ship cannot drill upward out of it.
@@ -222,7 +222,7 @@ describe('resuming a saved run', () => {
     expect(h.toasts.saw('Fresh drill deployed')).toBe(true);
   });
 
-  it('boots a save with no position at the depot, as a new game always did', () => {
+  it('boots a save with no position at the home base, as a new game always did', () => {
     const h = harness();
     Object.assign(h.state.player, {x: Math.floor(WORLD_W / 2), y: START_Y});
 

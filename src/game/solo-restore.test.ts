@@ -5,7 +5,7 @@
 // so the saved tile diff has to be layered back on before the first keypress,
 // or every tunnel would be filled in again. The ship comes back with it: a save
 // records the tile it parked on, so a refresh resumes down the shaft rather than
-// at the depot.
+// at the home base.
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import React from 'react';
@@ -18,7 +18,7 @@ import { MinerApp } from '../ui/ui';
 import type { GameRuntime } from './game';
 
 const SHAFT_X = Math.floor(WORLD_W / 2);
-/** The shaft the previous run left behind, directly below the depot. */
+/** The shaft the previous run left behind, directly below the home base. */
 const DUG_ROWS = [START_Y + 1, START_Y + 2, START_Y + 3];
 
 let frame: ((now: number) => void) | null = null;
@@ -87,7 +87,7 @@ describe('booting into a saved solo mine', () => {
     renderFrame();
 
     // A ship that ignored the save, or one buried by terrain it failed to
-    // restore, would be sitting at the depot instead.
+    // restore, would be sitting at the home base instead.
     expect(depthMeters()).toBe(10);
   });
 

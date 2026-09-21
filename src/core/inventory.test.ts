@@ -161,14 +161,14 @@ describe('ore', () => {
     expect(countOres(inventory)).toBe(6);
   });
 
-  it('clears every ore stack on a sale', () => {
-    const sold = removeOres(withOreTypes(3));
+  it('clears every ore stack at once', () => {
+    const cleared = removeOres(withOreTypes(3));
 
-    expect(countOres(sold)).toBe(0);
-    expect(sold).toHaveLength(0);
+    expect(countOres(cleared)).toBe(0);
+    expect(cleared).toHaveLength(0);
   });
 
-  it('leaves an inventory with nothing to sell untouched', () => {
+  it('leaves an inventory with no ore untouched', () => {
     const empty = createInventory();
 
     expect(removeOres(empty)).toBe(empty);
