@@ -112,6 +112,25 @@ describe('booting the game', () => {
     expect(document.activeElement?.id).toBe('game');
   });
 
+  it('drops the keyboard focus ring on a pointer press but keeps the keys', () => {
+    // The canvas holds a keyboard-seeded focus ring (the run took focus at boot).
+    // A press on the mine is the mouse taking over, so the ring must go — but the
+    // browser only re-decides :focus-visible when focus moves, and this press
+    // lands on the already-focused canvas, so the runtime reseats focus itself.
+    const canvas = document.getElementById('game') as HTMLCanvasElement;
+    canvas.focus();
+    expect(document.activeElement).toBe(canvas);
+
+    const blur = vi.spyOn(canvas, 'blur');
+    act(() => { fireEvent.pointerDown(canvas); });
+
+    // Reseated as a pointer focus (blur then refocus), so the ring clears while
+    // the canvas keeps the keyboard for the mine.
+    expect(blur).toHaveBeenCalled();
+    expect(document.activeElement).toBe(canvas);
+    blur.mockRestore();
+  });
+
   it('runs the whole input → move → terrain → HUD chain on a keypress', () => {
     // The spoken status starts where the ship does, at the depot.
     expect(text('game-status')).toBe('At the surface depot.');

@@ -493,6 +493,20 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     catch { try { surface.canvas.focus(); } catch { /* focus is best-effort */ } }
   }
   /**
+   * Drop the keyboard focus ring from the canvas after a pointer press, without
+   * giving up the keyboard. `:focus-visible` is a modality heuristic the browser
+   * only re-decides when focus moves, so a click on the already-focused canvas
+   * leaves a keyboard-seeded ring up — including through a device placement. A
+   * blur-then-refocus inside the pointer gesture reseats the flag as pointer-
+   * driven, so the ring goes and the mine keeps the keys. Only when the canvas
+   * actually holds focus: elsewhere the browser's own decision is already right.
+   */
+  function resetCanvasFocusRing(){
+    if (document.activeElement !== surface.canvas) return;
+    surface.canvas.blur();
+    focusGame();
+  }
+  /**
    * Take the keyboard for a run that has just started. `focusGame()` cannot do it
    * on the spot: the intro overlay may still hold focus until React commits the
    * phase change, so the call would be a silent no-op and the run would begin with
@@ -655,6 +669,14 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
    */
   function handleMinePointerDown(event: PointerEvent){
     if (!isPlaying()) return;
+    // A press on the mine is the mouse taking over, so the keyboard focus ring
+    // must not linger on the canvas afterwards. `:focus-visible` is only
+    // re-decided when focus actually moves, and this press lands on the canvas
+    // that already holds focus, so the ring would otherwise stay up through a
+    // placement and beyond it. Re-focusing during the pointer gesture reseats the
+    // flag as pointer-driven (no ring) while keeping the keys on the mine; the
+    // next Tab or keyboard focus brings the ring back, so nothing is lost.
+    resetCanvasFocusRing();
     const armed = scanners.armed || dynamite.armed || containers.armed;
     // Nothing is armed and something is already over the mine: the press belongs
     // to whatever is on top of it, not to the tile underneath.
