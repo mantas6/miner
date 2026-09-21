@@ -207,7 +207,7 @@ describe('home base persistence', () => {
     const stored = stubStorage();
     const state = createInitialState();
     state.home.station.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20)!, ITEM_CATALOG.repairKit, 2)!;
-    state.home.extractor = {coal: 9, fuel: 40};
+    state.home.extractor = {coal: 9, fuel: 40, progress: 120};
 
     save(state);
 
@@ -215,13 +215,13 @@ describe('home base persistence', () => {
       version: SAVE_VERSION,
       home: {
         station: [{kind: 'ore:Coal', count: 20}, {kind: 'repairKit', count: 2}],
-        extractor: {coal: 9, fuel: 40}
+        extractor: {coal: 9, fuel: 40, progress: 120}
       }
     });
 
     const restored = createInitialState();
     load(restored);
-    expect(restored.home.extractor).toEqual({coal: 9, fuel: 40});
+    expect(restored.home.extractor).toEqual({coal: 9, fuel: 40, progress: 120});
     expect(countItem(restored.home.station.inventory, oreKind('Coal'))).toBe(20);
     expect(countItem(restored.home.station.inventory, 'repairKit')).toBe(2);
   });
@@ -237,7 +237,16 @@ describe('home base persistence', () => {
 
     expect(countItem(state.home.station.inventory, oreKind('Iron'))).toBe(3);
     expect(state.home.station.inventory).toHaveLength(1);
-    expect(state.home.extractor).toEqual({coal: 0, fuel: 0});
+    expect(state.home.extractor).toEqual({coal: 0, fuel: 0, progress: 0});
+  });
+
+  it('defaults extractor progress to 0 when a save predates the field', () => {
+    stubStorage({version: SAVE_VERSION, home: {extractor: {coal: 3, fuel: 20}}});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.home.extractor).toEqual({coal: 3, fuel: 20, progress: 0});
   });
 
   it('gives a save with no home block a fresh, empty base', () => {
@@ -247,7 +256,7 @@ describe('home base persistence', () => {
     load(state);
 
     expect(state.home.station.inventory).toHaveLength(0);
-    expect(state.home.extractor).toEqual({coal: 0, fuel: 0});
+    expect(state.home.extractor).toEqual({coal: 0, fuel: 0, progress: 0});
   });
 });
 

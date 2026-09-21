@@ -1,18 +1,30 @@
 // The oil extractor screen.
 //
-// A Phase 4 placeholder: it shows the two buffers — coal queued for conversion and
-// fuel already stored — and offers the two transfers, "Load coal" (queue every
-// coal aboard) and "Refuel ship" (top the tank up from stored fuel). Phase 5 wires
-// the timed coal → fuel conversion behind it; the numbers here already come from
-// the store, so they will animate the moment the conversion runs.
+// It shows the two buffers — coal queued for conversion and fuel already stored,
+// read as `n / cap` — and, while a coal is burning, how long until the next unit
+// of fuel lands. Below sit the two transfers: "Load coal (n)" queues every coal
+// in the bay, and "Refuel ship (+n)" tops the tank up from stored fuel. Each names
+// the amount it would move and goes dead when that amount is zero.
+//
+// Everything is painted from the store: the buffers and progress animate as the
+// fixed-step extractor tick pushes fresh values in while the screen is open, and
+// the button amounts follow the bay and the tank. The screen holds no copy of any
+// of it.
 //
 // The shell/card split and the backdrop press are the other dialogs', for the
 // same reasons.
 
 import { useEffect, useRef, type RefObject } from 'react';
+import { EXTRACTOR } from '../core/balance';
+import { oreKind } from '../core/inventory';
 import { uiCommands } from './commands';
 import { useUiStore } from './store';
 import styles from './ExtractorScreen.module.css';
+
+const COAL_KIND = oreKind('Coal');
+
+/** Fixed-step ticks are 60 Hz, so this many ticks is one on-screen second. */
+const TICKS_PER_SECOND = 60;
 
 export function ExtractorScreen() {
   const open = useUiStore(state => state.activeOverlay === 'extractor');
@@ -47,6 +59,19 @@ export function ExtractorScreen() {
 function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
   const coal = useUiStore(state => state.extractor.coal);
   const fuel = useUiStore(state => state.extractor.fuel);
+  const progress = useUiStore(state => state.extractor.progress);
+  const playerFuel = useUiStore(state => state.player.fuel);
+  const fuelMax = useUiStore(state => state.player.fuelMax);
+  const bayCoal = useUiStore(state => state.inventorySlots.find(slot => slot.kind === COAL_KIND)?.count ?? 0);
+
+  const storedFuel = Math.round(fuel);
+  // Room the tank has left, and what one refuel would pour in: never more than is stored.
+  const refuelAmount = Math.round(Math.min(fuel, Math.max(0, fuelMax - playerFuel)));
+  // Only count down while a coal is actually burning — full tank or empty queue, it idles.
+  const converting = coal > 0 && fuel < EXTRACTOR.fuelCap;
+  const secondsToNext = converting
+    ? Math.max(1, Math.ceil((EXTRACTOR.ticksPerCoal - progress) / TICKS_PER_SECOND))
+    : 0;
 
   return (
     <div id="extractor-card" className={styles.card}>
@@ -68,15 +93,34 @@ function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null
           </div>
           <div className={styles.buffer}>
             <dt>Fuel stored</dt>
-            <dd id="extractorFuel">{Math.round(fuel)}</dd>
+            <dd id="extractorFuel">{storedFuel} <span className={styles.cap}>/ {EXTRACTOR.fuelCap}</span></dd>
           </div>
         </dl>
+        <p id="extractorStatus" className={styles.status}>
+          {converting
+            ? `Converting — next fuel in ${secondsToNext}s.`
+            : coal > 0
+              ? 'Fuel store full — refuel to resume converting.'
+              : 'Idle — load coal to make fuel.'}
+        </p>
         <div className={styles.actions}>
-          <button id="loadCoalBtn" type="button" className={styles.action} onClick={() => uiCommands.loadCoal()}>
-            Load coal
+          <button
+            id="loadCoalBtn"
+            type="button"
+            className={styles.action}
+            disabled={bayCoal <= 0}
+            onClick={() => uiCommands.loadCoal()}
+          >
+            Load coal ({bayCoal})
           </button>
-          <button id="refuelBtn" type="button" className={styles.action} onClick={() => uiCommands.refuelFromExtractor()}>
-            Refuel ship
+          <button
+            id="refuelBtn"
+            type="button"
+            className={styles.action}
+            disabled={refuelAmount <= 0}
+            onClick={() => uiCommands.refuelFromExtractor()}
+          >
+            Refuel ship (+{refuelAmount})
           </button>
         </div>
       </div>

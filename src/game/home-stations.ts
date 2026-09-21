@@ -38,10 +38,12 @@ import {
 } from '../core/home';
 import type { AudioController, GameState } from '../core/types';
 
-/** The two-buffer view the extractor screen paints. */
+/** The buffers the extractor screen paints, plus the current coal's tick progress. */
 export interface ExtractorView {
   coal: number;
   fuel: number;
+  /** Ticks toward the current coal, so the screen can word "next in Xs". */
+  progress: number;
 }
 
 export interface HomeStationsSim {
@@ -219,9 +221,17 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
 
   function tick(): void {
     if (state.gameOver) { close(); return; }
-    // The extractor works whether or not the player is watching. Phase 5 fills the
-    // conversion in; today this is a no-op, so nothing repaints on a steady frame.
-    tickExtractor(state.home.extractor);
+    // The extractor works whether or not the player is watching. A steady tick
+    // that neither advances progress nor converts hands back the same buffer, so
+    // most frames fall out here doing nothing.
+    const before = state.home.extractor;
+    const next = tickExtractor(before);
+    if (next === before) return;
+    state.home.extractor = next;
+    // Banking a whole coal's fuel is worth persisting on the spot, so a crash
+    // between visits cannot lose it; a bare progress tick is transient.
+    if (next.coal !== before.coal) saveProgress();
+    if (open === 'extractor') deps.setExtractorUi({...next});
   }
 
   return {

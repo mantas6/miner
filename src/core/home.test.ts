@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HOME_ROW, STATIONS } from '../../shared/constants';
+import { EXTRACTOR } from './balance';
 import {
   STATION_CAPACITY,
   createHomeState,
@@ -97,13 +98,49 @@ describe('taking cargo back out', () => {
 });
 
 describe('the extractor tick', () => {
-  it('is a Phase 5 no-op: queued coal and stored fuel are unchanged', () => {
-    const home = createHomeState();
-    home.extractor.coal = 5;
-    home.extractor.fuel = 40;
+  it('accumulates progress toward the current coal without converting yet', () => {
+    const next = tickExtractor({coal: 5, fuel: 40, progress: 3});
+    expect(next).toEqual({coal: 5, fuel: 40, progress: 4});
+  });
 
-    tickExtractor(home.extractor);
+  it('burns one coal into stored fuel on the tick that completes it', () => {
+    const almost = {coal: 5, fuel: 40, progress: EXTRACTOR.ticksPerCoal - 1};
+    const next = tickExtractor(almost);
+    expect(next).toEqual({coal: 4, fuel: 40 + EXTRACTOR.fuelPerCoal, progress: 0});
+  });
 
-    expect(home.extractor).toEqual({coal: 5, fuel: 40});
+  it('converts a full queue over time, one coal every ticksPerCoal ticks', () => {
+    let extractor = {coal: 2, fuel: 0, progress: 0};
+    for (let i = 0; i < EXTRACTOR.ticksPerCoal * 2; i++) extractor = tickExtractor(extractor);
+    expect(extractor).toEqual({coal: 0, fuel: EXTRACTOR.fuelPerCoal * 2, progress: 0});
+  });
+
+  it('clamps stored fuel at the cap rather than overfilling', () => {
+    const almost = {coal: 1, fuel: EXTRACTOR.fuelCap - 5, progress: EXTRACTOR.ticksPerCoal - 1};
+    const next = tickExtractor(almost);
+    expect(next.fuel).toBe(EXTRACTOR.fuelCap);
+    expect(next.coal).toBe(0);
+  });
+
+  it('does not waste coal once the fuel store is full: same buffer, untouched', () => {
+    const full = {coal: 5, fuel: EXTRACTOR.fuelCap, progress: 7};
+    const next = tickExtractor(full);
+    expect(next).toBe(full);
+  });
+
+  it('idles with no coal queued, handing back the same reference', () => {
+    const empty = {coal: 0, fuel: 40, progress: 0};
+    const next = tickExtractor(empty);
+    expect(next).toBe(empty);
+  });
+
+  it('is pure: it never mutates the buffer it is given', () => {
+    const extractor = {coal: 3, fuel: 10, progress: 3};
+    tickExtractor(extractor);
+    expect(extractor).toEqual({coal: 3, fuel: 10, progress: 3});
+  });
+
+  it('a fresh home base starts with an empty, unstarted extractor', () => {
+    expect(createHomeState().extractor).toEqual({coal: 0, fuel: 0, progress: 0});
   });
 });

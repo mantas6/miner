@@ -153,10 +153,12 @@ export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
 export type OverlayId = 'shop' | 'info' | 'container' | 'ship' | 'station' | 'extractor';
 
-/** The oil extractor's two buffers, as the extractor screen paints them. */
+/** The oil extractor's buffers, as the extractor screen paints them, plus its tick progress. */
 export interface ExtractorView {
   coal: number;
   fuel: number;
+  /** Ticks toward the current coal, so the screen can word "next in Xs". */
+  progress: number;
 }
 
 /**
@@ -360,7 +362,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   containerSlots: [],
   shipEquipment: buildShipSlots(initialState.player.equipment),
   stationSlots: [],
-  extractor: {coal: 0, fuel: 0},
+  extractor: {coal: 0, fuel: 0, progress: 0},
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   activeOverlay: null,
@@ -408,7 +410,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
 
   setExtractor(view) {
     const current = get().extractor;
-    if (current.coal === view.coal && current.fuel === view.fuel) return;
+    if (current.coal === view.coal && current.fuel === view.fuel && current.progress === view.progress) return;
     set({extractor: {...view}});
   },
 

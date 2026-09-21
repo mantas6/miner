@@ -4,6 +4,7 @@ import {
   createPlacedContainer,
   type PlacedContainer
 } from './core/cargo-container';
+import { EXTRACTOR } from './core/balance';
 import { DYNAMITE, type PlacedDynamite } from './core/dynamite';
 import {
   addItem,
@@ -229,9 +230,11 @@ function parseHome(value: unknown): HomeState {
   const saved = value as {station?: unknown; extractor?: unknown};
   home.station.inventory = parseKindCountStacks(saved.station, isStationKind);
   if (saved.extractor && typeof saved.extractor === 'object') {
-    const {coal, fuel} = saved.extractor as {coal?: unknown; fuel?: unknown};
+    const {coal, fuel, progress} = saved.extractor as {coal?: unknown; fuel?: unknown; progress?: unknown};
     home.extractor.coal = Math.floor(numeric(coal, 0, 0, MAX_SAVED_STACK));
     home.extractor.fuel = Math.floor(numeric(fuel, 0, 0, MAX_SAVED_STACK));
+    // Progress is optional: a save written before it was tracked simply resumes at 0.
+    home.extractor.progress = Math.floor(numeric(progress, 0, 0, EXTRACTOR.ticksPerCoal));
   }
   return home;
 }
@@ -311,7 +314,11 @@ export function save(state: GameState): void {
     equipment: p.equipment.slice(0, SHIP_UPGRADE_SLOTS),
     home: {
       station: serializeStacks(state.home.station.inventory),
-      extractor: {coal: Math.floor(state.home.extractor.coal), fuel: Math.floor(state.home.extractor.fuel)}
+      extractor: {
+        coal: Math.floor(state.home.extractor.coal),
+        fuel: Math.floor(state.home.extractor.fuel),
+        progress: Math.floor(state.home.extractor.progress)
+      }
     },
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),

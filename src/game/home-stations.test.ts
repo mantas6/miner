@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { STATIONS } from '../../shared/constants';
+import { EXTRACTOR } from '../core/balance';
 import { addItem, countItem, createInventory, oreKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { createInitialState } from '../core/state';
@@ -68,7 +69,7 @@ describe('opening the stations', () => {
 
     expect(h.sim.openNearest()).toBe(true);
     expect(h.sim.openStation).toBe('extractor');
-    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 0, fuel: 0});
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 0, fuel: 0, progress: 0});
   });
 
   it('refuses when no station is in reach', () => {
@@ -166,7 +167,7 @@ describe('the oil extractor transfers', () => {
 
     expect(h.state.home.extractor.coal).toBe(7);
     expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(0);
-    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0});
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0, progress: 0});
   });
 
   it('tops the ship tank up from stored fuel, capped by the tank', () => {
@@ -192,6 +193,45 @@ describe('the oil extractor transfers', () => {
 
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax - 30);
     expect(h.toasts.saw('No fuel stored')).toBe(true);
+  });
+});
+
+describe('the extractor tick', () => {
+  it('converts queued coal to stored fuel over time, regardless of position', () => {
+    const h = harness();
+    // The ship is nowhere near the extractor: the tick runs anyway.
+    Object.assign(h.state.player, {x: 5, y: 300});
+    h.state.home.extractor = {coal: 1, fuel: 0, progress: 0};
+
+    for (let i = 0; i < EXTRACTOR.ticksPerCoal; i++) h.sim.tick();
+
+    expect(h.state.home.extractor).toEqual({coal: 0, fuel: EXTRACTOR.fuelPerCoal, progress: 0});
+    // The banked fuel is persisted the moment a coal is spent.
+    expect(h.saveProgress).toHaveBeenCalled();
+  });
+
+  it('repaints the open extractor screen as the conversion advances', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.state.home.extractor = {coal: 2, fuel: 0, progress: 0};
+    h.sim.openNearest();
+    h.setExtractorUi.mockClear();
+
+    h.sim.tick();
+
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 2, fuel: 0, progress: 1});
+  });
+
+  it('does nothing on a steady tick with an empty extractor', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.sim.openNearest();
+    h.setExtractorUi.mockClear();
+
+    h.sim.tick();
+
+    expect(h.setExtractorUi).not.toHaveBeenCalled();
+    expect(h.saveProgress).not.toHaveBeenCalled();
   });
 });
 

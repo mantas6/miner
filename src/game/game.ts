@@ -350,7 +350,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     syncPlayerSnapshot();
     store.setActiveOverlay('station');
   }
-  function setExtractorUi(view: {coal: number; fuel: number} | null){
+  function setExtractorUi(view: {coal: number; fuel: number; progress: number} | null){
     const store = uiStore.getState();
     if (!view) return store.closeOverlay('extractor');
     disarmPlacements();

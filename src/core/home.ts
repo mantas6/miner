@@ -8,10 +8,11 @@
 //
 // Phase 4 grows the pure helpers around that state: which station a parked ship
 // can reach, and the transfers that move stacks between the ship's bay and the
-// station's stock. The extractor's timed coal → fuel conversion (`tickExtractor`)
-// is a Phase 5 no-op placeholder for now.
+// station's stock. Phase 5 fills in the extractor's timed coal → fuel conversion
+// (`tickExtractor`), run once per fixed step whether or not the player is watching.
 
 import { STATIONS } from '../../shared/constants';
+import { EXTRACTOR } from './balance';
 import {
   addItem,
   findStack,
@@ -28,6 +29,12 @@ export interface HomeExtractor {
   coal: number;
   /** Fuel already produced and waiting to top up the ship. */
   fuel: number;
+  /**
+   * Ticks accumulated toward the current coal, in `[0, EXTRACTOR.ticksPerCoal)`.
+   * It freezes — rather than resetting — while there is no coal to burn or the
+   * tank is full, so no queued coal is ever wasted on a stalled extractor.
+   */
+  progress: number;
 }
 
 /** Everything the home base stores between visits. */
@@ -41,7 +48,7 @@ export interface HomeState {
 export function createHomeState(): HomeState {
   return {
     station: {inventory: createInventory()},
-    extractor: {coal: 0, fuel: 0}
+    extractor: {coal: 0, fuel: 0, progress: 0}
   };
 }
 
@@ -149,11 +156,22 @@ export function takeFromStation(
 }
 
 /**
- * One fixed 60 Hz step of the oil extractor. Phase 5 fills this in — every
- * `EXTRACTOR.ticksPerCoal` it burns one queued coal into `EXTRACTOR.fuelPerCoal`
- * stored fuel, capped at `EXTRACTOR.fuelCap`. For now it is a no-op, so queued
- * coal simply waits and stored fuel only moves through `loadCoal`/`refuel`.
+ * One fixed 60 Hz step of the oil extractor: pure, and it runs regardless of where
+ * the ship is. Every `EXTRACTOR.ticksPerCoal` ticks it burns one queued coal into
+ * `EXTRACTOR.fuelPerCoal` stored fuel, clamped at `EXTRACTOR.fuelCap`.
+ *
+ * It never burns coal it cannot bank: with no coal queued, or the tank already at
+ * the cap, the buffer is left untouched — the same reference is handed back, so a
+ * caller can skip a repaint on a steady tick — and progress simply waits.
  */
-export function tickExtractor(_extractor: HomeExtractor): void {
-  // Phase 5.
+export function tickExtractor(extractor: HomeExtractor): HomeExtractor {
+  if (extractor.coal <= 0 || extractor.fuel >= EXTRACTOR.fuelCap) return extractor;
+  const progress = extractor.progress + 1;
+  if (progress < EXTRACTOR.ticksPerCoal) return {...extractor, progress};
+  // A whole coal's worth of ticks elapsed: spend one, bank its fuel, and start over.
+  return {
+    coal: extractor.coal - 1,
+    fuel: Math.min(EXTRACTOR.fuelCap, extractor.fuel + EXTRACTOR.fuelPerCoal),
+    progress: 0
+  };
 }
