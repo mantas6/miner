@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => {
     scale: vi.fn(),
     setTransform: vi.fn(),
     shadowColor: '',
+    shadowBlur: 0,
+    globalAlpha: 1,
     stroke: vi.fn(),
     strokeRect: vi.fn(),
     translate: vi.fn()
@@ -205,7 +207,12 @@ describe('terrain cache lifecycle', () => {
     expect(mocks.terrainContext.createRadialGradient).not.toHaveBeenCalled();
   });
 
-  it('renders active variants with distinct deep-mine palettes', () => {
+  /**
+   * The enemies are haunted prospector rigs now: they borrow the ship silhouette
+   * but fly translucent under their type's glow, so a live one paints a hull
+   * gradient with a below-one alpha and its type's glow as the shadow color.
+   */
+  it('draws haunted enemy ships translucent under the enemy glow', () => {
     const state = {
       world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
       particles: [],
@@ -216,9 +223,27 @@ describe('terrain cache lifecycle', () => {
 
     renderer.draw();
 
-    expect(mocks.mainContext.createRadialGradient).toHaveBeenCalled();
+    // The wreck flies under its type's glow, ghostly and semi-transparent.
+    expect(mocks.mainContext.createLinearGradient).toHaveBeenCalled();
     expect(mocks.mainContext.shadowColor).toBe('#df76ff');
-    expect(mocks.gradient.addColorStop).toHaveBeenCalledWith(.45, '#8749ba');
+    expect(mocks.mainContext.globalAlpha).toBeGreaterThan(0);
+    expect(mocks.mainContext.globalAlpha).toBeLessThan(1);
+  });
+
+  /** A struck rig whitens: the shadow and the hull's top gradient stop go pale. */
+  it('whitens a haunted ship on the hit flash', () => {
+    const state = {
+      world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
+      particles: [],
+      enemies: [{id:1, kind:'abyssStalker' as const, x:12, y:1002, drawX:12, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:1}],
+      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+
+    renderer.draw();
+
+    expect(mocks.mainContext.shadowColor).toBe('#fff6a8');
+    expect(mocks.gradient.addColorStop).toHaveBeenCalledWith(0, '#fff6a8');
   });
 
   it('renders departure and arrival feedback across a camera jump', () => {

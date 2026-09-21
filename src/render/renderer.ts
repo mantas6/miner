@@ -101,6 +101,18 @@ interface ChunkLayerOptions {
   isBlank?(startX: number, startY: number, endX: number, endY: number): boolean;
 }
 
+/**
+ * Desaturate a palette color and pull it toward rust, giving the haunted rigs a
+ * dead-metal hull that still reads as their type. Enemy colors are all `#rrggbb`.
+ */
+function rustColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  const luma = 0.3 * r + 0.59 * g + 0.11 * b;
+  const mix = (c: number, target: number, amount: number) => c + (target - c) * amount;
+  const rust = (c: number, target: number) => Math.round(mix(mix(c, luma, .5), target, .16) * .82);
+  return `rgb(${rust(r, 122)},${rust(g, 74)},${rust(b, 50)})`;
+}
+
 export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps): Renderer {
   let drawingContext: CanvasRenderingContext2D = ctx;
   const isExplored = (x: number, y: number) => !state.exploredTiles || isTileExplored(state.exploredTiles, x, y);
@@ -594,35 +606,55 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       if (!isExplored(Math.round(e.x), Math.round(e.y))) continue;
       const sx = (e.drawX - camX) * TILE, sy = (e.drawY - camY) * TILE;
       if (sx < -TILE || sy < -TILE || sx > viewport.worldWidthPx + TILE || sy > viewport.worldHeightPx + TILE) continue;
-      drawEnemyBody(sx, sy, e.kind, e.hp / e.maxHp, e.flash);
+      drawHauntedShip(sx, sy, e.kind, e.hp / e.maxHp, e.flash);
     }
   }
-  function drawEnemyBody(sx: number, sy: number, kind: EnemyKind, hpPct=1, flash=0) {
+  /**
+   * A wrecked prospector's rig, risen. It borrows the player ship's silhouette —
+   * hull, canopy, pods, drill — but flies translucent and rusted, with no engine
+   * flame, so a haunted motherlode reads as a ghost of the fleet at a glance.
+   * Every animation is keyed off `tick` deterministically, so the ships need no
+   * per-enemy render state; a per-ship phase keeps a swarm from flickering in
+   * lockstep. `save`/`restore` fences the alpha and shadow off from other draws.
+   */
+  function drawHauntedShip(sx: number, sy: number, kind: EnemyKind, hpPct=1, flash=0, tick=state.tick) {
     const enemyType = getEnemyType(kind);
+    const hit = flash > .1;
+    const phase = sx * .017 + sy * .023;
+    const flicker = state.reducedMotion ? .7 : 0.62 + 0.08 * Math.sin(tick * 0.3 + phase);
+    const bob = state.reducedMotion ? 0 : Math.sin(tick * 0.12 + phase) * TILE * .06;
     ctx.save();
-    ctx.translate(sx + TILE*.5, sy + TILE*.5 + Math.sin(state.tick*.34)*TILE*.05);
-    ctx.rotate(Math.sin(state.tick*.18) * .08);
-    ctx.shadowColor = flash > .1 ? '#fff6a8' : enemyType.glow;
-    ctx.shadowBlur = flash > .1 ? 22 : 10;
-    const body = ctx.createRadialGradient(-TILE*.12,-TILE*.16,TILE*.06,0,0,TILE*.45);
-    body.addColorStop(0, flash > .1 ? '#fff6a8' : enemyType.colors[0]);
-    body.addColorStop(.45, enemyType.colors[1]);
-    body.addColorStop(1, enemyType.colors[2]);
-    ctx.fillStyle = body;
-    ctx.beginPath(); ctx.ellipse(0, 0, TILE*.34, TILE*.28, 0, 0, Math.PI*2); ctx.fill();
+    ctx.translate(sx + TILE*.5, sy + TILE*.5 + bob);
+    ctx.globalAlpha = flicker;
+    ctx.shadowColor = hit ? '#fff6a8' : enemyType.glow;
+    ctx.shadowBlur = hit ? 14 : 7;
+    // Rusted, desaturated hull built from the type's palette; a hit flash whitens it.
+    const body = ctx.createLinearGradient(-TILE*.35,-TILE*.3,TILE*.35,TILE*.30);
+    body.addColorStop(0, hit ? '#fff6a8' : rustColor(enemyType.colors[0]));
+    body.addColorStop(.45, hit ? '#fff0c0' : rustColor(enemyType.colors[1]));
+    body.addColorStop(1, rustColor(enemyType.colors[2]));
+    drawShipHull(body, 'rgba(196,214,210,.28)', rustColor(enemyType.colors[2]));
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#10180d';
-    ctx.beginPath(); ctx.arc(-TILE*.12, -TILE*.06, TILE*.055, 0, Math.PI*2); ctx.arc(TILE*.12, -TILE*.06, TILE*.055, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#fff8c4';
-    ctx.beginPath(); ctx.moveTo(-TILE*.12,TILE*.10); ctx.lineTo(-TILE*.05,TILE*.23); ctx.lineTo(TILE*.02,TILE*.10); ctx.lineTo(TILE*.09,TILE*.23); ctx.lineTo(TILE*.16,TILE*.10); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = enemyType.colors[2]; ctx.lineWidth = kind === 'ironback' ? 8 : 5;
-    for (let i=-1;i<=1;i+=2) {
-      ctx.beginPath(); ctx.moveTo(i*TILE*.24, TILE*.02); ctx.lineTo(i*TILE*.48, TILE*.14); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(i*TILE*.20, -TILE*.10); ctx.lineTo(i*TILE*.42, -TILE*.25); ctx.stroke();
-    }
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(-TILE*.28, -TILE*.43, TILE*.56, TILE*.055);
-    ctx.fillStyle = enemyType.glow; ctx.fillRect(-TILE*.28, -TILE*.43, TILE*.56*Math.max(0,hpPct), TILE*.055);
+    // Dead, dark canopy with a couple of thin cracks across the glass.
+    drawShipCanopy(hit ? 'rgba(120,120,90,.85)' : 'rgba(14,20,24,.85)');
+    ctx.strokeStyle = 'rgba(150,170,175,.5)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-TILE*.14,-TILE*.48); ctx.lineTo(-TILE*.02,-TILE*.34); ctx.lineTo(TILE*.05,-TILE*.42);
+    ctx.moveTo(TILE*.12,-TILE*.47); ctx.lineTo(TILE*.02,-TILE*.30);
+    ctx.stroke();
+    // A slowly turning drill under the nose; the tip swings on `tick`, no flame.
+    ctx.save();
+    ctx.translate(0, TILE*.30);
+    const spin = state.reducedMotion ? 0 : Math.sin(tick * .15 + phase) * TILE * .07;
+    ctx.fillStyle = '#25222a';
+    ctx.beginPath(); ctx.moveTo(-TILE*.16, 0); ctx.lineTo(spin, TILE*.30); ctx.lineTo(TILE*.16, 0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rustColor(enemyType.colors[2]); ctx.lineWidth = 3; ctx.stroke();
     ctx.restore();
+    ctx.restore();
+    // HP bar at full opacity so it stays readable above the translucent hull.
+    const barCx = sx + TILE*.5, barCy = sy + TILE*.5 + bob;
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(barCx - TILE*.28, barCy - TILE*.43, TILE*.56, TILE*.055);
+    ctx.fillStyle = enemyType.glow; ctx.fillRect(barCx - TILE*.28, barCy - TILE*.43, TILE*.56*Math.max(0,hpPct), TILE*.055);
   }
   function drawTile(tile: Tile, wx: number, wy: number, sx: number, sy: number) {
     const ctx = drawingContext;
@@ -801,16 +833,28 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillStyle = '#9a5a16'; ctx.beginPath(); ctx.moveTo(-TILE*.08,TILE*.30); ctx.lineTo(0,TILE*.46); ctx.lineTo(TILE*.08,TILE*.30); ctx.fill();
     const body = ctx.createLinearGradient(-TILE*.35,-TILE*.3,TILE*.35,TILE*.30);
     body.addColorStop(0, dead ? '#555' : '#9ee6ff'); body.addColorStop(.45, dead ? '#676767' : '#4dbbe8'); body.addColorStop(1, dead ? '#333' : '#126a98');
-    ctx.fillStyle = body; roundRect(ctx, -TILE*.36,-TILE*.30,TILE*.72,TILE*.58,TILE*.11); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = 'rgba(7,20,34,.45)'; ctx.fillRect(-TILE*.31, -TILE*.02, TILE*.62, TILE*.045);
-    ctx.fillStyle = '#26384d'; ctx.fillRect(-TILE*.43, -TILE*.03, TILE*.14, TILE*.18); ctx.fillRect(TILE*.29, -TILE*.03, TILE*.14, TILE*.18);
+    drawShipHull(body, 'rgba(255,255,255,.35)', '#26384d');
     const glass = ctx.createLinearGradient(0,-TILE*.50,0,-TILE*.24); glass.addColorStop(0,'#ffffff'); glass.addColorStop(.25,'#b9f3ff'); glass.addColorStop(1,'#387898');
-    ctx.fillStyle = glass; roundRect(ctx, -TILE*.20,-TILE*.50,TILE*.40,TILE*.24,TILE*.055); ctx.fill();
+    drawShipCanopy(glass);
     ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-TILE*.12,-TILE*.46,TILE*.10,TILE*.035);
     drawDirectionalDrill(p);
     ctx.fillStyle = '#ffd35f'; ctx.fillRect(TILE*.30, -TILE*.09, TILE*.14, TILE*.18);
     ctx.fillStyle = '#182536'; ctx.fillRect(TILE*.33, -TILE*.055, TILE*.08, TILE*.11);
+  }
+  /**
+   * The rounded hull with its dark waterline stripe and the two side pods. Shared
+   * by the player ship and the haunted enemy rigs so their silhouette matches; only
+   * the fills differ. Assumes the caller has centred the origin on the hull.
+   */
+  function drawShipHull(bodyFill: string | CanvasGradient, strokeStyle: string, podFill: string) {
+    ctx.fillStyle = bodyFill; roundRect(ctx, -TILE*.36,-TILE*.30,TILE*.72,TILE*.58,TILE*.11); ctx.fill();
+    ctx.strokeStyle = strokeStyle; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = 'rgba(7,20,34,.45)'; ctx.fillRect(-TILE*.31, -TILE*.02, TILE*.62, TILE*.045);
+    ctx.fillStyle = podFill; ctx.fillRect(-TILE*.43, -TILE*.03, TILE*.14, TILE*.18); ctx.fillRect(TILE*.29, -TILE*.03, TILE*.14, TILE*.18);
+  }
+  /** The canopy bubble. The player's highlight is drawn by its caller; the haunted rig leaves it dark. */
+  function drawShipCanopy(glassFill: string | CanvasGradient) {
+    ctx.fillStyle = glassFill; roundRect(ctx, -TILE*.20,-TILE*.50,TILE*.40,TILE*.24,TILE*.055); ctx.fill();
   }
   function drawBoostFlames(direction: [number, number], facing: number) {
     const pulse = state.reducedMotion ? 0 : Math.sin(state.tick*.9) * TILE*.055;
