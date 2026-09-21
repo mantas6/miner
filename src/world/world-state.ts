@@ -28,9 +28,6 @@ export function resetWorldTerrain(state: GameState): void {
   // Likewise a crate: the tile it stood on is being regenerated, so it goes with
   // the mine it was left in, and whatever was stored inside it goes too.
   state.cargoContainers = [];
-  // And likewise an oil extractor: the patch it drained is coming back fresh with
-  // the terrain, so the device left beside it goes with the mine.
-  state.oilExtractors = [];
   state.particles = [];
   state.extractionPhase = 'none';
   state.teleportEffect = null;

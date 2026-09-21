@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
 import type { InventoryItemKind } from '../core/inventory';
-import { OIL_EXTRACTOR_ITEM } from '../core/oil-extractor';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { uiCommands } from './commands';
 import { useUiStore } from './store';
@@ -33,12 +32,6 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
     idle: 'Set a cargo container down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleContainerPlacement()
-  },
-  [OIL_EXTRACTOR_ITEM.kind]: {
-    buttonId: 'extractorSlotBtn',
-    idle: 'Deploy an oil extractor beside an oil patch',
-    armed: 'Click a mapped tile beside an oil patch · Esc cancels',
-    toggle: () => uiCommands.toggleExtractorPlacement()
   }
 };
 

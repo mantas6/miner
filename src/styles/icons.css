@@ -205,33 +205,6 @@
     -8px 0 0 #3b2c11,
     8px 0 0 #3b2c11;
 }
-/* A nodding pump on a derrick: the deployable oil extractor. */
-.icon-extractor::before {
-  top: 10px;
-  width: 30px;
-  height: 5px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, #7fd4c0, #2e4a52);
-  transform: rotate(-12deg);
-  box-shadow: 0 0 8px rgba(92, 200, 255, 0.5);
-}
-.icon-extractor::after {
-  bottom: 9px;
-  width: 26px;
-  height: 6px;
-  border-radius: 2px;
-  background: #2e4a52;
-  box-shadow: inset 0 -3px 0 #16262b;
-}
-.icon-extractor i {
-  bottom: 15px;
-  width: 4px;
-  height: 18px;
-  background: #46606a;
-  box-shadow:
-    -7px 0 0 #46606a,
-    7px 0 0 #46606a;
-}
 @media (max-width: 760px) {
   .equipment-icon {
     width: 42px;

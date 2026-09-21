@@ -33,9 +33,7 @@ export const LIMITS = Object.freeze({
   /** Carried (not yet fired) Linebreaker guns; they live in the cargo bay. */
   guns: Object.freeze({ min: 0, max: 999 }),
   /** Carried (not yet placed) cargo containers; they live in the cargo bay. */
-  containers: Object.freeze({ min: 0, max: 999 }),
-  /** Carried (not yet placed) oil extractors; they live in the cargo bay. */
-  extractors: Object.freeze({ min: 0, max: 999 })
+  containers: Object.freeze({ min: 0, max: 999 })
 });
 
 export const FUEL = Object.freeze({
@@ -124,16 +122,5 @@ export const ECONOMY = Object.freeze({
    * than the one consumable that rescues a run outright.
    */
   container: Object.freeze({ price: 200 }),
-  /**
-   * One oil extractor, dropped beside an oil patch and left there for good.
-   *
-   * Priced to sit alongside the $50 hole-in-the-rock consumables rather than the
-   * rescue-a-run teleporter: a single patch yields `OIL_EXTRACTOR.patchCapacity`
-   * fuel units, which at the depot's ~$0.20/unit refuel rate is roughly its own
-   * price back in fuel — so it pays for itself over one drained patch and saves
-   * the climb home on top of that. It is spent on being put down, like the
-   * container, and goes inert once its patch runs dry.
-   */
-  extractor: Object.freeze({ price: 100 }),
   artifactReward: 5000
 });

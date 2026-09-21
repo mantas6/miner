@@ -14,7 +14,7 @@ import { createInitialState } from './state';
 
 /** A shop-shaped ship: the run's player plus the bay-counted consumable tallies. */
 function ship(overrides: Partial<ShopPlayer> = {}): ShopPlayer {
-  return {...createInitialState().player, scanners: 0, dynamite: 0, guns: 0, teleporters: 0, containers: 0, extractors: 0, ...overrides};
+  return {...createInitialState().player, scanners: 0, dynamite: 0, guns: 0, teleporters: 0, containers: 0, ...overrides};
 }
 
 function everyRow(player: ShopPlayer, cash: number, atSurface: boolean) {

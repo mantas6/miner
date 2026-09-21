@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OIL_PATCH_MIN_ROW, artifactForDepthRoll, ensureWorldRow, isOilPatch, rand, naturalAirPocket, makeTile, oreForDepthRoll, oreSpawnChanceAtDepth, starterOreForCoordinate } from './world';
+import { artifactForDepthRoll, ensureWorldRow, rand, naturalAirPocket, makeTile, oreForDepthRoll, oreSpawnChanceAtDepth, starterOreForCoordinate } from './world';
 import { ARTIFACTS, MAX_WORLD_ROW, MOTHERLODE_ROW, ORES, START_Y, SURFACE_HEIGHT, WORLD_CHUNK_ROWS, WORLD_W } from '../../shared/constants';
 import type { Tile } from '../core/types';
 
@@ -209,28 +209,6 @@ describe('makeTile', () => {
 
     expect(makeTile(24, 151).type).toBe('hazard');
     expect(makeTile(36, 17).type).toBe('enemy');
-  });
-
-  it('scatters oil patches very commonly below the opening, but never at the surface', () => {
-    // No patch ever appears above the reserved shallow band.
-    for (let y = 0; y < OIL_PATCH_MIN_ROW; y++) {
-      for (let x = 0; x < WORLD_W; x++) expect(isOilPatch(x, y)).toBe(false);
-    }
-    // Across a deep slab, oil is common — several percent of every row — and every
-    // patch tile generates as an undrained `oil` tile (unless ore claimed it first).
-    let patches = 0;
-    let scanned = 0;
-    for (let y = 300; y < 340; y++) {
-      for (let x = 0; x < WORLD_W; x++) {
-        scanned++;
-        if (!isOilPatch(x, y)) continue;
-        patches++;
-        const tile = makeTile(x, y);
-        // Ore outranks oil on a shared tile; where oil wins, it is an undrained patch.
-        if (tile.type === 'oil') expect(tile.depleted).toBe(false);
-      }
-    }
-    expect(patches / scanned).toBeGreaterThan(0.03);
   });
 
   it('generates deterministic terrain chunks on demand beyond 10,000 m', () => {

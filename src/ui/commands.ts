@@ -21,7 +21,6 @@ export interface UiCommands {
   buyScanner(): void;
   buyGun(): void;
   buyContainer(): void;
-  buyExtractor(): void;
   useTeleporter(): void;
   toggleGunArmed(): void;
   /**
@@ -39,11 +38,6 @@ export interface UiCommands {
    * down. Arming any of the three stands the other two down.
    */
   toggleContainerPlacement(): void;
-  /**
-   * The same gesture for an oil extractor, which the press on the mine sets down
-   * beside an oil patch. Arming any of the four stands the others down.
-   */
-  toggleExtractorPlacement(): void;
   /** Shut the transfer menu; also what the dialog's own close request reports. */
   closeContainer(): void;
   /** Move a stack of this kind out of the bay into the open container; `single` moves one. */
@@ -90,13 +84,11 @@ function noopCommands(): UiCommands {
     buyScanner: noop,
     buyGun: noop,
     buyContainer: noop,
-    buyExtractor: noop,
     useTeleporter: noop,
     toggleGunArmed: noop,
     toggleScannerPlacement: noop,
     toggleDynamitePlacement: noop,
     toggleContainerPlacement: noop,
-    toggleExtractorPlacement: noop,
     closeContainer: noop,
     storeInContainer: noop,
     takeFromContainer: noop,

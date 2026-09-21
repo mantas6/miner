@@ -8,12 +8,6 @@ import {
 } from './core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM, type PlacedDynamite } from './core/dynamite';
 import { addItem, countItem, inventoryStacks, type InventoryItem, type InventoryItemKind } from './core/inventory';
-import {
-  OIL_EXTRACTOR,
-  OIL_EXTRACTOR_ITEM,
-  createOilExtractor,
-  type OilExtractor
-} from './core/oil-extractor';
 import { SCANNER_DEVICE, SCANNER_ITEM, type ScannerDevice } from './core/scanner-device';
 import { TELEPORTER_ITEM } from './core/teleporter';
 import { GUN_ITEM } from './core/weapon';
@@ -56,10 +50,10 @@ import type { GameState, GameStats } from './core/types';
 //     the fog-reveal footprint is fixed at its base 3x3 for every ship. Older
 //     saves that carried a `visibility` level simply drop it on load — no refund,
 //     because the cash it cost was never tracked separately from the wallet.
-//   * v13: `extractors` — the oil extractors carried in the bay — and
-//     `oilExtractors`, the ones standing in the mine with the patch each claimed,
-//     the oil buffered, and how far the patch is drained. A drained patch is a
-//     `oil`/`depleted` tile in the world diff, so it comes back through `tiles`.
+//   * v13: oil patches and the placeable oil extractor were removed. Any
+//     `extractors`/`oilExtractors` a save from that build carried are ignored on
+//     load, and an `oil` tile in the world diff is dropped with the rest of that
+//     diff by the shared schema — no crash, just a pristine mine.
 // Older blobs still load; they just restore a pristine mine, and pre-v5 saves
 // start at the depot the way they always did.
 //
@@ -88,8 +82,6 @@ interface SavedProgress {
   guns?: unknown;
   containers?: unknown;
   cargoContainers?: unknown;
-  extractors?: unknown;
-  oilExtractors?: unknown;
   explored?: unknown;
   stats?: Partial<Record<keyof GameStats, unknown>>;
 }
@@ -210,30 +202,6 @@ export function parseCargoContainers(value: unknown): PlacedContainer[] {
   return containers;
 }
 
-/**
- * Rebuild the deployed oil extractors, each with the patch it claimed and how far
- * that patch is drained. The count is capped the way the game caps it, and the
- * buffer/extracted are clamped to their own limits, so a hand-edited save can
- * never restore a rig holding more oil than one could ever have pumped.
- */
-export function parseOilExtractors(value: unknown): OilExtractor[] {
-  if (!Array.isArray(value)) return [];
-  const extractors: OilExtractor[] = [];
-  for (const entry of value) {
-    if (extractors.length >= OIL_EXTRACTOR.maxPlaced) break;
-    const tile = parsePlacedTile(entry);
-    if (!tile) continue;
-    const saved = entry as {patchX?: unknown; patchY?: unknown; buffer?: unknown; extracted?: unknown};
-    const patch = parsePlacedTile({x: saved.patchX, y: saved.patchY});
-    if (!patch) continue;
-    const extractor = createOilExtractor(tile.x, tile.y, patch.x, patch.y);
-    extractor.buffer = numeric(saved.buffer, 0, 0, OIL_EXTRACTOR.bufferMax);
-    extractor.extracted = numeric(saved.extracted, 0, 0, OIL_EXTRACTOR.patchCapacity);
-    extractors.push(extractor);
-  }
-  return extractors;
-}
-
 /** One crate, flattened: where it stands and one entry per stack inside it. */
 function serializeContainer(container: PlacedContainer) {
   return {
@@ -290,12 +258,9 @@ export function load(state: GameState): void {
     if (teleporters > 0) p.inventory = addItem(p.inventory, TELEPORTER_ITEM, teleporters) ?? p.inventory;
     const containers = Math.floor(numeric(save.containers, 0, LIMITS.containers.min, LIMITS.containers.max));
     if (containers > 0) p.inventory = addItem(p.inventory, CARGO_CONTAINER_ITEM, containers) ?? p.inventory;
-    const extractors = Math.floor(numeric(save.extractors, 0, LIMITS.extractors.min, LIMITS.extractors.max));
-    if (extractors > 0) p.inventory = addItem(p.inventory, OIL_EXTRACTOR_ITEM, extractors) ?? p.inventory;
     state.scannerDevices = parseScannerDevices(save.scannerDevices);
     state.placedDynamite = parsePlacedDynamite(save.dynamiteSticks);
     state.cargoContainers = parseCargoContainers(save.cargoContainers);
-    state.oilExtractors = parseOilExtractors(save.oilExtractors);
     // The ship resumes on the tile it parked on, render position included so it
     // appears there instead of easing in from the depot. The clamps are the ones
     // `movementDestination` enforces, so no save can park a miner in a wall.
@@ -336,8 +301,6 @@ export function save(state: GameState): void {
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),
     containers: countItem(p.inventory, CARGO_CONTAINER_ITEM.kind),
     cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializeContainer),
-    extractors: countItem(p.inventory, OIL_EXTRACTOR_ITEM.kind),
-    oilExtractors: state.oilExtractors.slice(0, OIL_EXTRACTOR.maxPlaced).map(({x, y, patchX, patchY, buffer, extracted}) => ({x, y, patchX, patchY, buffer, extracted})),
     explored: encodeExploration(state.exploredTiles),
     tiles: capTileEntries(tileDiffEntries(state.soloTileDiff)),
     stats: state.stats,

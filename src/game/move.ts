@@ -22,7 +22,6 @@ import type {
   GameState,
   HazardTile,
   MotherlodeTile,
-  OilTile,
   OreTile,
   Player,
   RockTile,
@@ -109,21 +108,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     spawnDust(nx, ny, '#444857', 8);
     audio.bump();
     toast('Solid rock blocks the drill.');
-    return 'blocked';
-  }
-
-  /**
-   * Oil patches are indestructible source tiles, so the drill cannot cut them —
-   * but bumping one is not a crash the way rock is: it costs a little fuel and
-   * points the player at the extractor rather than punishing the hull, since the
-   * patches are common and running into one is expected, not a mistake.
-   */
-  function bumpIntoOil(_tile: OilTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
-    player.drillDx = dx; player.drillDy = dy; player.drillAnim = .75;
-    useFuel(dig(0));
-    spawnDust(nx, ny, '#243440', 8);
-    audio.bump();
-    toast('Oil patch — set an extractor on cleared ground beside it to draw fuel.');
     return 'blocked';
   }
 
@@ -222,7 +206,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
   const tileMoveHandlers: {[K in Tile['type']]: TileMoveHandler<Extract<Tile, {type: K}>>} = {
     air: flyThroughAir,
     rock: bumpIntoRock,
-    oil: bumpIntoOil,
     enemy: drillEnemyCocoon,
     hazard: drillHazard,
     motherlode: drillMotherlode,

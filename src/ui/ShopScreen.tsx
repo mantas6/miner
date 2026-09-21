@@ -21,8 +21,7 @@ const HINTS: Record<string, ReactNode> = {
   dynamite: <>Control: <kbd>E</kbd> or its inventory slot, then a mine tile · <kbd>Esc</kbd> cancels</>,
   teleporter: <>Control: <kbd>T</kbd> or Teleport / Return</>,
   scanner: <>Control: inventory slot, then a mine tile · <kbd>Esc</kbd> cancels</>,
-  container: <>Control: inventory slot, then a mine tile · <kbd>C</kbd> or a press on the crate opens it</>,
-  extractor: <>Control: inventory slot, then a mine tile beside an oil patch · <kbd>Esc</kbd> cancels</>
+  container: <>Control: inventory slot, then a mine tile · <kbd>C</kbd> or a press on the crate opens it</>
 };
 
 /** Consumable shelves, by id: the button the tests address and what it buys. */
@@ -31,8 +30,7 @@ const ITEM_PURCHASES: Record<ShopItemId, {buttonId: string; buy(): void}> = {
   teleporter: {buttonId: 'shopTeleporterBtn', buy: () => uiCommands.buyTeleporter()},
   scanner: {buttonId: 'shopScannerBtn', buy: () => uiCommands.buyScanner()},
   gun: {buttonId: 'shopGunBtn', buy: () => uiCommands.buyGun()},
-  container: {buttonId: 'shopContainerBtn', buy: () => uiCommands.buyContainer()},
-  extractor: {buttonId: 'shopExtractorBtn', buy: () => uiCommands.buyExtractor()}
+  container: {buttonId: 'shopContainerBtn', buy: () => uiCommands.buyContainer()}
 };
 
 interface ShopItemProps {

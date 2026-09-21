@@ -7,7 +7,6 @@ import type { TrackId } from '../audio/tracks';
 import type { PlacedContainer } from './cargo-container';
 import type { PlacedDynamite } from './dynamite';
 import type { Inventory, InventoryItemKind } from './inventory';
-import type { OilExtractor } from './oil-extractor';
 import type { ScannerDevice } from './scanner-device';
 import type { TileDiff } from '../world/tile-diff';
 
@@ -20,7 +19,6 @@ export type {
   EnemyKind,
   HazardTile,
   MotherlodeTile,
-  OilTile,
   Ore,
   OreTile,
   RockTile,
@@ -155,8 +153,6 @@ export interface GameState {
   placedDynamite: PlacedDynamite[];
   /** Cargo containers standing in the mine, each with its own slots. */
   cargoContainers: PlacedContainer[];
-  /** Oil extractors standing in the mine, each draining its claimed patch. */
-  oilExtractors: OilExtractor[];
   /**
    * The carried device armed for placement, or `null` when nothing is. Only the
    * placeable kinds (scanner, dynamite, container) ever appear here; it drives the

@@ -61,13 +61,6 @@ export const dirtTileSchema = z.object({ type: z.literal('dirt'), hp, maxHp });
 /** Rock is indestructible scenery, so it carries no `maxHp`. */
 export const rockTileSchema = z.object({ type: z.literal('rock'), hp });
 export const oreTileSchema = z.object({ type: z.literal('ore'), ore: oreSchema, hp, maxHp });
-/**
- * An oil patch: an indestructible source tile an oil extractor draws fuel from.
- * It is scenery, never mined, so it carries no durability — only whether the
- * extractor beside it has drained it dry (`depleted`), which is the one bit of a
- * patch's state that survives a reload.
- */
-export const oilTileSchema = z.object({ type: z.literal('oil'), depleted: z.boolean() });
 export const hazardTileSchema = z.object({ type: z.literal('hazard'), hp, maxHp });
 export const artifactTileSchema = z.object({ type: z.literal('artifact'), artifact: artifactSchema, hp, maxHp });
 export const motherlodeTileSchema = z.object({ type: z.literal('motherlode'), hp, maxHp });
@@ -84,7 +77,6 @@ export const tileSchema = z.discriminatedUnion('type', [
   dirtTileSchema,
   rockTileSchema,
   oreTileSchema,
-  oilTileSchema,
   hazardTileSchema,
   artifactTileSchema,
   motherlodeTileSchema,
@@ -154,7 +146,6 @@ export type AirTile = z.infer<typeof airTileSchema>;
 export type DirtTile = z.infer<typeof dirtTileSchema>;
 export type RockTile = z.infer<typeof rockTileSchema>;
 export type OreTile = z.infer<typeof oreTileSchema>;
-export type OilTile = z.infer<typeof oilTileSchema>;
 export type HazardTile = z.infer<typeof hazardTileSchema>;
 export type ArtifactTile = z.infer<typeof artifactTileSchema>;
 export type MotherlodeTile = z.infer<typeof motherlodeTileSchema>;

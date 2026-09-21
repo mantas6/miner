@@ -6,7 +6,6 @@ import { getEnemyType } from '../core/enemy-types';
 import { type PlacedContainer } from '../core/cargo-container';
 import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
-import { isPatchDepleted, type OilExtractor } from '../core/oil-extractor';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
 import { isScannerDone, type ScannerDevice } from '../core/scanner-device';
 import { TERRAIN_CHUNK_TILES, terrainCacheScale, terrainChunkCoordinate, terrainChunkKeyForTile } from './terrain-cache-policy';
@@ -49,8 +48,6 @@ export interface RendererState {
   placedDynamite?: readonly PlacedDynamite[];
   /** Cargo containers standing in the mine. Absent or empty means none is placed. */
   cargoContainers?: readonly PlacedContainer[];
-  /** Oil extractors standing in the mine. Absent or empty means none is placed. */
-  oilExtractors?: readonly OilExtractor[];
   teleportEffect?: TeleportEffect | null;
   input?: {sprintDirection?: Direction | null};
   /** The carried device armed for placement, or `null`/absent when none is. */
@@ -241,7 +238,6 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     drawTerrainBlendOverlay(camY);
     drawSurface(camX, camY);
     drawCargoContainers(camX, camY);
-    drawOilExtractors(camX, camY);
     drawScannerDevices(camX, camY);
     drawPlacedDynamite(camX, camY);
     drawEnemies(camX, camY);
@@ -290,9 +286,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       scannerDevices: state.scannerDevices ?? [],
       placedDynamite: state.placedDynamite ?? [],
       cargoContainers: state.cargoContainers ?? [],
-      oilExtractors: state.oilExtractors ?? [],
-      isOpen: (x: number, y: number) => get(x, y).type === 'air',
-      isOilPatch: (x: number, y: number) => { const tile = get(x, y); return tile.type === 'oil' && !tile.depleted; }
+      isOpen: (x: number, y: number) => get(x, y).type === 'air'
     };
     const cells = placementOverlayCells(kind, state.player.x, state.player.y, world);
     const hover = state.hoverTile;
@@ -435,50 +429,6 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillStyle = loaded ? '#ffe58a' : '#2a333c';
     if (loaded) { ctx.shadowColor = '#ffc857'; ctx.shadowBlur = 8; }
     ctx.beginPath(); ctx.arc(0, TILE*.04, TILE*.05, 0, Math.PI*2); ctx.fill();
-    ctx.restore();
-  }
-  /**
-   * Deployed oil extractors, as a small nodding pump. A live rig rocks its beam
-   * and shows a lit gauge; one whose patch has run dry stands still and dark, so
-   * "still pumping" and "spent" read a glance apart without a label.
-   */
-  function drawOilExtractors(camX: number, camY: number) {
-    const extractors = state.oilExtractors;
-    if (!extractors?.length) return;
-    for (const extractor of extractors) {
-      if (!isExplored(extractor.x, extractor.y)) continue;
-      const sx = (extractor.x - camX) * TILE, sy = (extractor.y - camY) * TILE;
-      if (sx < -TILE || sy < -TILE || sx > viewport.worldWidthPx + TILE || sy > viewport.worldHeightPx + TILE) continue;
-      const patch = get(extractor.patchX, extractor.patchY);
-      const patchAlive = patch.type === 'oil' && !patch.depleted;
-      drawOilExtractorBody(sx, sy, !isPatchDepleted(extractor, patchAlive));
-    }
-  }
-  function drawOilExtractorBody(sx: number, sy: number, active: boolean) {
-    const nod = active && !state.reducedMotion ? Math.sin(state.tick * .12) : 0;
-    ctx.save();
-    ctx.translate(sx + TILE*.5, sy + TILE*.5);
-    // Base and derrick sitting on the tile floor.
-    ctx.fillStyle = active ? '#2e4a52' : '#2a2f34';
-    ctx.fillRect(-TILE*.30, TILE*.16, TILE*.60, TILE*.14);
-    ctx.strokeStyle = '#141b1f'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-TILE*.16, TILE*.16); ctx.lineTo(0, -TILE*.12);
-    ctx.moveTo(TILE*.16, TILE*.16); ctx.lineTo(0, -TILE*.12);
-    ctx.stroke();
-    // Walking beam, nodding while the rig runs.
-    ctx.save();
-    ctx.translate(0, -TILE*.12);
-    ctx.rotate(nod * .22);
-    ctx.strokeStyle = active ? '#7fd4c0' : '#5d6b78'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(-TILE*.26, 0); ctx.lineTo(TILE*.26, 0); ctx.stroke();
-    ctx.fillStyle = active ? '#12303a' : '#20262b';
-    ctx.fillRect(TILE*.18, 0, TILE*.10, TILE*.24);
-    ctx.restore();
-    // Gauge lamp: lit while it pumps, dark once the patch is dry.
-    ctx.fillStyle = active ? '#8fe6ff' : '#2a333c';
-    if (active) { ctx.shadowColor = '#5cc8ff'; ctx.shadowBlur = 10; }
-    ctx.beginPath(); ctx.arc(-TILE*.22, TILE*.06, TILE*.05, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
   /**
@@ -626,27 +576,6 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       ctx.fillStyle='#172132'; ctx.font=`bold ${Math.floor(TILE*.24)}px sans-serif`; ctx.textAlign='center'; ctx.fillText('$',sx+TILE*.5,sy+TILE*.57); ctx.textAlign='left'; ctx.restore();
       return;
     }
-    if (t.type === 'oil') {
-      // A dark, glossy blob for a live patch; a flat, drained grey for a spent one.
-      const g = ctx.createRadialGradient(sx+TILE*.42, sy+TILE*.40, TILE*.05, sx+TILE*.5, sy+TILE*.5, TILE*.62);
-      if (t.depleted) { g.addColorStop(0, '#2b2724'); g.addColorStop(.6, '#191614'); g.addColorStop(1, '#0a0908'); }
-      else { g.addColorStop(0, '#3a3358'); g.addColorStop(.4, '#1b1b30'); g.addColorStop(1, '#05060b'); }
-      ctx.fillStyle = g; ctx.fillRect(sx-pad,sy-pad,TILE+pad*2,TILE+pad*2);
-      for (let i=0;i<5;i++) {
-        const bx = sx + (rand(wx+i*7, wy-i*3) * .8 + .1) * TILE;
-        const by = sy + (rand(wx-i*5, wy+i*11) * .8 + .1) * TILE;
-        const r = TILE*(.06 + rand(wx+i, wy+i)*.10);
-        ctx.fillStyle = t.depleted
-          ? `rgba(60,54,48,${.10 + rand(wx+i,wy)*.10})`
-          : `rgba(120,150,210,${.06 + rand(wx+i,wy)*.10})`;
-        ctx.beginPath(); ctx.ellipse(bx, by, r, r*.7, rand(wx,wy+i)*Math.PI, 0, Math.PI*2); ctx.fill();
-      }
-      if (!t.depleted) {
-        ctx.fillStyle = 'rgba(180,205,255,.35)';
-        ctx.beginPath(); ctx.ellipse(sx+TILE*.36, sy+TILE*.34, TILE*.09, TILE*.05, -.5, 0, Math.PI*2); ctx.fill();
-      }
-      return;
-    }
     if (t.type === 'hazard' || t.type === 'motherlode') {
       const artifact = t.type === 'motherlode';
       const g = ctx.createRadialGradient(sx+TILE*.50, sy+TILE*.45, TILE*.08, sx+TILE*.5, sy+TILE*.5, TILE*.58);
@@ -732,9 +661,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     }
   }
   function drawTileDamage(t: Tile, sx: number, sy: number) {
-    // Air has no durability, and rock and oil patches are indestructible, so none
-    // of them show damage.
-    if (t.type === 'air' || t.type === 'rock' || t.type === 'oil') return;
+    // Air has no durability and rock is indestructible, so neither shows damage.
+    if (t.type === 'air' || t.type === 'rock') return;
     if (t.hp >= t.maxHp) return;
     if (t.type === 'hazard' || t.type === 'artifact' || t.type === 'motherlode') {
       ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(sx+TILE*.18, sy+TILE*.12, TILE*.64, TILE*.055);

@@ -37,7 +37,7 @@ const ORE_KIND_PREFIX = 'ore:';
 export type OreKind = `${typeof ORE_KIND_PREFIX}${string}`;
 
 /** Everything the bay can hold. Extend the union as kinds move in. */
-export type InventoryItemKind = OreKind | 'dynamite' | 'scanner' | 'gun' | 'teleporter' | 'container' | 'extractor';
+export type InventoryItemKind = OreKind | 'dynamite' | 'scanner' | 'gun' | 'teleporter' | 'container';
 
 /** What one unit of a stack is: its identity and how it is shown and priced. */
 export interface InventoryItem {

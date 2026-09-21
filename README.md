@@ -104,9 +104,9 @@ miner-mp/
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, economy, upgrades, shop catalog, movement, weapon, dynamite, teleporter, cargo containers, oil extractors, enemies, objectives, extraction, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
-| `src/world/` | World generation (ore, artifacts, and the common oil patches), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `oil-extractors.ts` — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/core/` | Pure gameplay rules and types: balance, economy, upgrades, shop catalog, movement, weapon, dynamite, teleporter, cargo containers, enemies, objectives, extraction, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/world/` | World generation, the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts` — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
 | `src/audio/tracks.ts` | Track registry for playback: the `TrackId` union, `TRACKS` (title plus mp3/ogg URLs), `DEFAULT_TRACK_ID`. |
@@ -224,7 +224,6 @@ zooming the camera with the wheel or a trackpad.
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
 | Deploy a scanner | — | Scanner inventory slot, then a mine tile |
 | Set a cargo container down | — | Container inventory slot, then a mine tile |
-| Deploy an oil extractor (beside an oil patch) | — | Extractor inventory slot, then a mine tile |
 | Open a placed cargo container (on it or beside it) | `C` | Press the crate on the mine |
 | Move a stack between the crate and the bay | — | Press the stack in either column |
 | Cancel a placement | `Escape` | The armed slot again |
@@ -272,9 +271,9 @@ zooming the camera with the wheel or a trackpad.
   1000. Selling empties every ore stack at once and frees that room again.
 - Refuel and repair at the surface depot.
 - The depot shop sells four upgrades — Cargo Bay, Fuel Tank, Hull, Drill — plus
-  the consumables: dynamite, teleporters, scanners, Linebreaker guns, cargo
-  containers, and oil extractors. Upgrade prices rise with each level; consumables
-  are a flat price each.
+  the consumables: dynamite, teleporters, scanners, Linebreaker guns, and cargo
+  containers. Upgrade prices rise with each level; consumables are a flat price
+  each.
 - Artifacts pay out immediately in cash and never take a cargo slot; dynamite
   and gunfire destroy valuables without any payout.
 - Dynamite and scanners are carried in the cargo bay and placed from their own
@@ -298,18 +297,6 @@ zooming the camera with the wheel or a trackpad.
   way to protect ore from a lost run. Anything taken back out still counts against
   the Cargo Bay upgrade's capacity, so a crate buys storage, never carrying
   capacity. Six may stand in the mine at once.
-- Oil patches (`src/core/oil-extractor.ts`) are indestructible dark source tiles
-  scattered very commonly through the mine — a testing default, so a fresh descent
-  runs into one within the first few dozen metres. The drill cannot cut them, so
-  they are dug *around*, not through. Buy an Oil Extractor ($100) at the depot,
-  clear a tile beside a patch, and set the rig down from its inventory slot: the
-  placement grid only lights up green on cleared, explored tiles that sit next to
-  an undrained patch. Once deployed the rig draws oil from that patch over time
-  into a small buffer and pumps it straight into the ship's fuel tank whenever the
-  ship is parked on or beside it — an underground refuel that never costs cash. A
-  patch yields 500 fuel before it runs dry, at which point it turns a flat grey and
-  the rig beside it goes inert. Like the cargo container, an extractor is spent on
-  being put down and left in the mine for good; up to six may stand at once.
 - Low fuel warnings appear below 25%; return to the surface quickly.
 - The HUD reserve readout forecasts the climb home (safe/caution/urgent), the
   scanner reads the tile the drill is aimed at, and the depth readout counts

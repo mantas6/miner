@@ -14,7 +14,6 @@ import { ECONOMY } from '../core/balance';
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import { buildDangerGuideRows } from '../core/danger';
 import { DYNAMITE } from '../core/dynamite';
-import { OIL_EXTRACTOR } from '../core/oil-extractor';
 import { PROSPECTING_TIP, buildArtifactGuideRows, buildProspectingGuideRows } from '../core/prospecting';
 import { SCANNER_DEVICE } from '../core/scanner-device';
 import { GAME_RESET_CONFIRMATION } from '../persistence-reset';
@@ -254,7 +253,6 @@ function ControlsPanel() {
         <li><span className={styles.controlKeys}><strong>Scanner slot</strong> then a mine tile</span><span>Deploy one carried scanner onto explored, cleared ground; it maps its {SCANNER_DEVICE.size}×{SCANNER_DEVICE.size} surroundings, one fogged tile every {SCANNER_DEVICE.intervalSeconds} seconds, then goes inert. Escape cancels.</span></li>
         <li><span className={styles.controlKeys}><strong>Container slot</strong> then a mine tile</span><span>Set one carried cargo container down on explored, cleared ground. Escape cancels.</span></li>
         <li><span className={styles.controlKeys}><kbd>C</kbd> / press the crate</span><span>Open a placed container the ship is standing on or beside. Press a stack in either column to move it across; the crate holds up to {CARGO_CONTAINER.capacity} items and keeps them through death and reload, and anything taken back aboard still obeys the cargo-bay limit.</span></li>
-        <li><span className={styles.controlKeys}><strong>Extractor slot</strong> then a mine tile</span><span>Set one carried oil extractor down on explored, cleared ground beside an oil patch. It draws oil from the patch and refills the ship's fuel whenever you park alongside it, until the patch yields its {OIL_EXTRACTOR.patchCapacity} fuel and runs dry. Escape cancels.</span></li>
         <li><span className={styles.controlKeys}><kbd>R</kbd> then <kbd>R</kbd></span><span>Confirm reset while alive</span></li>
       </ul>
     </section>

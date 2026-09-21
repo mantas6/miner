@@ -26,7 +26,6 @@ import { formatSurfaceActionHint } from '../core/surface-hint';
 import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind } from '../core/inventory';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
-import { OIL_EXTRACTOR_ITEM } from '../core/oil-extractor';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import { GUN_ITEM } from '../core/weapon';
@@ -104,12 +103,11 @@ export type PlayerSnapshot = Pick<
   guns: number;
   teleporters: number;
   containers: number;
-  extractors: number;
 };
 
 const PLAYER_KEYS = [
   'fuel', 'fuelMax', 'hull', 'hullMax', 'cargoMax', 'drill',
-  'scanners', 'dynamite', 'guns', 'teleporters', 'containers', 'extractors'
+  'scanners', 'dynamite', 'guns', 'teleporters', 'containers'
 ] as const satisfies readonly (keyof PlayerSnapshot)[];
 
 export interface CargoRow {
@@ -315,8 +313,7 @@ function initialPlayer(): PlayerSnapshot {
     scanners: countItem(player.inventory, SCANNER_ITEM.kind),
     dynamite: countItem(player.inventory, DYNAMITE_ITEM.kind),
     guns: countItem(player.inventory, GUN_ITEM.kind),
-    containers: countItem(player.inventory, CARGO_CONTAINER_ITEM.kind),
-    extractors: countItem(player.inventory, OIL_EXTRACTOR_ITEM.kind)
+    containers: countItem(player.inventory, CARGO_CONTAINER_ITEM.kind)
   };
 }
 

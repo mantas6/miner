@@ -17,7 +17,6 @@ import { explorationIndex } from '../../shared/exploration-codec';
 import { CARGO_CONTAINER, type PlacedContainer } from './cargo-container';
 import { DYNAMITE, type PlacedDynamite } from './dynamite';
 import type { InventoryItemKind } from './inventory';
-import { OIL_EXTRACTOR, findNearbyOilPatch, type OilExtractor } from './oil-extractor';
 import { canPlaceDevice, inMineBounds, type PlacementSite } from './placement';
 import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
 
@@ -29,7 +28,7 @@ import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
 export const PLACEMENT_OVERLAY_RADIUS = 4;
 
 /** The item kinds that are set down onto a tile, and so earn a placement grid. */
-const PLACEABLE_KINDS: ReadonlySet<InventoryItemKind> = new Set<InventoryItemKind>(['scanner', 'dynamite', 'container', 'extractor']);
+const PLACEABLE_KINDS: ReadonlySet<InventoryItemKind> = new Set<InventoryItemKind>(['scanner', 'dynamite', 'container']);
 
 /** Whether this armed kind is one placed into the world (vs. spent, or mere cargo). */
 export function isPlaceableKind(kind: InventoryItemKind | null | undefined): boolean {
@@ -42,11 +41,8 @@ export interface PlacementOverlayWorld {
   scannerDevices: readonly ScannerDevice[];
   placedDynamite: readonly PlacedDynamite[];
   cargoContainers: readonly PlacedContainer[];
-  oilExtractors: readonly OilExtractor[];
   /** Whether the tile is cleared open space a device can be dropped into. */
   isOpen(x: number, y: number): boolean;
-  /** Whether the tile holds an oil patch with oil still left to draw. */
-  isOilPatch(x: number, y: number): boolean;
 }
 
 /** One tile of the preview grid: where it is, and whether the device fits. */
@@ -91,13 +87,6 @@ function placementSiteFor(
         occupied: world.cargoContainers.some(container => container.x === x && container.y === y),
         full: world.cargoContainers.length >= CARGO_CONTAINER.maxPlaced
       };
-    case 'extractor':
-      return {
-        explored: world.explored,
-        open,
-        occupied: world.oilExtractors.some(extractor => extractor.x === x && extractor.y === y),
-        full: world.oilExtractors.length >= OIL_EXTRACTOR.maxPlaced
-      };
     default:
       return null;
   }
@@ -113,9 +102,6 @@ export function isPlacementValid(
   if (!isPlaceableKind(kind)) return false;
   const site = placementSiteFor(kind!, x, y, world);
   if (site === null || !canPlaceDevice(x, y, site)) return false;
-  // The extractor carries one rule the others do not: the cleared tile must sit
-  // beside an oil patch, so the grid tints valid only where a press would take.
-  if (kind === 'extractor') return findNearbyOilPatch(x, y, world.isOilPatch) !== null;
   return true;
 }
 

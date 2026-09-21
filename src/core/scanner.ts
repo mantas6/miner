@@ -38,10 +38,6 @@ export function formatTerrainScanner({ tile, direction, activeEnemy = false, exp
       return `${prefix} ${tile.ore.name} — $${tile.ore.value}, ${hitsLabel(tile.hp)}.`;
     case 'rock':
       return `${prefix} solid rock — detour; drill blocked.`;
-    case 'oil':
-      return tile.depleted
-        ? `${prefix} drained oil patch — inert; drill blocked.`
-        : `${prefix} oil patch — deploy an extractor beside it; drill blocked.`;
     case 'hazard':
       return `${prefix} magma — hull risk, ${hitsLabel(tile.hp)} to vent.`;
     case 'enemy':

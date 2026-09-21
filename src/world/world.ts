@@ -41,22 +41,6 @@ export function oreSpawnChanceAtDepth(depth: number): number {
   return .10 * Math.min(2.2, 1 + depth / 90);
 }
 
-/**
- * Oil patches: indestructible source tiles an oil extractor draws fuel from.
- * Deliberately VERY COMMON for early testing — roughly one tile in sixteen below
- * the shaft's opening — so a fresh descent runs into one within the first few
- * dozen metres. The band starts a little below the surface so the depot opening
- * and the deterministic starter ore seam stay clear.
- */
-export const OIL_PATCH_MIN_ROW = SURFACE_HEIGHT + 4;
-export function oilPatchChanceAtDepth(_depth: number): number {
-  return 0.06;
-}
-export function isOilPatch(x: number, y: number): boolean {
-  if (y < OIL_PATCH_MIN_ROW) return false;
-  return rand(x + 313, y - 211) < oilPatchChanceAtDepth(y);
-}
-
 export function oreForDepthRoll(depth: number, roll: number) {
   const eligible = ORES.filter(ore => depth >= ore.min && depth <= ore.max);
   const totalWeight = eligible.reduce((total, ore) => total + ore.chance, 0);
@@ -90,9 +74,6 @@ export function makeTile(x: number, y: number): Tile {
   }
   if (y === MOTHERLODE_ROW && Math.abs(x - Math.floor(WORLD_W/2)) <= 1) return {type:'motherlode', hp:24, maxHp:24};
   if (ore) { const hp = Math.max(3, Math.ceil((depth/28)+4)); return {type:'ore', ore, hp, maxHp: hp}; }
-  // Oil patches take precedence over plain terrain but never over ore or the
-  // curated starter seam: an extractor beside one draws fuel from it.
-  if (isOilPatch(x, y)) return {type:'oil', depleted:false};
   const artifact = artifactForDepthRoll(depth, rand(x - 181, y + 263));
   if (artifact) { const hp = Math.max(4, Math.ceil(depth/240)+3); return {type:'artifact', artifact, hp, maxHp:hp}; }
   const rockChance = y > 190 ? .036 : .018;

@@ -11,7 +11,6 @@ import { ECONOMY } from './balance';
 import { CARGO_CONTAINER } from './cargo-container';
 import { DYNAMITE } from './dynamite';
 import { cargoCost, drillCost, hullCost, refuelCost, repairCost, tankCost } from './economy';
-import { OIL_EXTRACTOR } from './oil-extractor';
 import { SCANNER_DEVICE } from './scanner-device';
 import { MIN_TELEPORT_DEPTH_METERS } from './teleporter';
 import type { Player } from './types';
@@ -32,7 +31,6 @@ export type ShopPlayer = Pick<
   guns: number;
   teleporters: number;
   containers: number;
-  extractors: number;
 };
 
 export interface ShopRowState {
@@ -148,13 +146,6 @@ export const SHOP_ITEMS = [
     title: 'Cargo Container',
     copy: `Permanent ${CARGO_CONTAINER.capacity}-item store. Set it down on cleared ground from the inventory panel, then press it from an adjacent tile to move stacks between it and the cargo bay. It keeps what it holds through death and reload; anything taken back aboard still obeys the cargo-bay limit.`,
     price: ECONOMY.container.price
-  },
-  {
-    id: 'extractor',
-    icon: 'extractor',
-    title: 'Oil Extractor',
-    copy: `Deployable fuel rig. Dig out cleared ground beside an oil patch, then set it down from the inventory panel: it draws oil from the patch over time and tops the ship's tank off whenever you park alongside it. Each patch yields ${OIL_EXTRACTOR.patchCapacity} fuel before it runs dry and the rig goes inert.`,
-    price: ECONOMY.extractor.price
   }
 ] as const;
 
@@ -166,8 +157,7 @@ const ITEM_COUNTS: Record<ShopItemId, (player: ShopPlayer) => number> = {
   teleporter: player => player.teleporters,
   scanner: player => player.scanners,
   gun: player => player.guns,
-  container: player => player.containers,
-  extractor: player => player.extractors
+  container: player => player.containers
 };
 
 /** The shared "can I buy this right now?" verdict for a fixed-price purchase. */

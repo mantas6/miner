@@ -16,7 +16,6 @@ import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { cargoValue, partialFill, refuelCost, repairCost } from '../core/economy';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { addItem, countItem, isFull, removeItem, removeOres, type InventoryItem } from '../core/inventory';
-import { OIL_EXTRACTOR_ITEM } from '../core/oil-extractor';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import {
   MIN_TELEPORT_DEPTH_METERS,
@@ -65,8 +64,6 @@ export interface GameActions {
   buyGun(): void;
   /** Buy one cargo container into the cargo bay; refused when it has no room. */
   buyContainer(): void;
-  /** Buy one oil extractor into the cargo bay; refused when it has no room. */
-  buyExtractor(): void;
   setGunArmed(armed: boolean): void;
   /** Fire the carried Linebreaker, spending it. Reports whether the shot went off. */
   fireGun(direction: Direction): boolean;
@@ -239,15 +236,6 @@ export function createActions(deps: GameActionsDeps): GameActions {
     );
   }
 
-  function buyExtractor(): void {
-    buyDeployable(
-      OIL_EXTRACTOR_ITEM,
-      ECONOMY.extractor.price,
-      'Cargo bay is full. Sell the cargo before buying an oil extractor.',
-      'Oil extractor loaded. Press its inventory slot, then a mapped tile beside an oil patch, to deploy it.'
-    );
-  }
-
   /** Linebreakers aboard; the gun is carried, so this is the whole ammunition question. */
   function gunsCarried(): number {
     return countItem(state.player.inventory, GUN_ITEM.kind);
@@ -344,7 +332,6 @@ export function createActions(deps: GameActionsDeps): GameActions {
     buyScanner,
     buyGun,
     buyContainer,
-    buyExtractor,
     setGunArmed,
     fireGun,
     useTeleporter
