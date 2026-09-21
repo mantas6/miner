@@ -3,7 +3,7 @@ import { createPlacedContainer } from '../core/cargo-container';
 import { addItem } from '../core/inventory';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
-import { GUN_ITEM } from '../core/weapon';
+import { DYNAMITE_ITEM } from '../core/dynamite';
 import { createTileDiff } from './tile-diff';
 import { confirmWorldStateReset, resetWorldTerrain, WORLD_STATE_RESET_CONFIRMATION } from './world-state';
 
@@ -19,7 +19,7 @@ describe('world state reset', () => {
     const state = createInitialState();
     Object.assign(state.player, { fuel: 17, hull: 23, fuelMax: 400, hullMax: 300, cargoMax: 80, drill: 40 });
     state.player.inventory = addItem(
-      addItem(state.player.inventory, GUN_ITEM, 2)!,
+      addItem(state.player.inventory, DYNAMITE_ITEM, 2)!,
       TELEPORTER_ITEM,
       8
     )!;

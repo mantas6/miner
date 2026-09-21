@@ -10,7 +10,6 @@ import { DYNAMITE, DYNAMITE_ITEM, type PlacedDynamite } from './core/dynamite';
 import { addItem, countItem, inventoryStacks, type InventoryItem, type InventoryItemKind } from './core/inventory';
 import { SCANNER_DEVICE, SCANNER_ITEM, type ScannerDevice } from './core/scanner-device';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { GUN_ITEM } from './core/weapon';
 import { createDefaultStats } from './core/state';
 import { encodeExploration, mergeExploration } from '../shared/exploration-codec';
 import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries } from './world/tile-diff';
@@ -54,11 +53,15 @@ import type { GameState, GameStats } from './core/types';
 //     `extractors`/`oilExtractors` a save from that build carried are ignored on
 //     load, and an `oil` tile in the world diff is dropped with the rest of that
 //     diff by the shared schema — no crash, just a pristine mine.
+//   * v14: the Linebreaker gun was removed. Any `guns` a save from that build
+//     carried — along with the pre-v8 `gunOwned`/`bullets` a much older save
+//     might still hold — are ignored on load: there is no weapon to restore and
+//     nothing to refund. No crash, just a bay without a gun in it.
 // Older blobs still load; they just restore a pristine mine, and pre-v5 saves
 // start at the depot the way they always did.
 //
 // The cargo bay itself is deliberately *not* saved: ore is lost with the run.
-// Scanners, dynamite, guns, teleporters and containers are equipment rather than
+// Scanners, dynamite, teleporters and containers are equipment rather than
 // cargo, so they are stored as counts and re-stacked into the bay on load. Ore
 // inside a placed container is the exception, and deliberately so: it is not
 // aboard, so it is not lost with the run either.
@@ -79,7 +82,6 @@ interface SavedProgress {
   teleporters?: unknown;
   scanners?: unknown;
   scannerDevices?: unknown;
-  guns?: unknown;
   containers?: unknown;
   cargoContainers?: unknown;
   explored?: unknown;
@@ -87,7 +89,7 @@ interface SavedProgress {
 }
 
 export const SAVE_KEY = 'moleload-progress-v1';
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 /** A stored stack is a count, not a licence to write an unbounded number. */
 const MAX_SAVED_STACK = 9999;
 /** Cargo-bay upgrade maths as older saves stored it, so a save keeps its levels. */
@@ -252,8 +254,6 @@ export function load(state: GameState): void {
     if (scanners > 0) p.inventory = addItem(p.inventory, SCANNER_ITEM, scanners) ?? p.inventory;
     const dynamite = Math.floor(numeric(save.dynamite, 0, LIMITS.dynamite.min, LIMITS.dynamite.max));
     if (dynamite > 0) p.inventory = addItem(p.inventory, DYNAMITE_ITEM, dynamite) ?? p.inventory;
-    const guns = Math.floor(numeric(save.guns, 0, LIMITS.guns.min, LIMITS.guns.max));
-    if (guns > 0) p.inventory = addItem(p.inventory, GUN_ITEM, guns) ?? p.inventory;
     const teleporters = Math.floor(numeric(save.teleporters, 0, LIMITS.teleporters.min, LIMITS.teleporters.max));
     if (teleporters > 0) p.inventory = addItem(p.inventory, TELEPORTER_ITEM, teleporters) ?? p.inventory;
     const containers = Math.floor(numeric(save.containers, 0, LIMITS.containers.min, LIMITS.containers.max));
@@ -295,7 +295,6 @@ export function save(state: GameState): void {
     drill: p.drill,
     dynamite: countItem(p.inventory, DYNAMITE_ITEM.kind),
     teleporters: countItem(p.inventory, TELEPORTER_ITEM.kind),
-    guns: countItem(p.inventory, GUN_ITEM.kind),
     scanners: countItem(p.inventory, SCANNER_ITEM.kind),
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),

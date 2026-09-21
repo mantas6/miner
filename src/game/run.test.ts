@@ -4,7 +4,6 @@ import { ECONOMY, STARTING } from '../core/balance';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
-import { GUN_ITEM } from '../core/weapon';
 import type { GameState } from '../core/types';
 import { createTileDiff } from '../world/tile-diff';
 import { makeTile } from '../world/world';
@@ -41,7 +40,7 @@ function harness(): Harness {
     drill: STARTING.drill + 1,
     // Ore to lose with the ship, and equipment that survives it.
     inventory: addItem(
-      addItem(addOre(addOre(createInventory(), ORES[0], 99)!, ORES[1], 99)!, GUN_ITEM)!,
+      addOre(addOre(createInventory(), ORES[0], 99)!, ORES[1], 99)!,
       TELEPORTER_ITEM
     )!
   });
@@ -90,9 +89,8 @@ describe('hull damage', () => {
 });
 
 describe('death consequences', () => {
-  it('banks the death, disarms the ship, and cancels a carried extraction', () => {
+  it('banks the death and cancels a carried extraction', () => {
     const h = harness();
-    h.state.input.gunArmed = true;
     h.state.extractionPhase = 'returning';
     h.state.teleportEffect = {
       originScreenX: 1, originScreenY: 2, destinationX: 3, destinationY: 4,
@@ -106,7 +104,6 @@ describe('death consequences', () => {
       extractionPhase: 'none',
       teleportEffect: null
     });
-    expect(h.state.input.gunArmed).toBe(false);
     expect(h.state.stats.deaths).toBe(1);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.audio.played).toContain('alarm');
@@ -139,8 +136,7 @@ describe('restarting after a death', () => {
       fuel: STARTING.fuelMax + ECONOMY.tank.step,
       hull: STARTING.hullMax
     });
-    // Equipment is not cargo: the replacement ship keeps the gun and the teleporter.
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(1);
+    // Equipment is not cargo: the replacement ship keeps the teleporter.
     expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.gameOver).toBe(false);
@@ -249,7 +245,6 @@ describe('a full player reset', () => {
       cargoMax: STARTING.cargoMax,
       drill: STARTING.drill
     });
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(0);
     expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(0);
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.exploredTiles.size).toBe(0);

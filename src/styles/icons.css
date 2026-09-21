@@ -164,21 +164,6 @@
   height: 14px;
   background: #b6c6d6;
 }
-.icon-gun::before {
-  width: 34px;
-  height: 12px;
-  border-radius: 3px;
-  background: linear-gradient(#e8d17c, #80672b);
-  box-shadow: -8px 7px 0 -2px #53422b;
-}
-.icon-gun::after {
-  right: 5px;
-  width: 13px;
-  height: 5px;
-  border-radius: 2px;
-  background: #ffeaa0;
-  box-shadow: 0 0 8px #ffd35f;
-}
 /* A banded crate with a lid: the cargo container left standing in the mine. */
 .icon-container::before {
   top: 16px;

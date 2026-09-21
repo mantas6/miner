@@ -14,7 +14,7 @@ import { createInitialState } from './state';
 
 /** A shop-shaped ship: the run's player plus the bay-counted consumable tallies. */
 function ship(overrides: Partial<ShopPlayer> = {}): ShopPlayer {
-  return {...createInitialState().player, scanners: 0, dynamite: 0, guns: 0, teleporters: 0, containers: 0, ...overrides};
+  return {...createInitialState().player, scanners: 0, dynamite: 0, teleporters: 0, containers: 0, ...overrides};
 }
 
 function everyRow(player: ShopPlayer, cash: number, atSurface: boolean) {
@@ -93,22 +93,9 @@ describe('shop rows', () => {
     });
   });
 
-  it('prices the gun as one more carried consumable, with no ammunition shelf', () => {
+  it('offers no Linebreaker gun or ammunition shelf', () => {
+    expect(SHOP_ITEMS.map(item => item.id)).not.toContain('gun');
     expect(SHOP_ITEMS.map(item => item.id)).not.toContain('bullets');
-
-    expect(itemRowState('gun', ship(), ECONOMY.gun.price - 1, true)).toMatchObject({
-      current: 'Carried: 0',
-      buttonLabel: `Buy one · $${ECONOMY.gun.price}`,
-      status: 'Need $1',
-      buttonDisabled: true
-    });
-    // Owning one never closes the shelf: every shot spends an item, so the next
-    // one is always for sale.
-    expect(itemRowState('gun', ship({guns: 2}), ECONOMY.gun.price, true)).toMatchObject({
-      current: 'Carried: 2',
-      status: 'Ready',
-      buttonDisabled: false
-    });
   });
 
   it('prices the teleporter as one more carried consumable', () => {

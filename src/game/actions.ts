@@ -1,11 +1,11 @@
-// Player-initiated actions: selling, depot services, shop purchases, the gun,
-// and the teleporter.
+// Player-initiated actions: selling, depot services, shop purchases, and the
+// teleporter.
 //
 // The two deployables — scanners and dynamite — are only *bought* here; arming
 // and placing them lives with the devices themselves, in `scanner-devices.ts`
-// and `dynamite-sticks.ts`. The Linebreaker and the teleporter are bought the
-// same way but spent from here, because each resolves in a single press instead
-// of being left behind in the mine.
+// and `dynamite-sticks.ts`. The teleporter is bought the same way but spent from
+// here, because it resolves in a single press instead of being left behind in
+// the mine.
 //
 // Each one is a small transaction — validate, charge, mutate, toast, play a
 // sound — so they are grouped here rather than scattered through the loop code.
@@ -15,7 +15,7 @@ import { ECONOMY } from '../core/balance';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { cargoValue, partialFill, refuelCost, repairCost } from '../core/economy';
 import { DYNAMITE_ITEM } from '../core/dynamite';
-import { addItem, countItem, isFull, removeItem, removeOres, type InventoryItem } from '../core/inventory';
+import { addItem, isFull, removeOres, type InventoryItem } from '../core/inventory';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import {
   MIN_TELEPORT_DEPTH_METERS,
@@ -26,12 +26,9 @@ import {
   teleportPlayerToSurface,
   teleportersCarried
 } from '../core/teleporter';
-import type { AudioController, Direction, GameState } from '../core/types';
+import type { AudioController, GameState } from '../core/types';
 import { applyPlayerUpgrade, getPlayerUpgradeProgress, type PlayerUpgradeId } from '../core/upgrades';
-import { GUN_ITEM, canFireGun, resolveShot } from '../core/weapon';
 import { viewport } from './viewport';
-import type { EnemySim } from './enemies';
-import type { WorldGrid } from './world-grid';
 
 /** A partial top-up bought at the depot: fuel or hull, same money math. */
 interface ServicePurchase {
@@ -60,33 +57,22 @@ export interface GameActions {
   buyTeleporter(): void;
   /** Buy one scanner device into the cargo bay; refused when it has no room. */
   buyScanner(): void;
-  /** Buy one single-use Linebreaker into the cargo bay; refused when it has no room. */
-  buyGun(): void;
   /** Buy one cargo container into the cargo bay; refused when it has no room. */
   buyContainer(): void;
-  setGunArmed(armed: boolean): void;
-  /** Fire the carried Linebreaker, spending it. Reports whether the shot went off. */
-  fireGun(direction: Direction): boolean;
   useTeleporter(): void;
 }
 
 export interface GameActionsDeps {
   state: GameState;
-  enemies: EnemySim;
-  grid: WorldGrid;
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
   addCash(amount: number): void;
   atSurface(): boolean;
-  spawnDust(x: number, y: number, color?: string, amount?: number): void;
-  spawnShotTrail(path: {x: number; y: number}[]): void;
-  /** Release held keys so a modal action does not resume movement. */
-  clearKeys(): void;
 }
 
 export function createActions(deps: GameActionsDeps): GameActions {
-  const {state, enemies, grid, audio, toast, saveProgress, addCash, atSurface} = deps;
+  const {state, audio, toast, saveProgress, addCash, atSurface} = deps;
 
   function currentCargoValue(): number {
     return cargoValue(state.player.inventory);
@@ -176,7 +162,7 @@ export function createActions(deps: GameActionsDeps): GameActions {
   }
 
   /**
-   * Bought equipment — scanners, dynamite, guns, teleporters, containers — counts
+   * Bought equipment — scanners, dynamite, teleporters, containers — counts
    * toward the same capacity as ore, so a full bay can refuse the sale. Checked
    * before the money changes hands, and only at the depot, so the "come back to
    * the surface" refusal still comes first.
@@ -218,15 +204,6 @@ export function createActions(deps: GameActionsDeps): GameActions {
     );
   }
 
-  function buyGun(): void {
-    buyDeployable(
-      GUN_ITEM,
-      ECONOMY.gun.price,
-      'Cargo bay is full. Sell the cargo before buying a Linebreaker.',
-      'Linebreaker loaded. Press G, then a direction, to spend it on one shot.'
-    );
-  }
-
   function buyContainer(): void {
     buyDeployable(
       CARGO_CONTAINER_ITEM,
@@ -234,60 +211,6 @@ export function createActions(deps: GameActionsDeps): GameActions {
       'Cargo bay is full. Sell the cargo before buying a container.',
       'Container loaded. Press its inventory slot, then a mine tile, to set it down.'
     );
-  }
-
-  /** Linebreakers aboard; the gun is carried, so this is the whole ammunition question. */
-  function gunsCarried(): number {
-    return countItem(state.player.inventory, GUN_ITEM.kind);
-  }
-
-  function setGunArmed(armed: boolean): void {
-    if (armed) {
-      if (state.gameOver) return;
-      if (atSurface()) return toast('The gun can only be fired underground.');
-      if (gunsCarried() <= 0) { audio.alarm(); return toast('No Linebreaker aboard. Buy one at the surface shop.'); }
-      deps.clearKeys();
-      state.input.keyImpulse = null;
-      state.input.gunArmed = true;
-      toast('GUN ARMED — press a direction key. G or Escape cancels.');
-      return;
-    }
-    if (state.input.gunArmed) toast('Gun aim cancelled. No Linebreaker used.');
-    state.input.gunArmed = false;
-  }
-
-  function fireGun(direction: Direction): boolean {
-    const p = state.player;
-    if (state.gameOver || atSurface()) return false;
-    if (!canFireGun(gunsCarried(), state.input.gunArmed, direction)) return false;
-    if (direction[1] > 0) grid.ensureRow(p.y + ECONOMY.gun.range);
-    const shot = resolveShot(grid.world, p.x, p.y, direction, ECONOMY.gun.range, state.enemies.filter(enemy => enemy.alive));
-    if (!shot) return false;
-    // The gun is the round: it leaves the bay whatever the shot ends up hitting.
-    state.player.inventory = removeItem(state.player.inventory, GUN_ITEM.kind);
-    const remaining = gunsCarried();
-    state.input.gunArmed = false;
-    p.drillDx = direction[0]; p.drillDy = direction[1];
-    if (direction[0]) p.facing = direction[0];
-    deps.spawnShotTrail(shot.path);
-    audio.blip(520, .08, 'square', .055, -180);
-    const target = shot.target;
-    if (target?.kind === 'enemy') {
-      enemies.damageEnemy(state.enemies.find(enemy => enemy.id === target.enemy.id), ECONOMY.gun.damage);
-      toast(`Direct enemy hit. ${remaining} Linebreakers remain.`);
-    } else if (target?.kind === 'tile') {
-      if (target.tile.type === 'enemy') {
-        enemies.destroyDormantEnemy(target.x, target.y);
-      } else {
-        grid.set(target.x, target.y, {type: 'air'});
-        enemies.wakeEnemiesNear(target.x, target.y);
-        deps.spawnDust(target.x, target.y, '#ffe58a', state.reducedMotion ? 3 : 12);
-      }
-      toast(`Shot destroyed ${target.tile.type}. No mining rewards. ${remaining} Linebreakers remain.`);
-    } else if (shot.outcome === 'blocked') toast(`Shot blocked by protected terrain. ${remaining} Linebreakers remain.`);
-    else toast(`Shot missed within ${ECONOMY.gun.range}-tile range. ${remaining} Linebreakers remain.`);
-    saveProgress();
-    return true;
   }
 
   function useTeleporter(): void {
@@ -312,7 +235,6 @@ export function createActions(deps: GameActionsDeps): GameActions {
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     state.teleportEffect = createTeleportEffect(originScreenX, originScreenY, p.x, p.y, reducedMotion);
     state.input.keyImpulse = null;
-    state.input.gunArmed = false;
     state.camX = Math.max(0, p.x - Math.floor(viewport.tilesX / 2));
     state.camY = surf ? Math.max(0, p.y - Math.floor(viewport.tilesY / 2)) : 0;
     saveProgress();
@@ -330,10 +252,7 @@ export function createActions(deps: GameActionsDeps): GameActions {
     buyDynamite,
     buyTeleporter,
     buyScanner,
-    buyGun,
     buyContainer,
-    setGunArmed,
-    fireGun,
     useTeleporter
   };
 }

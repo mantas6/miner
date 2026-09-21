@@ -19,10 +19,8 @@ export interface UiCommands {
   buyDynamite(): void;
   buyTeleporter(): void;
   buyScanner(): void;
-  buyGun(): void;
   buyContainer(): void;
   useTeleporter(): void;
-  toggleGunArmed(): void;
   /**
    * Arm a carried scanner for placement, or disarm the one already waiting. The
    * press that follows on the mine is what actually deploys it.
@@ -82,10 +80,8 @@ function noopCommands(): UiCommands {
     buyDynamite: noop,
     buyTeleporter: noop,
     buyScanner: noop,
-    buyGun: noop,
     buyContainer: noop,
     useTeleporter: noop,
-    toggleGunArmed: noop,
     toggleScannerPlacement: noop,
     toggleDynamitePlacement: noop,
     toggleContainerPlacement: noop,

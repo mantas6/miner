@@ -37,7 +37,6 @@ import { isPlaceableKind } from '../core/placement-overlay';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
-import { GUN_ITEM } from '../core/weapon';
 import { shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
 import { formatExpeditionObjective } from '../core/objective';
 import { load, save } from '../persistence';
@@ -193,20 +192,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state.particles.push({x:x+0.5,y:y+0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-.04,life:34+Math.random()*34,color:colors[i%colors.length],size:.045+Math.random()*.085});
     }
   }
-  function spawnShotTrail(path: {x: number; y: number}[]){
-    const stride = state.reducedMotion ? 3 : 1;
-    for (let index=0; index<path.length; index+=stride) {
-      const point = path[index];
-      state.particles.push({
-        x:point.x+.46, y:point.y+.46,
-        vx:state.reducedMotion ? 0 : (Math.random()-.5)*.025,
-        vy:state.reducedMotion ? 0 : (Math.random()-.5)*.025,
-        life:state.reducedMotion ? 7 : 15,
-        color:'#ffe58a', size:.09
-      });
-    }
-  }
-
   // --- Cheat menu -----------------------------------------------------------
   function grantDeveloperUpgrade(id: PlayerUpgradeId){
     if (!applyPlayerUpgrade(state.player, id)) return toast('Developer upgrade already at maximum level.');
@@ -256,10 +241,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeContainer: () => containers.close(),
       storeInContainer: (kind, single) => containers.store(kind, single),
       takeFromContainer: (kind, single) => containers.take(kind, single),
-      buyGun: () => actions.buyGun(),
       buyContainer: () => actions.buyContainer(),
       useTeleporter: () => actions.useTeleporter(),
-      toggleGunArmed: () => actions.setGunArmed(!state.input.gunArmed),
       openShop: openShopScreen,
       closeShop: closeShopScreen,
       openInfo: openInfoScreen,
@@ -311,7 +294,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   }
   function openShopScreen(){
     if (!atSurface()) return toast('Shop is at the surface depot.');
-    state.input.gunArmed = false;
     // An overlay covers the mine, so a pointer armed for placement has nothing
     // left to aim at.
     disarmPlacements();
@@ -348,7 +330,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     playerScratch.teleporters = countItem(p.inventory, TELEPORTER_ITEM.kind);
     playerScratch.scanners = countItem(p.inventory, SCANNER_ITEM.kind);
     playerScratch.dynamite = countItem(p.inventory, DYNAMITE_ITEM.kind);
-    playerScratch.guns = countItem(p.inventory, GUN_ITEM.kind);
     playerScratch.containers = countItem(p.inventory, CARGO_CONTAINER_ITEM.kind);
     uiStore.getState().syncPlayer(playerScratch);
   }
@@ -430,8 +411,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     hudScratch.extractionInfo = extraction.info;
     hudScratch.atSurface = surf;
     hudScratch.gameOver = state.gameOver;
-    hudScratch.gunArmed = state.input.gunArmed;
-    hudScratch.guns = countItem(p.inventory, GUN_ITEM.kind);
     hudScratch.teleporters = countItem(p.inventory, TELEPORTER_ITEM.kind);
     hudScratch.teleportReturn = state.teleportReturnPosition !== null;
     hudScratch.teleportDepthReached = canTeleportToSurface(p.y);
@@ -604,16 +583,11 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     });
     actions = createActions({
       state,
-      enemies,
-      grid,
       audio,
       toast,
       saveProgress,
       addCash,
-      atSurface,
-      spawnDust,
-      spawnShotTrail,
-      clearKeys: () => gameInput.clearKeys()
+      atSurface
     });
     readouts = createReadouts({state, grid, enemies, atSurface, toast});
     scanners = createScannerDevices({

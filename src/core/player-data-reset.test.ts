@@ -5,7 +5,7 @@ import { confirmPlayerDataReset, resetPlayerData } from './player-data-reset';
 import { SAVE_KEY } from '../persistence';
 import { createInitialState } from './state';
 import { TELEPORTER_ITEM } from './teleporter';
-import { GUN_ITEM } from './weapon';
+import { DYNAMITE_ITEM } from './dynamite';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -29,7 +29,7 @@ describe('player-data reset', () => {
       drillDx: 1, drillDy: 0, fuel: 2, fuelMax: 400, hull: 3, hullMax: 300,
       cargoMax: 80, drill: 40,
       inventory: addItem(
-        addItem(addOre(createInventory(), ORES[3], 80)!, GUN_ITEM, 2)!,
+        addItem(addOre(createInventory(), ORES[3], 80)!, DYNAMITE_ITEM, 2)!,
         TELEPORTER_ITEM,
         8
       )!
@@ -44,7 +44,6 @@ describe('player-data reset', () => {
     state.extractionPhase = 'returning';
     state.teleportReturnPosition = {x: 8, y: 80};
     state.exploredTiles.add(1234);
-    state.input.gunArmed = true;
 
     resetPlayerData(state);
 
@@ -60,7 +59,7 @@ describe('player-data reset', () => {
     expect(JSON.parse(storage.values.get(SAVE_KEY)!)).toMatchObject({
       cash: fresh.cash, fuelMax: fresh.player.fuelMax, hullMax: fresh.player.hullMax,
       cargoMax: fresh.player.cargoMax, drill: fresh.player.drill, dynamite: 0,
-      teleporters: 0, guns: 0,
+      teleporters: 0,
       explored: '', stats: fresh.stats
     });
   });

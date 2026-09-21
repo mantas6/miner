@@ -104,7 +104,7 @@ miner-mp/
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, economy, upgrades, shop catalog, movement, weapon, dynamite, teleporter, cargo containers, enemies, objectives, extraction, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/core/` | Pure gameplay rules and types: balance, economy, upgrades, shop catalog, movement, dynamite, teleporter, cargo containers, enemies, objectives, extraction, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation, the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
 | `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts` — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
@@ -209,7 +209,7 @@ settings.
 
 ## Controls
 
-Ship movement and aiming are keyboard-only. Pointer/touch input is used for UI
+Ship movement is keyboard-only. Pointer/touch input is used for UI
 only (menus, buttons, modals, starting the run, restarting, audio unlock) plus
 zooming the camera with the wheel or a trackpad.
 
@@ -228,8 +228,6 @@ zooming the camera with the wheel or a trackpad.
 | Move a stack between the crate and the bay | — | Press the stack in either column |
 | Cancel a placement | `Escape` | The armed slot again |
 | Teleporter round trip (100 m+, spends one carried teleporter) | `T` | Teleport button |
-| Fire a carried Linebreaker (single use) | `G` then a direction key | Arm Gun button, then a direction key |
-| Cancel gun aim | `G` or `Escape` | Arm Gun button again |
 | Cargo, stats and guides | — | Info / Cargo button |
 | Close a dialog | `Escape` | × button or the backdrop |
 | Redeploy mid-run | `R`, then `R` again within 3.5 s | — |
@@ -271,18 +269,14 @@ zooming the camera with the wheel or a trackpad.
   1000. Selling empties every ore stack at once and frees that room again.
 - Refuel and repair at the surface depot.
 - The depot shop sells four upgrades — Cargo Bay, Fuel Tank, Hull, Drill — plus
-  the consumables: dynamite, teleporters, scanners, Linebreaker guns, and cargo
-  containers. Upgrade prices rise with each level; consumables are a flat price
-  each.
+  the consumables: dynamite, teleporters, scanners, and cargo containers. Upgrade
+  prices rise with each level; consumables are a flat price each.
 - Artifacts pay out immediately in cash and never take a cargo slot; dynamite
-  and gunfire destroy valuables without any payout.
+  destroys valuables without any payout.
 - Dynamite and scanners are carried in the cargo bay and placed from their own
   inventory slot onto explored, cleared ground. A planted stick blows a 2-tile
   radius five seconds later — long enough to get clear, and close enough to
   wreck a ship that did not.
-- The Linebreaker gun rides in the cargo bay the same way, but is spent rather
-  than placed: arming it and pressing a direction fires one shot up to 8 tiles
-  and removes the item from the bay. There is no ammunition — a shot costs a gun.
 - Teleporters ride in the bay too, and are also spent rather than placed: from
   100 m or deeper one takes the ship to the depot and leaves a return point
   behind. The trip up costs the item; the trip back is free.

@@ -68,8 +68,8 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
           Drill for ore and sell it at the surface depot before the fuel runs out.
           WASD or the arrow keys move, fly and dig. Enter sells cargo at the depot,
           Space refuels or repairs there. E plants dynamite, T uses a teleporter,
-          G arms the gun and a direction key fires it, C opens a cargo container the
-          ship is standing on or beside. Escape closes an open screen.
+          C opens a cargo container the ship is standing on or beside. Escape
+          closes an open screen.
           The readouts and meters after this surface report cash, depth, fuel, hull
           and cargo; the Info and Cargo button has the full rules.
         </p>

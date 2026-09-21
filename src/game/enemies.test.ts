@@ -125,16 +125,5 @@ describe('dormant cocoons', () => {
     const h = harness();
 
     expect(h.sim.damageEnemyTile(4, 80)).toBe(false);
-    expect(h.sim.destroyDormantEnemy(4, 80)).toBe(false);
-  });
-
-  it('clears a shot cocoon in one go and credits the shooter', () => {
-    const h = harness();
-    h.grid.put(4, 80, {type: 'enemy', kind: 'ironback', hp: 20, maxHp: 20});
-
-    expect(h.sim.destroyDormantEnemy(4, 80)).toBe(true);
-
-    expect(h.grid.get(4, 80)).toEqual({type: 'air'});
-    expect(h.addCash).toHaveBeenCalledWith(bountyAt(80));
   });
 });

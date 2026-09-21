@@ -28,7 +28,6 @@ export type ShopPlayer = Pick<
    */
   scanners: number;
   dynamite: number;
-  guns: number;
   teleporters: number;
   containers: number;
 };
@@ -134,13 +133,6 @@ export const SHOP_ITEMS = [
     price: ECONOMY.scanner.price
   },
   {
-    id: 'gun',
-    icon: 'gun',
-    title: 'Linebreaker Gun',
-    copy: `Single-use precision weapon. Fires one round up to ${ECONOMY.gun.range} tiles and is spent with the shot; rock, depot structure, boundaries, and Motherlode are protected.`,
-    price: ECONOMY.gun.price
-  },
-  {
     id: 'container',
     icon: 'container',
     title: 'Cargo Container',
@@ -156,7 +148,6 @@ const ITEM_COUNTS: Record<ShopItemId, (player: ShopPlayer) => number> = {
   dynamite: player => player.dynamite,
   teleporter: player => player.teleporters,
   scanner: player => player.scanners,
-  gun: player => player.guns,
   container: player => player.containers
 };
 

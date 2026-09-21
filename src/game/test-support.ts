@@ -65,7 +65,6 @@ export function createEnemySimStub(): EnemySimStub {
     clearExposure: vi.fn(),
     damageEnemy: vi.fn(),
     damageEnemyTile: vi.fn(() => true),
-    destroyDormantEnemy: vi.fn(() => true),
     update: vi.fn()
   };
   return stub;

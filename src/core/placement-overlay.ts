@@ -2,8 +2,8 @@
 //
 // Three of the depot's consumables are put *onto* a tile of the mine — the survey
 // scanner, a stick of dynamite, and a cargo container — and each answers the same
-// five placement questions from `placement.ts`. The rest (ore, the spent gun, the
-// spent teleporter) are never placed, so they never get a grid.
+// five placement questions from `placement.ts`. The rest (ore, the spent
+// teleporter) are never placed, so they never get a grid.
 //
 // This module is the read-only companion to those three: given the armed kind and
 // a snapshot of the mine, it says which nearby tiles the device could be dropped

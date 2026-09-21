@@ -2,8 +2,8 @@
 //
 // The pure pieces live in core/ (`enemy-types`, `enemy-movement`,
 // `enemy-exposure`); this module owns the stateful side: which air is reachable,
-// waking cocoons into entities, the single kill path shared by drills and guns,
-// and the per-tick movement/bite pass.
+// waking cocoons into entities, the drill's kill path, and the per-tick
+// movement/bite pass.
 
 import { ENEMY } from '../core/balance';
 import { expandReachableAir } from '../core/enemy-exposure';
@@ -33,8 +33,6 @@ export interface EnemySim {
   damageEnemy(enemy: Enemy | undefined, amount?: number): void;
   /** Drill a dormant cocoon tile. Returns whether the tile was a cocoon. */
   damageEnemyTile(x: number, y: number): boolean;
-  /** Destroy a dormant cocoon outright (gun hit). Returns whether it existed. */
-  destroyDormantEnemy(x: number, y: number): boolean;
   /** Easing, biting, and pathing. */
   update(): void;
 }
@@ -167,12 +165,6 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
     return true;
   }
 
-  function destroyDormantEnemy(x: number, y: number): boolean {
-    if (grid.get(x, y).type !== 'enemy') return false;
-    killEnemy({kind: 'dormant', x, y});
-    return true;
-  }
-
   /** Ease an enemy's rendered position toward its logical tile and fade its flash. */
   function easeEnemy(e: Enemy): void {
     e.drawX += (e.x - e.drawX) * 0.28;
@@ -218,7 +210,6 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
     clearExposure: () => reachableAir.clear(),
     damageEnemy,
     damageEnemyTile,
-    destroyDormantEnemy,
     update
   };
 }

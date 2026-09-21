@@ -23,7 +23,7 @@ export function respawnPlayer(player: Player): void {
   Object.assign(player, {
     fuel: player.fuelMax,
     hull: player.hullMax,
-    // Ore never survives a death; bought equipment — dynamite, scanners, guns,
+    // Ore never survives a death; bought equipment — dynamite, scanners,
     // teleporters, containers — rides out of the wreck with the miner. Ore stored
     // in a crate is not aboard at all, so it is not lost either.
     inventory: removeOres(player.inventory)
@@ -73,7 +73,6 @@ export function createInitialState(): GameState {
       sprintMomentum: null,
       lastKeyboardMove: 0,
       keyboardRepeatMs: 105,
-      gunArmed: false,
       resetConfirmUntil: 0
     },
     player: {

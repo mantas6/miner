@@ -17,7 +17,6 @@ import '../styles/icons.css';
 
 /** Keyboard hints, per shelf. Markup, so they stay out of the data catalog. */
 const HINTS: Record<string, ReactNode> = {
-  gun: <>Control: <kbd>G</kbd>, then a direction · <kbd>G</kbd>/<kbd>Esc</kbd> cancels</>,
   dynamite: <>Control: <kbd>E</kbd> or its inventory slot, then a mine tile · <kbd>Esc</kbd> cancels</>,
   teleporter: <>Control: <kbd>T</kbd> or Teleport / Return</>,
   scanner: <>Control: inventory slot, then a mine tile · <kbd>Esc</kbd> cancels</>,
@@ -29,7 +28,6 @@ const ITEM_PURCHASES: Record<ShopItemId, {buttonId: string; buy(): void}> = {
   dynamite: {buttonId: 'shopDynamiteBtn', buy: () => uiCommands.buyDynamite()},
   teleporter: {buttonId: 'shopTeleporterBtn', buy: () => uiCommands.buyTeleporter()},
   scanner: {buttonId: 'shopScannerBtn', buy: () => uiCommands.buyScanner()},
-  gun: {buttonId: 'shopGunBtn', buy: () => uiCommands.buyGun()},
   container: {buttonId: 'shopContainerBtn', buy: () => uiCommands.buyContainer()}
 };
 

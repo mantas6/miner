@@ -30,8 +30,6 @@ export const LIMITS = Object.freeze({
   teleporters: Object.freeze({ min: 0, max: 999 }),
   /** Carried (not yet deployed) scanner devices; they live in the cargo bay. */
   scanners: Object.freeze({ min: 0, max: 999 }),
-  /** Carried (not yet fired) Linebreaker guns; they live in the cargo bay. */
-  guns: Object.freeze({ min: 0, max: 999 }),
   /** Carried (not yet placed) cargo containers; they live in the cargo bay. */
   containers: Object.freeze({ min: 0, max: 999 })
 });
@@ -103,23 +101,15 @@ export const ECONOMY = Object.freeze({
   teleporter: Object.freeze({ price: 250 }),
   scanner: Object.freeze({ price: 50 }),
   /**
-   * One disposable Linebreaker: a barrel, a single round, and nothing to reload.
-   * Priced above the dynamite it competes with underground, because one shot
-   * buys a guaranteed kill at range where a stick of dynamite buys a wider hole
-   * the player still has to run away from.
-   */
-  gun: Object.freeze({ price: 150, range: 8, damage: 100 }),
-  /**
    * One cargo container, dropped in the mine and left there for good.
    *
    * The shelf is a ladder of what a purchase buys: $50 buys one hole in the rock
-   * (dynamite) or one small map (scanner), $150 buys one guaranteed kill at range
-   * (Linebreaker), $250 buys one whole climb home and back (teleporter). A
-   * container buys none of those — it does nothing on the turn it is used — but it
-   * is the only thing on the shelf that is never spent, so a single purchase keeps
-   * paying for the rest of the save. It sits one rung under the teleporter for
-   * that reason: dearer than everything that resolves in a single press, cheaper
-   * than the one consumable that rescues a run outright.
+   * (dynamite) or one small map (scanner), $250 buys one whole climb home and back
+   * (teleporter). A container buys none of those — it does nothing on the turn it
+   * is used — but it is the only thing on the shelf that is never spent, so a
+   * single purchase keeps paying for the rest of the save. It sits one rung under
+   * the teleporter for that reason: dearer than everything that resolves in a
+   * single press, cheaper than the one consumable that rescues a run outright.
    */
   container: Object.freeze({ price: 200 }),
   artifactReward: 5000

@@ -27,10 +27,7 @@ function createActionsSpy() {
     buyDynamite: vi.fn(),
     buyTeleporter: vi.fn(),
     buyScanner: vi.fn(),
-    buyGun: vi.fn(),
     buyContainer: vi.fn(),
-    setGunArmed: vi.fn(),
-    fireGun: vi.fn(() => true),
     useTeleporter: vi.fn()
   } satisfies GameActions;
 }

@@ -5,7 +5,6 @@ import { DYNAMITE_ITEM } from './dynamite';
 import { addItem, addOre, countItem, countOres, createInventory } from './inventory';
 import { createInitialState, respawnPlayer } from './state';
 import { TELEPORTER_ITEM } from './teleporter';
-import { GUN_ITEM } from './weapon';
 
 describe('initial game state', () => {
   it('starts a new game with starting capacities, no consumables, and no progress', () => {
@@ -15,7 +14,6 @@ describe('initial game state', () => {
     expect(state.player.inventory).toHaveLength(0);
     expect(countOres(state.player.inventory)).toBe(0);
     expect(countItem(state.player.inventory, DYNAMITE_ITEM.kind)).toBe(0);
-    expect(countItem(state.player.inventory, GUN_ITEM.kind)).toBe(0);
     expect(countItem(state.player.inventory, TELEPORTER_ITEM.kind)).toBe(0);
     expect(state.extractionPhase).toBe('none');
     expect(state.stats.motherlodeExtractions).toBe(0);
@@ -44,10 +42,7 @@ describe('player respawn', () => {
     player.drill += ECONOMY.drill.step;
     // Ore and equipment share the bay, and only the ore is lost with the ship.
     player.inventory = addItem(
-      addItem(
-        addItem(addOre(createInventory(), ORES[0], player.cargoMax)!, DYNAMITE_ITEM, 2),
-        GUN_ITEM
-      ),
+      addItem(addOre(createInventory(), ORES[0], player.cargoMax)!, DYNAMITE_ITEM, 2),
       TELEPORTER_ITEM
     );
 
@@ -63,10 +58,9 @@ describe('player respawn', () => {
       drill: STARTING.drill + ECONOMY.drill.step
     });
     expect(countItem(player.inventory, DYNAMITE_ITEM.kind)).toBe(2);
-    expect(countItem(player.inventory, GUN_ITEM.kind)).toBe(1);
     expect(countItem(player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
     expect(countOres(player.inventory)).toBe(0);
-    // Ore gone, the three equipment stacks remain.
-    expect(player.inventory).toHaveLength(3);
+    // Ore gone, the two equipment stacks remain.
+    expect(player.inventory).toHaveLength(2);
   });
 });

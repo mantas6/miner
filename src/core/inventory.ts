@@ -15,7 +15,7 @@
 // Ores are the richest kind stored here, carrying their own label, colour and
 // unit price so selling and the cargo readouts never have to look a name up in a
 // table that a co-op peer's world might not agree with. `InventoryItemKind` is a
-// namespaced string union, so equipment kinds — 'dynamite', 'scanner', 'gun',
+// namespaced string union, so equipment kinds — 'dynamite', 'scanner',
 // 'teleporter', 'container' — sit beside the ore stacks and count toward the same
 // capacity: a bay full of dynamite has no room for ore, and vice versa.
 //
@@ -37,7 +37,7 @@ const ORE_KIND_PREFIX = 'ore:';
 export type OreKind = `${typeof ORE_KIND_PREFIX}${string}`;
 
 /** Everything the bay can hold. Extend the union as kinds move in. */
-export type InventoryItemKind = OreKind | 'dynamite' | 'scanner' | 'gun' | 'teleporter' | 'container';
+export type InventoryItemKind = OreKind | 'dynamite' | 'scanner' | 'teleporter' | 'container';
 
 /** What one unit of a stack is: its identity and how it is shown and priced. */
 export interface InventoryItem {

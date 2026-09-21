@@ -46,8 +46,8 @@ export interface Player {
   /**
    * The slot-based cargo bay. Mined ore stacks here awaiting sale at the depot
    * (artifacts are banked instead), capped by both a free slot and `cargoMax`.
-   * Bought equipment — dynamite, scanners, Linebreaker guns, teleporters, cargo
-   * containers — rides here too.
+   * Bought equipment — dynamite, scanners, teleporters, cargo containers — rides
+   * here too.
    */
   inventory: Inventory;
 }
@@ -117,7 +117,6 @@ export interface InputState {
   sprintMomentum: Direction | null;
   lastKeyboardMove: number;
   keyboardRepeatMs: number;
-  gunArmed: boolean;
   /** Deadline (performance clock) until which a second R press confirms a reset. */
   resetConfirmUntil: number;
 }

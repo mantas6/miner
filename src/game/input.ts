@@ -2,7 +2,7 @@
 //
 // Owns the held-key set (input state, deliberately not part of the DOM layer),
 // the impulse/auto-repeat rules that turn key presses into moves, and the
-// dialog/gun/action key routing. A single window-level capture listener per
+// dialog/action key routing. A single window-level capture listener per
 // event type is enough: window is the first node of every capture path, so a
 // handler there sees the key before any dialog or canvas listener.
 //
@@ -11,7 +11,6 @@
 // dialog is up is read from the same store rather than from class names, and Tab
 // containment is the modal `<dialog>`'s job now, not ours.
 
-import { gunKeyAction } from '../core/weapon';
 import { activeSprintDirection, keyboardMovementRepeatMs } from '../core/movement';
 import type { Direction, GameState } from '../core/types';
 import { uiStore } from '../ui/store';
@@ -95,7 +94,6 @@ export function createInput(deps: GameInputDeps): GameInput {
     state.input.keyImpulse = null;
     state.input.sprintDirection = null;
     state.input.sprintMomentum = null;
-    state.input.gunArmed = false;
     state.input.lastKeyboardMove = 0;
   }
 
@@ -172,12 +170,8 @@ export function createInput(deps: GameInputDeps): GameInput {
       keys.add(key);
       return;
     }
-    const gunAction = gunKeyAction(state.input.gunArmed, key);
-    if (gunAction === 'arm') { if (!e.repeat) actions.setGunArmed(true); e.preventDefault(); e.stopPropagation(); return; }
-    if (gunAction === 'cancel') { if (!e.repeat) actions.setGunArmed(false); e.preventDefault(); e.stopPropagation(); return; }
-    if (gunAction === 'fire' && dir) { if (!e.repeat) actions.fireGun(dir); e.preventDefault(); e.stopPropagation(); return; }
-    // After the gun, so an armed gun still owns Escape; only an armed device
-    // consumes the key, and a stray Escape on the mine keeps meaning nothing.
+    // Only an armed device consumes Escape, and a stray Escape on the mine keeps
+    // meaning nothing.
     if (key === 'escape' && deps.cancelPlacement()) { e.preventDefault(); e.stopPropagation(); return; }
     if (dir) {
       if (e.shiftKey) keys.add('shift');

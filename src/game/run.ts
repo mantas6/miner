@@ -70,7 +70,6 @@ export function createRun(deps: GameRunDeps): GameRun {
     state.extractionPhase = cancelExtraction();
     state.teleportEffect = null;
     state.teleportReturnPosition = null;
-    state.input.gunArmed = false;
     if (full) {
       state.cash = STARTING.cash;
       Object.assign(state.player, {
@@ -149,7 +148,6 @@ export function createRun(deps: GameRunDeps): GameRun {
   function gameOver(message = 'Game over. Tap anywhere or press R to restart.'): void {
     if (state.gameOver) return;
     state.gameOver = true;
-    state.input.gunArmed = false;
     state.teleportEffect = null;
     state.extractionPhase = cancelExtraction();
     state.stats.deaths++;

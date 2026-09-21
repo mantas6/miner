@@ -22,7 +22,7 @@ const DOM_CONTRACT = [
   'fuel', 'fuelLabel', 'fuelReturn', 'fuelSurplus', 'hull', 'hullLabel', 'cargo', 'cargoLabel', 'extractionStatus',
   // The inventory panel ships expanded, so its slot list is part of the contract.
   'inventory', 'inventoryToggleBtn', 'inventorySlots',
-  'surfaceHint', 'sell', 'shopBtn', 'teleporterBtn', 'gunBtn', 'infoBtn',
+  'surfaceHint', 'sell', 'shopBtn', 'teleporterBtn', 'infoBtn',
   // Every overlay keeps its dialog shell mounted; their contents do not.
   'shop-screen', 'info-screen', 'cargo-screen',
   'fuel-warning', 'toast'
@@ -32,7 +32,7 @@ const DOM_CONTRACT = [
 const SHOP_CONTRACT = [
   'shop-card', 'shopCloseBtn',
   'fuelBtn', 'repairBtn', 'cargoBtn', 'tankBtn', 'hullBtn', 'drillBtn',
-  'shopDynamiteBtn', 'shopTeleporterBtn', 'shopScannerBtn', 'shopGunBtn', 'shopContainerBtn'
+  'shopDynamiteBtn', 'shopTeleporterBtn', 'shopScannerBtn', 'shopContainerBtn'
 ];
 
 /** Ids that exist only while a cargo container's transfer menu is up. */
@@ -456,17 +456,6 @@ describe('store-driven HUD', () => {
     // Underground and after a loss the game clears the line itself.
     patchHud({surfaceHint: null});
     expect(hint.hidden).toBe(true);
-  });
-
-  it('marks the gun button armed while aiming', () => {
-    render(<MinerApp />);
-
-    patchHud({atSurface: false, guns: 3, gunArmed: true});
-
-    const gun = document.getElementById('gunBtn') as HTMLButtonElement;
-    expect(gun.className).toMatch(/armed/);
-    expect(gun.getAttribute('aria-pressed')).toBe('true');
-    expect(gun.textContent).toContain('AIMING');
   });
 
   it('paints the scanner line the game formatted, and drops it once the ship is lost', () => {

@@ -41,7 +41,6 @@ describe('isPlaceableKind', () => {
   });
 
   it('is false for the spent, carried, and cargo kinds, and for nothing armed', () => {
-    expect(isPlaceableKind('gun')).toBe(false);
     expect(isPlaceableKind('teleporter')).toBe(false);
     expect(isPlaceableKind(oreKind('Copper'))).toBe(false);
     expect(isPlaceableKind(null)).toBe(false);
@@ -94,7 +93,7 @@ describe('isPlacementValid', () => {
   });
 
   it('is never valid for an item that is not placed', () => {
-    expect(isPlacementValid('gun', x, y, world({explored}))).toBe(false);
+    expect(isPlacementValid('teleporter', x, y, world({explored}))).toBe(false);
     expect(isPlacementValid(null, x, y, world({explored}))).toBe(false);
   });
 });
@@ -104,7 +103,7 @@ describe('placementOverlayCells', () => {
 
   it('returns nothing when the armed item is not placeable', () => {
     const explored = new Set([explorationIndex(cx, cy)]);
-    expect(placementOverlayCells('gun', cx, cy, world({explored}))).toEqual([]);
+    expect(placementOverlayCells('teleporter', cx, cy, world({explored}))).toEqual([]);
     expect(placementOverlayCells(null, cx, cy, world({explored}))).toEqual([]);
   });
 

@@ -28,7 +28,6 @@ import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { TELEPORTER_ITEM } from '../core/teleporter';
-import { GUN_ITEM } from '../core/weapon';
 import type { Player } from '../core/types';
 import { DEFAULT_INFO_TAB, type InfoTab } from './info-navigation';
 
@@ -51,9 +50,6 @@ export interface HudSnapshot {
   extractionInfo: string;
   atSurface: boolean;
   gameOver: boolean;
-  gunArmed: boolean;
-  /** Single-use Linebreakers in the bay: the gun button's whole availability. */
-  guns: number;
   /** Single-use teleporters in the bay: the teleport button's whole availability. */
   teleporters: number;
   /** A stored underground return point exists. */
@@ -86,7 +82,7 @@ export interface HudSnapshot {
 const HUD_KEYS = [
   'cash', 'depthMeters', 'fuel', 'fuelMax', 'hull', 'hullMax', 'cargo', 'cargoMax', 'cargoValue',
   'fuelAlert', 'hullAlert', 'cargoAlert', 'objective', 'extractionHud', 'extractionInfo',
-  'atSurface', 'gameOver', 'gunArmed', 'guns', 'teleporters',
+  'atSurface', 'gameOver', 'teleporters',
   'teleportReturn', 'teleportDepthReached', 'teleportUsable',
   'scanner', 'surfaceHint', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
@@ -100,14 +96,13 @@ export type PlayerSnapshot = Pick<
   /** Consumables in the cargo bay, counted out of the inventory for the shop rows. */
   scanners: number;
   dynamite: number;
-  guns: number;
   teleporters: number;
   containers: number;
 };
 
 const PLAYER_KEYS = [
   'fuel', 'fuelMax', 'hull', 'hullMax', 'cargoMax', 'drill',
-  'scanners', 'dynamite', 'guns', 'teleporters', 'containers'
+  'scanners', 'dynamite', 'teleporters', 'containers'
 ] as const satisfies readonly (keyof PlayerSnapshot)[];
 
 export interface CargoRow {
@@ -266,8 +261,6 @@ function initialHud(): HudSnapshot {
     }).info,
     atSurface: true,
     gameOver: false,
-    gunArmed: false,
-    guns: countItem(player.inventory, GUN_ITEM.kind),
     teleporters: countItem(player.inventory, TELEPORTER_ITEM.kind),
     teleportReturn: false,
     teleportDepthReached: false,
@@ -312,7 +305,6 @@ function initialPlayer(): PlayerSnapshot {
     teleporters: countItem(player.inventory, TELEPORTER_ITEM.kind),
     scanners: countItem(player.inventory, SCANNER_ITEM.kind),
     dynamite: countItem(player.inventory, DYNAMITE_ITEM.kind),
-    guns: countItem(player.inventory, GUN_ITEM.kind),
     containers: countItem(player.inventory, CARGO_CONTAINER_ITEM.kind)
   };
 }

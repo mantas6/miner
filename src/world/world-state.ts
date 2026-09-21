@@ -33,7 +33,6 @@ export function resetWorldTerrain(state: GameState): void {
   state.teleportEffect = null;
   state.teleportReturnPosition = null;
   state.gameOver = false;
-  state.input.gunArmed = false;
   placeAtSurfaceSpawn(state.player);
   state.camX = Math.max(0, state.player.x - 7);
   state.camY = 0;

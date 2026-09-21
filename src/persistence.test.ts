@@ -8,7 +8,6 @@ import { DYNAMITE, DYNAMITE_ITEM, createPlacedDynamite } from './core/dynamite';
 import { addItem, countItem, countOres, oreItem } from './core/inventory';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { GUN_ITEM } from './core/weapon';
 import { claimArtifact } from './core/artifacts';
 import { ARTIFACTS, MAX_SAVED_TILE_ENTRIES, START_Y } from '../shared/constants';
 import { explorationIndex } from '../shared/exploration-codec';
@@ -140,29 +139,19 @@ describe('teleporter persistence', () => {
   });
 });
 
-describe('Linebreaker persistence', () => {
-  it('round-trips the carried guns as a count and re-stacks them into the bay', () => {
-    const stored = stubStorage();
-    const state = createInitialState();
-    state.player.inventory = addItem(state.player.inventory, GUN_ITEM, 3)!;
-
-    save(state);
-    const restored = createInitialState();
-    load(restored);
-
-    expect(countItem(restored.player.inventory, GUN_ITEM.kind)).toBe(3);
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({guns: 3});
-  });
-
-  it('gives a save written before the gun became an item nothing to fire', () => {
-    // `gunOwned`/`bullets` described a fitting and a magazine that no longer
-    // exist, so a pre-v8 save simply arrives without a Linebreaker aboard.
-    stubStorage({ cash: 90, gunOwned: true, bullets: 17 });
+describe('removed Linebreaker fields', () => {
+  it('loads a save that still carries gun fields without restoring a weapon', () => {
+    // The Linebreaker is gone: `guns` (the single-use item), and the pre-v8
+    // `gunOwned`/`bullets` a much older save might still hold, are all ignored on
+    // load — no weapon to restore, and nothing to crash on.
+    stubStorage({ cash: 90, guns: 3, gunOwned: true, bullets: 17 });
     const state = createInitialState();
 
     load(state);
 
-    expect(countItem(state.player.inventory, GUN_ITEM.kind)).toBe(0);
+    expect(state.cash).toBe(90);
+    // The bay comes back with nothing the removed feature would have added.
+    expect(state.player.inventory).toHaveLength(0);
   });
 });
 

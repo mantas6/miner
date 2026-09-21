@@ -8,13 +8,10 @@ import { addItem, addOre, countItem, countOres, createInventory } from '../core/
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
-import { GUN_ITEM } from '../core/weapon';
-import type { GameState, Tile } from '../core/types';
+import type { GameState } from '../core/types';
 import { createActions, type GameActions } from './actions';
 import {
   createAudioStub,
-  createEnemySimStub,
-  createFakeGrid,
   createToastLog,
   type AudioStub
 } from './test-support';
@@ -25,9 +22,6 @@ interface Harness {
   audio: AudioStub;
   toasts: ReturnType<typeof createToastLog>;
   saveProgress: ReturnType<typeof vi.fn>;
-  enemies: ReturnType<typeof createEnemySimStub>;
-  grid: ReturnType<typeof createFakeGrid>;
-  spawnShotTrail: ReturnType<typeof vi.fn>;
   flags: {atSurface: boolean};
 }
 
@@ -38,15 +32,10 @@ function harness(): Harness {
     audio: createAudioStub(),
     toasts: createToastLog(),
     saveProgress: vi.fn(),
-    enemies: createEnemySimStub(),
-    grid: createFakeGrid(),
-    spawnShotTrail: vi.fn(),
     flags: {atSurface: true}
   };
   const actions = createActions({
     state,
-    enemies: context.enemies,
-    grid: context.grid,
     audio: context.audio,
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
@@ -55,23 +44,9 @@ function harness(): Harness {
       state.cash += amount;
       if (amount > 0) state.stats.totalCashEarned += amount;
     },
-    atSurface: () => context.flags.atSurface,
-    spawnDust: vi.fn(),
-    spawnShotTrail: context.spawnShotTrail,
-    clearKeys: vi.fn()
+    atSurface: () => context.flags.atSurface
   });
   return {...context, actions};
-}
-
-/**
- * Put the ship in an open stretch of mine with a gun aboard: everything the
- * Linebreaker needs before a direction key means anything.
- */
-function armedUnderground(h: Harness, guns = 1): void {
-  for (let y = 0; y <= 60; y++) h.grid.world.push(Array.from({length: 40}, (): Tile => ({type: 'air'})));
-  Object.assign(h.state.player, {x: 20, y: 40});
-  h.state.player.inventory = addItem(createInventory(), GUN_ITEM, guns)!;
-  h.flags.atSurface = false;
 }
 
 describe('selling cargo', () => {
@@ -266,7 +241,6 @@ describe('buying equipment', () => {
   it.each([
     ['scanner', SCANNER_ITEM.kind, ECONOMY.scanner.price, (actions: GameActions) => actions.buyScanner()],
     ['dynamite', DYNAMITE_ITEM.kind, ECONOMY.dynamite.price, (actions: GameActions) => actions.buyDynamite()],
-    ['gun', GUN_ITEM.kind, ECONOMY.gun.price, (actions: GameActions) => actions.buyGun()],
     ['teleporter', TELEPORTER_ITEM.kind, ECONOMY.teleporter.price, (actions: GameActions) => actions.buyTeleporter()],
     ['container', CARGO_CONTAINER_ITEM.kind, ECONOMY.container.price, (actions: GameActions) => actions.buyContainer()]
   ])('loads a %s into the bay, and refuses one the bay cannot hold', (_name, kind, price, buy) => {
@@ -292,84 +266,6 @@ describe('buying equipment', () => {
     expect(h.state.cash).toBe(price);
     expect(h.toasts.saw('Cargo bay is full')).toBe(true);
     expect(h.audio.played).toContain('alarm');
-  });
-
-  it('sells the gun over and over, stacking the spares in one slot', () => {
-    const h = harness();
-    h.state.cash = ECONOMY.gun.price * 3;
-
-    h.actions.buyGun();
-    h.actions.buyGun();
-    h.actions.buyGun();
-
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(3);
-    expect(h.state.cash).toBe(0);
-    expect(h.toasts.saw('Linebreaker loaded')).toBe(true);
-  });
-});
-
-describe('firing the Linebreaker', () => {
-  it('spends one carried gun per shot and leaves the bay empty after the last', () => {
-    const h = harness();
-    armedUnderground(h, 2);
-
-    h.actions.setGunArmed(true);
-    expect(h.actions.fireGun([1, 0])).toBe(true);
-
-    // One shot, one item: the gun is the round.
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(1);
-    // Aiming ends with the shot, so the next direction key moves the ship.
-    expect(h.state.input.gunArmed).toBe(false);
-    expect(h.spawnShotTrail).toHaveBeenCalledOnce();
-    expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.toasts.saw('1 Linebreakers remain')).toBe(true);
-
-    h.actions.setGunArmed(true);
-    expect(h.actions.fireGun([1, 0])).toBe(true);
-
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(0);
-    expect(h.state.player.inventory.every(slot => slot === null)).toBe(true);
-  });
-
-  it('refuses to arm or fire with nothing in the bay', () => {
-    const h = harness();
-    armedUnderground(h, 0);
-
-    h.actions.setGunArmed(true);
-
-    expect(h.state.input.gunArmed).toBe(false);
-    expect(h.toasts.saw('No Linebreaker aboard')).toBe(true);
-    expect(h.audio.played).toContain('alarm');
-    expect(h.actions.fireGun([1, 0])).toBe(false);
-  });
-
-  it('keeps the gun when the aim is cancelled, and cannot fire it at the depot', () => {
-    const h = harness();
-    armedUnderground(h);
-
-    h.actions.setGunArmed(true);
-    h.actions.setGunArmed(false);
-
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(1);
-    expect(h.toasts.saw('No Linebreaker used')).toBe(true);
-
-    h.flags.atSurface = true;
-    h.actions.setGunArmed(true);
-
-    expect(h.state.input.gunArmed).toBe(false);
-    expect(h.toasts.saw('only be fired underground')).toBe(true);
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(1);
-  });
-
-  it('does not spend a gun on a diagonal press', () => {
-    const h = harness();
-    armedUnderground(h);
-    h.actions.setGunArmed(true);
-
-    expect(h.actions.fireGun([1, 1])).toBe(false);
-
-    expect(countItem(h.state.player.inventory, GUN_ITEM.kind)).toBe(1);
-    expect(h.state.input.gunArmed).toBe(true);
   });
 });
 
