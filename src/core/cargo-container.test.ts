@@ -46,7 +46,7 @@ describe('placing a container', () => {
   });
 
   it.each([
-    ['off the mine', 40, 2, {...site}, 'underground'],
+    ['off the mine', 40, -1, {...site}, 'underground'],
     ['still under fog', 41, 100, {...site}, 'already explored'],
     ['inside terrain', 40, 100, {...site, open: false}, 'cleared space']
   ])('refuses a tile %s', (_name, x, y, context, fragment) => {

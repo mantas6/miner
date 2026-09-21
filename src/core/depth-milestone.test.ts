@@ -1,62 +1,50 @@
 import { describe, expect, it } from 'vitest';
-import { MOTHERLODE_ROW, ORES, START_Y } from '../../shared/constants';
+import { START_Y } from '../../shared/constants';
 import { formatDepthMilestone, formatDepthMilestoneReached, getDepthMilestone } from './depth-milestone';
 
 describe('expedition depth milestone helper', () => {
-  it('guides fresh miners through the Coal/Copper starter seam', () => {
+  it('guides fresh miners through the Coal/Iron starter seam', () => {
     expect(getDepthMilestone(START_Y)).toEqual({
       kind: 'starter',
-      target: 'starter Coal/Copper seam',
-      depthMeters: 50,
-      remainingMeters: 50
+      target: 'starter Coal/Iron seam',
+      depthMeters: 30,
+      remainingMeters: 30
     });
-    expect(formatDepthMilestone(START_Y)).toBe('Depth target: starter Coal/Copper seam — 50 m deeper.');
+    expect(formatDepthMilestone(START_Y)).toBe('Depth target: starter Coal/Iron seam — 30 m deeper.');
   });
 
   it('moves to the next locked ore band at the starter-seam boundary', () => {
-    expect(getDepthMilestone(START_Y + 5)).toEqual({
+    expect(getDepthMilestone(START_Y + 3)).toEqual({
       kind: 'ore',
-      target: 'Silver',
-      depthMeters: 600,
-      remainingMeters: 550
+      target: 'Copper',
+      depthMeters: 60,
+      remainingMeters: 30
     });
   });
 
-  it('uses the Motherlode as the last named landmark after the final ore band', () => {
-    expect(getDepthMilestone(START_Y + 860, ORES, START_Y, MOTHERLODE_ROW)).toMatchObject({
-      kind: 'motherlode',
-      target: 'Motherlode core',
-      depthMeters: 10000,
-      remainingMeters: 1400
-    });
-  });
-
-  it('rolls on past the core instead of freezing on a cleared target', () => {
-    // The world generates indefinitely below the core, so the readout keeps
+  it('rolls on in fixed depth records past the last ore band', () => {
+    // The world generates indefinitely below the richest ore, so the readout keeps
     // handing out fresh depth records rather than reporting "0 m deeper" forever.
-    expect(getDepthMilestone(MOTHERLODE_ROW, ORES, START_Y, MOTHERLODE_ROW)).toEqual({
+    expect(getDepthMilestone(START_Y + 850)).toEqual({
       kind: 'deep',
-      target: '11000 m depth record',
-      depthMeters: 11000,
-      remainingMeters: 1000
+      target: '9000 m depth record',
+      depthMeters: 9000,
+      remainingMeters: 500
     });
-    expect(formatDepthMilestone(MOTHERLODE_ROW + 20)).toBe('Depth target: 11000 m depth record — 800 m deeper.');
-    expect(formatDepthMilestone(MOTHERLODE_ROW + 120)).toBe('Depth target: 12000 m depth record — 800 m deeper.');
+    expect(formatDepthMilestone(START_Y + 860)).toBe('Depth target: 9000 m depth record — 400 m deeper.');
+    expect(formatDepthMilestone(START_Y + 960)).toBe('Depth target: 10000 m depth record — 400 m deeper.');
   });
 
   it('announces a cleared landmark by depth, naming what the seam holds', () => {
     const starter = formatDepthMilestoneReached(getDepthMilestone(START_Y));
-    expect(starter).toContain('Depth 50 m');
-    expect(starter).toContain('starter Coal/Copper seam');
+    expect(starter).toContain('Depth 30 m');
+    expect(starter).toContain('starter Coal/Iron seam');
 
-    const ore = formatDepthMilestoneReached(getDepthMilestone(START_Y + 5));
-    expect(ore).toContain('Depth 600 m');
-    expect(ore).toContain('Silver band');
+    const ore = formatDepthMilestoneReached(getDepthMilestone(START_Y + 3));
+    expect(ore).toContain('Depth 60 m');
+    expect(ore).toContain('Copper band');
 
-    expect(formatDepthMilestoneReached(getDepthMilestone(START_Y + 860)))
-      .toContain('Depth 10000 m — Motherlode core');
-
-    expect(formatDepthMilestoneReached(getDepthMilestone(MOTHERLODE_ROW)))
-      .toBe('Depth 11000 m — new depth record. The mine keeps going; keep fuel for the climb home.');
+    expect(formatDepthMilestoneReached(getDepthMilestone(START_Y + 850)))
+      .toBe('Depth 9000 m — new depth record. The mine keeps going; keep fuel for the climb home.');
   });
 });

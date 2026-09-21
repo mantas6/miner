@@ -28,10 +28,7 @@ interface Harness {
   gameOver: ReturnType<typeof vi.fn>;
   saveProgress: ReturnType<typeof vi.fn>;
   scheduleSave: ReturnType<typeof vi.fn>;
-  addCash: ReturnType<typeof vi.fn>;
   revealAtPlayer: ReturnType<typeof vi.fn>;
-  /** Mutable so a test can put the ship at the depot. */
-  flags: {atSurface: boolean};
 }
 
 function harness(): Harness {
@@ -49,9 +46,7 @@ function harness(): Harness {
     gameOver: vi.fn(),
     saveProgress: vi.fn(),
     scheduleSave: vi.fn(),
-    addCash: vi.fn(),
-    revealAtPlayer: vi.fn(),
-    flags: {atSurface: false}
+    revealAtPlayer: vi.fn()
   };
   const movement = createMovement({
     state,
@@ -61,9 +56,7 @@ function harness(): Harness {
     toast: toasts.toast,
     saveProgress: context.saveProgress,
     scheduleSave: context.scheduleSave,
-    addCash: context.addCash,
     revealAtPlayer: context.revealAtPlayer,
-    atSurface: () => context.flags.atSurface,
     damage: context.damage,
     gameOver: context.gameOver,
     spawnDust: vi.fn(),
@@ -111,11 +104,9 @@ describe('blocked moves', () => {
     Object.assign(h.state.player, {x: 1, y: START_Y});
 
     h.movement.move(-1, 0);
-    h.movement.move(0, -1);
 
     expect(h.state.player).toMatchObject({x: 1, y: START_Y, fuel: STARTING.fuel});
     expect(h.grid.writes).toHaveLength(0);
-    expect(h.toasts.saw('Stay low')).toBe(true);
   });
 
   it('clamps horizontal movement to the world edges', () => {
@@ -328,19 +319,6 @@ describe('digging', () => {
     expect(h.state.player.y).toBe(41);
   });
 
-  it('pays artifacts out as cash immediately without using cargo room', () => {
-    const h = harness();
-    h.state.player.drill = 9;
-    const artifact = {name: 'Alien Reliquary', color: '#ff78e1', value: 900, min: 0, max: 9999, chance: 1};
-    h.grid.put(10, 41, {type: 'artifact', artifact, hp: 1, maxHp: 1});
-
-    h.movement.move(0, 1);
-
-    expect(h.state.cash).toBe(STARTING.cash + 900);
-    expect(h.state.stats.artifactsFound).toBe(1);
-    expect(countOres(h.state.player.inventory)).toBe(0);
-    expect(h.state.player.y).toBe(41);
-  });
 });
 
 describe('hazards and hostile tiles', () => {
@@ -395,18 +373,6 @@ describe('hazards and hostile tiles', () => {
     expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - DIG_COST(FUEL.dig.enemy, 1));
   });
 
-  it('pays the Motherlode bounty once and opens the extraction phase', () => {
-    const h = harness();
-    h.state.player.drill = 30;
-    h.grid.put(10, 41, {type: 'motherlode', hp: 24, maxHp: 24});
-
-    h.movement.move(0, 1);
-
-    expect(h.state.extractionPhase).toBe('returning');
-    expect(h.addCash).toHaveBeenCalledWith(5000);
-    expect(h.state.stats.motherlodeClaims).toBe(1);
-    expect(h.state.player.y).toBe(40);
-  });
 });
 
 describe('fuel exhaustion', () => {
@@ -432,20 +398,6 @@ describe('fuel exhaustion', () => {
   });
 });
 
-describe('arriving at the depot', () => {
-  it('completes a carried extraction on arrival at the surface', () => {
-    const h = harness();
-    h.flags.atSurface = true;
-    h.state.extractionPhase = 'returning';
-
-    h.movement.move(0, -1);
-
-    expect(h.state.extractionPhase).toBe('completed');
-    expect(h.state.stats.motherlodeExtractions).toBe(1);
-    expect(h.toasts.saw('extraction complete')).toBe(true);
-  });
-});
-
 describe('open destination probing', () => {
   it('reports open air, but not terrain, an enemy, or a clamped destination', () => {
     const h = harness();
@@ -458,7 +410,8 @@ describe('open destination probing', () => {
     expect(h.movement.isOpenMovementDestination(1, 0)).toBe(false);
 
     h.enemies.standingEnemy = undefined;
-    Object.assign(h.state.player, {y: START_Y});
+    // A clamped destination (here the world's top row) reports not open.
+    Object.assign(h.state.player, {y: 0});
     expect(h.movement.isOpenMovementDestination(0, -1)).toBe(false);
   });
 });

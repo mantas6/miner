@@ -20,7 +20,7 @@
 // (`src/ui/commands.ts`) for the buttons to dispatch into; it never reads or
 // writes UI DOM apart from the canvas.
 
-import { START_Y, SURFACE_HEIGHT, WORLD_W } from '../../shared/constants';
+import { START_Y, WORLD_W } from '../../shared/constants';
 import { createDisposalScope } from './disposal';
 import { createGameSurface, type GameSurfaceRefs } from './dom';
 import { advanceViewportZoom, setViewportZoom, tileAtViewportPoint, viewport } from './viewport';
@@ -28,9 +28,9 @@ import { recenteredCamera } from './zoom';
 import { loadZoomLevel, saveZoomLevel } from './zoom-settings';
 import { createAudio } from '../audio/audio';
 import { shouldAttemptAutoAudio } from '../audio/audio-permission';
-import { createDefaultStats, createInitialState } from '../core/state';
+import { createDefaultStats, createInitialState, isAtHome } from '../core/state';
 import { createRenderer, type Renderer } from '../render/renderer';
-import { FUEL, ECONOMY, REVEAL_FOOTPRINT } from '../core/balance';
+import { FUEL, REVEAL_FOOTPRINT } from '../core/balance';
 import { cargoCost, tankCost, hullCost, drillCost, cargoValue } from '../core/economy';
 import { countItem, totalItems, type Inventory, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind } from '../core/placement-overlay';
@@ -43,13 +43,11 @@ import { load, save } from '../persistence';
 import { clearPersistedGameData } from '../persistence-reset';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { formatExpeditionStats } from '../core/stats';
-import { formatSurfaceActionHint } from '../core/surface-hint';
 import { rand } from '../world/world';
 import { resetUiCommands, setUiCommands } from '../ui/commands';
 import { buildCargoRows, buildInventorySlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot } from '../ui/store';
 
-import { formatExtractionPresentation } from '../core/extraction-presentation';
-import { TELEPORTER_ITEM, advanceTeleportEffect, canTeleportToSurface, canUseTeleporter } from '../core/teleporter';
+import { TELEPORTER_ITEM, advanceTeleportEffect, canTeleport, canUseTeleporter } from '../core/teleporter';
 import type { AudioController } from '../core/types';
 import { applyPlayerUpgrade, type PlayerUpgradeId } from '../core/upgrades';
 import { revealFootprint } from '../../shared/exploration-codec';
@@ -179,7 +177,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
 
   function cargoUsed(){ return totalItems(state.player.inventory); }
   function currentCargoValue(){ return cargoValue(state.player.inventory); }
-  function atSurface(){ return state.player.y < SURFACE_HEIGHT; }
+  /** Whether the ship is parked at the home base, where depot-style services live. */
+  function atSurface(){ return isAtHome(state.player); }
 
   function spawnDust(x: number, y: number, color='#9d6a42', amount=10){
     for (let i=0;i<amount;i++) state.particles.push({x:x+0.5,y:y+0.5,vx:(Math.random()-.5)*.08,vy:(Math.random()-.7)*.09,life:22+Math.random()*18,color,size:.035+Math.random()*.045});
@@ -293,7 +292,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     return containers.disarm() || hadDynamite || hadScanner;
   }
   function openShopScreen(){
-    if (!atSurface()) return toast('Shop is at the surface depot.');
+    if (!atSurface()) return toast('Shop is at the home base.');
     // An overlay covers the mine, so a pointer armed for placement has nothing
     // left to aim at.
     disarmPlacements();
@@ -381,11 +380,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const p = state.player;
     const surf = atSurface();
     const lowFuel = shouldFuelBarFlash(state);
-    const extraction = formatExtractionPresentation({
-      phase: state.extractionPhase,
-      motherlodeExtractions: state.stats.motherlodeExtractions,
-      reward: ECONOMY.artifactReward
-    });
 
     hudScratch.cash = state.cash;
     hudScratch.depthMeters = Math.max(0, p.y - START_Y) * 10;
@@ -404,29 +398,14 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       cash: state.cash,
       cargoCount: hudScratch.cargo,
       currentCargoValue: hudScratch.cargoValue,
-      atSurface: surf,
-      extractionPhase: state.extractionPhase
+      atSurface: surf
     });
-    hudScratch.extractionHud = extraction.hud;
-    hudScratch.extractionInfo = extraction.info;
     hudScratch.atSurface = surf;
     hudScratch.gameOver = state.gameOver;
     hudScratch.teleporters = countItem(p.inventory, TELEPORTER_ITEM.kind);
     hudScratch.teleportReturn = state.teleportReturnPosition !== null;
-    hudScratch.teleportDepthReached = canTeleportToSurface(p.y);
+    hudScratch.teleportDepthReached = canTeleport(p);
     hudScratch.teleportUsable = canUseTeleporter(p, state.teleportReturnPosition);
-    // What Space would actually do if pressed right now, so the depot prompt never
-    // offers a service the ship does not need or cannot pay for.
-    hudScratch.surfaceHint = formatSurfaceActionHint({
-      atSurface: surf,
-      gameOver: state.gameOver,
-      cargoValue: hudScratch.cargoValue,
-      cash: state.cash,
-      fuel: p.fuel,
-      fuelMax: p.fuelMax,
-      hull: p.hull,
-      hullMax: p.hullMax
-    });
     // The canvas, spoken: the one HUD field that exists for the live region rather
     // than the layout. Thresholds only, so it changes when the ship crosses one and
     // is byte-identical (and therefore silent) on every frame in between.
@@ -587,9 +566,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toast,
       saveProgress,
       scheduleSave: () => progressSave.schedule(),
-      addCash,
       revealAtPlayer,
-      atSurface,
       damage: run.damage,
       gameOver: run.gameOver,
       spawnDust,

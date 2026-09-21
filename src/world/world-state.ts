@@ -1,4 +1,4 @@
-import { placeAtSurfaceSpawn } from '../core/state';
+import { placeAtHome } from '../core/state';
 import type { GameState } from '../core/types';
 
 export const WORLD_STATE_RESET_CONFIRMATION = 'Reset world state? This permanently regenerates all terrain, restores dug-out blocks and world enemies, clears explored fog, and removes deployed equipment along with anything stored in it. Player cash, upgrades, cargo bay, stats, settings, and ship condition are preserved.';
@@ -29,11 +29,10 @@ export function resetWorldTerrain(state: GameState): void {
   // the mine it was left in, and whatever was stored inside it goes too.
   state.cargoContainers = [];
   state.particles = [];
-  state.extractionPhase = 'none';
   state.teleportEffect = null;
   state.teleportReturnPosition = null;
   state.gameOver = false;
-  placeAtSurfaceSpawn(state.player);
+  placeAtHome(state.player);
   state.camX = Math.max(0, state.player.x - 7);
-  state.camY = 0;
+  state.camY = Math.max(0, state.player.y - 7);
 }

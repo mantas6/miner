@@ -4,9 +4,9 @@
 // and is asserted there; here it is the decisions and the crossing bookkeeping.
 
 import { describe, expect, it } from 'vitest';
-import { START_Y, SURFACE_HEIGHT } from '../../shared/constants';
+import { START_Y } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
-import { createInitialState } from '../core/state';
+import { createInitialState, isAtHome } from '../core/state';
 import type { Enemy, Tile } from '../core/types';
 import { createReadouts, type HudReadoutFields } from './readouts';
 import { createEnemySimStub, createFakeGrid, createToastLog } from './test-support';
@@ -33,7 +33,7 @@ function setup(fill: (x: number, y: number) => Tile = () => ({type: 'dirt', hp: 
     state,
     grid,
     enemies,
-    atSurface: () => state.player.y < SURFACE_HEIGHT,
+    atSurface: () => isAtHome(state.player),
     toast: toasts.toast
   });
   return {
@@ -54,7 +54,7 @@ function setup(fill: (x: number, y: number) => Tile = () => ({type: 'dirt', hp: 
 
 describe('terrain scanner readout', () => {
   it('reads the tile the drill is aimed at, and keeps fog secret', () => {
-    const game = setup((_x, y) => (y > 6 ? {type: 'rock', hp: 999} : {type: 'dirt', hp: 3, maxHp: 3}));
+    const game = setup((_x, y) => (y > START_Y + 5 ? {type: 'rock', hp: 999} : {type: 'dirt', hp: 3, maxHp: 3}));
 
     // Fresh ship: aimed down at the unmapped starter shaft.
     expect(game.sync().scanner).toBe('Scanner ↓: unexplored — advance to map terrain.');
@@ -120,29 +120,29 @@ describe('depth landmark tracker', () => {
   it('reports the next landmark and announces each crossing exactly once', () => {
     const game = setup();
 
-    expect(game.sync()).toMatchObject({depthTargetKind: 'starter', depthTargetRemaining: 50});
+    expect(game.sync()).toMatchObject({depthTargetKind: 'starter', depthTargetRemaining: 30});
     expect(game.toasts.messages).toEqual([]);
 
-    game.descend(5);
-    expect(game.sync()).toMatchObject({depthTarget: 'Silver', depthTargetKind: 'ore', depthTargetRemaining: 550});
+    game.descend(3);
+    expect(game.sync()).toMatchObject({depthTarget: 'Copper', depthTargetKind: 'ore', depthTargetRemaining: 30});
     expect(game.toasts.messages).toHaveLength(1);
-    expect(game.toasts.last).toContain('Depth 50 m');
+    expect(game.toasts.last).toContain('Depth 30 m');
 
     game.sync();
-    game.descend(6);
+    game.descend(3);
     game.sync();
     expect(game.toasts.messages).toHaveLength(1);
   });
 
-  it('does not re-announce a seam after selling at the depot and diving again', () => {
+  it('does not re-announce a seam after stowing at home and diving again', () => {
     const game = setup();
     game.sync();
-    game.descend(5);
+    game.descend(3);
     game.sync();
 
     game.descend(0);
     expect(game.sync().depthTargetKind).toBe('starter');
-    game.descend(5);
+    game.descend(3);
     game.sync();
 
     expect(game.toasts.messages).toHaveLength(1);
@@ -151,7 +151,7 @@ describe('depth landmark tracker', () => {
   it('re-arms the announcements for the replacement ship after a death', () => {
     const game = setup();
     game.sync();
-    game.descend(5);
+    game.descend(3);
     game.sync();
 
     game.state.gameOver = true;
@@ -159,7 +159,7 @@ describe('depth landmark tracker', () => {
     game.state.gameOver = false;
     game.descend(0);
     game.sync();
-    game.descend(5);
+    game.descend(3);
     game.sync();
 
     expect(game.toasts.messages).toHaveLength(2);
@@ -168,13 +168,13 @@ describe('depth landmark tracker', () => {
   it('re-arms on an explicit reset too', () => {
     const game = setup();
     game.sync();
-    game.descend(5);
+    game.descend(3);
     game.sync();
 
     game.readouts.reset();
     game.descend(0);
     game.sync();
-    game.descend(5);
+    game.descend(3);
     game.sync();
 
     expect(game.toasts.messages).toHaveLength(2);

@@ -1,5 +1,5 @@
-import { ECONOMY, ENEMY, FUEL, HULL } from './balance';
-import { DANGER, MOTHERLODE_ROW, START_Y } from '../../shared/constants';
+import { ENEMY, FUEL, HULL } from './balance';
+import { DANGER, START_Y } from '../../shared/constants';
 import { ENEMY_TYPES } from './enemy-types';
 
 export interface DangerGuideRow {
@@ -16,7 +16,6 @@ function depthLabel(row: number, startY = START_Y): string {
  * balance configuration, so the overlay remains accurate as tuning changes.
  */
 export function buildDangerGuideRows(): DangerGuideRow[] {
-  const coreRow = MOTHERLODE_ROW;
   return [
     {
       title: 'Solid rock',
@@ -40,11 +39,7 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     },
     {
       title: 'Fuel discipline',
-      detail: `At ${Math.round(FUEL.lowFuelFraction * 100)}% fuel, turn back toward the surface depot. Sell, refuel, and repair before the next deep push.`
-    },
-    {
-      title: 'Motherlode core',
-      detail: `Near ${depthLabel(coreRow)}, the core needs repeated drilling. Claiming it pays $${ECONOMY.artifactReward}; make a safe route home alive.`
+      detail: `At ${Math.round(FUEL.lowFuelFraction * 100)}% fuel, turn back toward home. Refuel and repair before the next deep push.`
     }
   ];
 }

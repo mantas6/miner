@@ -41,10 +41,10 @@ export const revisionSchema = integer.min(1);
 export const enemyKindSchema = z.enum(ENEMY_KINDS);
 
 /**
- * A sellable ore or artifact definition, as embedded in a tile. Bounds match
- * the tables in `shared/constants.ts`.
+ * A sellable ore definition, as embedded in a tile. Bounds match the table in
+ * `shared/constants.ts`.
  */
-export const valuableSchema = z.object({
+export const oreSchema = z.object({
   name: z.string().min(1).max(100),
   color: z.string().min(1).max(32),
   value: real.min(0).max(MAX_VALUABLE_VALUE),
@@ -53,17 +53,12 @@ export const valuableSchema = z.object({
   chance: real.min(0).max(1)
 });
 
-export const oreSchema = valuableSchema;
-export const artifactSchema = valuableSchema;
-
 export const airTileSchema = z.object({ type: z.literal('air') });
 export const dirtTileSchema = z.object({ type: z.literal('dirt'), hp, maxHp });
 /** Rock is indestructible scenery, so it carries no `maxHp`. */
 export const rockTileSchema = z.object({ type: z.literal('rock'), hp });
 export const oreTileSchema = z.object({ type: z.literal('ore'), ore: oreSchema, hp, maxHp });
 export const hazardTileSchema = z.object({ type: z.literal('hazard'), hp, maxHp });
-export const artifactTileSchema = z.object({ type: z.literal('artifact'), artifact: artifactSchema, hp, maxHp });
-export const motherlodeTileSchema = z.object({ type: z.literal('motherlode'), hp, maxHp });
 /** Dormant enemy. Legacy payloads omit `kind`; they normalize to the weakest. */
 export const dormantEnemyTileSchema = z.object({
   type: z.literal('enemy'),
@@ -78,8 +73,6 @@ export const tileSchema = z.discriminatedUnion('type', [
   rockTileSchema,
   oreTileSchema,
   hazardTileSchema,
-  artifactTileSchema,
-  motherlodeTileSchema,
   dormantEnemyTileSchema
 ]);
 
@@ -140,15 +133,12 @@ export const worldStateSchema = z.object(worldStateFields)
   );
 
 export type Ore = z.infer<typeof oreSchema>;
-export type Artifact = z.infer<typeof artifactSchema>;
 export type EnemyKind = z.infer<typeof enemyKindSchema>;
 export type AirTile = z.infer<typeof airTileSchema>;
 export type DirtTile = z.infer<typeof dirtTileSchema>;
 export type RockTile = z.infer<typeof rockTileSchema>;
 export type OreTile = z.infer<typeof oreTileSchema>;
 export type HazardTile = z.infer<typeof hazardTileSchema>;
-export type ArtifactTile = z.infer<typeof artifactTileSchema>;
-export type MotherlodeTile = z.infer<typeof motherlodeTileSchema>;
 export type DormantEnemyTile = z.infer<typeof dormantEnemyTileSchema>;
 export type Tile = z.infer<typeof tileSchema>;
 export type TileEntry = z.infer<typeof tileEntrySchema>;

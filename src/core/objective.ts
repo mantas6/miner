@@ -3,7 +3,6 @@ import { ORES, START_Y } from '../../shared/constants';
 import { cheapestUpgrade } from './economy';
 import { oreMinimumDepthMeters } from './prospecting';
 import type { Ore, Player } from './types';
-import type { ExtractionPhase } from './extraction-phase';
 
 type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'hull' | 'hullMax' | 'cargoMax' | 'drill'>;
 
@@ -13,7 +12,6 @@ export interface ObjectiveInput {
   cargoCount: number;
   currentCargoValue: number;
   atSurface: boolean;
-  extractionPhase?: ExtractionPhase;
   ores?: Ore[];
   startY?: number;
 }
@@ -34,14 +32,9 @@ export function formatExpeditionObjective({
   cargoCount,
   currentCargoValue,
   atSurface,
-  extractionPhase = 'none',
   ores = ORES,
   startY = START_Y
 }: ObjectiveInput): string {
-  if (extractionPhase === 'returning') {
-    return 'Objective: Motherlode core secured — return alive to the surface depot to complete extraction.';
-  }
-
   const depth = currentDepthMeters(player.y, startY);
   const lowFuel = player.fuel <= player.fuelMax * FUEL.lowFuelFraction;
   const nextUpgrade = cheapestUpgrade(player);

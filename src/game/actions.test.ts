@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ORES, START_Y } from '../../shared/constants';
+import { HOME_X, ORES, START_Y } from '../../shared/constants';
 import { ECONOMY, LIMITS, STARTING } from '../core/balance';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { cargoCost, drillCost, partialFill, refuelCost, repairCost } from '../core/economy';
@@ -292,7 +292,7 @@ describe('using the teleporter', () => {
     expect(h.state.player.y).toBe(START_Y);
     expect(h.state.teleportReturnPosition).toEqual({x: 20, y: START_Y + 40});
     expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.toasts.saw('Teleported safely to the depot')).toBe(true);
+    expect(h.toasts.saw('Teleported safely home')).toBe(true);
 
     h.flags.atSurface = true;
     h.actions.useTeleporter();
@@ -325,10 +325,10 @@ describe('using the teleporter', () => {
     expect(h.audio.played).toContain('alarm');
   });
 
-  it('keeps the teleporter when the ship is too shallow to use it', () => {
+  it('keeps the teleporter when the ship is too close to home to use it', () => {
     const h = harness();
     deepWithTeleporters(h, 1);
-    Object.assign(h.state.player, {y: START_Y + 1, drawY: START_Y + 1});
+    Object.assign(h.state.player, {x: HOME_X, y: START_Y + 1, drawX: HOME_X, drawY: START_Y + 1});
 
     h.actions.useTeleporter();
 

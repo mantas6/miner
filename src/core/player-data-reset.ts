@@ -19,7 +19,6 @@ export function resetPlayerData(state: GameState): void {
   state.camY = fresh.camY;
   state.particles = fresh.particles;
   state.stats = fresh.stats;
-  state.extractionPhase = fresh.extractionPhase;
   state.teleportEffect = fresh.teleportEffect;
   state.teleportReturnPosition = fresh.teleportReturnPosition;
   state.exploredTiles = fresh.exploredTiles;

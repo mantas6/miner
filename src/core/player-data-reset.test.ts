@@ -40,8 +40,7 @@ describe('player-data reset', () => {
     state.camX = 20;
     state.camY = 60;
     state.particles.push({x:1,y:1,vx:1,vy:1,life:1,color:'#fff',size:1});
-    state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, artifactsFound: 6, enemiesDestroyed: 5, deaths: 4, motherlodeClaims: 3, motherlodeExtractions: 2};
-    state.extractionPhase = 'returning';
+    state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4};
     state.teleportReturnPosition = {x: 8, y: 80};
     state.exploredTiles.add(1234);
 
@@ -51,7 +50,7 @@ describe('player-data reset', () => {
     expect(state.player).toEqual(fresh.player);
     expect(state).toMatchObject({
       cash: fresh.cash, tick: 0, gameOver: false, camX: 0, camY: 0,
-      particles: [], stats: fresh.stats, extractionPhase: 'none',
+      particles: [], stats: fresh.stats,
       teleportEffect: null, teleportReturnPosition: null, input: fresh.input
     });
     expect(state.exploredTiles.size).toBe(0);

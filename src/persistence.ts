@@ -1,4 +1,4 @@
-import { MAX_WORLD_ROW, START_Y, SURFACE_HEIGHT, WORLD_W } from '../shared/constants';
+import { MAX_WORLD_ROW, START_Y, WORLD_W } from '../shared/constants';
 import { ECONOMY, LIMITS, STARTING } from './core/balance';
 import {
   CARGO_CONTAINER,
@@ -114,7 +114,7 @@ function parsePlacedTile(entry: unknown): {x: number; y: number} | null {
   const saved = entry as {x?: unknown; y?: unknown};
   const x = Math.floor(numeric(saved.x, -1, -1, WORLD_W - 1));
   const y = Math.floor(numeric(saved.y, -1, -1, MAX_WORLD_ROW));
-  if (x < 0 || y < SURFACE_HEIGHT) return null;
+  if (x < 0 || y < 0) return null;
   return {x, y};
 }
 

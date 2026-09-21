@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { SAVE_KEY, SAVE_VERSION, load, numeric, save } from './persistence';
-import { SURFACE_SPAWN_X, createInitialState } from './core/state';
+import { HOME_SPAWN_X, createInitialState } from './core/state';
 import { ECONOMY, LIMITS } from './core/balance';
 import { cargoCost } from './core/economy';
 import { CARGO_CONTAINER, CARGO_CONTAINER_ITEM, createPlacedContainer } from './core/cargo-container';
@@ -8,8 +8,7 @@ import { DYNAMITE, DYNAMITE_ITEM, createPlacedDynamite } from './core/dynamite';
 import { addItem, countItem, countOres, oreItem } from './core/inventory';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { claimArtifact } from './core/artifacts';
-import { ARTIFACTS, MAX_SAVED_TILE_ENTRIES, START_Y } from '../shared/constants';
+import { MAX_SAVED_TILE_ENTRIES, START_Y } from '../shared/constants';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
 import { createTileDiff, tileDiffEntries } from './world/tile-diff';
@@ -44,30 +43,14 @@ describe('numeric clamp', () => {
   });
 });
 
-describe('Motherlode extraction save compatibility', () => {
-  it('gives legacy saves a zero completed-extraction counter', () => {
-    stubStorage({ version: SAVE_VERSION, stats: { motherlodeClaims: 1 } });
+describe('legacy stat save compatibility', () => {
+  it('drops removed stat counters and keeps the surviving ones', () => {
+    stubStorage({ version: SAVE_VERSION, stats: { oreMined: 7, motherlodeClaims: 1, artifactsFound: 3 } });
     const state = createInitialState();
 
     load(state);
 
-    expect(state.stats).toMatchObject({ motherlodeClaims: 1, motherlodeExtractions: 0 });
-  });
-});
-
-describe('artifact payout persistence', () => {
-  it('round-trips immediately banked cash and artifact count without cargo', () => {
-    stubStorage();
-    const state = createInitialState();
-    claimArtifact(state, ARTIFACTS[0]);
-    save(state);
-
-    const restored = createInitialState();
-    load(restored);
-    expect(restored.cash).toBe(240);
-    expect(restored.stats.artifactsFound).toBe(1);
-    expect(restored.stats.totalCashEarned).toBe(180);
-    expect(countOres(restored.player.inventory)).toBe(0);
+    expect(state.stats).toEqual({ maxDepth: 0, totalCashEarned: 0, oreMined: 7, enemiesDestroyed: 0, deaths: 0 });
   });
 });
 
@@ -188,7 +171,7 @@ describe('scanner persistence', () => {
 
   it.each([
     ['a device outside the side walls', [{x: -3, y: 400}]],
-    ['a device above the mine', [{x: 10, y: 0}]],
+    ['a device above the mine', [{x: 10, y: -1}]],
     ['a nonsense device', [{x: 'deep', y: null}]],
     ['something that is not a device at all', ['scanner']],
     ['a device list that is not a list', 'scanner']
@@ -250,7 +233,7 @@ describe('dynamite persistence', () => {
 
   it.each([
     ['a stick outside the side walls', [{x: -3, y: 400}]],
-    ['a stick above the mine', [{x: 10, y: 0}]],
+    ['a stick above the mine', [{x: 10, y: -1}]],
     ['a nonsense stick', [{x: 'deep', y: null}]],
     ['something that is not a stick at all', ['boom']],
     ['a stick list that is not a list', 'boom']
@@ -342,7 +325,7 @@ describe('cargo container persistence', () => {
 
   it.each([
     ['a crate outside the side walls', [{x: -3, y: 400}]],
-    ['a crate above the mine', [{x: 10, y: 0}]],
+    ['a crate above the mine', [{x: 10, y: -1}]],
     ['a nonsense crate', [{x: 'deep', y: null}]],
     ['something that is not a crate at all', ['crate']],
     ['a crate list that is not a list', 'crate']
@@ -417,14 +400,14 @@ describe('ship position persistence', () => {
 
     load(state);
 
-    expect(state.player).toMatchObject({x: SURFACE_SPAWN_X, y: START_Y});
+    expect(state.player).toMatchObject({x: HOME_SPAWN_X, y: START_Y});
   });
 
   it.each([
     ['a position outside the side walls', {x: -40, y: 30}, {x: 1, y: 30}],
-    ['a position above the surface airspace', {x: 12, y: -9}, {x: 12, y: START_Y}],
+    ['a position above the home row', {x: 12, y: -9}, {x: 12, y: START_Y}],
     ['a fractional position', {x: 12.7, y: 30.7}, {x: 12, y: 30}],
-    ['a nonsense position', {x: 'deep', y: null}, {x: SURFACE_SPAWN_X, y: START_Y}]
+    ['a nonsense position', {x: 'deep', y: null}, {x: HOME_SPAWN_X, y: START_Y}]
   ])('refuses to park a ship at %s', (_name, saved, expected) => {
     stubStorage({ version: SAVE_VERSION, ...saved });
     const state = createInitialState();

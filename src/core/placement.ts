@@ -9,12 +9,12 @@
 // its own copy. The refusals are phrased as the toast the player sees, which is
 // what keeps a rule and its explanation from drifting apart.
 
-import { MAX_WORLD_ROW, SURFACE_HEIGHT, WORLD_W } from '../../shared/constants';
+import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 
-/** Inside the dug part of the world: not the sky, not the surface, not the walls. */
+/** Inside the dug part of the world: not above the world, not the side walls. */
 export function inMineBounds(x: number, y: number): boolean {
-  return x >= 0 && x < WORLD_W && y >= SURFACE_HEIGHT && y <= MAX_WORLD_ROW;
+  return x >= 0 && x < WORLD_W && y >= 0 && y <= MAX_WORLD_ROW;
 }
 
 export interface PlacementSite {

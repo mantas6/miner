@@ -13,16 +13,13 @@
 
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand/react';
-import { ECONOMY } from '../core/balance';
 import { getDepthMilestone, type DepthMilestoneKind } from '../core/depth-milestone';
 import { type FuelReserveStatus } from '../core/fuel-reserve';
-import { formatExtractionPresentation } from '../core/extraction-presentation';
 import { formatExpeditionObjective } from '../core/objective';
 import { formatTerrainScanner } from '../core/scanner';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { createInitialState } from '../core/state';
 import { formatExpeditionStats, type ExpeditionStatRow } from '../core/stats';
-import { formatSurfaceActionHint } from '../core/surface-hint';
 import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind } from '../core/inventory';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
@@ -46,8 +43,6 @@ export interface HudSnapshot {
   hullAlert: boolean;
   cargoAlert: boolean;
   objective: string;
-  extractionHud: string | null;
-  extractionInfo: string;
   atSurface: boolean;
   gameOver: boolean;
   /** Single-use teleporters in the bay: the teleport button's whole availability. */
@@ -60,8 +55,6 @@ export interface HudSnapshot {
   teleportUsable: boolean;
   /** Adjacent drill/flight target readout, refreshed when the target changes. */
   scanner: string;
-  /** What one press of Space would do at the depot, or null when it would do nothing. */
-  surfaceHint: string | null;
   /** Return-fuel forecast for the climb home. */
   fuelReserveStatus: FuelReserveStatus;
   fuelReserveNeeded: number;
@@ -81,10 +74,10 @@ export interface HudSnapshot {
 
 const HUD_KEYS = [
   'cash', 'depthMeters', 'fuel', 'fuelMax', 'hull', 'hullMax', 'cargo', 'cargoMax', 'cargoValue',
-  'fuelAlert', 'hullAlert', 'cargoAlert', 'objective', 'extractionHud', 'extractionInfo',
+  'fuelAlert', 'hullAlert', 'cargoAlert', 'objective',
   'atSurface', 'gameOver', 'teleporters',
   'teleportReturn', 'teleportDepthReached', 'teleportUsable',
-  'scanner', 'surfaceHint', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
+  'scanner', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
 
@@ -250,15 +243,8 @@ function initialHud(): HudSnapshot {
       cash: initialState.cash,
       cargoCount: 0,
       currentCargoValue: 0,
-      atSurface: true,
-      extractionPhase: 'none'
+      atSurface: true
     }),
-    extractionHud: null,
-    extractionInfo: formatExtractionPresentation({
-      phase: 'none',
-      motherlodeExtractions: 0,
-      reward: ECONOMY.artifactReward
-    }).info,
     atSurface: true,
     gameOver: false,
     teleporters: countItem(player.inventory, TELEPORTER_ITEM.kind),
@@ -268,16 +254,6 @@ function initialHud(): HudSnapshot {
     // Nothing has been scanned before the first frame, which is exactly what the
     // scanner says about terrain it has not mapped yet.
     scanner: formatTerrainScanner({tile: {type: 'air'}, direction: [0, 1], explored: false}),
-    surfaceHint: formatSurfaceActionHint({
-      atSurface: true,
-      gameOver: false,
-      cargoValue: 0,
-      cash: initialState.cash,
-      fuel: player.fuel,
-      fuelMax: player.fuelMax,
-      hull: player.hull,
-      hullMax: player.hullMax
-    }),
     fuelReserveStatus: 'safe',
     fuelReserveNeeded: 0,
     fuelReserveMargin: Math.floor(player.fuel),

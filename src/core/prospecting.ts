@@ -1,6 +1,6 @@
-import { ARTIFACTS, MAX_WORLD_ROW, ORES, START_Y } from '../../shared/constants';
+import { MAX_WORLD_ROW, ORES, START_Y } from '../../shared/constants';
 import { ECONOMY } from './balance';
-import type { Artifact, Ore } from './types';
+import type { Ore } from './types';
 
 export interface ProspectingGuideRow {
   name: string;
@@ -35,14 +35,4 @@ export function buildProspectingGuideRows(ores: Ore[] = ORES, startY = START_Y):
   }));
 }
 
-/** The same rows for artifacts, which pay out on the spot instead of as cargo. */
-export function buildArtifactGuideRows(artifacts: Artifact[] = ARTIFACTS, startY = START_Y): ProspectingGuideRow[] {
-  return artifacts.map(artifact => ({
-    name: artifact.name,
-    color: artifact.color,
-    valueLabel: `$${artifact.value} cash now`,
-    depthLabel: formatDepthBandLabel(artifact.min, artifact.max, startY)
-  }));
-}
-
-export const PROSPECTING_TIP = `Early goal: follow the starting shaft into the first Coal/Copper seam, sell it, then save toward Cargo +${ECONOMY.cargo.step}.`;
+export const PROSPECTING_TIP = `Early goal: dig below home into the first Coal/Iron seam, then stow it and save toward Cargo +${ECONOMY.cargo.step}.`;

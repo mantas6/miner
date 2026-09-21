@@ -89,9 +89,8 @@ describe('hull damage', () => {
 });
 
 describe('death consequences', () => {
-  it('banks the death and cancels a carried extraction', () => {
+  it('banks the death and clears the teleport effect', () => {
     const h = harness();
-    h.state.extractionPhase = 'returning';
     h.state.teleportEffect = {
       originScreenX: 1, originScreenY: 2, destinationX: 3, destinationY: 4,
       frame: 1, duration: 30, reducedMotion: false
@@ -101,7 +100,6 @@ describe('death consequences', () => {
 
     expect(h.state).toMatchObject({
       gameOver: true,
-      extractionPhase: 'none',
       teleportEffect: null
     });
     expect(h.state.stats.deaths).toBe(1);
@@ -194,7 +192,7 @@ describe('resuming a saved run', () => {
     });
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.cash).toBe(900);
-    expect(h.toasts.saw('580 m')).toBe(true);
+    expect(h.toasts.saw('500 m')).toBe(true);
     // The camera opens on the ship instead of panning down from the depot.
     expect(h.state.camY).toBeGreaterThan(0);
   });

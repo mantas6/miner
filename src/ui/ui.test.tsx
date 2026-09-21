@@ -19,10 +19,10 @@ import { MinerApp } from './ui';
 const DOM_CONTRACT = [
   'shell', 'game-panel', 'game', 'game-instructions', 'game-status',
   'hud', 'musicBtn', 'sfxBtn', 'cash', 'depth', 'depthTarget', 'scanner',
-  'fuel', 'fuelLabel', 'fuelReturn', 'fuelSurplus', 'hull', 'hullLabel', 'cargo', 'cargoLabel', 'extractionStatus',
+  'fuel', 'fuelLabel', 'fuelReturn', 'fuelSurplus', 'hull', 'hullLabel', 'cargo', 'cargoLabel',
   // The inventory panel ships expanded, so its slot list is part of the contract.
   'inventory', 'inventoryToggleBtn', 'inventorySlots',
-  'surfaceHint', 'sell', 'shopBtn', 'teleporterBtn', 'infoBtn',
+  'sell', 'shopBtn', 'teleporterBtn', 'infoBtn',
   // Every overlay keeps its dialog shell mounted; their contents do not.
   'shop-screen', 'info-screen', 'cargo-screen',
   'fuel-warning', 'toast'
@@ -39,7 +39,7 @@ const SHOP_CONTRACT = [
 const CARGO_CONTRACT = ['cargo-card', 'cargoCloseBtn', 'containerSlots', 'shipSlots'];
 
 /** Ids that exist only while the info screen is up, on the tab it opens with. */
-const INFO_CONTRACT = ['info-card', 'infoCloseBtn', 'objectiveInfoStatus', 'extractionInfoStatus', 'cargoList'];
+const INFO_CONTRACT = ['info-card', 'infoCloseBtn', 'objectiveInfoStatus', 'cargoList'];
 
 /** The remaining panel ids, and the tab that mounts each of them. */
 const INFO_TAB_CONTRACT = [
@@ -430,34 +430,6 @@ describe('store-driven HUD', () => {
     expect(teleporter.textContent).toBe('Return (T)');
   });
 
-  it('prompts for the depot key only while a press would do something', () => {
-    render(<MinerApp />);
-    const hint = document.getElementById('surfaceHint') as HTMLElement;
-
-    // A fully serviced ship at the depot has nothing to press Space for.
-    expect(hint.hidden).toBe(true);
-
-    patchHud({surfaceHint: 'Space: sell & refuel'});
-    expect(hint.hidden).toBe(false);
-    expect(hint.textContent).toBe('Space: sell & refuel');
-
-    // It reads over the mine, not out of the button cluster: the prompt is about
-    // a key, so it belongs where the other mid-run line (the fuel banner) is.
-    expect(hint.closest('#hud')).toBeNull();
-    expect(hint.parentElement).toBe(document.getElementById('fuel-warning')?.parentElement);
-
-    // The shop is modal and covers the HUD, so the prompt stands down under it.
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
-    expect(hint.hidden).toBe(true);
-
-    act(() => { uiStore.getState().setActiveOverlay(null); });
-    expect(hint.hidden).toBe(false);
-
-    // Underground and after a loss the game clears the line itself.
-    patchHud({surfaceHint: null});
-    expect(hint.hidden).toBe(true);
-  });
-
   it('paints the scanner line the game formatted, and drops it once the ship is lost', () => {
     render(<MinerApp />);
 
@@ -515,26 +487,6 @@ describe('store-driven HUD', () => {
     expect(banner.className).not.toMatch(/show/);
   });
 
-  /** Both lines claim the same spot, and the one that names the cure wins it. */
-  it('yields the banner slot to the depot prompt', () => {
-    render(<MinerApp />);
-    const banner = document.getElementById('fuel-warning') as HTMLElement;
-    const hint = document.getElementById('surfaceHint') as HTMLElement;
-
-    patchHud({fuelAlert: true, surfaceHint: 'Space: refuel'});
-    expect(hint.hidden).toBe(false);
-    expect(banner.className).not.toMatch(/show/);
-
-    // Under a modal the prompt stands down, so the warning is free to speak again.
-    act(() => { uiStore.getState().setActiveOverlay('shop'); });
-    expect(hint.hidden).toBe(true);
-    expect(banner.className).toMatch(/show/);
-
-    act(() => { uiStore.getState().setActiveOverlay(null); });
-    patchHud({surfaceHint: null});
-    expect(banner.className).toMatch(/show/);
-  });
-
   it('captions the depth readout with the next landmark', () => {
     render(<MinerApp />);
 
@@ -543,11 +495,7 @@ describe('store-driven HUD', () => {
     expect(target.textContent).toBe('↓ 550 m to Silver');
     expect(target.dataset.kind).toBe('ore');
 
-    patchHud({depthTarget: 'Motherlode core', depthTargetKind: 'motherlode', depthTargetRemaining: 1400});
-    expect(target.textContent).toBe('↓ 1400 m to Motherlode core');
-    expect(target.dataset.kind).toBe('motherlode');
-
-    // Below the core the ladder keeps rolling, so the caption must too.
+    // Past the last ore band the ladder keeps rolling in depth records.
     patchHud({depthTarget: '12000 m depth record', depthTargetKind: 'deep', depthTargetRemaining: 800});
     expect(target.textContent).toBe('↓ 800 m to 12000 m depth record');
     expect(target.dataset.kind).toBe('deep');
@@ -668,7 +616,7 @@ describe('inventory panel', () => {
       ));
     });
 
-    expect(slotText()).toEqual(['Coal×2', 'Copper×1']);
+    expect(slotText()).toEqual(['Coal×2', 'Iron×1']);
     // Three items across two stacks, against the starting capacity.
     expect(document.getElementById('inventoryToggleBtn')?.textContent).toContain('3/20');
   });

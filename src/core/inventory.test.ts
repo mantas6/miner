@@ -22,8 +22,8 @@ import {
 } from './inventory';
 
 const coal = ORES[0];
-const copper = ORES[1];
-const silver = ORES[2];
+const copper = ORES[2];
+const silver = ORES[3];
 
 /** Fill the bay with one unit of each of the first `count` ore types. */
 function withOreTypes(count: number, capacity = 99): Inventory {
@@ -63,8 +63,8 @@ describe('stacking', () => {
   it('gives every kind its own stack, in arrival order', () => {
     const inventory = withOreTypes(3);
 
-    expect(inventoryStacks(inventory).map(stack => stack.item.label)).toEqual(['Coal', 'Copper', 'Silver']);
-    expect(findStack(inventory, oreKind('Silver'))?.count).toBe(1);
+    expect(inventoryStacks(inventory).map(stack => stack.item.label)).toEqual(['Coal', 'Iron', 'Copper']);
+    expect(findStack(inventory, oreKind('Copper'))?.count).toBe(1);
     expect(findStack(inventory, oreKind('Gold'))).toBeNull();
   });
 

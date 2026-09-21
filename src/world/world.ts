@@ -1,6 +1,6 @@
 // Pure deterministic world generation. DOM-free / testable.
 // No imports from dom.js, game.js, or balance.js.
-import { ARTIFACTS, DANGER, MAX_WORLD_ROW, MOTHERLODE_ROW, ORES, SURFACE_HEIGHT, WORLD_CHUNK_ROWS, WORLD_W } from '../../shared/constants';
+import { DANGER, HOME_CAVERN_TOP, HOME_ROW, MAX_WORLD_ROW, ORES, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
 import { enemyHealth, enemyKindForDepthRoll } from '../core/enemy-types';
 
@@ -20,15 +20,16 @@ export function naturalAirPocket(x: number, y: number): boolean {
 }
 
 const STARTER_ORE_PATCHES = [
-  {xOffset: 0, y: SURFACE_HEIGHT + 3, oreName: 'Coal'},
-  {xOffset: -2, y: SURFACE_HEIGHT + 4, oreName: 'Coal'},
-  {xOffset: 2, y: SURFACE_HEIGHT + 5, oreName: 'Copper'},
-  {xOffset: -1, y: SURFACE_HEIGHT + 7, oreName: 'Copper'}
+  {xOffset: 0, y: HOME_ROW + 2, oreName: 'Coal'},
+  {xOffset: -2, y: HOME_ROW + 3, oreName: 'Coal'},
+  {xOffset: 2, y: HOME_ROW + 4, oreName: 'Iron'},
+  {xOffset: -1, y: HOME_ROW + 5, oreName: 'Iron'}
 ];
 
 /**
- * A small deterministic starter seam near the shaft gives new players visible
- * low-tier goals in the first 40-80 m without flattening the whole opening.
+ * A small deterministic Coal/Iron seam just below the home cavern gives new
+ * players visible low-tier goals in the first few metres without flattening the
+ * whole opening.
  */
 export function starterOreForCoordinate(x: number, y: number) {
   const shaftX = Math.floor(WORLD_W / 2);
@@ -52,30 +53,20 @@ export function oreForDepthRoll(depth: number, roll: number) {
   return eligible.at(-1) || null;
 }
 
-export function artifactForDepthRoll(depth: number, roll: number) {
-  let target = roll;
-  for (const artifact of ARTIFACTS) {
-    if (depth < artifact.min || depth > artifact.max) continue;
-    target -= artifact.chance;
-    if (target < 0) return artifact;
-  }
-  return null;
-}
-
 /** Generate the tile at a world coordinate. Deterministic for a given (x,y). */
 export function makeTile(x: number, y: number): Tile {
-  if (y < SURFACE_HEIGHT) return {type:'air'};
-  if (y === SURFACE_HEIGHT && Math.abs(x - WORLD_W/2) < 7) return {type:'dirt', hp:2, maxHp:2};
-  if (naturalAirPocket(x,y)) return {type:'air'};
+  // Indestructible bedrock caps the world above the home cavern.
+  if (y < HOME_CAVERN_TOP) return {type:'rock', hp:999};
+  // The home cavern is deterministic air, never stored in the tile diff.
+  if (isHomeCavern(x, y)) return {type:'air'};
+  // Natural cave seams only open up below the cavern's immediate floor.
+  if (y > HOME_ROW + 1 && naturalAirPocket(x,y)) return {type:'air'};
   const r = rand(x,y), depth = y;
   let ore = starterOreForCoordinate(x, y);
   if (!ore && r < oreSpawnChanceAtDepth(depth)) {
     ore = oreForDepthRoll(depth, rand(x + 73, y - 47));
   }
-  if (y === MOTHERLODE_ROW && Math.abs(x - Math.floor(WORLD_W/2)) <= 1) return {type:'motherlode', hp:24, maxHp:24};
   if (ore) { const hp = Math.max(3, Math.ceil((depth/28)+4)); return {type:'ore', ore, hp, maxHp: hp}; }
-  const artifact = artifactForDepthRoll(depth, rand(x - 181, y + 263));
-  if (artifact) { const hp = Math.max(4, Math.ceil(depth/240)+3); return {type:'artifact', artifact, hp, maxHp:hp}; }
   const rockChance = y > 190 ? .036 : .018;
   if (rand(x+9,y-3) < rockChance && y >= DANGER.rockMinRow) return {type:'rock', hp: 999};
   if (y >= DANGER.hazardMinRow && rand(x+51,y-91) < Math.min(.026, .007 + y / 13000)) {

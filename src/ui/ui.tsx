@@ -27,7 +27,6 @@ import { InfoScreen } from './InfoScreen';
 import { Intro } from './Intro';
 import { ShopScreen } from './ShopScreen';
 import { useUiStore } from './store';
-import { SurfaceHint } from './SurfaceHint';
 import { Toast } from './Toast';
 import { useGameRuntime, type GameRuntimeFactory } from './useGameRuntime';
 import common from './common.module.css';
@@ -78,7 +77,6 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <ShopScreen />
         <InfoScreen />
         <CargoScreen />
-        <SurfaceHint />
         <FuelWarning />
         <Toast />
         {phase === 'intro' && <Intro />}

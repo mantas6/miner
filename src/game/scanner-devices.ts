@@ -11,7 +11,7 @@
 // reload — an armed pointer restored from a save would swallow the first click
 // of the next run.
 
-import { MAX_WORLD_ROW, SURFACE_HEIGHT, WORLD_W } from '../../shared/constants';
+import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { countItem, removeItem } from '../core/inventory';
 import {
   SCANNER_DEVICE,
@@ -100,7 +100,7 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
     }
     // Bounds first, so a press far outside the mine never generates a row chunk
     // just to find out the tile was never a candidate.
-    const inBounds = x >= 0 && x < WORLD_W && y >= SURFACE_HEIGHT && y <= MAX_WORLD_ROW;
+    const inBounds = x >= 0 && x < WORLD_W && y >= 0 && y <= MAX_WORLD_ROW;
     const refusal = scannerPlacementRefusal(x, y, {
       explored: state.exploredTiles,
       open: inBounds && grid.get(x, y).type === 'air',

@@ -13,7 +13,7 @@
 // storing a private to-do list would leave it counting down to reveals that had
 // already happened.
 
-import { MAX_WORLD_ROW, SURFACE_HEIGHT, WORLD_W } from '../../shared/constants';
+import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import type { InventoryItem } from './inventory';
 import { placementRefusal, type PlacementCopy } from './placement';
@@ -55,14 +55,14 @@ export function createScannerDevice(x: number, y: number): ScannerDevice {
 
 /**
  * Row-major exploration indexes of the tiles this device covers, clamped to the
- * world. Surface rows are skipped: they are visible by definition, so counting
- * them would leave a device parked near the top permanently "unfinished".
+ * world. Rows above the world top are skipped so a device parked near the top is
+ * not left permanently "unfinished" by tiles it can never claim.
  */
 export function scannerFootprint(device: ScannerDevice): number[] {
   const reach = Math.floor(SCANNER_DEVICE.size / 2);
   const indexes: number[] = [];
   for (let y = device.y - reach; y <= device.y + reach; y++) {
-    if (y < SURFACE_HEIGHT || y > MAX_WORLD_ROW) continue;
+    if (y < 0 || y > MAX_WORLD_ROW) continue;
     for (let x = device.x - reach; x <= device.x + reach; x++) {
       if (x < 0 || x >= WORLD_W) continue;
       indexes.push(explorationIndex(x, y));

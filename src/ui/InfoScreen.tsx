@@ -14,7 +14,7 @@ import { ECONOMY } from '../core/balance';
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import { buildDangerGuideRows } from '../core/danger';
 import { DYNAMITE } from '../core/dynamite';
-import { PROSPECTING_TIP, buildArtifactGuideRows, buildProspectingGuideRows } from '../core/prospecting';
+import { PROSPECTING_TIP, buildProspectingGuideRows } from '../core/prospecting';
 import { SCANNER_DEVICE } from '../core/scanner-device';
 import { GAME_RESET_CONFIRMATION } from '../persistence-reset';
 import { DeveloperPanel } from './DeveloperPanel';
@@ -24,7 +24,6 @@ import { uiStore, useUiStore } from './store';
 import styles from './InfoScreen.module.css';
 
 const prospectingRows = buildProspectingGuideRows();
-const artifactRows = buildArtifactGuideRows();
 const dangerRows = buildDangerGuideRows();
 
 /** The dialog shell: open/close mechanics and focus restoration, no content. */
@@ -142,14 +141,12 @@ function InfoCard({closeRef}: InfoCardProps) {
 /** The one panel the game keeps writing to while it is up. */
 function ObjectivePanel() {
   const objective = useUiStore(state => state.hud.objective);
-  const extractionInfo = useUiStore(state => state.hud.extractionInfo);
   const cargoRows = useUiStore(state => state.cargoRows);
 
   return (
     <section id="info-objective" role="tabpanel" aria-labelledby="info-tab-objective" tabIndex={-1}>
       <h3 id="cargo-bay-title">Cargo Bay</h3>
       <p id="objectiveInfoStatus" className={styles.objectiveStatus}>{objective}</p>
-      <p id="extractionInfoStatus" className={styles.extractionStatus}>{extractionInfo}</p>
       <ul id="cargoList" className={styles.cargoList}>
         {cargoRows.length === 0
           ? <li className={styles.emptyCargo}>Cargo bay empty</li>
@@ -190,17 +187,6 @@ function ProspectingPanel() {
     <section id="info-prospecting" role="tabpanel" aria-labelledby="info-tab-prospecting" tabIndex={-1}>
       <h3 id="prospecting-title">Prospecting Guide</h3>
       <p className={styles.prospectingTip}>{PROSPECTING_TIP}</p>
-      <p className={styles.prospectingTip}><strong>Rare artifacts:</strong> drill them for immediate cash. They never use cargo, need no surface sale, and dynamite destroys them without payout.</p>
-      <ul id="artifactGuide" className={styles.prospectingGuide} aria-label="Rare artifact values and approximate depth bands">
-        {artifactRows.map(row => (
-          <li key={row.name}>
-            <span className={styles.oreIcon} style={{background: row.color}} aria-hidden="true"></span>
-            <span className={styles.oreName}>{row.name}</span>
-            <span className={styles.oreValue}>{row.valueLabel}</span>
-            <span className={styles.oreDepth}>{row.depthLabel}</span>
-          </li>
-        ))}
-      </ul>
       <ul id="prospectingGuide" className={styles.prospectingGuide} aria-label="Ore values and approximate depth bands">
         {prospectingRows.map(row => (
           <li key={row.name}>

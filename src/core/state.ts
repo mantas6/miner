@@ -1,25 +1,30 @@
-import { START_Y, WORLD_W } from '../../shared/constants';
+import { HOME_ROW, HOME_X, isHomeCavern } from '../../shared/constants';
 import { STARTING } from './balance';
 import { createInventory, removeOres } from './inventory';
 import type { GameState, GameStats, Player } from './types';
 
-/** Tile column of the surface shaft where every ship starts or returns. */
-export const SURFACE_SPAWN_X = Math.floor(WORLD_W / 2);
+/** Tile column of the home cavern where every ship starts or returns. */
+export const HOME_SPAWN_X = HOME_X;
 
 type PlaceablePlayer = Pick<Player, 'x' | 'y' | 'drawX' | 'drawY'>;
 
-/** Move a ship to the surface shaft spawn, keeping its render position in sync. */
-export function placeAtSurfaceSpawn(player: PlaceablePlayer): void {
+/** Move a ship to the home cavern floor, keeping its render position in sync. */
+export function placeAtHome(player: PlaceablePlayer): void {
   Object.assign(player, {
-    x: SURFACE_SPAWN_X,
-    y: START_Y,
-    drawX: SURFACE_SPAWN_X,
-    drawY: START_Y
+    x: HOME_X,
+    y: HOME_ROW,
+    drawX: HOME_X,
+    drawY: HOME_ROW
   });
 }
 
+/** Whether the ship is parked in the home cavern, where base services live. */
+export function isAtHome(player: Pick<Player, 'x' | 'y'>): boolean {
+  return isHomeCavern(player.x, player.y);
+}
+
 export function respawnPlayer(player: Player): void {
-  placeAtSurfaceSpawn(player);
+  placeAtHome(player);
   Object.assign(player, {
     fuel: player.fuelMax,
     hull: player.hullMax,
@@ -36,11 +41,8 @@ export function createDefaultStats(): GameStats {
     maxDepth: 0,
     totalCashEarned: 0,
     oreMined: 0,
-    artifactsFound: 0,
     enemiesDestroyed: 0,
-    deaths: 0,
-    motherlodeClaims: 0,
-    motherlodeExtractions: 0
+    deaths: 0
   };
 }
 
@@ -57,7 +59,6 @@ export function createInitialState(): GameState {
     enemies: [],
     enemyIdCounter: 1,
     stats: createDefaultStats(),
-    extractionPhase: 'none',
     teleportEffect: null,
     teleportReturnPosition: null,
     reducedMotion: false,
@@ -76,10 +77,10 @@ export function createInitialState(): GameState {
       resetConfirmUntil: 0
     },
     player: {
-      x: SURFACE_SPAWN_X,
-      y: START_Y,
-      drawX: SURFACE_SPAWN_X,
-      drawY: START_Y,
+      x: HOME_X,
+      y: HOME_ROW,
+      drawX: HOME_X,
+      drawY: HOME_ROW,
       facing: 1,
       bob: 0,
       drillAnim: 0,

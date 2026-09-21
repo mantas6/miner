@@ -43,7 +43,7 @@ describe('accumulating a diff', () => {
     const entries: TileEntry[] = [
       {x: 5, y: 41, tile: air},
       {x: 6, y: 41, tile: {type: 'ore', ore: {name: 'Gold', color: '#ffd65c', value: 70, min: 152, max: 602, chance: 0.04}, hp: 2, maxHp: 5}},
-      {x: 7, y: 740, tile: {type: 'artifact', artifact: {name: 'Alien Reliquary', color: '#ff78e1', value: 900, min: 702, max: 992, chance: 0.00025}, hp: 7, maxHp: 7}}
+      {x: 7, y: 740, tile: {type: 'hazard', hp: 7, maxHp: 7}}
     ];
     const diff = createTileDiff(entries);
     expect(tileDiffEntries(diff)).toEqual(entries);

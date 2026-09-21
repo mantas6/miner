@@ -7,21 +7,17 @@
 // its movement rule exists.
 
 import { START_Y, WORLD_W } from '../../shared/constants';
-import { ECONOMY, FUEL, HULL } from '../core/balance';
-import { claimArtifact } from '../core/artifacts';
-import { beginExtraction, completeExtractionAtDepot } from '../core/extraction-phase';
+import { FUEL, HULL } from '../core/balance';
 import { addOre } from '../core/inventory';
 import { fuelAfterMovement, isOpenSpaceDestination, movementDestination, sprintCrashDamage, sprintMomentumAfterMove } from '../core/movement';
 import type {
   AirTile,
-  ArtifactTile,
   AudioController,
   Direction,
   DirtTile,
   DormantEnemyTile,
   GameState,
   HazardTile,
-  MotherlodeTile,
   OreTile,
   Player,
   RockTile,
@@ -66,10 +62,8 @@ export interface GameMovementDeps {
   saveProgress(): void;
   /** Queue a debounced save; every step moves the ship's persisted position. */
   scheduleSave(): void;
-  addCash(amount: number): void;
   /** Reveal the fog footprint around the ship's new position. */
   revealAtPlayer(): void;
-  atSurface(): boolean;
   /** Apply hull damage, which may end the run. */
   damage(amount: number): void;
   /** End the run with a message. */
@@ -79,7 +73,7 @@ export interface GameMovementDeps {
 }
 
 export function createMovement(deps: GameMovementDeps): GameMovement {
-  const {state, grid, enemies, audio, toast, saveProgress, addCash, atSurface, damage, gameOver, spawnDust, spawnExplosion} = deps;
+  const {state, grid, enemies, audio, toast, saveProgress, damage, gameOver, spawnDust, spawnExplosion} = deps;
 
   function grounded(): boolean {
     const p = state.player;
@@ -88,7 +82,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
 
   function isOpenMovementDestination(dx: number, dy: number): boolean {
     const p = state.player;
-    const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W, START_Y);
+    const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W);
     return isOpenSpaceDestination(nx !== p.x || ny !== p.y, grid.get(nx, ny).type, Boolean(enemies.enemyAt(nx, ny)));
   }
 
@@ -137,37 +131,12 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     return 'blocked';
   }
 
-  function drillMotherlode(tile: MotherlodeTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
-    player.drillDx = dx; player.drillDy = dy; player.drillAnim = 1.9;
-    tile.hp -= player.drill;
-    useFuel(dig(FUEL.dig.artifact));
-    spawnDust(nx, ny, '#ffb347', 24);
-    audio.mine();
-    if (tile.hp <= 0) {
-      grid.set(nx, ny, {type:'air'});
-      enemies.wakeEnemiesNear(nx, ny);
-      const extraction = beginExtraction(state.extractionPhase);
-      state.extractionPhase = extraction.phase;
-      if (extraction.changed) {
-        addCash(ECONOMY.artifactReward);
-        state.stats.motherlodeClaims++;
-        saveProgress();
-      }
-      spawnExplosion(nx, ny);
-      toast('Motherlode core secured +$5000! Return it to the depot alive.');
-    } else {
-      grid.set(nx, ny, tile);
-      toast(`Cracking Motherlode core... ${Math.ceil(tile.hp)} hits left`);
-    }
-    return 'blocked';
-  }
-
-  /** Dirt, ore, and artifacts share one drill pass; only the payout differs. */
-  function drillValuableTile(tile: DirtTile | OreTile | ArtifactTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
+  /** Dirt and ore share one drill pass; only ore pays out. */
+  function drillValuableTile(tile: DirtTile | OreTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
     player.drillDx = dx; player.drillDy = dy; player.drillAnim = 1.65;
     tile.hp -= player.drill;
     useFuel(dig(FUEL.dig.dig));
-    spawnDust(nx, ny, tile.type === 'ore' ? tile.ore.color : tile.type === 'artifact' ? tile.artifact.color : '#9d6a42', tile.type === 'ore' || tile.type === 'artifact' ? 14 : 9);
+    spawnDust(nx, ny, tile.type === 'ore' ? tile.ore.color : '#9d6a42', tile.type === 'ore' ? 14 : 9);
     audio.mine();
     if (tile.hp > 0) {
       grid.set(nx, ny, tile);
@@ -181,7 +150,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       if (!loaded) {
         tile.hp = 1;
         grid.set(nx, ny, tile);
-        toast('Cargo bay full. Go sell at the surface.');
+        toast('Cargo bay full. Stow it at home.');
         audio.alarm();
         return 'blocked';
       }
@@ -190,12 +159,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       saveProgress();
       toast(`Mined ${tile.ore.name} +$${tile.ore.value}`);
       audio.ore(tile.ore.value);
-    }
-    if (tile.type === 'artifact') {
-      const payout = claimArtifact(state, tile.artifact);
-      saveProgress();
-      toast(`ARTIFACT RECOVERED: ${tile.artifact.name} +$${payout} CASH NOW · Cargo unchanged.`);
-      audio.cash(payout);
     }
     grid.set(nx, ny, {type:'air'});
     enemies.wakeEnemiesNear(nx, ny);
@@ -208,10 +171,8 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     rock: bumpIntoRock,
     enemy: drillEnemyCocoon,
     hazard: drillHazard,
-    motherlode: drillMotherlode,
     dirt: drillValuableTile,
-    ore: drillValuableTile,
-    artifact: drillValuableTile
+    ore: drillValuableTile
   };
 
   function resolveDestinationTile(tile: Tile, context: MoveContext): MoveOutcome {
@@ -229,15 +190,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     deps.revealAtPlayer();
     state.stats.maxDepth = Math.max(state.stats.maxDepth, Math.max(0, p.y - START_Y) * 10);
     enemies.wakeEnemiesNear(p.x, p.y);
-    if (atSurface()) {
-      const extraction = completeExtractionAtDepot(state.extractionPhase, true);
-      state.extractionPhase = extraction.phase;
-      if (extraction.changed) {
-        state.stats.motherlodeExtractions++;
-        saveProgress();
-        toast('Motherlode extraction complete at the depot!');
-      }
-    }
     if (p.fuel < 0) p.fuel = 0;
     if (p.fuel <= 0) gameOver('Out of fuel — ship exploded. Tap anywhere to restart.');
   }
@@ -260,10 +212,9 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     if (state.gameOver) return;
     const p = state.player;
     if (p.fuel <= 0) { gameOver('Out of fuel — ship exploded. Tap anywhere to restart.'); return; }
-    const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W, START_Y);
+    const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W);
     if (nx === p.x && ny === p.y) {
       state.input.sprintMomentum = null;
-      if (dy < 0 && p.y === START_Y) toast('Stay low — the surface airspace is for the depot, not flying.');
       return;
     }
     const tile = grid.get(nx, ny);

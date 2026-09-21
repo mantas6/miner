@@ -118,7 +118,7 @@ function FuelBar() {
   );
 }
 
-/** Fuel, hull and cargo meters plus the extraction status line. */
+/** Fuel, hull and cargo meters. */
 export function BarRow() {
   const hull = useUiStore(state => state.hud.hull);
   const hullMax = useUiStore(state => state.hud.hullMax);
@@ -126,14 +126,12 @@ export function BarRow() {
   const cargo = useUiStore(state => state.hud.cargo);
   const cargoMax = useUiStore(state => state.hud.cargoMax);
   const cargoAlert = useUiStore(state => state.hud.cargoAlert);
-  const extraction = useUiStore(state => state.hud.extractionHud);
 
   return (
     <div className={styles.barRow}>
       <FuelBar />
       <Bar id="hull" label="Hull" value={Math.max(0, hull)} max={hullMax} text={`${Math.ceil(Math.max(0, hull))}/${hullMax}`} alert={hullAlert} />
       <Bar id="cargo" label="Cargo" value={cargo} max={cargoMax} text={`${cargo}/${cargoMax}`} alert={cargoAlert} />
-      <div id="extractionStatus" className={styles.extractionStatus} aria-live="polite" hidden={!extraction}>{extraction}</div>
     </div>
   );
 }

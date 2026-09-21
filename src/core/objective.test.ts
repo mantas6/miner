@@ -24,16 +24,16 @@ describe('expedition objective helper', () => {
     })).toBe('Objective: mine the starter Coal/Copper seam below the depot, then return to sell.');
   });
 
-  it('turns starter Coal/Copper cargo into return-and-upgrade guidance', () => {
+  it('turns starter Coal/Iron cargo into return-and-upgrade guidance', () => {
     const cargoValue = ORES[0].value + ORES[1].value;
 
     expect(formatExpeditionObjective({
       player: { ...player, y: START_Y + 4 },
-      cash: 96,
+      cash: 100,
       cargoCount: 2,
       currentCargoValue: cargoValue,
       atSurface: false
-    })).toBe('Objective: return and sell $24; Cargo +10 is ready after sale.');
+    })).toBe(`Objective: return and sell $${cargoValue}; Cargo +10 is ready after sale.`);
   });
 
   it('prioritizes low fuel return warnings underground', () => {
@@ -55,17 +55,6 @@ describe('expedition objective helper', () => {
       currentCargoValue: 0,
       atSurface: false
     })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
-  });
-
-  it('prioritizes taking a secured Motherlode core back to the depot', () => {
-    expect(formatExpeditionObjective({
-      player: { ...player, y: START_Y + 100, fuel: 10 },
-      cash: 20,
-      cargoCount: 0,
-      currentCargoValue: 0,
-      atSurface: false,
-      extractionPhase: 'returning'
-    })).toBe('Objective: Motherlode core secured — return alive to the surface depot to complete extraction.');
   });
 
   it('keeps hauling the richest seam once every ore band is unlocked', () => {

@@ -111,6 +111,5 @@ export const ECONOMY = Object.freeze({
    * the teleporter for that reason: dearer than everything that resolves in a
    * single press, cheaper than the one consumable that rescues a run outright.
    */
-  container: Object.freeze({ price: 200 }),
-  artifactReward: 5000
+  container: Object.freeze({ price: 200 })
 });

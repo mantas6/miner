@@ -12,13 +12,10 @@ import type { TileDiff } from '../world/tile-diff';
 
 export type {
   AirTile,
-  Artifact,
-  ArtifactTile,
   DirtTile,
   DormantEnemyTile,
   EnemyKind,
   HazardTile,
-  MotherlodeTile,
   Ore,
   OreTile,
   RockTile,
@@ -102,11 +99,8 @@ export interface GameStats {
   maxDepth: number;
   totalCashEarned: number;
   oreMined: number;
-  artifactsFound: number;
   enemiesDestroyed: number;
   deaths: number;
-  motherlodeClaims: number;
-  motherlodeExtractions: number;
 }
 
 export interface InputState {
@@ -140,7 +134,6 @@ export interface GameState {
   input: InputState;
   player: Player;
   stats: GameStats;
-  extractionPhase: import('./extraction-phase').ExtractionPhase;
   teleportEffect: TeleportEffect | null;
   teleportReturnPosition: TeleportReturnPosition | null;
   reducedMotion: boolean;

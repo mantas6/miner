@@ -187,24 +187,6 @@ describe('terrain cache lifecycle', () => {
     expect(mocks.terrainContext.fillRect.mock.calls.length).toBeGreaterThan(initialTileDraws * 1.5);
   });
 
-  it('marks rare artifacts with a visually distinct cash glyph', () => {
-    const state = {
-      world: [], camX: 10, camY: 200, tick: 0, gameOver: false,
-      particles: [], enemies: [],
-      player: {x:12, y:202, drawX:12, drawY:202, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
-    };
-    const renderer = createRenderer({
-      state,
-      get: () => ({type:'artifact', artifact:{name:'Ancient Coin Cache', color:'#ffd166', value:180, min:202, max:502, chance:.00045}, hp:5, maxHp:5}),
-      rand: () => 0
-    });
-
-    renderer.draw();
-
-    expect(mocks.terrainContext.fillText).toHaveBeenCalledWith('$', expect.any(Number), expect.any(Number));
-    expect(mocks.terrainContext.createRadialGradient).toHaveBeenCalled();
-  });
-
   it('renders a buried enemy as ordinary dirt', () => {
     const state = {
       world: [], camX: 10, camY: 20, tick: 0, gameOver: false,
@@ -267,7 +249,7 @@ describe('terrain cache lifecycle', () => {
       enemies: [{id:1, kind:'tunnelFiend' as const, x:12, y:22, drawX:12, drawY:22, hp:4, maxHp:4, alive:true, moveTick:0, biteTick:0, flash:0}],
       player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
     };
-    const renderer = createRenderer({state, get: () => ({type:'artifact', artifact:{name:'Cache', color:'#ffd166', value:900, min:20, max:30, chance:.1}, hp:5, maxHp:5}), rand: () => 0});
+    const renderer = createRenderer({state, get: () => ({type:'dirt', hp:5, maxHp:5}), rand: () => 0});
 
     renderer.draw();
 

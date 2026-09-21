@@ -1,4 +1,4 @@
-import { SURFACE_HEIGHT, TILE, WORLD_W } from '../../shared/constants';
+import { TILE, WORLD_W } from '../../shared/constants';
 import { viewport } from '../game/viewport';
 import { getVisibleTileRange } from '../world/visible-tile-range';
 import { isTileExplored } from '../../shared/exploration-codec';
@@ -230,13 +230,14 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     // overlay, painted after the transform is popped, works in screen pixels.
     ctx.save();
     ctx.scale(viewport.zoom, viewport.zoom);
-    const sky = ctx.createLinearGradient(0,0,0,viewport.worldHeightPx);
-    sky.addColorStop(0,'#163762'); sky.addColorStop(.25,'#0e1d31'); sky.addColorStop(.26,'#2a1a11'); sky.addColorStop(1,'#050301');
-    ctx.fillStyle = sky; ctx.fillRect(0,0,viewport.worldWidthPx,viewport.worldHeightPx);
+    // The world is solid underground now: a dark rock void backs the terrain
+    // wherever a dug-out tunnel would otherwise show nothing behind it.
+    const cave = ctx.createLinearGradient(0,0,0,viewport.worldHeightPx);
+    cave.addColorStop(0,'#0a0705'); cave.addColorStop(1,'#050301');
+    ctx.fillStyle = cave; ctx.fillRect(0,0,viewport.worldWidthPx,viewport.worldHeightPx);
     terrainLayer.draw(camX, camY);
     drawTerrainDamage(camX, camY);
     drawTerrainBlendOverlay(camY);
-    drawSurface(camX, camY);
     drawCargoContainers(camX, camY);
     drawScannerDevices(camX, camY);
     drawPlacedDynamite(camX, camY);
@@ -558,38 +559,23 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     const t: Tile = tile.type === 'enemy' ? {type: 'dirt', hp: tile.hp, maxHp: tile.maxHp} : tile;
     const pad = 1.5; // overdraw slightly so adjacent cells have no visible seams
     if(t.type==='air') {
-      if (wy >= SURFACE_HEIGHT){
-        const darkness = Math.min(.76, wy/82);
-        ctx.fillStyle = `rgba(17,10,7,${darkness})`;
-        ctx.fillRect(sx-pad,sy-pad,TILE+pad*2,TILE+pad*2);
-        // very subtle cave haze, not a grid line
-        if (rand(wx, wy) > .72) {
-          ctx.fillStyle = `rgba(83,55,35,${0.04 + rand(wx+2,wy)*.05})`;
-          ctx.beginPath(); ctx.ellipse(sx+TILE*rand(wx+4,wy), sy+TILE*rand(wx,wy+4), TILE*.22, TILE*.11, rand(wx,wy)*Math.PI, 0, Math.PI*2); ctx.fill();
-        }
+      const darkness = Math.min(.76, wy/82);
+      ctx.fillStyle = `rgba(17,10,7,${darkness})`;
+      ctx.fillRect(sx-pad,sy-pad,TILE+pad*2,TILE+pad*2);
+      // very subtle cave haze, not a grid line
+      if (rand(wx, wy) > .72) {
+        ctx.fillStyle = `rgba(83,55,35,${0.04 + rand(wx+2,wy)*.05})`;
+        ctx.beginPath(); ctx.ellipse(sx+TILE*rand(wx+4,wy), sy+TILE*rand(wx,wy+4), TILE*.22, TILE*.11, rand(wx,wy)*Math.PI, 0, Math.PI*2); ctx.fill();
       }
       return;
     }
 
-    if (t.type === 'artifact') {
-      const g = ctx.createRadialGradient(sx+TILE*.50, sy+TILE*.46, TILE*.06, sx+TILE*.5, sy+TILE*.5, TILE*.62);
-      g.addColorStop(0, '#fff8d6'); g.addColorStop(.24, t.artifact.color); g.addColorStop(.62, '#18384a'); g.addColorStop(1, '#071018');
-      ctx.fillStyle = g; ctx.fillRect(sx-pad,sy-pad,TILE+pad*2,TILE+pad*2);
-      ctx.save(); ctx.shadowColor=t.artifact.color; ctx.shadowBlur=18;
-      ctx.fillStyle='#ffe59a'; ctx.strokeStyle='#ffffff'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(sx+TILE*.5,sy+TILE*.17); ctx.lineTo(sx+TILE*.72,sy+TILE*.40); ctx.lineTo(sx+TILE*.62,sy+TILE*.75); ctx.lineTo(sx+TILE*.38,sy+TILE*.75); ctx.lineTo(sx+TILE*.28,sy+TILE*.40); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#172132'; ctx.font=`bold ${Math.floor(TILE*.24)}px sans-serif`; ctx.textAlign='center'; ctx.fillText('$',sx+TILE*.5,sy+TILE*.57); ctx.textAlign='left'; ctx.restore();
-      return;
-    }
-    if (t.type === 'hazard' || t.type === 'motherlode') {
-      const artifact = t.type === 'motherlode';
+    if (t.type === 'hazard') {
       const g = ctx.createRadialGradient(sx+TILE*.50, sy+TILE*.45, TILE*.08, sx+TILE*.5, sy+TILE*.5, TILE*.58);
-      if (artifact) { g.addColorStop(0, '#fff4b5'); g.addColorStop(.35, '#ff8a1f'); g.addColorStop(1, '#3a0d05'); }
-      else { g.addColorStop(0, '#ffd38a'); g.addColorStop(.38, '#d33b16'); g.addColorStop(1, '#200805'); }
+      g.addColorStop(0, '#ffd38a'); g.addColorStop(.38, '#d33b16'); g.addColorStop(1, '#200805');
       ctx.fillStyle = g; ctx.fillRect(sx-pad,sy-pad,TILE+pad*2,TILE+pad*2);
-      ctx.strokeStyle = artifact ? 'rgba(255,236,150,.85)' : 'rgba(255,89,36,.62)'; ctx.lineWidth = artifact ? 5 : 4;
+      ctx.strokeStyle = 'rgba(255,89,36,.62)'; ctx.lineWidth = 4;
       for (let i=0;i<4;i++) { ctx.beginPath(); ctx.ellipse(sx+TILE*(.30+i*.13), sy+TILE*(.42+rand(wx+i,wy)*.22), TILE*(.10+rand(wx,wy+i)*.08), TILE*.28, rand(wx+i,wy)*Math.PI, 0, Math.PI*2); ctx.stroke(); }
-      if (artifact) { ctx.fillStyle = '#fff2a6'; ctx.font = `bold ${Math.floor(TILE*.18)}px sans-serif`; ctx.textAlign='center'; ctx.fillText('CORE', sx+TILE*.5, sy+TILE*.55); ctx.textAlign='left'; }
       return;
     }
     // Smooth neighbor-averaged noise keeps color variation without obvious square patches.
@@ -669,9 +655,9 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     // Air has no durability and rock is indestructible, so neither shows damage.
     if (t.type === 'air' || t.type === 'rock') return;
     if (t.hp >= t.maxHp) return;
-    if (t.type === 'hazard' || t.type === 'artifact' || t.type === 'motherlode') {
+    if (t.type === 'hazard') {
       ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(sx+TILE*.18, sy+TILE*.12, TILE*.64, TILE*.055);
-      ctx.fillStyle=t.type === 'hazard'?'#ff7145':t.type === 'artifact'?t.artifact.color:'#ffe66d'; ctx.fillRect(sx+TILE*.18, sy+TILE*.12, TILE*.64*Math.max(0,t.hp/t.maxHp), TILE*.055);
+      ctx.fillStyle='#ff7145'; ctx.fillRect(sx+TILE*.18, sy+TILE*.12, TILE*.64*Math.max(0,t.hp/t.maxHp), TILE*.055);
       return;
     }
     const damage = 1 - t.hp / t.maxHp;
@@ -686,17 +672,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.lineTo(sx+TILE*.70, sy+TILE*.70);
     ctx.stroke();
   }
-  function drawTerrainBlendOverlay(camY: number) {
-    if (camY < SURFACE_HEIGHT + .2) {
-      const gy = (SURFACE_HEIGHT - camY) * TILE;
-      const grad = ctx.createLinearGradient(0, gy, 0, viewport.worldHeightPx);
-      grad.addColorStop(0, 'rgba(100,58,28,.10)');
-      grad.addColorStop(.55, 'rgba(58,31,16,.09)');
-      grad.addColorStop(1, 'rgba(22,10,5,.16)');
-      ctx.fillStyle = grad; ctx.fillRect(0, Math.max(0, gy), viewport.worldWidthPx, viewport.worldHeightPx);
-    } else {
-      ctx.fillStyle = 'rgba(45,24,13,.075)'; ctx.fillRect(0,0,viewport.worldWidthPx,viewport.worldHeightPx);
-    }
+  function drawTerrainBlendOverlay(_camY: number) {
+    ctx.fillStyle = 'rgba(45,24,13,.075)'; ctx.fillRect(0,0,viewport.worldWidthPx,viewport.worldHeightPx);
     ctx.save(); ctx.globalCompositeOperation = 'soft-light';
     for (let i=0;i<10;i++) {
       ctx.fillStyle = i%2 ? 'rgba(255,182,96,.035)' : 'rgba(0,0,0,.045)';
@@ -705,119 +682,6 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       ctx.fill();
     }
     ctx.restore();
-  }
-  function surfaceMetrics(camY: number) {
-    const groundY = (SURFACE_HEIGHT - camY) * TILE;
-    return { groundY, skyTop: Math.max(0, -camY * TILE), block: TILE, top: groundY - TILE };
-  }
-  function pole(px: number, poleTop: number) {
-    ctx.fillStyle = '#5a4632'; ctx.fillRect(px - TILE*.05, poleTop, TILE*.10, TILE*2);
-    ctx.fillStyle = '#43321f'; ctx.fillRect(px - TILE*.30, poleTop + TILE*.10, TILE*.60, TILE*.07); ctx.fillRect(px - TILE*.22, poleTop + TILE*.27, TILE*.44, TILE*.06);
-    ctx.fillStyle = '#cfe0f0'; ctx.fillRect(px - TILE*.27, poleTop + TILE*.05, TILE*.05, TILE*.06); ctx.fillRect(px + TILE*.22, poleTop + TILE*.05, TILE*.05, TILE*.06);
-  }
-  function drawSurface(camX: number, camY: number) {
-    if (camY >= SURFACE_HEIGHT + 1.4) return;
-    const { groundY, skyTop, block, top } = surfaceMetrics(camY);
-    const bx = (WORLD_W/2 - 4.4 - camX) * TILE;
-
-    // Three full blocks of surface air above the diggable ground.
-    const haze = ctx.createLinearGradient(0, skyTop, 0, groundY);
-    haze.addColorStop(0, 'rgba(89,160,221,.18)');
-    haze.addColorStop(.65, 'rgba(248,188,106,.10)');
-    haze.addColorStop(1, 'rgba(48,92,66,.16)');
-    ctx.fillStyle = haze;
-    ctx.fillRect(0, skyTop, viewport.worldWidthPx, Math.max(0, groundY - skyTop));
-
-    // Background treelines go first so poles and buildings stay in front of the foliage.
-    drawDistantTreeline(groundY);
-    drawParallaxTreeShapes(camX, groundY);
-
-    // Ground cap now sits below the 3-tile-tall surface space.
-    ctx.fillStyle = '#1b623f'; ctx.fillRect(0, groundY - TILE*.12, viewport.worldWidthPx, TILE*.18);
-    ctx.fillStyle = '#74451e'; ctx.fillRect(0, groundY + TILE*.06, viewport.worldWidthPx, TILE*.18);
-
-    // Electric poles: 2 blocks tall (taller than the buildings), strung with wires. Drawn behind the buildings.
-    const poleTop = groundY - TILE*2;
-    const poleXs = [bx - TILE*1.0, bx + TILE*3.55, bx + TILE*9.0];
-    ctx.strokeStyle = '#15100b'; ctx.lineWidth = 3; ctx.beginPath();
-    for (let i=0;i<poleXs.length-1;i++) {
-      const x0=poleXs[i], x1=poleXs[i+1], wy=poleTop+TILE*.16, sag=TILE*.24;
-      ctx.moveTo(x0, wy); ctx.quadraticCurveTo((x0+x1)/2, wy+sag, x1, wy);
-      ctx.moveTo(x0, wy+TILE*.17); ctx.quadraticCurveTo((x0+x1)/2, wy+sag+TILE*.17, x1, wy+TILE*.17);
-    }
-    ctx.stroke();
-    for (const px of poleXs) pole(px, poleTop);
-
-    // Buildings: each exactly one block tall, sitting on the ground.
-    const building = (x: number, w: number, body: string, roof: string) => {
-      ctx.fillStyle = body; roundRect(ctx, x, top, w, block, 7); ctx.fill();
-      ctx.fillStyle = roof; ctx.fillRect(x - TILE*.04, top - TILE*.07, w + TILE*.08, TILE*.11);
-    };
-    const windows = (x: number, w: number, color: string) => {
-      ctx.fillStyle = color;
-      const cols = Math.max(2, Math.round(w / (TILE*.46))), gap = w / cols;
-      for (let i=0;i<cols;i++) ctx.fillRect(x + gap*i + gap*.30, top + block*.34, gap*.40, block*.30);
-    };
-
-    // Central depot (labelled).
-    building(bx, TILE*3.3, '#2a4565', '#1b2c42');
-    ctx.fillStyle = '#ffc857'; ctx.font = 'bold 22px sans-serif'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText('DEPOT', bx + TILE*.32, top + block*.60);
-    drawRedStar(bx + TILE*2.9, top + block*.40, TILE*.15, '#ffdf64');
-
-    // Refuel station.
-    building(bx + TILE*3.7, TILE*1.7, '#b5472b', '#7e2f1b');
-    ctx.fillStyle = '#ffe28b'; ctx.fillRect(bx + TILE*3.95, top + block*.56, TILE*.5, TILE*.22);
-    drawHammerSickle(bx + TILE*4.62, top + block*.40, TILE*.19);
-
-    // Sell shed with a small crate stack out front.
-    building(bx + TILE*5.7, TILE*2.0, '#39506f', '#26384d');
-    windows(bx + TILE*5.7, TILE*2.0, '#bfe0ff');
-    ['#9b5f2b','#6b8f40','#b77934','#455d85'].forEach((c,i)=>{ ctx.fillStyle=c; ctx.fillRect(bx+TILE*(8.05+(i%2)*.4), groundY-TILE*(.24+Math.floor(i/2)*.22), TILE*.34, TILE*.20); });
-  }
-
-  function drawDistantTreeline(groundY: number) {
-    // Distant line is horizontally screen-stable, but vertically tied to the surface ground.
-    const baseY = groundY - TILE * .28;
-    ctx.fillStyle = 'rgba(34,80,57,.42)';
-    ctx.beginPath();
-    ctx.moveTo(0, baseY);
-    for (let x=0; x<=viewport.worldWidthPx+40; x+=40) {
-      const h = 18 + rand(x, 7) * 20;
-      ctx.lineTo(x, baseY - h);
-      ctx.lineTo(x + 20, baseY - h * .72);
-    }
-    ctx.lineTo(viewport.worldWidthPx, baseY + 24);
-    ctx.lineTo(0, baseY + 24);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function drawParallaxTreeShapes(camX: number, groundY: number) {
-    // Nearer tree shapes are vertically anchored to the surface and drift horizontally slower than buildings.
-    const treeBaseY = groundY - TILE * .18;
-    const spacing = TILE * .72;
-    const parallaxX = camX * TILE * .38;
-    // Enough trunks to fill the wrap period, so a zoomed-out view widens the line
-    // instead of leaving a bare stretch of horizon where the band runs out.
-    const treeCount = Math.ceil((viewport.worldWidthPx + spacing * 2) / spacing);
-    for (let i=-4;i<treeCount;i++) {
-      const worldX = i * spacing + 17;
-      const x = ((worldX - parallaxX) % (viewport.worldWidthPx + spacing * 2)) - spacing;
-      const trunkH = 18 + rand(i,4)*20;
-      const trunkW = 5 + rand(i,8)*5;
-      const crownR = 15 + rand(i,3)*20;
-      ctx.fillStyle = 'rgba(47,66,39,.78)';
-      ctx.fillRect(x + crownR*.35, treeBaseY - trunkH, trunkW, trunkH);
-      ctx.fillStyle = i%3 ? 'rgba(47,135,86,.88)' : 'rgba(35,93,62,.88)';
-      ctx.beginPath();
-      ctx.ellipse(x + crownR*.5, treeBaseY - trunkH - crownR*.22, crownR*.58, crownR*.92, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle = i%2 ? 'rgba(31,92,60,.72)' : 'rgba(65,145,78,.72)';
-      ctx.beginPath();
-      ctx.ellipse(x + crownR*.18, treeBaseY - trunkH + crownR*.05, crownR*.34, crownR*.54, -.4, 0, Math.PI*2);
-      ctx.fill();
-    }
   }
   function drawShip(p: ShipTransform, sprintDirection: Direction | null = null) {
     const dead = state.gameOver;
@@ -866,18 +730,6 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       ctx.closePath();
       ctx.fill();
     }
-    ctx.restore();
-  }
-  function drawRedStar(cx: number, cy: number, r: number, color='#ffd95a') {
-    ctx.save(); ctx.fillStyle=color; ctx.beginPath();
-    for (let i=0;i<10;i++) { const a=-Math.PI/2 + i*Math.PI/5; const rr=i%2===0?r:r*.42; const x=cx+Math.cos(a)*rr, y=cy+Math.sin(a)*rr; if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y); }
-    ctx.closePath(); ctx.fill(); ctx.restore();
-  }
-  function drawHammerSickle(cx: number, cy: number, s: number) {
-    ctx.save(); ctx.strokeStyle='#ffd95a'; ctx.fillStyle='#ffd95a'; ctx.lineWidth=Math.max(2,s*.16); ctx.lineCap='round';
-    ctx.beginPath(); ctx.arc(cx, cy, s*.62, -Math.PI*.15, Math.PI*.92); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx-s*.52, cy+s*.46); ctx.lineTo(cx+s*.56, cy-s*.48); ctx.stroke();
-    ctx.fillRect(cx-s*.18, cy-s*.55, s*.65, s*.13);
     ctx.restore();
   }
   function drawDirectionalDrill(p: ShipTransform) {

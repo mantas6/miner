@@ -4,10 +4,11 @@ import { partialFill } from './economy';
 import { activeSprintDirection, fuelAfterMovement, isOpenSpaceDestination, isSprintActive, keyboardMovementRepeatMs, movementDestination, movementFuelCost, sprintCrashDamage, sprintMomentumAfterMove } from './movement';
 
 describe('world boundaries', () => {
-  it('keeps horizontal and surface boundaries but allows downward travel beyond 10,000 m', () => {
-    expect(movementDestination(45, 1002, 0, 1, 90, 2)).toEqual({x:45, y:1003});
-    expect(movementDestination(45, 1205, 0, 1, 90, 2)).toEqual({x:45, y:1206});
-    expect(movementDestination(1, 2, -1, -1, 90, 2)).toEqual({x:1, y:2});
+  it('keeps horizontal and world-top boundaries but allows downward travel beyond 10,000 m', () => {
+    expect(movementDestination(45, 1002, 0, 1, 90)).toEqual({x:45, y:1003});
+    expect(movementDestination(45, 1205, 0, 1, 90)).toEqual({x:45, y:1206});
+    // Bedrock blocks upward travel in play; the raw clamp only guards row 0.
+    expect(movementDestination(1, 0, -1, -1, 90)).toEqual({x:1, y:0});
   });
 });
 
@@ -42,7 +43,7 @@ describe('sprint movement', () => {
   });
 
   it('keeps drill timing and fuel ordinary while Shift is held', () => {
-    for (const tileType of ['dirt', 'ore', 'rock', 'hazard', 'artifact', 'motherlode', 'enemy']) {
+    for (const tileType of ['dirt', 'ore', 'rock', 'hazard', 'enemy']) {
       const destinationOpen = isOpenSpaceDestination(true, tileType, false);
       expect(keyboardMovementRepeatMs(100, true, destinationOpen)).toBe(100);
       expect(movementFuelCost(2, true, destinationOpen, false)).toBe(2);

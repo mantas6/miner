@@ -7,7 +7,7 @@
 // press would earn — and that it never lights up for an item that is not placed.
 
 import { describe, expect, it } from 'vitest';
-import { SURFACE_HEIGHT, WORLD_W } from '../../shared/constants';
+import { WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { CARGO_CONTAINER, createPlacedContainer } from './cargo-container';
 import { DYNAMITE, createPlacedDynamite } from './dynamite';
@@ -87,8 +87,8 @@ describe('isPlacementValid', () => {
 
   it('refuses a tile outside the mine without asking the terrain about it', () => {
     let asked = false;
-    const surface = world({explored: new Set([explorationIndex(x, 0)]), isOpen: () => { asked = true; return true; }});
-    expect(isPlacementValid('scanner', x, SURFACE_HEIGHT - 1, surface)).toBe(false);
+    const surface = world({explored: new Set([explorationIndex(x, -1)]), isOpen: () => { asked = true; return true; }});
+    expect(isPlacementValid('scanner', x, -1, surface)).toBe(false);
     expect(asked).toBe(false);
   });
 

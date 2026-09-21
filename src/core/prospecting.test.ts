@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ARTIFACTS, MAX_WORLD_ROW, ORES, START_Y } from '../../shared/constants';
-import { buildArtifactGuideRows, buildProspectingGuideRows, formatDepthBandLabel, oreMinimumDepthMeters } from './prospecting';
+import { MAX_WORLD_ROW, ORES, START_Y } from '../../shared/constants';
+import { buildProspectingGuideRows, formatDepthBandLabel, oreMinimumDepthMeters } from './prospecting';
 
 describe('prospecting guide helpers', () => {
   it('converts ore minimum rows into player-facing depth labels from the start row', () => {
@@ -27,36 +27,15 @@ describe('prospecting guide helpers', () => {
       depthLabel: 'starter–≈1800 m'
     });
     expect(rows[1]).toMatchObject({
-      name: 'Copper',
-      color: '#c47b45',
-      valueLabel: '$16',
-      depthLabel: '≈50–3200 m'
+      name: 'Iron',
+      color: '#8a7f75',
+      valueLabel: '$12',
+      depthLabel: '≈30–2500 m'
     });
     expect(rows.at(-1)).toMatchObject({
       name: 'Core Shard',
       valueLabel: '$980',
       depthLabel: '≈8500 m and deeper'
     });
-  });
-
-  it('formats artifact rows in the same rounded metres as the ore table', () => {
-    const rows = buildArtifactGuideRows();
-
-    expect(rows).toHaveLength(ARTIFACTS.length);
-    expect(rows[0]).toEqual({
-      name: 'Ancient Coin Cache',
-      color: '#ffd166',
-      valueLabel: '$180 cash now',
-      depthLabel: '≈2000–5000 m'
-    });
-    // The Alien Reliquary spawns down to `MAX_WORLD_ROW`, which used to leak into
-    // the guide as a 1,000,799,917,193,410 m band.
-    expect(rows.at(-1)).toEqual({
-      name: 'Alien Reliquary',
-      color: '#ff78e1',
-      valueLabel: '$900 cash now',
-      depthLabel: '≈7000 m and deeper'
-    });
-    for (const row of rows) expect(row.depthLabel).toMatch(/^≈\d{1,4}(–\d{1,4} m| m and deeper)$/);
   });
 });

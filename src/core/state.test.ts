@@ -15,8 +15,6 @@ describe('initial game state', () => {
     expect(countOres(state.player.inventory)).toBe(0);
     expect(countItem(state.player.inventory, DYNAMITE_ITEM.kind)).toBe(0);
     expect(countItem(state.player.inventory, TELEPORTER_ITEM.kind)).toBe(0);
-    expect(state.extractionPhase).toBe('none');
-    expect(state.stats.motherlodeExtractions).toBe(0);
     expect(state.input.sprintDirection).toBeNull();
     expect(state.reducedMotion).toBe(false);
   });

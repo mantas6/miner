@@ -5,11 +5,8 @@ const PROGRESSED = {
   maxDepth: 1230,
   totalCashEarned: 98765,
   oreMined: 42,
-  artifactsFound: 4,
   enemiesDestroyed: 1,
-  deaths: 2,
-  motherlodeClaims: 3,
-  motherlodeExtractions: 2
+  deaths: 2
 };
 
 const labelledValues = (stats: Partial<typeof PROGRESSED> = {}) =>
@@ -21,11 +18,8 @@ describe('expedition stats formatting', () => {
       ['Max depth', '0 m'],
       ['Cash earned', '$0'],
       ['Ore mined', '0 ores'],
-      ['Artifacts recovered', '0 artifacts'],
       ['Enemies destroyed', '0 fiends'],
-      ['Deaths', '0 losses'],
-      ['Motherlode claims', '0 claims'],
-      ['Completed extractions', '0 extractions']
+      ['Deaths', '0 losses']
     ]);
   });
 
@@ -34,11 +28,8 @@ describe('expedition stats formatting', () => {
       ['Max depth', '1,230 m'],
       ['Cash earned', '$98,765'],
       ['Ore mined', '42 ores'],
-      ['Artifacts recovered', '4 artifacts'],
       ['Enemies destroyed', '1 fiend'],
-      ['Deaths', '2 losses'],
-      ['Motherlode claims', '3 claims'],
-      ['Completed extractions', '2 extractions']
+      ['Deaths', '2 losses']
     ]);
   });
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ARTIFACTS, MAX_WORLD_ROW, ORES, WORLD_STATE_VERSION } from './constants';
+import { MAX_WORLD_ROW, ORES, WORLD_STATE_VERSION } from './constants';
 import {
-  artifactSchema,
   emptyWorldState,
   oreSchema,
   parseTile,
@@ -12,9 +11,8 @@ import {
 describe('valuable tables', () => {
   // The generator embeds these entries in tiles that must survive validation on
   // both sides; a table the schema rejects would silently drop ore mutations.
-  it('accepts every shipped ore and artifact', () => {
+  it('accepts every shipped ore', () => {
     for (const ore of ORES) expect(oreSchema.safeParse(ore).success).toBe(true);
-    for (const artifact of ARTIFACTS) expect(artifactSchema.safeParse(artifact).success).toBe(true);
   });
 });
 

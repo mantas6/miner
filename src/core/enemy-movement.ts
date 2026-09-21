@@ -1,4 +1,3 @@
-import { SURFACE_HEIGHT } from '../../shared/constants';
 import { tileKey as key } from '../../shared/tile-key';
 import type { Tile } from './types';
 
@@ -34,7 +33,7 @@ export function findEnemyPathStep(
       const y = current.y + dy;
       const tile = world[y]?.[x];
       const tileKey = key(x, y);
-      if (x <= 0 || x >= (world[y]?.length ?? 0) - 1 || y < SURFACE_HEIGHT) continue;
+      if (x <= 0 || x >= (world[y]?.length ?? 0) - 1 || y < 0) continue;
       if (!tile || tile.type !== 'air' || blocked.has(tileKey) || visited.has(tileKey)) continue;
       const firstStep = current.firstStep ?? {x, y};
       if (x === target.x && y === target.y) return firstStep;

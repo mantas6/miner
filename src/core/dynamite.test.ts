@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ECONOMY, HULL } from './balance';
-import { SURFACE_HEIGHT, WORLD_W } from '../../shared/constants';
+import { WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import {
   DYNAMITE,
@@ -28,11 +28,10 @@ describe('dynamite blast targets', () => {
     expect(targets).not.toContainEqual({x: 8, y: 9});
   });
 
-  it('destroys ore, artifacts, and hazards without returning cargo or rewards', () => {
+  it('destroys ore and hazards without returning cargo or rewards', () => {
     const world: Tile[][] = Array.from({length: 10}, () => Array.from({length: 10}, dirt));
     world[6][5] = {type: 'ore', ore: {name: 'Gold', color: '#fc0', value: 70, min: 152, max: 602, chance: .04}, hp: 5, maxHp: 5};
     world[5][6] = {type: 'hazard', hp: 8, maxHp: 8};
-    world[5][4] = {type: 'artifact', artifact: {name:'Ancient Coin Cache', color:'#ffd166', value:180, min:202, max:502, chance:.00045}, hp:5, maxHp:5};
 
     const targets = getDynamiteBlastTargets(world, 5, 5, 2);
 
@@ -64,19 +63,15 @@ describe('dynamite blast targets', () => {
     expect(world[5][6]).toEqual({type: 'air'});
   });
 
-  it('preserves the Motherlode and protected surface/horizontal boundary tiles without inventing a bottom boundary', () => {
+  it('protects the side-wall columns without inventing a bottom boundary', () => {
     const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
-    world[5][5] = {type: 'motherlode', hp: 24, maxHp: 24};
-    world[SURFACE_HEIGHT][1] = {type: 'rock', hp: 999};
-    world[SURFACE_HEIGHT + 1][0] = {type: 'rock', hp: 999};
     world[8][5] = {type: 'rock', hp: 999};
-    const surfaceTargets = getDynamiteBlastTargets(world, 1, SURFACE_HEIGHT + 1, 2);
-    const deepTargets = getDynamiteBlastTargets(world, 5, 5, 2);
+    const edgeTargets = getDynamiteBlastTargets(world, 1, 4, 2);
     const bottomTargets = getDynamiteBlastTargets(world, 5, 7, 2);
 
-    expect(surfaceTargets).not.toContainEqual({x: 1, y: SURFACE_HEIGHT});
-    expect(surfaceTargets).not.toContainEqual({x: 0, y: SURFACE_HEIGHT + 1});
-    expect(deepTargets).not.toContainEqual({x: 5, y: 5});
+    // The far-left and far-right columns are the walls and stay standing.
+    expect(edgeTargets).not.toContainEqual({x: 0, y: 4});
+    // There is no bottom boundary: the deepest rock in range is still a target.
     expect(bottomTargets).toContainEqual({x: 5, y: 8});
   });
 });
@@ -118,7 +113,7 @@ describe('placing a stick', () => {
 
   it.each([
     ['off the map', -1, 100, {...site}, 'underground'],
-    ['above the mine', 40, 0, {...site}, 'underground'],
+    ['above the mine', 40, -1, {...site}, 'underground'],
     ['past the far wall', WORLD_W, 100, {...site}, 'underground'],
     ['under fog', 41, 100, {...site}, 'already explored'],
     ['inside terrain', 40, 100, {...site, open: false}, 'cleared space'],

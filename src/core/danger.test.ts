@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ECONOMY, ENEMY, FUEL, HULL } from './balance';
-import { DANGER, MOTHERLODE_ROW, START_Y } from '../../shared/constants';
+import { ENEMY, FUEL, HULL } from './balance';
+import { DANGER, START_Y } from '../../shared/constants';
 import { buildDangerGuideRows } from './danger';
 
 describe('danger guide helpers', () => {
@@ -8,7 +8,7 @@ describe('danger guide helpers', () => {
     const rows = buildDangerGuideRows();
     const byTitle = new Map(rows.map(row => [row.title, row.detail]));
 
-    expect(rows).toHaveLength(7);
+    expect(rows).toHaveLength(6);
     expect(byTitle.get('Solid rock')).toContain(`≈${(DANGER.rockMinRow - START_Y) * 10} m`);
     expect(byTitle.get('Solid rock')).toContain(`${HULL.rockBump}-hull`);
     expect(byTitle.get('Magma pockets')).toContain(`≈${(DANGER.hazardMinRow - START_Y) * 10} m`);
@@ -17,7 +17,5 @@ describe('danger guide helpers', () => {
     expect(byTitle.get('Fiend bounties')).toContain(`$${ENEMY.bounty.base}`);
     expect(byTitle.get('Fiend bounties')).toContain(`$${ENEMY.bounty.step}`);
     expect(byTitle.get('Fuel discipline')).toContain(`${FUEL.lowFuelFraction * 100}% fuel`);
-    expect(byTitle.get('Motherlode core')).toContain(`≈${(MOTHERLODE_ROW - START_Y) * 10} m`);
-    expect(byTitle.get('Motherlode core')).toContain(`$${ECONOMY.artifactReward}`);
   });
 });

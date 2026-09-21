@@ -1,8 +1,8 @@
-import { MOTHERLODE_ROW, ORES, START_Y } from '../../shared/constants';
+import { ORES, START_Y } from '../../shared/constants';
 import { oreMinimumDepthMeters } from './prospecting';
 import type { Ore } from './types';
 
-export type DepthMilestoneKind = 'starter' | 'ore' | 'motherlode' | 'deep';
+export type DepthMilestoneKind = 'starter' | 'ore' | 'deep';
 
 /** Spacing of the rolling depth targets used once the named landmarks are behind us. */
 export const DEEP_RECORD_STEP_METERS = 1000;
@@ -16,18 +16,16 @@ export interface DepthMilestone {
 
 /**
  * Finds the next depth landmark from shared ore/world data. The first two ore
- * bands form the deliberately generated Coal/Copper starter seam; after that,
- * each locked ore band becomes the next target, then the Motherlode core.
+ * bands form the deliberately generated Coal/Iron starter seam; after that, each
+ * locked ore band becomes the next target.
  *
- * The core is a landmark, not the bottom: the mine generates indefinitely below
- * it, so past it the ladder rolls on in fixed steps rather than freezing on an
- * already-cleared target.
+ * Past the last ore band the mine generates indefinitely, so the ladder rolls on
+ * in fixed depth-record steps rather than freezing on an already-cleared target.
  */
 export function getDepthMilestone(
   playerY: number,
   ores: Ore[] = ORES,
-  startY = START_Y,
-  motherlodeRow = MOTHERLODE_ROW
+  startY = START_Y
 ): DepthMilestone {
   const depthMeters = Math.max(0, playerY - startY) * 10;
   const starterOres = ores.slice(0, 2);
@@ -53,16 +51,6 @@ export function getDepthMilestone(
     };
   }
 
-  const coreDepth = Math.max(0, motherlodeRow - startY) * 10;
-  if (depthMeters < coreDepth) {
-    return {
-      kind: 'motherlode',
-      target: 'Motherlode core',
-      depthMeters: coreDepth,
-      remainingMeters: coreDepth - depthMeters
-    };
-  }
-
   const recordDepth = (Math.floor(depthMeters / DEEP_RECORD_STEP_METERS) + 1) * DEEP_RECORD_STEP_METERS;
   return {
     kind: 'deep',
@@ -84,15 +72,13 @@ export function formatDepthMilestoneReached(milestone: DepthMilestone): string {
       return `${depth} — ${milestone.target} reached. Fill the cargo bay.`;
     case 'ore':
       return `${depth} — ${milestone.target} band reached. Richer ore, harder rock.`;
-    case 'motherlode':
-      return `${depth} — ${milestone.target} reached. Crack it and climb out alive.`;
     case 'deep':
       return `${depth} — new depth record. The mine keeps going; keep fuel for the climb home.`;
   }
 }
 
 /** Formats the compact, always-visible progress readout used by the HUD. */
-export function formatDepthMilestone(playerY: number, ores: Ore[] = ORES, startY = START_Y, motherlodeRow = MOTHERLODE_ROW): string {
-  const milestone = getDepthMilestone(playerY, ores, startY, motherlodeRow);
+export function formatDepthMilestone(playerY: number, ores: Ore[] = ORES, startY = START_Y): string {
+  const milestone = getDepthMilestone(playerY, ores, startY);
   return `Depth target: ${milestone.target} — ${milestone.remainingMeters} m deeper.`;
 }

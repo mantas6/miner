@@ -20,10 +20,10 @@ import { SCANNER_ITEM } from '../core/scanner-device';
 import {
   MIN_TELEPORT_DEPTH_METERS,
   TELEPORTER_ITEM,
-  canTeleportToSurface,
+  canTeleport,
   createTeleportEffect,
+  teleportPlayerToHome,
   teleportPlayerToReturn,
-  teleportPlayerToSurface,
   teleportersCarried
 } from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
@@ -219,7 +219,7 @@ export function createActions(deps: GameActionsDeps): GameActions {
     const surf = atSurface();
     if (surf && !state.teleportReturnPosition) return toast('No underground teleport return point.');
     if (!surf && teleportersCarried(p) <= 0) { audio.alarm(); return toast('No teleporter aboard. Buy one at the surface depot.'); }
-    if (!surf && !canTeleportToSurface(p.y)) { audio.alarm(); return toast(`Teleport requires a depth of at least ${MIN_TELEPORT_DEPTH_METERS} m.`); }
+    if (!surf && !canTeleport(p)) { audio.alarm(); return toast(`Teleport requires a depth of at least ${MIN_TELEPORT_DEPTH_METERS} m.`); }
     const camX = Math.max(0, Math.min(WORLD_W - viewport.tilesX, state.camX));
     const camY = Math.max(0, state.camY);
     const originScreenX = (p.drawX - camX + .5) * TILE;
@@ -228,7 +228,7 @@ export function createActions(deps: GameActionsDeps): GameActions {
       if (!teleportPlayerToReturn(p, state.teleportReturnPosition)) return;
       state.teleportReturnPosition = null;
     } else {
-      const returnPosition = teleportPlayerToSurface(p);
+      const returnPosition = teleportPlayerToHome(p);
       if (!returnPosition) return;
       state.teleportReturnPosition = returnPosition;
     }
@@ -236,11 +236,11 @@ export function createActions(deps: GameActionsDeps): GameActions {
     state.teleportEffect = createTeleportEffect(originScreenX, originScreenY, p.x, p.y, reducedMotion);
     state.input.keyImpulse = null;
     state.camX = Math.max(0, p.x - Math.floor(viewport.tilesX / 2));
-    state.camY = surf ? Math.max(0, p.y - Math.floor(viewport.tilesY / 2)) : 0;
+    state.camY = Math.max(0, p.y - Math.floor(viewport.tilesY / 2));
     saveProgress();
     toast(surf
       ? 'Returned to the underground teleport point.'
-      : 'Teleported safely to the depot. Press T to return underground.');
+      : 'Teleported safely home. Press T to return underground.');
   }
 
   return {

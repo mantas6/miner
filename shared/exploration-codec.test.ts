@@ -40,9 +40,9 @@ describe('persistent fog exploration', () => {
     expect(mergeExploration(host, encoded)).toEqual([]);
   });
 
-  it('keeps surface tiles usable without storing them', () => {
+  it('keeps the bedrock ceiling usable without storing it', () => {
     expect(isTileExplored(new Set(), 0, 0)).toBe(true);
-    expect(isTileExplored(new Set(), 20, 3)).toBe(false);
+    expect(isTileExplored(new Set(), 20, 20)).toBe(false);
   });
 
   it('round-trips explored terrain below 10,000 m', () => {

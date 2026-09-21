@@ -164,7 +164,7 @@ describe('booting the game', () => {
     click('shopBtn');
 
     expect(dialogOpen('shop-screen')).toBe(false);
-    expect(text('toast')).toBe('Shop is at the surface depot.');
+    expect(text('toast')).toBe('Shop is at the home base.');
   });
 
   // Kept last: this one digs far enough to change cargo and depth for good.
@@ -172,18 +172,18 @@ describe('booting the game', () => {
     // Underground there is a climb to pay for, so the fuel gauge splits for it.
     expect(document.getElementById('fuel')?.getAttribute('aria-label')).toContain('after climbing home');
     expect(text('scanner')).toMatch(/^Scanner/);
-    expect(text('depthTarget')).toContain('starter Coal/Copper seam');
+    expect(text('depthTarget')).toContain('starter Coal/Iron seam');
 
-    // The first landmark is that starter seam, 50 m down.
-    for (let attempt = 0; attempt < 200 && text('depth') !== '50 m'; attempt++) {
+    // The first landmark is that starter seam, 30 m down.
+    for (let attempt = 0; attempt < 200 && text('depth') !== '30 m'; attempt++) {
       press('s');
       renderFrame();
     }
 
-    expect(text('depth')).toBe('50 m');
-    expect(text('toast')).toContain('Depth 50 m');
-    expect(text('depthTarget')).toBe('↓ 550 m to Silver');
-    // 50 m down, the climb home now owns a visible slice of the fuel gauge.
+    expect(text('depth')).toBe('30 m');
+    expect(text('toast')).toContain('Depth 30 m');
+    expect(text('depthTarget')).toBe('↓ 30 m to Copper');
+    // 30 m down, the climb home now owns a visible slice of the fuel gauge.
     expect((document.getElementById('fuelReturn') as HTMLElement).style.width).not.toBe('0%');
 
     // Crossing announces once: the next frame leaves the toast alone.

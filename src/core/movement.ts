@@ -1,10 +1,12 @@
 import { HULL, SPRINT } from './balance';
 import type { Direction } from './types';
 
-export function movementDestination(x: number, y: number, dx: number, dy: number, worldWidth: number, startY: number): {x: number; y: number} {
+export function movementDestination(x: number, y: number, dx: number, dy: number, worldWidth: number): {x: number; y: number} {
   return {
     x: Math.max(1, Math.min(worldWidth - 2, x + dx)),
-    y: Math.max(startY, y + dy)
+    // Bedrock caps the world above the home cavern, so the only hard clamp the
+    // ship needs is the top of the coordinate space itself.
+    y: Math.max(0, y + dy)
   };
 }
 

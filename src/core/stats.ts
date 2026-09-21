@@ -25,11 +25,8 @@ export function formatExpeditionStats(stats: Partial<GameStats> = {}): Expeditio
   const maxDepth = whole(stats.maxDepth);
   const totalCashEarned = whole(stats.totalCashEarned);
   const oreMined = whole(stats.oreMined);
-  const artifactsFound = whole(stats.artifactsFound);
   const enemiesDestroyed = whole(stats.enemiesDestroyed);
   const deaths = whole(stats.deaths);
-  const motherlodeClaims = whole(stats.motherlodeClaims);
-  const motherlodeExtractions = whole(stats.motherlodeExtractions);
 
   return [
     {
@@ -45,12 +42,7 @@ export function formatExpeditionStats(stats: Partial<GameStats> = {}): Expeditio
     {
       label: 'Ore mined',
       value: count(oreMined, 'ore'),
-      detail: oreMined > 0 ? 'Total pieces extracted' : 'Coal and Copper await below'
-    },
-    {
-      label: 'Artifacts recovered',
-      value: count(artifactsFound, 'artifact'),
-      detail: artifactsFound > 0 ? 'Rare finds paid directly to cash' : 'Rare finds are hidden in the deep mine'
+      detail: oreMined > 0 ? 'Total pieces extracted' : 'Coal and Iron await below'
     },
     {
       label: 'Enemies destroyed',
@@ -61,16 +53,6 @@ export function formatExpeditionStats(stats: Partial<GameStats> = {}): Expeditio
       label: 'Deaths',
       value: count(deaths, 'loss', 'losses'),
       detail: deaths > 0 ? 'Replacement ships deployed' : 'No ships lost'
-    },
-    {
-      label: 'Motherlode claims',
-      value: count(motherlodeClaims, 'claim'),
-      detail: motherlodeClaims > 0 ? 'Core cracked and banked' : 'Ultimate prize still waiting'
-    },
-    {
-      label: 'Completed extractions',
-      value: count(motherlodeExtractions, 'extraction'),
-      detail: motherlodeExtractions > 0 ? 'Motherlode cores returned safely to the depot' : 'Return a secured core to finish an extraction'
     }
   ];
 }

@@ -11,7 +11,6 @@
 // Everything here is pure and DOM-free: the placed stick is three numbers, and
 // the blast is a list of coordinates the caller applies to its own world.
 
-import { SURFACE_HEIGHT } from '../../shared/constants';
 import { ECONOMY, HULL } from './balance';
 import type { InventoryItem } from './inventory';
 import { placementRefusal, type PlacementCopy } from './placement';
@@ -123,7 +122,7 @@ export interface BlastCoordinate {
 }
 
 export function isDynamiteDestructible(tile: Tile): boolean {
-  return tile.type === 'dirt' || tile.type === 'rock' || tile.type === 'ore' || tile.type === 'artifact' || tile.type === 'hazard' || tile.type === 'enemy';
+  return tile.type === 'dirt' || tile.type === 'rock' || tile.type === 'ore' || tile.type === 'hazard' || tile.type === 'enemy';
 }
 
 /** Select blast tiles without mutating terrain or granting rewards for destroyed valuables. */
@@ -136,7 +135,7 @@ export function getDynamiteBlastTargets(
   const targets: BlastCoordinate[] = [];
   for (let y = centerY - radius; y <= centerY + radius; y++) {
     const row = world[y];
-    if (!row || y <= SURFACE_HEIGHT) continue;
+    if (!row || y < 0) continue;
     for (let x = centerX - radius; x <= centerX + radius; x++) {
       if (x <= 0 || x >= row.length - 1) continue;
       const dx = x - centerX;

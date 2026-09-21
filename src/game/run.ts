@@ -9,9 +9,8 @@
 
 import { START_Y } from '../../shared/constants';
 import { STARTING } from '../core/balance';
-import { cancelExtraction } from '../core/extraction-phase';
 import { createInventory, removeOres } from '../core/inventory';
-import { createDefaultStats, placeAtSurfaceSpawn, respawnPlayer } from '../core/state';
+import { createDefaultStats, placeAtHome, respawnPlayer } from '../core/state';
 import { applyTileEntries, tileDiffEntries } from '../world/tile-diff';
 import { ensureWorldRow } from '../world/world';
 import { resetWorldTerrain } from '../world/world-state';
@@ -67,7 +66,6 @@ export function createRun(deps: GameRunDeps): GameRun {
   }
 
   function resetPlayer(full = true): void {
-    state.extractionPhase = cancelExtraction();
     state.teleportEffect = null;
     state.teleportReturnPosition = null;
     if (full) {
@@ -117,7 +115,7 @@ export function createRun(deps: GameRunDeps): GameRun {
     // The save carries a tile, not a guarantee: a capped or quota-dropped diff
     // can leave that coordinate solid again. Anything but open air returns to the
     // depot, because a ship buried in dirt cannot drill its way back up.
-    if (ensureWorldRow(state.world, p.y)?.[p.x]?.type !== 'air') placeAtSurfaceSpawn(p);
+    if (ensureWorldRow(state.world, p.y)?.[p.x]?.type !== 'air') placeAtHome(p);
     // Fuel, hull and cargo are never saved, so a resumed run is a fresh ship
     // parked where the last one left off — carrying the equipment the save
     // restored into its bay, and none of the ore.
@@ -149,7 +147,6 @@ export function createRun(deps: GameRunDeps): GameRun {
     if (state.gameOver) return;
     state.gameOver = true;
     state.teleportEffect = null;
-    state.extractionPhase = cancelExtraction();
     state.stats.deaths++;
     saveProgress();
     toast(message);

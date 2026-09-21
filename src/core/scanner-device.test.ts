@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_WORLD_ROW, SURFACE_HEIGHT, WORLD_W } from '../../shared/constants';
+import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import {
   SCANNER_DEVICE,
@@ -38,11 +38,11 @@ describe('scanner footprint', () => {
     const clipped = (Math.floor(SCANNER_DEVICE.size / 2) + 1) * SCANNER_DEVICE.size;
     expect(scannerFootprint(createScannerDevice(0, 200))).toHaveLength(clipped);
     expect(scannerFootprint(createScannerDevice(WORLD_W - 1, 200))).toHaveLength(clipped);
-    // Surface rows are visible by definition, so a device parked just below them
-    // is not left permanently unfinished by tiles it can never claim.
-    const shallow = scannerFootprint(createScannerDevice(40, SURFACE_HEIGHT));
+    // Rows above the world top cannot be claimed, so a device parked at the very
+    // top is not left permanently unfinished by tiles it can never reach.
+    const shallow = scannerFootprint(createScannerDevice(40, 0));
     expect(shallow).toHaveLength(clipped);
-    expect(shallow.every(index => Math.floor(index / WORLD_W) >= SURFACE_HEIGHT)).toBe(true);
+    expect(shallow.every(index => Math.floor(index / WORLD_W) >= 0)).toBe(true);
   });
 });
 
@@ -137,7 +137,7 @@ describe('scanner placement rules', () => {
   });
 
   it.each([
-    ['above the mine', 40, SURFACE_HEIGHT - 1, {}, 'underground'],
+    ['above the mine', 40, -1, {}, 'underground'],
     ['past the side wall', WORLD_W, 100, {}, 'underground'],
     ['below the deepest row', 40, MAX_WORLD_ROW + 1, {}, 'underground'],
     ['still under fog', 41, 100, {}, 'already explored'],
