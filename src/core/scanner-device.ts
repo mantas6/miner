@@ -22,9 +22,9 @@ export const SCANNER_DEVICE = Object.freeze({
   /** Side of the square it maps, centred on the device. */
   size: 7,
   /** Seconds between reveals, as the shop and the toasts word it. */
-  intervalSeconds: 7.5,
+  intervalSeconds: 3.75,
   /** The same wait in fixed 60 Hz simulation steps. */
-  intervalTicks: 7.5 * 60,
+  intervalTicks: 3.75 * 60,
   /**
    * Devices that may be deployed at once. A soft cap: it exists so a save can
    * never grow without bound, and so a stack of scanners cannot be emptied into
@@ -85,6 +85,19 @@ export function isScannerDone(device: ScannerDevice, explored: ReadonlySet<numbe
 export function scannerProgress(device: ScannerDevice, explored: ReadonlySet<number>): {mapped: number; total: number} {
   const footprint = scannerFootprint(device);
   return {mapped: footprint.filter(index => explored.has(index)).length, total: footprint.length};
+}
+
+/**
+ * How far the device has charged toward its next reveal, as a fraction in
+ * `[0, 1)`: `0` on the step just after a reveal, approaching `1` as the wait
+ * runs out. Derived purely from the timer so the canvas can draw a progress arc
+ * for the tile currently being surveyed without the renderer knowing the tick
+ * budget. The value never reaches `1` — the step that would hit it is the reveal
+ * itself, which resets the timer to `0`.
+ */
+export function scannerTileProgress(device: ScannerDevice): number {
+  const fraction = device.timer / SCANNER_DEVICE.intervalTicks;
+  return fraction < 0 ? 0 : fraction > 1 ? 1 : fraction;
 }
 
 /**

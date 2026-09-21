@@ -7,7 +7,7 @@ import { type PlacedContainer } from '../core/cargo-container';
 import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
-import { isScannerDone, type ScannerDevice } from '../core/scanner-device';
+import { isScannerDone, scannerTileProgress, type ScannerDevice } from '../core/scanner-device';
 import { TERRAIN_CHUNK_TILES, terrainCacheScale, terrainChunkCoordinate, terrainChunkKeyForTile } from './terrain-cache-policy';
 import type {
   Direction,
@@ -432,9 +432,10 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.restore();
   }
   /**
-   * Deployed scanners, as a lit dish on a tripod. A working one sweeps a ring
-   * that a finished one has lost, so "still mapping" and "spent" are one glance
-   * apart without a label on the canvas.
+   * Deployed scanners, as a lit dish on a tripod. A working one draws a progress
+   * arc that fills as it charges toward its next reveal, and a finished one has
+   * lost it — so "still mapping" and "spent" are one glance apart without a label
+   * on the canvas.
    */
   function drawScannerDevices(camX: number, camY: number) {
     const devices = state.scannerDevices;
@@ -443,19 +444,23 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       if (!isExplored(device.x, device.y)) continue;
       const sx = (device.x - camX) * TILE, sy = (device.y - camY) * TILE;
       if (sx < -TILE || sy < -TILE || sx > viewport.worldWidthPx + TILE || sy > viewport.worldHeightPx + TILE) continue;
-      drawScannerBody(sx, sy, state.exploredTiles ? isScannerDone(device, state.exploredTiles) : true);
+      const done = state.exploredTiles ? isScannerDone(device, state.exploredTiles) : true;
+      drawScannerBody(sx, sy, done, done ? 0 : scannerTileProgress(device));
     }
   }
-  function drawScannerBody(sx: number, sy: number, done: boolean) {
+  function drawScannerBody(sx: number, sy: number, done: boolean, progress: number) {
     const glow = done ? '#5d6b78' : '#7fe3ff';
     ctx.save();
     ctx.translate(sx + TILE*.5, sy + TILE*.5);
-    if (!done && !state.reducedMotion) {
-      // One expanding pulse per cycle: the survey, made visible.
-      const pulse = (state.tick % 90) / 90;
-      ctx.globalAlpha = (1 - pulse) * .45;
-      ctx.strokeStyle = glow; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, TILE*(.2 + pulse*.8), 0, Math.PI*2); ctx.stroke();
+    if (!done) {
+      // A charging arc for the tile being surveyed: it sweeps clockwise from the
+      // top as the reveal nears, then snaps back to empty when the tile lands.
+      // Subtle — one thin stroke — so a busy scanner reads as "working" at a
+      // glance without cluttering the mine, and it holds still enough between
+      // steps to stay legible under reduced motion.
+      ctx.globalAlpha = .5;
+      ctx.strokeStyle = glow; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0, TILE*.62, -Math.PI/2, -Math.PI/2 + progress*Math.PI*2); ctx.stroke();
       ctx.globalAlpha = 1;
     }
     // Tripod and mast.

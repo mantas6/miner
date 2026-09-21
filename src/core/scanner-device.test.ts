@@ -10,6 +10,7 @@ import {
   scannerPendingTiles,
   scannerPlacementRefusal,
   scannerProgress,
+  scannerTileProgress,
   tickScannerDevice
 } from './scanner-device';
 
@@ -95,8 +96,31 @@ describe('scanner surveying', () => {
     expect(scannerPendingTiles(device, explored)).toHaveLength(9);
   });
 
-  it('waits the advertised fifteen seconds of simulation time', () => {
+  it('waits the advertised interval of simulation time', () => {
     expect(SCANNER_DEVICE.intervalTicks).toBe(SCANNER_DEVICE.intervalSeconds * 60);
+  });
+
+  it('charges from nothing toward — but never up to — a full tile', () => {
+    const device = createScannerDevice(40, 100);
+    const explored = new Set<number>();
+
+    // Freshly placed: nothing charged yet.
+    expect(scannerTileProgress(device)).toBe(0);
+
+    // One step in, the arc has moved off zero but is nowhere near full.
+    tickScannerDevice(device, explored);
+    expect(scannerTileProgress(device)).toBeCloseTo(1 / SCANNER_DEVICE.intervalTicks);
+    expect(scannerTileProgress(device)).toBeGreaterThan(0);
+
+    // The last silent step sits just under a whole tile.
+    device.timer = SCANNER_DEVICE.intervalTicks - 1;
+    const almost = scannerTileProgress(device);
+    expect(almost).toBeLessThan(1);
+    expect(almost).toBeGreaterThan(0.9);
+
+    // The reveal step resets the timer, so the arc snaps back to empty.
+    runToReveal(device, explored);
+    expect(scannerTileProgress(device)).toBe(0);
   });
 });
 
