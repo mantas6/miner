@@ -12,7 +12,7 @@
 // the blast is a list of coordinates the caller applies to its own world.
 
 import { ECONOMY, HULL } from './balance';
-import type { InventoryItem } from './inventory';
+import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
 import type { Tile } from './types';
 
@@ -29,14 +29,8 @@ export const DYNAMITE = Object.freeze({
   maxPlaced: 8
 });
 
-/** The stackable item the depot sells and the cargo bay carries. */
-export const DYNAMITE_ITEM: InventoryItem = {
-  kind: 'dynamite',
-  label: 'Dynamite',
-  color: '#e04a2f',
-  // Depot equipment is not cargo, so the sell-everything button never prices it.
-  value: 0
-};
+/** The stackable item the cargo bay carries; defined once in `items.ts`. */
+export const DYNAMITE_ITEM = ITEM_CATALOG.dynamite;
 
 /** One planted stick. `fuse` counts simulation steps left before it goes off. */
 export interface PlacedDynamite {

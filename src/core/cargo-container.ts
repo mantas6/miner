@@ -29,6 +29,7 @@ import {
   type InventoryItem,
   type InventoryItemKind
 } from './inventory';
+import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
 
 export const CARGO_CONTAINER = Object.freeze({
@@ -51,14 +52,8 @@ export const CARGO_CONTAINER = Object.freeze({
   reach: 1
 });
 
-/** The stackable item the depot sells and the cargo bay carries. */
-export const CARGO_CONTAINER_ITEM: InventoryItem = {
-  kind: 'container',
-  label: 'Container',
-  color: '#c8912f',
-  // Depot equipment is not cargo, so the sell-everything button never prices it.
-  value: 0
-};
+/** The stackable item the cargo bay carries; defined once in `items.ts`. */
+export const CARGO_CONTAINER_ITEM = ITEM_CATALOG.container;
 
 /** One crate standing in the mine, and everything inside it. */
 export interface PlacedContainer {

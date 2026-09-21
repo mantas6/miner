@@ -6,7 +6,8 @@ import type { EnemyKind, Tile } from '../../shared/world-schema';
 import type { TrackId } from '../audio/tracks';
 import type { PlacedContainer } from './cargo-container';
 import type { PlacedDynamite } from './dynamite';
-import type { Inventory, InventoryItemKind } from './inventory';
+import type { HomeState } from './home';
+import type { Inventory, InventoryItemKind, UpgradeKind } from './inventory';
 import type { ScannerDevice } from './scanner-device';
 import type { TileDiff } from '../world/tile-diff';
 
@@ -47,6 +48,14 @@ export interface Player {
    * here too.
    */
   inventory: Inventory;
+  /**
+   * Ship-upgrade fitting slots, one entry per `SHIP_UPGRADE_SLOTS`. A slot holds
+   * an equipped upgrade kind or `null` when empty. Phase 3's `applyEquipment`
+   * derives `fuelMax`/`hullMax`/`cargoMax`/`drill` and `boost` from these.
+   */
+  equipment: (UpgradeKind | null)[];
+  /** Whether a Booster is fitted, enabling the Shift sprint. Derived from `equipment`. */
+  boost: boolean;
 }
 
 /** The transform fields the ship shares with the renderer. */
@@ -145,6 +154,8 @@ export interface GameState {
   placedDynamite: PlacedDynamite[];
   /** Cargo containers standing in the mine, each with its own slots. */
   cargoContainers: PlacedContainer[];
+  /** The home base's mutable state: the station's stock and the extractor's buffers. */
+  home: HomeState;
   /**
    * The carried device armed for placement, or `null` when nothing is. Only the
    * placeable kinds (scanner, dynamite, container) ever appear here; it drives the

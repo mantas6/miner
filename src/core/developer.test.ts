@@ -92,7 +92,11 @@ describe('developer ship services', () => {
     expect(formatDeveloperServiceControl(state.player, 'hull')).toMatchObject({buttonDisabled: true});
   });
 
-  it('updates controls immediately and follows normal persisted upgrade maxima on restart', () => {
+  it('updates controls immediately, but the derived maxima reset to base on restart', () => {
+    // The developer services fill to whatever maxima the ship currently has, and
+    // the controls reflect it at once. Those maxima are no longer persisted,
+    // though — they are derived from fitted equipment (Phase 3) — so a fresh boot
+    // comes back at the starting base.
     const stored = new Map<string, string>();
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => stored.get(key) ?? null,
@@ -113,6 +117,6 @@ describe('developer ship services', () => {
     const restored = createInitialState();
     load(restored);
     respawnPlayer(restored.player);
-    expect(restored.player).toMatchObject({ fuel: 220, fuelMax: 220, hull: 180, hullMax: 180 });
+    expect(restored.player).toMatchObject({ fuel: 100, fuelMax: 100, hull: 100, hullMax: 100 });
   });
 });

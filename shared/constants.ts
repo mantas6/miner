@@ -36,6 +36,13 @@ export function isHomeCavern(x: number, y: number): boolean {
   return Math.abs(x - HOME_X) <= HOME_CAVERN.halfWidth && y >= HOME_CAVERN_TOP && y <= HOME_ROW;
 }
 
+/**
+ * Fitting slots the ship carries its equipped upgrades in. Duplicates are allowed
+ * and bonuses stack; Phase 3's `applyEquipment` reads these slots to derive the
+ * ship's stats. Persisted as a fixed-length `equipment` array.
+ */
+export const SHIP_UPGRADE_SLOTS = 2;
+
 // Keep row-major exploration indexes exact within JavaScript's safe integers.
 export const MAX_WORLD_ROW = Math.floor(Number.MAX_SAFE_INTEGER / WORLD_W) - 1;
 

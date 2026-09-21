@@ -7,7 +7,8 @@
 // spent — so only the outbound jump touches the bay.
 
 import { HOME_ROW, HOME_X } from '../../shared/constants';
-import { countItem, removeItem, type InventoryItem } from './inventory';
+import { countItem, removeItem } from './inventory';
+import { ITEM_CATALOG } from './items';
 import { isAtHome, placeAtHome } from './state';
 import type { Player, TeleportEffect, TeleportReturnPosition } from './types';
 
@@ -23,14 +24,8 @@ export function homeDistance(x: number, y: number): number {
   return Math.hypot(x - HOME_X, y - HOME_ROW);
 }
 
-/** The stackable item the depot sells and the cargo bay carries. */
-export const TELEPORTER_ITEM: InventoryItem = {
-  kind: 'teleporter',
-  label: 'Teleporter',
-  color: '#72d9ff',
-  // Depot equipment is not cargo, so the sell-everything button never prices it.
-  value: 0
-};
+/** The stackable item the cargo bay carries; defined once in `items.ts`. */
+export const TELEPORTER_ITEM = ITEM_CATALOG.teleporter;
 
 export function canTeleport(player: Pick<Player, 'x' | 'y'>): boolean {
   return homeDistance(player.x, player.y) >= MIN_TELEPORT_HOME_DISTANCE;

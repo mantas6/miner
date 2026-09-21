@@ -36,8 +36,33 @@ const ORE_KIND_PREFIX = 'ore:';
 /** One ore type's stack key, e.g. `ore:Copper`. */
 export type OreKind = `${typeof ORE_KIND_PREFIX}${string}`;
 
+/** The four consumables and the repair kit — items spent (or placed) on use. */
+export type ConsumableKind = 'dynamite' | 'scanner' | 'teleporter' | 'container' | 'repairKit';
+
+/** Ship-equipment families. `booster` is Mk I only; every other id tiers to Mk III. */
+export type UpgradeId = 'tank' | 'cargo' | 'drill' | 'hull' | 'booster';
+/** Upgrade mark: I, II, III. */
+export type UpgradeTier = 1 | 2 | 3;
+/**
+ * A tiered ship-upgrade stack key, e.g. `upgrade:drill:2`. Booster is deliberately
+ * excluded from the tiered families — it exists as Mk I only — and reappears as the
+ * single `upgrade:booster:1`, so the type admits exactly the kinds the catalog holds.
+ */
+export type UpgradeKind = `upgrade:${Exclude<UpgradeId, 'booster'>}:${UpgradeTier}` | 'upgrade:booster:1';
+
+/** Placeable cosmetic tiles the player can craft, carry, and set down. */
+export type DecorId = 'steelPlate' | 'copperTrim' | 'lampPanel';
+/** One decoration's stack key, e.g. `decor:lampPanel`. */
+export type DecorKind = `decor:${DecorId}`;
+
+/** Everything the bay can hold that is not ore — the keys of `ITEM_CATALOG`. */
+export type NonOreKind = ConsumableKind | UpgradeKind | DecorKind;
+
 /** Everything the bay can hold. Extend the union as kinds move in. */
-export type InventoryItemKind = OreKind | 'dynamite' | 'scanner' | 'teleporter' | 'container';
+export type InventoryItemKind = OreKind | NonOreKind;
+
+const UPGRADE_KIND_PREFIX = 'upgrade:';
+const DECOR_KIND_PREFIX = 'decor:';
 
 /** What one unit of a stack is: its identity and how it is shown and priced. */
 export interface InventoryItem {
@@ -70,6 +95,22 @@ export function oreKind(name: string): OreKind {
 
 export function isOreKind(kind: InventoryItemKind): kind is OreKind {
   return kind.startsWith(ORE_KIND_PREFIX);
+}
+
+/** Whether a kind names a ship upgrade, e.g. `upgrade:tank:1`. */
+export function isUpgradeKind(kind: InventoryItemKind): kind is UpgradeKind {
+  return kind.startsWith(UPGRADE_KIND_PREFIX);
+}
+
+/** Whether a kind names a decoration, e.g. `decor:lampPanel`. */
+export function isDecorKind(kind: InventoryItemKind): kind is DecorKind {
+  return kind.startsWith(DECOR_KIND_PREFIX);
+}
+
+/** Split an upgrade kind into its family and mark, e.g. `{id: 'drill', tier: 2}`. */
+export function parseUpgradeKind(kind: UpgradeKind): {id: UpgradeId; tier: UpgradeTier} {
+  const [, id, tier] = kind.split(':');
+  return {id: id as UpgradeId, tier: Number(tier) as UpgradeTier};
 }
 
 /** The stackable item one mined ore becomes. */

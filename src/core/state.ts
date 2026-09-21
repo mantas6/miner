@@ -1,5 +1,6 @@
-import { HOME_ROW, HOME_X, isHomeCavern } from '../../shared/constants';
+import { HOME_ROW, HOME_X, SHIP_UPGRADE_SLOTS, isHomeCavern } from '../../shared/constants';
 import { STARTING } from './balance';
+import { createHomeState } from './home';
 import { createInventory, removeOres } from './inventory';
 import type { GameState, GameStats, Player } from './types';
 
@@ -66,6 +67,7 @@ export function createInitialState(): GameState {
     scannerDevices: [],
     placedDynamite: [],
     cargoContainers: [],
+    home: createHomeState(),
     armedPlacement: null,
     hoverTile: null,
     input: {
@@ -92,7 +94,9 @@ export function createInitialState(): GameState {
       hullMax: STARTING.hullMax,
       cargoMax: STARTING.cargoMax,
       drill: STARTING.drill,
-      inventory: createInventory()
+      inventory: createInventory(),
+      equipment: Array.from({length: SHIP_UPGRADE_SLOTS}, () => null),
+      boost: false
     }
   };
 }

@@ -1,16 +1,25 @@
-import { MAX_WORLD_ROW, START_Y, WORLD_W } from '../shared/constants';
-import { ECONOMY, LIMITS, STARTING } from './core/balance';
+import { MAX_WORLD_ROW, SHIP_UPGRADE_SLOTS, START_Y, WORLD_W } from '../shared/constants';
 import {
   CARGO_CONTAINER,
-  CARGO_CONTAINER_ITEM,
   createPlacedContainer,
   type PlacedContainer
 } from './core/cargo-container';
-import { DYNAMITE, DYNAMITE_ITEM, type PlacedDynamite } from './core/dynamite';
-import { addItem, countItem, inventoryStacks, type InventoryItem, type InventoryItemKind } from './core/inventory';
-import { SCANNER_DEVICE, SCANNER_ITEM, type ScannerDevice } from './core/scanner-device';
-import { TELEPORTER_ITEM } from './core/teleporter';
+import { DYNAMITE, type PlacedDynamite } from './core/dynamite';
+import {
+  addItem,
+  createInventory,
+  inventoryStacks,
+  isOreKind,
+  isUpgradeKind,
+  type Inventory,
+  type InventoryItem,
+  type InventoryItemKind,
+  type UpgradeKind
+} from './core/inventory';
+import { isCatalogKind, itemForKind } from './core/items';
+import { SCANNER_DEVICE, type ScannerDevice } from './core/scanner-device';
 import { createDefaultStats } from './core/state';
+import { createHomeState, type HomeState } from './core/home';
 import { encodeExploration, mergeExploration } from '../shared/exploration-codec';
 import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries } from './world/tile-diff';
 import type { GameState, GameStats } from './core/types';
@@ -21,50 +30,30 @@ import type { GameState, GameStats } from './core/types';
 // Terrain is not stored tile by tile — it regenerates from its seed — so the
 // world is saved the way the relay saves the shared one: as the list of
 // `shared/world-schema.ts` tile entries that differ from the generated terrain
-// (see `src/world/tile-diff.ts`). Version history:
-//   * v1: cash, upgrades, inventory, stats.
-//   * v2: rebalanced cargo capacity.
-//   * v3: run-length encoded explored tiles.
-//   * v4: `tiles`, the solo world's tile diff.
-//   * v5: `x`/`y`, the tile the ship was parked on.
-//   * v6: `scanners` and `scannerDevices` — the survey scanners carried, and the
-//     ones left running in the mine.
-//   * v7: `dynamiteSticks`, the charges still burning in the mine. `dynamite`
-//     keeps its meaning — the number carried — but is now counted out of the
-//     cargo bay rather than off the ship.
-//   * v8: `guns`, the single-use Linebreakers in the bay. It replaces `gunOwned`
-//     and `bullets`, which are ignored on load: there is no permanent fitting to
-//     restore any more, and a magazine that no longer exists cannot be refunded.
-//   * v9: `teleporters` keeps its meaning — the number carried — but is now
-//     counted out of the cargo bay rather than off the ship, so an older save's
-//     teleporters simply come back as a stack.
-//   * v10: `containers` — the crates carried in the bay — and `cargoContainers`,
-//     the ones standing in the mine *with their contents*, which is the one place
-//     a save records individual stacks rather than a count.
-//   * v11: cargo capacity became a total item count rather than a slot count, so
-//     its base and per-level step both moved. `cargoMax` is no longer trusted
-//     verbatim on load: the number of cargo-bay upgrades the save paid for is
-//     recovered and rebuilt on the new scale, so older saves keep their levels.
-//   * v12: the Sensor Array upgrade was removed. `visibility` is no longer stored;
-//     the fog-reveal footprint is fixed at its base 3x3 for every ship. Older
-//     saves that carried a `visibility` level simply drop it on load — no refund,
-//     because the cash it cost was never tracked separately from the wallet.
-//   * v13: oil patches and the placeable oil extractor were removed. Any
-//     `extractors`/`oilExtractors` a save from that build carried are ignored on
-//     load, and an `oil` tile in the world diff is dropped with the rest of that
-//     diff by the shared schema — no crash, just a pristine mine.
-//   * v14: the Linebreaker gun was removed. Any `guns` a save from that build
-//     carried — along with the pre-v8 `gunOwned`/`bullets` a much older save
-//     might still hold — are ignored on load: there is no weapon to restore and
-//     nothing to refund. No crash, just a bay without a gun in it.
-// Older blobs still load; they just restore a pristine mine, and pre-v5 saves
-// start at the depot the way they always did.
+// (see `src/world/tile-diff.ts`).
 //
-// The cargo bay itself is deliberately *not* saved: ore is lost with the run.
-// Scanners, dynamite, teleporters and containers are equipment rather than
-// cargo, so they are stored as counts and re-stacked into the bay on load. Ore
-// inside a placed container is the exception, and deliberately so: it is not
-// aboard, so it is not lost with the run either.
+// Version 15 is a clean break. The underground-home rework changed too much for a
+// migration to be honest — the four ship stats became derived from fitted
+// equipment, the four consumable counters became one `bay` of stacks, and the home
+// base gained persisted state — so every save written before it is discarded on
+// load (see the version gate in `load`). A returning player from an older build
+// simply starts fresh.
+//
+// The v15 shape:
+//   * `x`/`y`     — the tile the ship parked on.
+//   * `cash`      — the wallet.
+//   * `tiles`     — the solo world's tile diff, in the relay world format.
+//   * `explored`  — run-length-encoded explored tiles.
+//   * `stats`     — the progress statistics.
+//   * `bay`       — the non-ore stacks aboard (equipment, upgrades, decor), as
+//     `{kind, count}`. Ore is deliberately not saved: it is lost with the run.
+//   * `equipment` — the fitted ship upgrades, one entry per upgrade slot, each a
+//     `upgrade:*` kind or `null`. The ship's `fuelMax`/`hullMax`/`cargoMax`/`drill`
+//     are derived from these, not stored.
+//   * `home`      — the home base: the manufacturing station's stock (`{kind,count}`
+//     stacks, ore included) and the oil extractor's queued coal and stored fuel.
+//   * `scannerDevices`/`dynamiteSticks`/`cargoContainers` — the hardware left
+//     running in the mine, crates saved with their contents.
 
 /** The persisted save file. Every field is re-validated on load. */
 interface SavedProgress {
@@ -73,31 +62,20 @@ interface SavedProgress {
   x?: unknown;
   y?: unknown;
   cash?: unknown;
-  fuelMax?: unknown;
-  hullMax?: unknown;
-  cargoMax?: unknown;
-  drill?: unknown;
-  dynamite?: unknown;
+  bay?: unknown;
+  equipment?: unknown;
+  home?: unknown;
   dynamiteSticks?: unknown;
-  teleporters?: unknown;
-  scanners?: unknown;
   scannerDevices?: unknown;
-  containers?: unknown;
   cargoContainers?: unknown;
   explored?: unknown;
   stats?: Partial<Record<keyof GameStats, unknown>>;
 }
 
 export const SAVE_KEY = 'moleload-progress-v1';
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 /** A stored stack is a count, not a licence to write an unbounded number. */
 const MAX_SAVED_STACK = 9999;
-/** Cargo-bay upgrade maths as older saves stored it, so a save keeps its levels. */
-const LEGACY_CARGO_START = 10;      // starting capacity before the item-count rebalance
-const LEGACY_CARGO_STEP = 10;       // per-level step in v1 saves
-const V2_CARGO_STEP = 5;            // per-level step in v2..v10 saves
-const CARGO_BALANCE_SAVE_VERSION = 2;   // v1 → v2: cargo step 10 → 5
-const CARGO_REBALANCE_SAVE_VERSION = 11; // v10 → v11: slots → total item count
 
 export function numeric(value: unknown, fallback: number, min=0, max=Number.MAX_SAFE_INTEGER): number {
   const n = Number(value);
@@ -155,10 +133,10 @@ export function parsePlacedDynamite(value: unknown): PlacedDynamite[] {
 }
 
 /**
- * One stack out of a saved container. Unlike every other item the save records,
- * this one carries its own label, colour and price: an ore stack has to come back
- * sellable, and the ore table a future build ships may not agree with the one the
- * stack was mined from.
+ * One stack out of a saved container. Unlike a bay or station stack, this one
+ * carries its own label, colour and price: an ore stack has to come back sellable,
+ * and the ore table a future build ships may not agree with the one the stack was
+ * mined from.
  */
 function parseStoredStack(entry: unknown): {item: InventoryItem; count: number} | null {
   if (!entry || typeof entry !== 'object') return null;
@@ -204,6 +182,59 @@ export function parseCargoContainers(value: unknown): PlacedContainer[] {
   return containers;
 }
 
+/**
+ * Rebuild an inventory from `{kind, count}` stacks, resolving each kind's item
+ * through the catalog (or the ore table) so its label, colour and price never have
+ * to be stored. Any stack whose kind `allow` rejects — junk, or ore where only
+ * equipment belongs — is dropped, and stacking obeys the game's own rules because
+ * every unit goes back in through `addItem`.
+ */
+function parseKindCountStacks(value: unknown, allow: (kind: string) => boolean): Inventory {
+  let inventory = createInventory();
+  if (!Array.isArray(value)) return inventory;
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const {kind, count} = entry as {kind?: unknown; count?: unknown};
+    if (typeof kind !== 'string' || !allow(kind)) continue;
+    const n = Math.floor(numeric(count, 0, 0, MAX_SAVED_STACK));
+    if (n <= 0) continue;
+    inventory = addItem(inventory, itemForKind(kind as InventoryItemKind), n);
+  }
+  return inventory;
+}
+
+/** A saved kind belongs at the manufacturing station if it is ore or a real item. */
+function isStationKind(kind: string): boolean {
+  return kind.startsWith('ore:') || isCatalogKind(kind);
+}
+
+/** The fitted upgrades, one slot each, dropping anything that is not a real upgrade. */
+function parseEquipment(value: unknown): (UpgradeKind | null)[] {
+  const slots: (UpgradeKind | null)[] = Array.from({length: SHIP_UPGRADE_SLOTS}, () => null);
+  if (!Array.isArray(value)) return slots;
+  for (let i = 0; i < SHIP_UPGRADE_SLOTS && i < value.length; i++) {
+    const kind = value[i];
+    if (typeof kind === 'string' && isCatalogKind(kind) && isUpgradeKind(kind)) {
+      slots[i] = kind;
+    }
+  }
+  return slots;
+}
+
+/** The home base, rebuilt with only the station stock and extractor buffers a save may hold. */
+function parseHome(value: unknown): HomeState {
+  const home = createHomeState();
+  if (!value || typeof value !== 'object') return home;
+  const saved = value as {station?: unknown; extractor?: unknown};
+  home.station.inventory = parseKindCountStacks(saved.station, isStationKind);
+  if (saved.extractor && typeof saved.extractor === 'object') {
+    const {coal, fuel} = saved.extractor as {coal?: unknown; fuel?: unknown};
+    home.extractor.coal = Math.floor(numeric(coal, 0, 0, MAX_SAVED_STACK));
+    home.extractor.fuel = Math.floor(numeric(fuel, 0, 0, MAX_SAVED_STACK));
+  }
+  return home;
+}
+
 /** One crate, flattened: where it stands and one entry per stack inside it. */
 function serializeContainer(container: PlacedContainer) {
   return {
@@ -219,57 +250,39 @@ function serializeContainer(container: PlacedContainer) {
   };
 }
 
+/** A bay or station stack, flattened to just the kind and how many. */
+function serializeStacks(inventory: Inventory): {kind: InventoryItemKind; count: number}[] {
+  return inventoryStacks(inventory).map(stack => ({kind: stack.kind, count: stack.count}));
+}
+
 export function load(state: GameState): void {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const save: SavedProgress = JSON.parse(raw);
+    // Version 15 is a clean break: anything older is discarded, so the state keeps
+    // the pristine defaults `createInitialState` gave it.
+    if (numeric(save.version, 0, 0) < SAVE_VERSION) return;
     const p = state.player;
     state.cash = numeric(save.cash, state.cash, 0);
-    p.fuelMax = numeric(save.fuelMax, p.fuelMax, LIMITS.fuelMax.min, LIMITS.fuelMax.max);
-    p.hullMax = numeric(save.hullMax, p.hullMax, LIMITS.hullMax.min, LIMITS.hullMax.max);
-    // Cargo capacity is a total item count now, and its base and step both moved
-    // in the rebalance. Rather than trust the stored number, recover how many
-    // cargo-bay upgrades the save paid for — using the base/step that save's
-    // version used — and rebuild the capacity on today's scale, so a returning
-    // player keeps every level they bought.
-    const version = numeric(save.version, 1, 1);
-    // A save with no `cargoMax` at all cannot say how many upgrades were bought,
-    // so it starts at the base rather than being run through the migration — which
-    // would otherwise read the stand-in default as if it were a stored capacity
-    // and inflate it a level or two.
-    if (Number.isFinite(Number(save.cargoMax))) {
-      const rawCargoMax = numeric(save.cargoMax, STARTING.cargoMax, 0, LIMITS.cargoMax.max);
-      const cargoLevel = version < CARGO_REBALANCE_SAVE_VERSION
-        ? Math.max(0, Math.round((rawCargoMax - LEGACY_CARGO_START) / (version < CARGO_BALANCE_SAVE_VERSION ? LEGACY_CARGO_STEP : V2_CARGO_STEP)))
-        : Math.max(0, Math.round((rawCargoMax - STARTING.cargoMax) / ECONOMY.cargo.step));
-      p.cargoMax = Math.max(LIMITS.cargoMax.min, Math.min(LIMITS.cargoMax.max, STARTING.cargoMax + cargoLevel * ECONOMY.cargo.step));
-    }
-    p.drill = numeric(save.drill, p.drill, LIMITS.drill.min, LIMITS.drill.max);
-    // The Sensor Array upgrade is gone: any stored `visibility` is ignored and the
-    // reveal footprint stays fixed at its base for every ship.
-    // Equipment comes back into the bay the run starts with; `run.resume()` clears
-    // the ore around it and leaves it alone.
-    const scanners = Math.floor(numeric(save.scanners, 0, LIMITS.scanners.min, LIMITS.scanners.max));
-    if (scanners > 0) p.inventory = addItem(p.inventory, SCANNER_ITEM, scanners) ?? p.inventory;
-    const dynamite = Math.floor(numeric(save.dynamite, 0, LIMITS.dynamite.min, LIMITS.dynamite.max));
-    if (dynamite > 0) p.inventory = addItem(p.inventory, DYNAMITE_ITEM, dynamite) ?? p.inventory;
-    const teleporters = Math.floor(numeric(save.teleporters, 0, LIMITS.teleporters.min, LIMITS.teleporters.max));
-    if (teleporters > 0) p.inventory = addItem(p.inventory, TELEPORTER_ITEM, teleporters) ?? p.inventory;
-    const containers = Math.floor(numeric(save.containers, 0, LIMITS.containers.min, LIMITS.containers.max));
-    if (containers > 0) p.inventory = addItem(p.inventory, CARGO_CONTAINER_ITEM, containers) ?? p.inventory;
+    // The four ship stats are derived from fitted equipment, not stored: on load
+    // they stay at the starting base until `applyEquipment` (Phase 3) recomputes
+    // them from `equipment`.
+    p.equipment = parseEquipment(save.equipment);
+    // The bay comes back one stack at a time; ore is never among it, so a fresh run
+    // starts with only the equipment the last one carried.
+    p.inventory = parseKindCountStacks(save.bay, isCatalogKind);
+    state.home = parseHome(save.home);
     state.scannerDevices = parseScannerDevices(save.scannerDevices);
     state.placedDynamite = parsePlacedDynamite(save.dynamiteSticks);
     state.cargoContainers = parseCargoContainers(save.cargoContainers);
     // The ship resumes on the tile it parked on, render position included so it
-    // appears there instead of easing in from the depot. The clamps are the ones
+    // appears there instead of easing in from home. The clamps are the ones
     // `movementDestination` enforces, so no save can park a miner in a wall.
     const x = Math.floor(numeric(save.x, p.x, 1, WORLD_W - 2));
     const y = Math.floor(numeric(save.y, p.y, START_Y, MAX_WORLD_ROW));
     Object.assign(p, {x, y, drawX: x, drawY: y});
     mergeExploration(state.exploredTiles, typeof save.explored === 'string' ? save.explored : '');
-    // Saves written before version 4 carry no terrain, so they simply restore an
-    // untouched mine. `run.resume()` lays these entries back over it.
     state.soloTileDiff = createTileDiff(parseTileEntries(save.tiles));
     const defaultStats = createDefaultStats();
     const savedStats = save.stats || {};
@@ -289,16 +302,16 @@ export function save(state: GameState): void {
     cash: Math.floor(state.cash),
     x: p.x,
     y: p.y,
-    fuelMax: p.fuelMax,
-    hullMax: p.hullMax,
-    cargoMax: p.cargoMax,
-    drill: p.drill,
-    dynamite: countItem(p.inventory, DYNAMITE_ITEM.kind),
-    teleporters: countItem(p.inventory, TELEPORTER_ITEM.kind),
-    scanners: countItem(p.inventory, SCANNER_ITEM.kind),
+    // Ore is lost with the run, so only the non-ore stacks — equipment, upgrades,
+    // decor — are written out of the bay.
+    bay: serializeStacks(p.inventory).filter(stack => !isOreKind(stack.kind)),
+    equipment: p.equipment.slice(0, SHIP_UPGRADE_SLOTS),
+    home: {
+      station: serializeStacks(state.home.station.inventory),
+      extractor: {coal: Math.floor(state.home.extractor.coal), fuel: Math.floor(state.home.extractor.fuel)}
+    },
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),
-    containers: countItem(p.inventory, CARGO_CONTAINER_ITEM.kind),
     cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializeContainer),
     explored: encodeExploration(state.exploredTiles),
     tiles: capTileEntries(tileDiffEntries(state.soloTileDiff)),
@@ -309,7 +322,7 @@ export function save(state: GameState): void {
     localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
   } catch (err) {
     // The mine is the one part of the save that can grow without bound, and the
-    // only part the world can regenerate. Losing a player's cash and upgrades to
+    // only part the world can regenerate. Losing a player's cash and equipment to
     // a full quota would be far worse, so drop the terrain and keep the rest.
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({...progress, tiles: []}));

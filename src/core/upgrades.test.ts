@@ -36,21 +36,6 @@ describe('developer player upgrades', () => {
     expect(getPlayerUpgradeProgress(state.player, 'cargo')).toMatchObject({ level: 98, maxLevel: 98 });
   });
 
-  it('continues saved fuel and hull progression beyond the former caps', () => {
-    vi.stubGlobal('localStorage', {
-      getItem: () => JSON.stringify({ version: 3, fuelMax: 1000, hullMax: 1000 }),
-      setItem: vi.fn()
-    });
-    const state = createInitialState();
-    load(state);
-
-    expect(getPlayerUpgradeProgress(state.player, 'tank')).toMatchObject({ level: 45, maxLevel: 95, atMax: false });
-    expect(getPlayerUpgradeProgress(state.player, 'hull')).toMatchObject({ level: 45, maxLevel: 95, atMax: false });
-    expect(applyPlayerUpgrade(state.player, 'tank')).toBe(true);
-    expect(applyPlayerUpgrade(state.player, 'hull')).toBe(true);
-    expect(state.player).toMatchObject({ fuel: 1020, fuelMax: 1020, hull: 1020, hullMax: 1020 });
-  });
-
   it('reaches the new fuel and hull caps without exceeding them', () => {
     const state = createInitialState();
     state.player.fuelMax = LIMITS.fuelMax.max - ECONOMY.tank.step;
@@ -75,7 +60,11 @@ describe('developer player upgrades', () => {
     expect(control.buttonLabel).toContain('at max');
   });
 
-  it('persists a free upgrade through the regular save path', () => {
+  it('no longer persists a runtime stat bump — the maxima are derived from equipment', () => {
+    // `applyPlayerUpgrade` still mutates the stat at runtime (it survives until the
+    // shop is removed in Phase 6), but the four ship stats are no longer saved:
+    // they are recomputed from the fitted `equipment` on load. So a reload drops
+    // the free bump back to the starting base.
     const stored = new Map<string, string>();
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => stored.get(key) ?? null,
@@ -83,12 +72,13 @@ describe('developer player upgrades', () => {
     });
     const state = createInitialState();
     applyPlayerUpgrade(state.player, 'tank');
+    expect(state.player.fuelMax).toBe(120);
     save(state);
 
     const restored = createInitialState();
     load(restored);
 
     expect(restored.cash).toBe(state.cash);
-    expect(restored.player.fuelMax).toBe(120);
+    expect(restored.player.fuelMax).toBe(100);
   });
 });

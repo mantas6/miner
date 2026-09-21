@@ -1,14 +1,13 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { SAVE_KEY, SAVE_VERSION, load, numeric, save } from './persistence';
 import { HOME_SPAWN_X, createInitialState } from './core/state';
-import { ECONOMY, LIMITS } from './core/balance';
-import { cargoCost } from './core/economy';
 import { CARGO_CONTAINER, CARGO_CONTAINER_ITEM, createPlacedContainer } from './core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM, createPlacedDynamite } from './core/dynamite';
-import { addItem, countItem, countOres, oreItem } from './core/inventory';
+import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKind } from './core/inventory';
+import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { MAX_SAVED_TILE_ENTRIES, START_Y } from '../shared/constants';
+import { MAX_SAVED_TILE_ENTRIES, ORES, START_Y } from '../shared/constants';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
 import { createTileDiff, tileDiffEntries } from './world/tile-diff';
@@ -17,6 +16,11 @@ afterEach(() => vi.unstubAllGlobals());
 
 /** One ore with a full price/colour record, for the stacks a crate has to keep. */
 const GOLD = {name: 'Gold', color: '#ffd65c', value: 70, min: 152, max: 602, chance: 0.04};
+
+/** Read back the JSON the last `save` wrote. */
+function readSave(stored: Map<string, string>): Record<string, unknown> {
+  return JSON.parse(stored.get(SAVE_KEY) || '{}');
+}
 
 /** Stub localStorage with an in-memory store, optionally pre-seeded with a save. */
 function stubStorage(existingSave?: unknown): Map<string, string> {
@@ -43,6 +47,31 @@ describe('numeric clamp', () => {
   });
 });
 
+describe('version gate', () => {
+  it('discards a save older than the current version, keeping pristine defaults', () => {
+    stubStorage({version: SAVE_VERSION - 1, cash: 9000, x: 12, y: 640, bay: [{kind: 'dynamite', count: 5}]});
+    const state = createInitialState();
+    const fresh = createInitialState();
+
+    load(state);
+
+    expect(state.cash).toBe(fresh.cash);
+    expect(state.player.inventory).toHaveLength(0);
+    expect(state.player).toMatchObject({x: fresh.player.x, y: fresh.player.y});
+  });
+
+  it('discards a save with no version at all', () => {
+    stubStorage({cash: 9000, bay: [{kind: 'scanner', count: 2}]});
+    const state = createInitialState();
+    const fresh = createInitialState();
+
+    load(state);
+
+    expect(state.cash).toBe(fresh.cash);
+    expect(state.player.inventory).toHaveLength(0);
+  });
+});
+
 describe('legacy stat save compatibility', () => {
   it('drops removed stat counters and keeps the surviving ones', () => {
     stubStorage({ version: SAVE_VERSION, stats: { oreMined: 7, motherlodeClaims: 1, artifactsFound: 3 } });
@@ -54,92 +83,158 @@ describe('legacy stat save compatibility', () => {
   });
 });
 
-describe('cargo balance persistence', () => {
-  it.each([
-    [10, 20, 120],
-    [20, 30, 159],
-    [30, 40, 210],
-    [40, 50, 276]
-  ])('maps legacy capacity %i to rebalanced capacity %i at the same price level', (legacyCapacity, capacity, nextCost) => {
-    stubStorage({ version: 1, cargoMax: legacyCapacity });
-    const state = createInitialState();
-
-    load(state);
-
-    expect(state.player.cargoMax).toBe(capacity);
-    expect(cargoCost(state.player)).toBe(nextCost);
-  });
-
-  it('round-trips rebalanced cargo capacity without migrating it again', () => {
+describe('cargo bay persistence', () => {
+  it('round-trips the non-ore stacks aboard and re-stacks them on load', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.cargoMax += ECONOMY.cargo.step * 2;
+    state.player.inventory = addItem(addItem(state.player.inventory, TELEPORTER_ITEM, 2)!, DYNAMITE_ITEM, 3)!;
+
     save(state);
 
-    const restored = createInitialState();
-    load(restored);
-
-    expect(restored.player.cargoMax).toBe(40);
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({
+    expect(readSave(stored)).toMatchObject({
       version: SAVE_VERSION,
-      cargoMax: 40
+      bay: [{kind: 'teleporter', count: 2}, {kind: 'dynamite', count: 3}]
     });
-  });
-});
-
-describe('teleporter persistence', () => {
-  it('round-trips the carried teleporters as a count and re-stacks them into the bay', () => {
-    const stored = stubStorage();
-    const state = createInitialState();
-    state.player.inventory = addItem(state.player.inventory, TELEPORTER_ITEM, 2)!;
-    save(state);
 
     const restored = createInitialState();
     load(restored);
-
     expect(countItem(restored.player.inventory, TELEPORTER_ITEM.kind)).toBe(2);
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({teleporters: 2});
+    expect(countItem(restored.player.inventory, DYNAMITE_ITEM.kind)).toBe(3);
   });
 
-  it('re-stacks a pre-v9 save\'s ship-borne teleporters into the bay', () => {
-    // `teleporters` never changed meaning — it is still the number carried — so a
-    // save written while they were counted on the ship simply arrives as a stack.
-    stubStorage({ cash: 90, teleporters: 3 });
+  it('carries upgrade and decor stacks in the bay too', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.player.inventory = addItem(addItem(state.player.inventory, ITEM_CATALOG['upgrade:drill:2'], 1)!, ITEM_CATALOG['decor:lampPanel'], 4)!;
+
+    save(state);
+
+    expect(readSave(stored)).toMatchObject({
+      bay: [{kind: 'upgrade:drill:2', count: 1}, {kind: 'decor:lampPanel', count: 4}]
+    });
+
+    const restored = createInitialState();
+    load(restored);
+    expect(countItem(restored.player.inventory, 'upgrade:drill:2')).toBe(1);
+    expect(countItem(restored.player.inventory, 'decor:lampPanel')).toBe(4);
+  });
+
+  it('never saves ore in the bay — it is lost with the run', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.player.inventory = addItem(addOre(createInventory(), GOLD, 5)!, SCANNER_ITEM, 1)!;
+
+    save(state);
+
+    expect(readSave(stored).bay).toEqual([{kind: 'scanner', count: 1}]);
+
+    const restored = createInitialState();
+    load(restored);
+    expect(countOres(restored.player.inventory)).toBe(0);
+    expect(countItem(restored.player.inventory, SCANNER_ITEM.kind)).toBe(1);
+  });
+
+  it('clamps a hand-edited stack and drops unknown or ore kinds from the bay', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      bay: [{kind: 'dynamite', count: 10_000}, {kind: 'bogus', count: 3}, {kind: 'ore:Gold', count: 4}]
+    });
     const state = createInitialState();
 
     load(state);
 
-    expect(countItem(state.player.inventory, TELEPORTER_ITEM.kind)).toBe(3);
-  });
-
-  it('gives a legacy save without the field no teleporters', () => {
-    stubStorage({ cash: 90 });
-    const state = createInitialState();
-
-    load(state);
-
-    expect(countItem(state.player.inventory, TELEPORTER_ITEM.kind)).toBe(0);
+    expect(countItem(state.player.inventory, DYNAMITE_ITEM.kind)).toBe(9999);
+    // Unknown kinds and ore never belong in the restored bay.
+    expect(state.player.inventory).toHaveLength(1);
   });
 });
 
-describe('removed Linebreaker fields', () => {
-  it('loads a save that still carries gun fields without restoring a weapon', () => {
-    // The Linebreaker is gone: `guns` (the single-use item), and the pre-v8
-    // `gunOwned`/`bullets` a much older save might still hold, are all ignored on
-    // load — no weapon to restore, and nothing to crash on.
-    stubStorage({ cash: 90, guns: 3, gunOwned: true, bullets: 17 });
+describe('equipment persistence', () => {
+  it('round-trips the fitted upgrade slots', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.player.equipment = ['upgrade:tank:1', 'upgrade:drill:3'];
+
+    save(state);
+
+    expect(readSave(stored)).toMatchObject({version: SAVE_VERSION, equipment: ['upgrade:tank:1', 'upgrade:drill:3']});
+
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.player.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:3']);
+  });
+
+  it('keeps only real, catalogued upgrades and only the first two slots', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:hull:2', 'upgrade:booster:1', 'upgrade:tank:3']});
     const state = createInitialState();
 
     load(state);
 
-    expect(state.cash).toBe(90);
-    // The bay comes back with nothing the removed feature would have added.
-    expect(state.player.inventory).toHaveLength(0);
+    expect(state.player.equipment).toEqual(['upgrade:hull:2', 'upgrade:booster:1']);
+  });
+
+  it('drops a non-upgrade, an uncatalogued tier, and a nonsense slot to null', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['dynamite', 'upgrade:booster:2']});
+    const state = createInitialState();
+
+    load(state);
+
+    // Slot 0 is a consumable, slot 1 is a mark the catalog does not hold.
+    expect(state.player.equipment).toEqual([null, null]);
+  });
+});
+
+describe('home base persistence', () => {
+  it('round-trips the station stock and the extractor buffers', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.home.station.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20)!, ITEM_CATALOG.repairKit, 2)!;
+    state.home.extractor = {coal: 9, fuel: 40};
+
+    save(state);
+
+    expect(readSave(stored)).toMatchObject({
+      version: SAVE_VERSION,
+      home: {
+        station: [{kind: 'ore:Coal', count: 20}, {kind: 'repairKit', count: 2}],
+        extractor: {coal: 9, fuel: 40}
+      }
+    });
+
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.home.extractor).toEqual({coal: 9, fuel: 40});
+    expect(countItem(restored.home.station.inventory, oreKind('Coal'))).toBe(20);
+    expect(countItem(restored.home.station.inventory, 'repairKit')).toBe(2);
+  });
+
+  it('drops junk station stacks and clamps the extractor buffers', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      home: {station: [{kind: 'bogus', count: 5}, {kind: 'ore:Iron', count: '3'}], extractor: {coal: -4, fuel: 'nope'}}
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(countItem(state.home.station.inventory, oreKind('Iron'))).toBe(3);
+    expect(state.home.station.inventory).toHaveLength(1);
+    expect(state.home.extractor).toEqual({coal: 0, fuel: 0});
+  });
+
+  it('gives a save with no home block a fresh, empty base', () => {
+    stubStorage({version: SAVE_VERSION, cash: 100});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.home.station.inventory).toHaveLength(0);
+    expect(state.home.extractor).toEqual({coal: 0, fuel: 0});
   });
 });
 
 describe('scanner persistence', () => {
-  it('round-trips carried scanners into the cargo bay and the devices left running', () => {
+  it('round-trips carried scanners in the bay and the devices left running', () => {
     const stored = stubStorage();
     const state = createInitialState();
     state.player.inventory = addItem(state.player.inventory, SCANNER_ITEM, 2)!;
@@ -147,9 +242,9 @@ describe('scanner persistence', () => {
 
     save(state);
 
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({
+    expect(readSave(stored)).toMatchObject({
       version: SAVE_VERSION,
-      scanners: 2,
+      bay: [{kind: 'scanner', count: 2}],
       scannerDevices: [{x: 12, y: 640, timer: 0}, {x: 44, y: 700, timer: 123}]
     });
 
@@ -157,16 +252,6 @@ describe('scanner persistence', () => {
     load(restored);
     expect(countItem(restored.player.inventory, SCANNER_ITEM.kind)).toBe(2);
     expect(restored.scannerDevices).toEqual(state.scannerDevices);
-  });
-
-  it('gives a save written before scanners existed neither one', () => {
-    stubStorage({version: 5, cash: 90});
-    const state = createInitialState();
-
-    load(state);
-
-    expect(countItem(state.player.inventory, SCANNER_ITEM.kind)).toBe(0);
-    expect(state.scannerDevices).toEqual([]);
   });
 
   it.each([
@@ -184,24 +269,22 @@ describe('scanner persistence', () => {
     expect(state.scannerDevices).toEqual([]);
   });
 
-  it('clamps a hand-edited save to what the game could have deployed and carried', () => {
+  it('clamps a hand-edited save to what the game could have deployed', () => {
     stubStorage({
       version: SAVE_VERSION,
-      scanners: 10_000,
       scannerDevices: Array.from({length: SCANNER_DEVICE.maxPlaced + 5}, (_, index) => ({x: index, y: 400, timer: 999_999}))
     });
     const state = createInitialState();
 
     load(state);
 
-    expect(countItem(state.player.inventory, SCANNER_ITEM.kind)).toBe(LIMITS.scanners.max);
     expect(state.scannerDevices).toHaveLength(SCANNER_DEVICE.maxPlaced);
     expect(state.scannerDevices.every(device => device.timer === SCANNER_DEVICE.intervalTicks)).toBe(true);
   });
 });
 
 describe('dynamite persistence', () => {
-  it('round-trips carried sticks into the cargo bay and the fuses still burning', () => {
+  it('round-trips carried sticks in the bay and the fuses still burning', () => {
     const stored = stubStorage();
     const state = createInitialState();
     state.player.inventory = addItem(state.player.inventory, DYNAMITE_ITEM, 3)!;
@@ -209,9 +292,9 @@ describe('dynamite persistence', () => {
 
     save(state);
 
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({
+    expect(readSave(stored)).toMatchObject({
       version: SAVE_VERSION,
-      dynamite: 3,
+      bay: [{kind: 'dynamite', count: 3}],
       dynamiteSticks: [{x: 12, y: 640, fuse: DYNAMITE.fuseTicks}, {x: 44, y: 700, fuse: 42}]
     });
 
@@ -219,16 +302,6 @@ describe('dynamite persistence', () => {
     load(restored);
     expect(countItem(restored.player.inventory, DYNAMITE_ITEM.kind)).toBe(3);
     expect(restored.placedDynamite).toEqual(state.placedDynamite);
-  });
-
-  it('re-stacks the count a pre-inventory save kept on the ship', () => {
-    stubStorage({version: 6, dynamite: 2});
-    const state = createInitialState();
-
-    load(state);
-
-    expect(countItem(state.player.inventory, DYNAMITE_ITEM.kind)).toBe(2);
-    expect(state.placedDynamite).toEqual([]);
   });
 
   it.each([
@@ -246,17 +319,15 @@ describe('dynamite persistence', () => {
     expect(state.placedDynamite).toEqual([]);
   });
 
-  it('clamps a hand-edited save to what the game could have planted and carried', () => {
+  it('clamps a hand-edited save to what the game could have planted', () => {
     stubStorage({
       version: SAVE_VERSION,
-      dynamite: 10_000,
       dynamiteSticks: Array.from({length: DYNAMITE.maxPlaced + 5}, (_, index) => ({x: index, y: 400, fuse: 0}))
     });
     const state = createInitialState();
 
     load(state);
 
-    expect(countItem(state.player.inventory, DYNAMITE_ITEM.kind)).toBe(LIMITS.dynamite.max);
     expect(state.placedDynamite).toHaveLength(DYNAMITE.maxPlaced);
     // A zero fuse would go off on the first step of the resumed run.
     expect(state.placedDynamite.every(stick => stick.fuse === 1)).toBe(true);
@@ -264,7 +335,7 @@ describe('dynamite persistence', () => {
 });
 
 describe('cargo container persistence', () => {
-  it('round-trips carried crates into the bay and the placed ones with their contents', () => {
+  it('round-trips carried crates in the bay and the placed ones with their contents', () => {
     const stored = stubStorage();
     const state = createInitialState();
     state.player.inventory = addItem(state.player.inventory, CARGO_CONTAINER_ITEM, 2)!;
@@ -274,9 +345,9 @@ describe('cargo container persistence', () => {
 
     save(state);
 
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({
+    expect(readSave(stored)).toMatchObject({
       version: SAVE_VERSION,
-      containers: 2,
+      bay: [{kind: 'container', count: 2}],
       cargoContainers: [
         {x: 12, y: 640, items: [
           {kind: 'ore:Gold', count: 4, label: 'Gold', color: GOLD.color, value: GOLD.value},
@@ -313,16 +384,6 @@ describe('cargo container persistence', () => {
     expect(restored.cargoContainers[0].inventory[0]?.item).toEqual(oreItem(GOLD));
   });
 
-  it('gives a save written before containers existed neither one', () => {
-    stubStorage({version: 9, cash: 90});
-    const state = createInitialState();
-
-    load(state);
-
-    expect(countItem(state.player.inventory, CARGO_CONTAINER_ITEM.kind)).toBe(0);
-    expect(state.cargoContainers).toEqual([]);
-  });
-
   it.each([
     ['a crate outside the side walls', [{x: -3, y: 400}]],
     ['a crate above the mine', [{x: 10, y: -1}]],
@@ -338,17 +399,15 @@ describe('cargo container persistence', () => {
     expect(state.cargoContainers).toEqual([]);
   });
 
-  it('clamps a hand-edited save to what the game could have placed and carried', () => {
+  it('clamps a hand-edited save to what the game could have placed', () => {
     stubStorage({
       version: SAVE_VERSION,
-      containers: 10_000,
       cargoContainers: Array.from({length: CARGO_CONTAINER.maxPlaced + 4}, (_, index) => ({x: index, y: 400}))
     });
     const state = createInitialState();
 
     load(state);
 
-    expect(countItem(state.player.inventory, CARGO_CONTAINER_ITEM.kind)).toBe(LIMITS.containers.max);
     expect(state.cargoContainers).toHaveLength(CARGO_CONTAINER.maxPlaced);
   });
 
@@ -387,20 +446,11 @@ describe('ship position persistence', () => {
 
     save(state);
 
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({version: SAVE_VERSION, x: 12, y: 640});
+    expect(readSave(stored)).toMatchObject({version: SAVE_VERSION, x: 12, y: 640});
 
     const restored = createInitialState();
     load(restored);
     expect(restored.player).toMatchObject({x: 12, y: 640, drawX: 12, drawY: 640});
-  });
-
-  it('leaves a save written before positions were kept at the depot', () => {
-    stubStorage({ version: 4, cash: 90 });
-    const state = createInitialState();
-
-    load(state);
-
-    expect(state.player).toMatchObject({x: HOME_SPAWN_X, y: START_Y});
   });
 
   it.each([
@@ -426,25 +476,11 @@ describe('fog exploration persistence', () => {
     state.exploredTiles.add(explorationIndex(11, 10));
     save(state);
 
-    const serialized = JSON.parse(stored.get(SAVE_KEY) || '{}');
-    expect(serialized).toMatchObject({version: SAVE_VERSION, explored: '910-911'});
+    expect(readSave(stored)).toMatchObject({version: SAVE_VERSION, explored: '910-911'});
 
     const restored = createInitialState();
     load(restored);
     expect(restored.exploredTiles).toEqual(state.exploredTiles);
-  });
-
-  it('drops a legacy sensor level and no explored coordinates from older saves', () => {
-    stubStorage({ version: 2, cargoMax: 20, cash: 90, visibility: 6 });
-    const state = createInitialState();
-    load(state);
-
-    expect(state.cash).toBe(90);
-    // A v2 save's cargoMax of 20 was two upgrades on the old scale, rebuilt to 40.
-    expect(state.player.cargoMax).toBe(40);
-    // The Sensor Array upgrade is gone, so a stored level does not resurrect a field.
-    expect('visibility' in state.player).toBe(false);
-    expect(state.exploredTiles.size).toBe(0);
   });
 });
 
@@ -463,7 +499,7 @@ describe('solo terrain persistence', () => {
 
     save(state);
 
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({
+    expect(readSave(stored)).toMatchObject({
       version: SAVE_VERSION,
       tiles: [dug, cracked, mined]
     });
@@ -471,17 +507,6 @@ describe('solo terrain persistence', () => {
     const restored = createInitialState();
     load(restored);
     expect(restored.soloTileDiff).toEqual(state.soloTileDiff);
-  });
-
-  it('gives a version 3 save an untouched mine', () => {
-    stubStorage({ version: 3, cash: 90, explored: '910-911' });
-    const state = createInitialState();
-
-    load(state);
-
-    expect(state.cash).toBe(90);
-    expect(state.exploredTiles.has(explorationIndex(10, 10))).toBe(true);
-    expect(state.soloTileDiff.size).toBe(0);
   });
 
   it('ignores a malformed tile list instead of failing the whole load', () => {
@@ -510,7 +535,7 @@ describe('solo terrain persistence', () => {
 
     save(state);
 
-    expect(JSON.parse(stored.get(SAVE_KEY) || '{}')).toMatchObject({ cash: 4200, tiles: [] });
+    expect(readSave(stored)).toMatchObject({ cash: 4200, tiles: [] });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });

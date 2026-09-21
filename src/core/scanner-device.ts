@@ -15,7 +15,7 @@
 
 import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
-import type { InventoryItem } from './inventory';
+import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
 
 export const SCANNER_DEVICE = Object.freeze({
@@ -33,14 +33,8 @@ export const SCANNER_DEVICE = Object.freeze({
   maxPlaced: 12
 });
 
-/** The stackable item the depot sells and the cargo bay carries. */
-export const SCANNER_ITEM: InventoryItem = {
-  kind: 'scanner',
-  label: 'Scanner',
-  color: '#6fe3ff',
-  // Depot equipment is not cargo, so the sell-everything button never prices it.
-  value: 0
-};
+/** The stackable item the cargo bay carries; defined once in `items.ts`. */
+export const SCANNER_ITEM = ITEM_CATALOG.scanner;
 
 /** One deployed device. `timer` counts simulation steps since its last reveal. */
 export interface ScannerDevice {
