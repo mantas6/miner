@@ -116,7 +116,7 @@ export interface BlastCoordinate {
 }
 
 export function isDynamiteDestructible(tile: Tile): boolean {
-  return tile.type === 'dirt' || tile.type === 'rock' || tile.type === 'ore' || tile.type === 'hazard' || tile.type === 'enemy';
+  return tile.type === 'dirt' || tile.type === 'rock' || tile.type === 'ore' || tile.type === 'hazard' || tile.type === 'enemy' || tile.type === 'decor';
 }
 
 /** Select blast tiles without mutating terrain or granting rewards for destroyed valuables. */

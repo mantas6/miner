@@ -59,6 +59,8 @@ export const SPRINT = Object.freeze({
 
 export const HULL = Object.freeze({
   lowHullFraction: 0.30,
+  /** Fraction of the hull maximum one repair kit restores. */
+  repairKitFraction: 0.25,
   rockBump: 4,
   /**
    * Slamming a boosted ship into terrain. Charged on top of any tile damage, and
@@ -82,6 +84,17 @@ export const HULL = Object.freeze({
 
 export const ENEMY = Object.freeze({
   bounty: Object.freeze({ base: 12, depthDivisor: 35, step: 4 })
+});
+
+/**
+ * The oil extractor's timed coal → fuel conversion. Phase 4 stores coal and fuel
+ * and wires the load/refuel transfers; Phase 5 uses `ticksPerCoal`/`fuelPerCoal`
+ * to burn queued coal into stored fuel over time. `fuelCap` bounds the buffer.
+ */
+export const EXTRACTOR = Object.freeze({
+  ticksPerCoal: 180,
+  fuelPerCoal: 20,
+  fuelCap: 500
 });
 
 export const ECONOMY = Object.freeze({

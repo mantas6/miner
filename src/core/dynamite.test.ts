@@ -52,6 +52,17 @@ describe('dynamite blast targets', () => {
     expect(world[5][4]).toEqual({type: 'air'});
   });
 
+  it('destroys placed decorations, which are never returned by a blast', () => {
+    const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
+    world[5][6] = {type: 'decor', decor: 'copperTrim'};
+
+    const targets = getDynamiteBlastTargets(world, 5, 5, 2);
+    for (const {x, y} of targets) world[y][x] = {type: 'air'};
+
+    expect(targets).toContainEqual({x: 6, y: 5});
+    expect(world[5][6]).toEqual({type: 'air'});
+  });
+
   it('includes directly hit dormant enemies among destroyed terrain', () => {
     const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
     world[5][6] = {type: 'enemy', kind:'tunnelFiend', hp: 4, maxHp: 4};

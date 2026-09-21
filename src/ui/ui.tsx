@@ -20,6 +20,7 @@
 // meant a Tab that appeared to do nothing.
 
 import { CargoScreen } from './CargoScreen';
+import { ExtractorScreen } from './ExtractorScreen';
 import { RuntimeFailure } from './Failure';
 import { FuelWarning } from './FuelWarning';
 import { Hud } from './Hud';
@@ -27,6 +28,8 @@ import { InfoScreen } from './InfoScreen';
 import { Intro } from './Intro';
 import { ShipScreen } from './ShipScreen';
 import { ShopScreen } from './ShopScreen';
+import { StationHint } from './StationHint';
+import { StationScreen } from './StationScreen';
 import { useUiStore } from './store';
 import { Toast } from './Toast';
 import { useGameRuntime, type GameRuntimeFactory } from './useGameRuntime';
@@ -79,7 +82,10 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <ShipScreen />
         <InfoScreen />
         <CargoScreen />
+        <StationScreen />
+        <ExtractorScreen />
         <FuelWarning />
+        <StationHint />
         <Toast />
         {phase === 'intro' && <Intro />}
       </section>

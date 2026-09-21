@@ -53,12 +53,21 @@ export const oreSchema = z.object({
   chance: real.min(0).max(1)
 });
 
+/** The three craftable decoration tiles the player can set down in the mine. */
+export const decorIdSchema = z.enum(['steelPlate', 'copperTrim', 'lampPanel']);
+
 export const airTileSchema = z.object({ type: z.literal('air') });
 export const dirtTileSchema = z.object({ type: z.literal('dirt'), hp, maxHp });
 /** Rock is indestructible scenery, so it carries no `maxHp`. */
 export const rockTileSchema = z.object({ type: z.literal('rock'), hp });
 export const oreTileSchema = z.object({ type: z.literal('ore'), ore: oreSchema, hp, maxHp });
 export const hazardTileSchema = z.object({ type: z.literal('hazard'), hp, maxHp });
+/**
+ * A placed decoration. Cosmetic and solid: it is dug back out (returning the item)
+ * or blown up, but it carries no durability — one drill pass clears it — so it has
+ * no `hp`/`maxHp`, only which of the three looks it wears.
+ */
+export const decorTileSchema = z.object({ type: z.literal('decor'), decor: decorIdSchema });
 /** Dormant enemy. Legacy payloads omit `kind`; they normalize to the weakest. */
 export const dormantEnemyTileSchema = z.object({
   type: z.literal('enemy'),
@@ -73,6 +82,7 @@ export const tileSchema = z.discriminatedUnion('type', [
   rockTileSchema,
   oreTileSchema,
   hazardTileSchema,
+  decorTileSchema,
   dormantEnemyTileSchema
 ]);
 
@@ -139,6 +149,8 @@ export type DirtTile = z.infer<typeof dirtTileSchema>;
 export type RockTile = z.infer<typeof rockTileSchema>;
 export type OreTile = z.infer<typeof oreTileSchema>;
 export type HazardTile = z.infer<typeof hazardTileSchema>;
+export type DecorId = z.infer<typeof decorIdSchema>;
+export type DecorTile = z.infer<typeof decorTileSchema>;
 export type DormantEnemyTile = z.infer<typeof dormantEnemyTileSchema>;
 export type Tile = z.infer<typeof tileSchema>;
 export type TileEntry = z.infer<typeof tileEntrySchema>;

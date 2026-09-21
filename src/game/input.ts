@@ -23,7 +23,7 @@ const RESET_CONFIRM_MS = 3500;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
-const DIALOG_SURFACES = '#shop-screen, #info-screen, #cargo-screen, #ship-screen';
+const DIALOG_SURFACES = '#shop-screen, #info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen';
 
 const movementKeys: Record<string, Direction> = {
   arrowleft: [-1, 0], a: [-1, 0],
@@ -75,6 +75,12 @@ export interface GameInputDeps {
   toggleContainer(): void;
   /** Escape while the transfer menu is up. */
   closeContainer(): void;
+  /** Space: open the nearest home station, or toggle the open one shut. */
+  openNearest(): void;
+  /** Escape/Space while the manufacturing station screen is up. */
+  closeStation(): void;
+  /** Escape/Space while the oil extractor screen is up. */
+  closeExtractor(): void;
   toast(message: string): void;
   /** Enable sound on the first trusted gesture, when the browser allows it. */
   tryAutoAudio(event?: Event): void;
@@ -171,6 +177,15 @@ export function createInput(deps: GameInputDeps): GameInput {
       if (key === 'escape' || key === 'c') { deps.closeContainer(); e.preventDefault(); e.stopPropagation(); }
       return;
     }
+    if (ui.activeOverlay === 'station') {
+      // Space opened it and Space shuts it again, the round trip on one key.
+      if (key === 'escape' || key === ' ') { deps.closeStation(); e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if (ui.activeOverlay === 'extractor') {
+      if (key === 'escape' || key === ' ') { deps.closeExtractor(); e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
     const dir = movementKeys[key];
     if (key === 'shift') {
       keys.add(key);
@@ -187,7 +202,8 @@ export function createInput(deps: GameInputDeps): GameInput {
       return;
     }
     if (key === 'enter') { actions.sell(); e.preventDefault(); e.stopPropagation(); return; }
-    if (key === ' ') { actions.surfaceService(); e.preventDefault(); e.stopPropagation(); return; }
+    // Space opens whichever home station the ship is parked beside.
+    if (key === ' ') { deps.openNearest(); e.preventDefault(); e.stopPropagation(); return; }
     // E is the shortcut for the dynamite slot, not a detonator: it arms a stick
     // for planting, and the press on the mine that follows is what lights it.
     if (key === 'e') { if (!e.repeat) deps.toggleDynamitePlacement(); e.preventDefault(); e.stopPropagation(); return; }

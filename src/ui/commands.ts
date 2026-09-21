@@ -7,7 +7,7 @@
 // rendering the UI without a running game — in tests, between a StrictMode
 // double-mount, after a crash — is harmless.
 
-import type { InventoryItemKind, UpgradeKind } from '../core/inventory';
+import type { DecorKind, InventoryItemKind, UpgradeKind } from '../core/inventory';
 import type { DeveloperServiceId } from '../core/developer';
 import type { PlayerUpgradeId } from '../core/upgrades';
 
@@ -55,6 +55,24 @@ export interface UiCommands {
   equipUpgrade(kind: UpgradeKind, slot?: number): void;
   /** Take the upgrade out of `slot` and drop it back into the bay. */
   unequipUpgrade(slot: number): void;
+  /** Arm a decoration of `kind` for placement, or stand the armed one down. */
+  toggleDecorPlacement(kind: DecorKind): void;
+  /** Spend one repair kit from the bay to patch the hull. */
+  useRepairKit(): void;
+  /** Shut the manufacturing station screen; also what its dialog's close reports. */
+  closeStation(): void;
+  /** Shut the oil extractor screen; also what its dialog's close reports. */
+  closeExtractor(): void;
+  /** Move everything that fits from the bay into the station stock. */
+  stowAll(): void;
+  /** Take a stack (or one unit) of `kind` back out of the station stock. */
+  takeFromStation(kind: InventoryItemKind, single?: boolean): void;
+  /** Craft a recipe at the station, by table index or output kind. */
+  craft(recipe: number | InventoryItemKind): void;
+  /** Queue every coal aboard into the extractor. */
+  loadCoal(): void;
+  /** Top the ship's tank up from the extractor's stored fuel. */
+  refuelFromExtractor(): void;
   openInfo(): void;
   closeInfo(): void;
   toggleMusic(): void;
@@ -105,6 +123,15 @@ function noopCommands(): UiCommands {
     closeShip: noop,
     equipUpgrade: noop,
     unequipUpgrade: noop,
+    toggleDecorPlacement: noop,
+    useRepairKit: noop,
+    closeStation: noop,
+    closeExtractor: noop,
+    stowAll: noop,
+    takeFromStation: noop,
+    craft: noop,
+    loadCoal: noop,
+    refuelFromExtractor: noop,
     openInfo: noop,
     closeInfo: noop,
     toggleMusic: noop,

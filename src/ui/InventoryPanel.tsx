@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { useState } from 'react';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
-import type { InventoryItemKind } from '../core/inventory';
+import type { DecorKind, InventoryItemKind } from '../core/inventory';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { uiCommands } from './commands';
 import { useUiStore } from './store';
@@ -32,6 +32,30 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
     idle: 'Set a cargo container down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleContainerPlacement()
+  },
+  ...decorPlaceable('decor:steelPlate', 'Steel Plate'),
+  ...decorPlaceable('decor:copperTrim', 'Copper Trim'),
+  ...decorPlaceable('decor:lampPanel', 'Lamp Panel')
+};
+
+/** One decoration's placeable slot: armed, it writes the panel onto the next tile pressed. */
+function decorPlaceable(kind: DecorKind, label: string) {
+  return {
+    [kind]: {
+      buttonId: `${kind}SlotBtn`,
+      idle: `Set ${label} down in the mine`,
+      armed: 'Click a mapped tile to set it down · Esc cancels',
+      toggle: () => uiCommands.toggleDecorPlacement(kind)
+    }
+  };
+}
+
+/** The kinds spent from their slot with a single press, and how that press acts. */
+const USABLE: Partial<Record<InventoryItemKind, {buttonId: string; title: string; use(): void}>> = {
+  repairKit: {
+    buttonId: 'repairKitSlotBtn',
+    title: 'Use a repair kit to patch the hull',
+    use: () => uiCommands.useRepairKit()
   }
 };
 
@@ -87,6 +111,7 @@ export function InventoryPanel() {
               </>
             );
             const placeable = PLACEABLE[slot.kind];
+            const usable = USABLE[slot.kind];
             const armed = placeable !== undefined && armedPlacement === slot.kind;
             return (
               <li key={slot.index} className={styles.slot}>
@@ -101,7 +126,17 @@ export function InventoryPanel() {
                       onClick={placeable.toggle}
                     >{stack}</button>
                   )
-                  : stack}
+                  : usable
+                    ? (
+                      <button
+                        id={usable.buttonId}
+                        type="button"
+                        className={styles.place}
+                        title={usable.title}
+                        onClick={usable.use}
+                      >{stack}</button>
+                    )
+                    : stack}
               </li>
             );
           })}

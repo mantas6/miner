@@ -11,11 +11,12 @@
 // sound — so they are grouped here rather than scattered through the loop code.
 
 import { TILE, WORLD_W } from '../../shared/constants';
-import { ECONOMY } from '../core/balance';
+import { ECONOMY, HULL } from '../core/balance';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { cargoValue, partialFill, refuelCost, repairCost } from '../core/economy';
 import { DYNAMITE_ITEM } from '../core/dynamite';
-import { addItem, isFull, removeOres, type InventoryItem } from '../core/inventory';
+import { addItem, countItem, isFull, removeItem, removeOres, type InventoryItem } from '../core/inventory';
+import { ITEM_CATALOG } from '../core/items';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import {
   MIN_TELEPORT_DEPTH_METERS,
@@ -60,6 +61,11 @@ export interface GameActions {
   /** Buy one cargo container into the cargo bay; refused when it has no room. */
   buyContainer(): void;
   useTeleporter(): void;
+  /**
+   * Spend one repair kit from the bay to restore a fraction of the hull. Refused
+   * at full hull or with none aboard.
+   */
+  useRepairKit(): void;
 }
 
 export interface GameActionsDeps {
@@ -243,6 +249,25 @@ export function createActions(deps: GameActionsDeps): GameActions {
       : 'Teleported safely home. Press T to return underground.');
   }
 
+  function useRepairKit(): void {
+    const p = state.player;
+    if (state.gameOver) return;
+    if (countItem(p.inventory, ITEM_CATALOG.repairKit.kind) <= 0) {
+      audio.alarm();
+      return toast('No repair kit aboard. Craft one at the Manufacturing Station.');
+    }
+    if (p.hull >= p.hullMax) {
+      audio.alarm();
+      return toast('Hull already at full strength.');
+    }
+    const restored = Math.min(p.hullMax - p.hull, Math.round(p.hullMax * HULL.repairKitFraction));
+    p.hull += restored;
+    p.inventory = removeItem(p.inventory, ITEM_CATALOG.repairKit.kind);
+    saveProgress();
+    audio.blip(540, .08, 'triangle', .05, 40);
+    toast(`Repair kit used — hull +${restored}.`);
+  }
+
   return {
     sell,
     refuel,
@@ -253,6 +278,7 @@ export function createActions(deps: GameActionsDeps): GameActions {
     buyTeleporter,
     buyScanner,
     buyContainer,
-    useTeleporter
+    useTeleporter,
+    useRepairKit
   };
 }

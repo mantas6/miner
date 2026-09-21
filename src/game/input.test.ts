@@ -28,7 +28,8 @@ function createActionsSpy() {
     buyTeleporter: vi.fn(),
     buyScanner: vi.fn(),
     buyContainer: vi.fn(),
-    useTeleporter: vi.fn()
+    useTeleporter: vi.fn(),
+    useRepairKit: vi.fn()
   } satisfies GameActions;
 }
 
@@ -45,6 +46,9 @@ interface Harness {
   toggleDynamitePlacement: ReturnType<typeof vi.fn>;
   toggleContainer: ReturnType<typeof vi.fn>;
   closeContainer: ReturnType<typeof vi.fn>;
+  openNearest: ReturnType<typeof vi.fn>;
+  closeStation: ReturnType<typeof vi.fn>;
+  closeExtractor: ReturnType<typeof vi.fn>;
   toast: ReturnType<typeof vi.fn>;
   tryAutoAudio: ReturnType<typeof vi.fn>;
 }
@@ -69,6 +73,9 @@ function harness(): Harness {
     toggleDynamitePlacement: vi.fn(),
     toggleContainer: vi.fn(),
     closeContainer: vi.fn(),
+    openNearest: vi.fn(),
+    closeStation: vi.fn(),
+    closeExtractor: vi.fn(),
     toast: vi.fn(),
     tryAutoAudio: vi.fn()
   };
@@ -160,6 +167,33 @@ describe('phase gating', () => {
     press('Escape');
     expect(h.closeContainer).toHaveBeenCalledOnce();
     expect(h.closeInfoScreen).toHaveBeenCalledOnce();
+
+    uiStore.getState().setActiveOverlay('station');
+    press('Escape');
+    expect(h.closeStation).toHaveBeenCalledOnce();
+
+    uiStore.getState().setActiveOverlay('extractor');
+    press('Escape');
+    expect(h.closeExtractor).toHaveBeenCalledOnce();
+  });
+});
+
+describe('the home-station key', () => {
+  it('opens the nearest station on Space, and shuts the open one instead of moving', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+
+    press(' ');
+    expect(h.openNearest).toHaveBeenCalledOnce();
+
+    // With the station screen up, Space is the round trip: it closes, and no move.
+    uiStore.getState().setActiveOverlay('station');
+    press(' ');
+    press('d');
+    h.input.tick();
+    expect(h.closeStation).toHaveBeenCalledOnce();
+    expect(h.openNearest).toHaveBeenCalledOnce();
+    expect(h.move).not.toHaveBeenCalled();
   });
 });
 

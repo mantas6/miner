@@ -51,6 +51,11 @@ describe('accumulating a diff', () => {
     recordTileDiff(diff, {x: 7, y: 740, tile: air});
     expect(tileDiffEntries(diff).at(-1)).toEqual({x: 7, y: 740, tile: air});
   });
+
+  it('round-trips a placed decoration tile through entries', () => {
+    const entries: TileEntry[] = [{x: 8, y: 12, tile: {type: 'decor', decor: 'lampPanel'}}];
+    expect(tileDiffEntries(createTileDiff(entries))).toEqual(entries);
+  });
 });
 
 describe('validating stored entries', () => {

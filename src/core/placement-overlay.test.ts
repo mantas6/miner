@@ -7,7 +7,7 @@
 // press would earn — and that it never lights up for an item that is not placed.
 
 import { describe, expect, it } from 'vitest';
-import { WORLD_W } from '../../shared/constants';
+import { STATIONS, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { CARGO_CONTAINER, createPlacedContainer } from './cargo-container';
 import { DYNAMITE, createPlacedDynamite } from './dynamite';
@@ -34,10 +34,12 @@ function world(overrides: Partial<PlacementOverlayWorld> = {}): PlacementOverlay
 }
 
 describe('isPlaceableKind', () => {
-  it('is true only for the three kinds set down onto a tile', () => {
+  it('is true for the three devices and for any decoration', () => {
     expect(isPlaceableKind('scanner')).toBe(true);
     expect(isPlaceableKind('dynamite')).toBe(true);
     expect(isPlaceableKind('container')).toBe(true);
+    expect(isPlaceableKind('decor:steelPlate')).toBe(true);
+    expect(isPlaceableKind('decor:lampPanel')).toBe(true);
   });
 
   it('is false for the spent, carried, and cargo kinds, and for nothing armed', () => {
@@ -95,6 +97,13 @@ describe('isPlacementValid', () => {
   it('is never valid for an item that is not placed', () => {
     expect(isPlacementValid('teleporter', x, y, world({explored}))).toBe(false);
     expect(isPlacementValid(null, x, y, world({explored}))).toBe(false);
+  });
+
+  it('accepts a decoration on cleared ground but never on a station tile', () => {
+    expect(isPlacementValid('decor:lampPanel', x, y, world({explored}))).toBe(true);
+    const sx = STATIONS.manufacturer.x, sy = STATIONS.manufacturer.y;
+    const onStation = world({explored: new Set([explorationIndex(sx, sy)])});
+    expect(isPlacementValid('decor:lampPanel', sx, sy, onStation)).toBe(false);
   });
 });
 

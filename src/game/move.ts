@@ -8,11 +8,14 @@
 
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { FUEL, HULL } from '../core/balance';
-import { addOre } from '../core/inventory';
+import { decorKindForId } from '../core/decor';
+import { addItem, addOre, isFull } from '../core/inventory';
+import { itemForKind } from '../core/items';
 import { fuelAfterMovement, isOpenSpaceDestination, movementDestination, sprintCrashDamage, sprintMomentumAfterMove } from '../core/movement';
 import type {
   AirTile,
   AudioController,
+  DecorTile,
   Direction,
   DirtTile,
   DormantEnemyTile,
@@ -165,6 +168,29 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     return 'advance';
   }
 
+  /**
+   * A placed decoration drills out in one pass and returns to the bay — the
+   * player recovers what they set down. A full bay refuses it (the ship stays
+   * put), so a decoration is never destroyed just to make the ship move.
+   */
+  function drillDecorTile(tile: DecorTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
+    player.drillDx = dx; player.drillDy = dy; player.drillAnim = 1.2;
+    const item = itemForKind(decorKindForId(tile.decor));
+    if (isFull(player.inventory, player.cargoMax)) {
+      audio.alarm();
+      toast('Cargo bay full — clear space before recovering the decoration.');
+      return 'blocked';
+    }
+    useFuel(dig(FUEL.dig.dig));
+    player.inventory = addItem(player.inventory, item);
+    grid.set(nx, ny, {type: 'air'});
+    spawnDust(nx, ny, item.color, 8);
+    audio.mine();
+    saveProgress();
+    toast(`Recovered ${item.label}.`);
+    return 'advance';
+  }
+
   /** Destination tile type → the drill/fly behaviour that resolves the move. */
   const tileMoveHandlers: {[K in Tile['type']]: TileMoveHandler<Extract<Tile, {type: K}>>} = {
     air: flyThroughAir,
@@ -172,7 +198,8 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     enemy: drillEnemyCocoon,
     hazard: drillHazard,
     dirt: drillValuableTile,
-    ore: drillValuableTile
+    ore: drillValuableTile,
+    decor: drillDecorTile
   };
 
   function resolveDestinationTile(tile: Tile, context: MoveContext): MoveOutcome {

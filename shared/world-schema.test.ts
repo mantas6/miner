@@ -25,6 +25,12 @@ describe('tiles', () => {
     expect(parseTile({ type: 'enemy', hp: 4, maxHp: 4 })).toEqual({ type: 'enemy', kind: 'tunnelFiend', hp: 4, maxHp: 4 });
   });
 
+  it('accepts a decoration tile and rejects an unknown decor id', () => {
+    expect(parseTile({ type: 'decor', decor: 'lampPanel' })).toEqual({ type: 'decor', decor: 'lampPanel' });
+    expect(parseTile({ type: 'decor', decor: 'gilded' })).toBeNull();
+    expect(parseTile({ type: 'decor' })).toBeNull();
+  });
+
   it('rejects hp below zero and maxHp below one', () => {
     expect(parseTile({ type: 'dirt', hp: -1, maxHp: 4 })).toBeNull();
     expect(parseTile({ type: 'dirt', hp: 0, maxHp: 0 })).toBeNull();

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ORES, START_Y, WORLD_W } from '../../shared/constants';
 import { FUEL, HULL, STARTING } from '../core/balance';
-import { addOre, countOres, createInventory, oreKind } from '../core/inventory';
+import { addOre, countItem, countOres, createInventory, oreKind } from '../core/inventory';
 import { createInitialState } from '../core/state';
 import type { Enemy, GameState, Tile } from '../core/types';
 import { createMovement, type GameMovement } from './move';
@@ -319,6 +319,36 @@ describe('digging', () => {
     expect(h.state.player.y).toBe(41);
   });
 
+});
+
+describe('drilling out a decoration', () => {
+  it('recovers the panel to the bay, clears the tile, and advances', () => {
+    const h = harness();
+    h.state.player.drill = 5;
+    h.grid.put(10, 41, {type: 'decor', decor: 'steelPlate'});
+
+    h.movement.move(0, 1);
+
+    expect(countItem(h.state.player.inventory, 'decor:steelPlate')).toBe(1);
+    expect(h.grid.get(10, 41)).toEqual({type: 'air'});
+    expect(h.state.player.y).toBe(41);
+    expect(h.saveProgress).toHaveBeenCalled();
+  });
+
+  it('refuses to drill it out with a full bay, leaving both the tile and the ship', () => {
+    const h = harness();
+    h.state.player.drill = 5;
+    h.state.player.cargoMax = 1;
+    h.state.player.inventory = addOre(createInventory(), ORES[0], 1)!;
+    h.grid.put(10, 41, {type: 'decor', decor: 'lampPanel'});
+
+    h.movement.move(0, 1);
+
+    expect(h.grid.get(10, 41)).toEqual({type: 'decor', decor: 'lampPanel'});
+    expect(h.state.player.y).toBe(40);
+    expect(h.toasts.saw('Cargo bay full')).toBe(true);
+    expect(h.audio.played).toContain('alarm');
+  });
 });
 
 describe('hazards and hostile tiles', () => {

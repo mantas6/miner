@@ -1,4 +1,4 @@
-import { TILE, WORLD_W } from '../../shared/constants';
+import { STATIONS, TILE, WORLD_W } from '../../shared/constants';
 import { viewport } from '../game/viewport';
 import { getVisibleTileRange } from '../world/visible-tile-range';
 import { isTileExplored } from '../../shared/exploration-codec';
@@ -49,6 +49,8 @@ export interface RendererState {
   /** Cargo containers standing in the mine. Absent or empty means none is placed. */
   cargoContainers?: readonly PlacedContainer[];
   teleportEffect?: TeleportEffect | null;
+  /** The home base's mutable state; the extractor's coal drives its beam. Absent means idle. */
+  home?: {extractor: {coal: number}};
   input?: {sprintDirection?: Direction | null};
   /** The carried device armed for placement, or `null`/absent when none is. */
   armedPlacement?: InventoryItemKind | null;
@@ -238,6 +240,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     terrainLayer.draw(camX, camY);
     drawTerrainDamage(camX, camY);
     drawTerrainBlendOverlay(camY);
+    drawHomeStations(camX, camY);
     drawCargoContainers(camX, camY);
     drawScannerDevices(camX, camY);
     drawPlacedDynamite(camX, camY);
@@ -388,6 +391,74 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       }
     }
     ctx.restore();
+  }
+  /**
+   * The two fixed home-base stations, drawn on the dynamic pass (not the cached
+   * terrain) so the extractor's beam can animate. The manufacturer is a workbench
+   * press under a lamp; the extractor is a nodding pump-jack whose beam rocks while
+   * coal is queued. Both are culled off-screen and skipped under fog.
+   */
+  function drawHomeStations(camX: number, camY: number) {
+    drawStation(STATIONS.manufacturer.x, STATIONS.manufacturer.y, camX, camY, drawManufacturerBody, false);
+    const pumping = (state.home?.extractor.coal ?? 0) > 0;
+    drawStation(STATIONS.extractor.x, STATIONS.extractor.y, camX, camY, drawExtractorBody, pumping);
+  }
+  function drawStation(
+    tx: number, ty: number, camX: number, camY: number,
+    body: (active: boolean) => void, active: boolean
+  ) {
+    if (!isExplored(tx, ty)) return;
+    const sx = (tx - camX) * TILE, sy = (ty - camY) * TILE;
+    if (sx < -TILE || sy < -TILE || sx > viewport.worldWidthPx + TILE || sy > viewport.worldHeightPx + TILE) return;
+    ctx.save();
+    ctx.translate(sx + TILE*.5, sy + TILE*.5);
+    body(active);
+    ctx.restore();
+  }
+  /** Manufacturing station: a squat press bench with a work lamp glowing over it. */
+  function drawManufacturerBody(_active: boolean) {
+    // Bench, sitting on the tile floor.
+    ctx.fillStyle = '#3a4653';
+    ctx.fillRect(-TILE*.32, TILE*.04, TILE*.64, TILE*.26);
+    ctx.fillStyle = 'rgba(0,0,0,.30)';
+    ctx.fillRect(-TILE*.32, TILE*.22, TILE*.64, TILE*.08);
+    // Press frame and the head poised over the bench.
+    ctx.strokeStyle = '#8fa2b5'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-TILE*.22, TILE*.04); ctx.lineTo(-TILE*.22, -TILE*.24);
+    ctx.lineTo(TILE*.16, -TILE*.24);
+    ctx.stroke();
+    ctx.fillStyle = '#6d7d8c';
+    ctx.fillRect(-TILE*.02, -TILE*.22, TILE*.18, TILE*.14);
+    // Work lamp: a warm glow that marks the bench as the crafting spot.
+    ctx.fillStyle = '#ffe58a';
+    ctx.shadowColor = '#ffc857'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(TILE*.24, -TILE*.20, TILE*.06, 0, Math.PI*2); ctx.fill();
+  }
+  /** Oil extractor: a nodding pump-jack; its beam rocks while coal is queued. */
+  function drawExtractorBody(active: boolean) {
+    const nod = active && !state.reducedMotion ? Math.sin(state.tick * .12) : 0;
+    // Base and derrick sitting on the tile floor.
+    ctx.fillStyle = active ? '#2e4a52' : '#2a2f34';
+    ctx.fillRect(-TILE*.30, TILE*.16, TILE*.60, TILE*.14);
+    ctx.strokeStyle = '#141b1f'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-TILE*.16, TILE*.16); ctx.lineTo(0, -TILE*.12);
+    ctx.moveTo(TILE*.16, TILE*.16); ctx.lineTo(0, -TILE*.12);
+    ctx.stroke();
+    // Walking beam, nodding while the rig runs.
+    ctx.save();
+    ctx.translate(0, -TILE*.12);
+    ctx.rotate(nod * .22);
+    ctx.strokeStyle = active ? '#7fd4c0' : '#5d6b78'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-TILE*.26, 0); ctx.lineTo(TILE*.26, 0); ctx.stroke();
+    ctx.fillStyle = active ? '#12303a' : '#20262b';
+    ctx.fillRect(TILE*.18, 0, TILE*.10, TILE*.24);
+    ctx.restore();
+    // Gauge lamp: lit while it pumps, dark once the queue is empty.
+    ctx.fillStyle = active ? '#8fe6ff' : '#2a333c';
+    if (active) { ctx.shadowColor = '#5cc8ff'; ctx.shadowBlur = 10; }
+    ctx.beginPath(); ctx.arc(-TILE*.22, TILE*.06, TILE*.05, 0, Math.PI*2); ctx.fill();
   }
   /**
    * Cargo containers, as a banded crate. A crate with something in it shows a lit
@@ -578,6 +649,10 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       for (let i=0;i<4;i++) { ctx.beginPath(); ctx.ellipse(sx+TILE*(.30+i*.13), sy+TILE*(.42+rand(wx+i,wy)*.22), TILE*(.10+rand(wx,wy+i)*.08), TILE*.28, rand(wx+i,wy)*Math.PI, 0, Math.PI*2); ctx.stroke(); }
       return;
     }
+    if (t.type === 'decor') {
+      drawDecorTile(ctx, t.decor, sx, sy);
+      return;
+    }
     // Smooth neighbor-averaged noise keeps color variation without obvious square patches.
     const n1 = (rand(wx,wy)+rand(wx-1,wy)+rand(wx+1,wy)+rand(wx,wy-1)+rand(wx,wy+1)) / 5;
     const n2 = (rand(wx*2+11,wy*2-7)+rand((wx-1)*2+11,wy*2-7)+rand((wx+1)*2+11,wy*2-7)+rand(wx*2+11,(wy-1)*2-7)+rand(wx*2+11,(wy+1)*2-7)) / 5;
@@ -651,9 +726,41 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       ctx.fillStyle='rgba(210,220,240,.11)'; ctx.fillRect(sx+TILE*.12,sy+TILE*.22,TILE*.72,TILE*.10); ctx.fillRect(sx+TILE*.29,sy+TILE*.61,TILE*.56,TILE*.10);
     }
   }
+  /**
+   * A placed decoration: a flat panel, one of three looks. Steel is a riveted grey
+   * plate, copper trim a warm bordered panel, and the lamp panel a dark plate with
+   * a glowing strip. Deliberately simple and static — no `state.tick` — so it caches
+   * with the terrain like every other tile.
+   */
+  function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'copperTrim' | 'lampPanel', sx: number, sy: number) {
+    const x = sx + TILE*.10, y = sy + TILE*.10, w = TILE*.80, h = TILE*.80;
+    if (decor === 'steelPlate') {
+      ctx.fillStyle = '#8fa2b5'; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,.20)'; ctx.fillRect(x, y, w, TILE*.10);
+      ctx.fillStyle = 'rgba(0,0,0,.30)'; ctx.fillRect(x, y + h - TILE*.10, w, TILE*.10);
+      ctx.fillStyle = '#4a5866';
+      for (const rx of [x + TILE*.10, x + w - TILE*.14]) for (const ry of [y + TILE*.10, y + h - TILE*.14]) {
+        ctx.beginPath(); ctx.arc(rx, ry, TILE*.03, 0, Math.PI*2); ctx.fill();
+      }
+      return;
+    }
+    if (decor === 'copperTrim') {
+      ctx.fillStyle = '#6d4a2c'; ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#c47b45'; ctx.lineWidth = TILE*.08;
+      ctx.strokeRect(x + TILE*.05, y + TILE*.05, w - TILE*.10, h - TILE*.10);
+      ctx.fillStyle = 'rgba(255,208,150,.35)'; ctx.fillRect(x + TILE*.14, y + TILE*.14, w - TILE*.28, TILE*.08);
+      return;
+    }
+    // lampPanel: a dark plate with a warm glowing strip down its middle.
+    ctx.fillStyle = '#232a31'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#ffdf7a';
+    ctx.shadowColor = '#ffc857'; ctx.shadowBlur = 12;
+    ctx.fillRect(x + w*.5 - TILE*.05, y + TILE*.10, TILE*.10, h - TILE*.20);
+    ctx.shadowBlur = 0;
+  }
   function drawTileDamage(t: Tile, sx: number, sy: number) {
-    // Air has no durability and rock is indestructible, so neither shows damage.
-    if (t.type === 'air' || t.type === 'rock') return;
+    // Air, rock, and decorations carry no durability, so none shows damage.
+    if (t.type === 'air' || t.type === 'rock' || t.type === 'decor') return;
     if (t.hp >= t.maxHp) return;
     if (t.type === 'hazard') {
       ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(sx+TILE*.18, sy+TILE*.12, TILE*.64, TILE*.055);

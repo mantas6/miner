@@ -46,6 +46,8 @@ export interface HudSnapshot {
   objective: string;
   atSurface: boolean;
   gameOver: boolean;
+  /** Prompt shown when a station is in reach, e.g. "Space: Manufacturing Station"; empty when none is. */
+  stationHint: string;
   /** Single-use teleporters in the bay: the teleport button's whole availability. */
   teleporters: number;
   /** A stored underground return point exists. */
@@ -76,7 +78,7 @@ export interface HudSnapshot {
 const HUD_KEYS = [
   'cash', 'depthMeters', 'fuel', 'fuelMax', 'hull', 'hullMax', 'cargo', 'cargoMax', 'cargoValue',
   'fuelAlert', 'hullAlert', 'cargoAlert', 'objective',
-  'atSurface', 'gameOver', 'teleporters',
+  'atSurface', 'gameOver', 'stationHint', 'teleporters',
   'teleportReturn', 'teleportDepthReached', 'teleportUsable',
   'scanner', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
@@ -149,7 +151,13 @@ export type UiPhase = 'intro' | 'playing';
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'shop' | 'info' | 'container' | 'ship';
+export type OverlayId = 'shop' | 'info' | 'container' | 'ship' | 'station' | 'extractor';
+
+/** The oil extractor's two buffers, as the extractor screen paints them. */
+export interface ExtractorView {
+  coal: number;
+  fuel: number;
+}
 
 /**
  * One ship-upgrade fitting slot, as the Ship screen paints it: the fitted upgrade,
@@ -190,6 +198,14 @@ export interface UiState {
    * opens and after each equip/unequip, so the menu never reads the simulation.
    */
   shipEquipment: ShipSlotView[];
+  /**
+   * The manufacturing station's stock, in the inventory-slot shape. Written while
+   * the station screen is up: the game pushes it on open and after every transfer
+   * or craft, so the screen never reaches into the simulation.
+   */
+  stationSlots: InventorySlotView[];
+  /** The oil extractor's buffers, written while its screen is up. */
+  extractor: ExtractorView;
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
   activeOverlay: ActiveOverlay;
@@ -222,6 +238,8 @@ export interface UiState {
   setInventorySlots(slots: InventorySlotView[]): void;
   setContainerSlots(slots: InventorySlotView[]): void;
   setShipEquipment(slots: ShipSlotView[]): void;
+  setStationSlots(slots: InventorySlotView[]): void;
+  setExtractor(view: ExtractorView): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
   /** Show one overlay, replacing whatever was up; `null` closes them all. */
@@ -269,6 +287,7 @@ function initialHud(): HudSnapshot {
     }),
     atSurface: true,
     gameOver: false,
+    stationHint: '',
     teleporters: countItem(player.inventory, TELEPORTER_ITEM.kind),
     teleportReturn: false,
     teleportDepthReached: false,
@@ -340,6 +359,8 @@ export const uiStore = createStore<UiState>((set, get) => ({
   inventorySlots: buildInventorySlots(createInventory()),
   containerSlots: [],
   shipEquipment: buildShipSlots(initialState.player.equipment),
+  stationSlots: [],
+  extractor: {coal: 0, fuel: 0},
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   activeOverlay: null,
@@ -378,6 +399,17 @@ export const uiStore = createStore<UiState>((set, get) => ({
 
   setShipEquipment(slots) {
     set({shipEquipment: slots});
+  },
+
+  setStationSlots(slots) {
+    if (sameInventorySlots(get().stationSlots, slots)) return;
+    set({stationSlots: slots});
+  },
+
+  setExtractor(view) {
+    const current = get().extractor;
+    if (current.coal === view.coal && current.fuel === view.fuel) return;
+    set({extractor: {...view}});
   },
 
   setCargoRows(rows) {

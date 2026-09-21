@@ -16,7 +16,8 @@
 import { explorationIndex } from '../../shared/exploration-codec';
 import { CARGO_CONTAINER, type PlacedContainer } from './cargo-container';
 import { DYNAMITE, type PlacedDynamite } from './dynamite';
-import type { InventoryItemKind } from './inventory';
+import { isStationTile } from './home';
+import { isDecorKind, type InventoryItemKind } from './inventory';
 import { canPlaceDevice, inMineBounds, type PlacementSite } from './placement';
 import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
 
@@ -27,12 +28,17 @@ import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
  */
 export const PLACEMENT_OVERLAY_RADIUS = 4;
 
-/** The item kinds that are set down onto a tile, and so earn a placement grid. */
+/** The device kinds that are set down onto a tile, and so earn a placement grid. */
 const PLACEABLE_KINDS: ReadonlySet<InventoryItemKind> = new Set<InventoryItemKind>(['scanner', 'dynamite', 'container']);
 
-/** Whether this armed kind is one placed into the world (vs. spent, or mere cargo). */
+/**
+ * Whether this armed kind is one placed into the world (vs. spent, or mere cargo).
+ * The three devices, plus any decoration — decorations are set down as tiles, so
+ * they earn the same preview grid as the devices do.
+ */
 export function isPlaceableKind(kind: InventoryItemKind | null | undefined): boolean {
-  return kind !== null && kind !== undefined && PLACEABLE_KINDS.has(kind);
+  if (kind === null || kind === undefined) return false;
+  return PLACEABLE_KINDS.has(kind) || isDecorKind(kind);
 }
 
 /** The slice of the running mine a placement preview needs to read. */
@@ -65,6 +71,16 @@ function placementSiteFor(
   world: PlacementOverlayWorld
 ): PlacementSite | null {
   const open = inMineBounds(x, y) && world.isOpen(x, y);
+  // Decorations become tiles, so any explored, cleared, non-station tile takes
+  // one: no soft cap, and no "occupied" — a tile is either air or it is not.
+  if (isDecorKind(kind)) {
+    return {
+      explored: world.explored,
+      open: open && !isStationTile(x, y),
+      occupied: false,
+      full: false
+    };
+  }
   switch (kind) {
     case 'scanner':
       return {

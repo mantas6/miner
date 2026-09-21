@@ -13,6 +13,8 @@ import type { TileDiff } from '../world/tile-diff';
 
 export type {
   AirTile,
+  DecorId,
+  DecorTile,
   DirtTile,
   DormantEnemyTile,
   EnemyKind,

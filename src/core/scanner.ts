@@ -42,5 +42,7 @@ export function formatTerrainScanner({ tile, direction, activeEnemy = false, exp
       return `${prefix} magma — hull risk, ${hitsLabel(tile.hp)} to vent.`;
     case 'enemy':
       return `${prefix} dirt — drillable, ${hitsLabel(tile.hp)}.`;
+    case 'decor':
+      return `${prefix} decoration — drill to recover it.`;
   }
 }

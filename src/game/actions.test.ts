@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HOME_X, ORES, START_Y } from '../../shared/constants';
-import { ECONOMY, LIMITS, STARTING } from '../core/balance';
+import { ECONOMY, HULL, LIMITS, STARTING } from '../core/balance';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { cargoCost, drillCost, partialFill, refuelCost, repairCost } from '../core/economy';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
+import { ITEM_CATALOG } from '../core/items';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
@@ -265,6 +266,44 @@ describe('buying equipment', () => {
     expect(countItem(h.state.player.inventory, kind)).toBe(0);
     expect(h.state.cash).toBe(price);
     expect(h.toasts.saw('Cargo bay is full')).toBe(true);
+    expect(h.audio.played).toContain('alarm');
+  });
+});
+
+describe('using a repair kit', () => {
+  it('restores a fraction of the hull and spends one kit', () => {
+    const h = harness();
+    h.state.player.hull = 20;
+    h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.repairKit, 2);
+
+    h.actions.useRepairKit();
+
+    expect(h.state.player.hull).toBe(20 + Math.round(h.state.player.hullMax * HULL.repairKitFraction));
+    expect(countItem(h.state.player.inventory, ITEM_CATALOG.repairKit.kind)).toBe(1);
+    expect(h.saveProgress).toHaveBeenCalled();
+  });
+
+  it('never overfills the hull', () => {
+    const h = harness();
+    h.state.player.hull = h.state.player.hullMax - 2;
+    h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.repairKit, 1);
+
+    h.actions.useRepairKit();
+
+    expect(h.state.player.hull).toBe(h.state.player.hullMax);
+    expect(countItem(h.state.player.inventory, ITEM_CATALOG.repairKit.kind)).toBe(0);
+  });
+
+  it('refuses at full hull and with none aboard, warning audibly', () => {
+    const h = harness();
+    h.actions.useRepairKit();
+    expect(h.toasts.saw('No repair kit aboard')).toBe(true);
+
+    h.state.player.hull = h.state.player.hullMax;
+    h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.repairKit, 1);
+    h.actions.useRepairKit();
+    expect(h.toasts.saw('already at full strength')).toBe(true);
+    expect(countItem(h.state.player.inventory, ITEM_CATALOG.repairKit.kind)).toBe(1);
     expect(h.audio.played).toContain('alarm');
   });
 });
