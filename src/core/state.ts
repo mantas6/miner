@@ -2,6 +2,7 @@ import { HOME_ROW, HOME_X, SHIP_UPGRADE_SLOTS, isHomeCavern } from '../../shared
 import { STARTING } from './balance';
 import { createHomeState } from './home';
 import { createInventory, removeOres } from './inventory';
+import { applyEquipment } from './ship-upgrades';
 import type { GameState, GameStats, Player } from './types';
 
 /** Tile column of the home cavern where every ship starts or returns. */
@@ -26,6 +27,9 @@ export function isAtHome(player: Pick<Player, 'x' | 'y'>): boolean {
 
 export function respawnPlayer(player: Player): void {
   placeAtHome(player);
+  // Fitted upgrades survive the wreck, so the derived maxima are re-derived first,
+  // then the ship deploys with a full tank and hull against those maxima.
+  applyEquipment(player);
   Object.assign(player, {
     fuel: player.fuelMax,
     hull: player.hullMax,
@@ -48,7 +52,7 @@ export function createDefaultStats(): GameStats {
 }
 
 export function createInitialState(): GameState {
-  return {
+  const state: GameState = {
     world: [],
     soloTileDiff: new Map(),
     cash: STARTING.cash,
@@ -99,4 +103,8 @@ export function createInitialState(): GameState {
       boost: false
     }
   };
+  // Derive the four maxima and the boost flag from the (empty) starting loadout,
+  // so a fresh ship's stats come from the same path a save's do.
+  applyEquipment(state.player);
+  return state;
 }

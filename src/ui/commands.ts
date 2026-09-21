@@ -7,7 +7,7 @@
 // rendering the UI without a running game — in tests, between a StrictMode
 // double-mount, after a crash — is harmless.
 
-import type { InventoryItemKind } from '../core/inventory';
+import type { InventoryItemKind, UpgradeKind } from '../core/inventory';
 import type { DeveloperServiceId } from '../core/developer';
 import type { PlayerUpgradeId } from '../core/upgrades';
 
@@ -44,6 +44,17 @@ export interface UiCommands {
   takeFromContainer(kind: InventoryItemKind, single?: boolean): void;
   openShop(): void;
   closeShop(): void;
+  /** Open the ship equipment screen, from anywhere. */
+  openShip(): void;
+  /** Shut the ship equipment screen; also what its dialog's close request reports. */
+  closeShip(): void;
+  /**
+   * Fit an upgrade of `kind` from the bay. With no `slot`, it lands in the first
+   * empty slot, or swaps into slot 0 when every slot is full.
+   */
+  equipUpgrade(kind: UpgradeKind, slot?: number): void;
+  /** Take the upgrade out of `slot` and drop it back into the bay. */
+  unequipUpgrade(slot: number): void;
   openInfo(): void;
   closeInfo(): void;
   toggleMusic(): void;
@@ -90,6 +101,10 @@ function noopCommands(): UiCommands {
     takeFromContainer: noop,
     openShop: noop,
     closeShop: noop,
+    openShip: noop,
+    closeShip: noop,
+    equipUpgrade: noop,
+    unequipUpgrade: noop,
     openInfo: noop,
     closeInfo: noop,
     toggleMusic: noop,

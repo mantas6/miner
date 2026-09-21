@@ -32,12 +32,13 @@ export function ActionBar() {
           the UA takes it out of the tab order); `disabled` only says why an
           otherwise-visible button cannot fire, so the two never repeat a term. */}
       <button id="sell" hidden={!atSurface} disabled={cargoValue <= 0} onClick={() => uiCommands.sell()}>Sell</button>
+      {/* The ship screen fits and unfits upgrades from the cargo bay; it needs no
+          proximity to a station, so the button is never hidden. */}
       <button
-        id="shopBtn"
+        id="shipBtn"
         className={styles.openShopBtn}
-        hidden={!atSurface}
-        onClick={event => { event.stopPropagation(); uiCommands.openShop(); }}
-      >Shop &amp; Equipment</button>
+        onClick={event => { event.stopPropagation(); uiCommands.openShip(); }}
+      >Ship</button>
       {/* Underground the button is only worth showing with a teleporter aboard;
           at the depot it is the stored return point, not an item, that the trip
           back spends. */}

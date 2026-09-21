@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ORES, START_Y, WORLD_W } from '../../shared/constants';
-import { ECONOMY, STARTING } from '../core/balance';
+import { STARTING } from '../core/balance';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
+import { applyEquipment } from '../core/ship-upgrades';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import type { GameState } from '../core/types';
@@ -35,15 +36,15 @@ function harness(): Harness {
   Object.assign(state.player, {
     x: 12, y: 60, drawX: 12, drawY: 60,
     fuel: 30, hull: 25,
-    fuelMax: STARTING.fuelMax + ECONOMY.tank.step,
-    cargoMax: STARTING.cargoMax + ECONOMY.cargo.step,
-    drill: STARTING.drill + 1,
+    // Fitted upgrades survive the wreck; the maxima derive from them.
+    equipment: ['upgrade:tank:1', 'upgrade:cargo:1'],
     // Ore to lose with the ship, and equipment that survives it.
     inventory: addItem(
       addOre(addOre(createInventory(), ORES[0], 99)!, ORES[1], 99)!,
       TELEPORTER_ITEM
     )!
   });
+  applyEquipment(state.player);
   state.cash = 900;
   state.stats.maxDepth = 570;
   state.stats.oreMined = 7;
@@ -131,7 +132,8 @@ describe('restarting after a death', () => {
     expect(h.state.player).toMatchObject({
       x: Math.floor(WORLD_W / 2),
       y: START_Y,
-      fuel: STARTING.fuelMax + ECONOMY.tank.step,
+      // Tank Mk I adds +50 to the starting tank, and respawn tops it right up.
+      fuel: STARTING.fuelMax + 50,
       hull: STARTING.hullMax
     });
     // Equipment is not cargo: the replacement ship keeps the teleporter.
@@ -187,7 +189,8 @@ describe('resuming a saved run', () => {
 
     expect(h.state.player).toMatchObject({
       x: 12, y: 60,
-      fuel: STARTING.fuelMax + ECONOMY.tank.step,
+      // Tank Mk I fitted in the harness adds +50 to the starting tank.
+      fuel: STARTING.fuelMax + 50,
       hull: STARTING.hullMax
     });
     expect(countOres(h.state.player.inventory)).toBe(0);

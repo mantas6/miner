@@ -18,6 +18,7 @@ import {
 } from './core/inventory';
 import { isCatalogKind, itemForKind } from './core/items';
 import { SCANNER_DEVICE, type ScannerDevice } from './core/scanner-device';
+import { applyEquipment } from './core/ship-upgrades';
 import { createDefaultStats } from './core/state';
 import { createHomeState, type HomeState } from './core/home';
 import { encodeExploration, mergeExploration } from '../shared/exploration-codec';
@@ -265,13 +266,15 @@ export function load(state: GameState): void {
     if (numeric(save.version, 0, 0) < SAVE_VERSION) return;
     const p = state.player;
     state.cash = numeric(save.cash, state.cash, 0);
-    // The four ship stats are derived from fitted equipment, not stored: on load
-    // they stay at the starting base until `applyEquipment` (Phase 3) recomputes
-    // them from `equipment`.
+    // The four ship stats are derived from fitted equipment, not stored: restore
+    // the fitted slots, then `applyEquipment` recomputes `fuelMax`/`hullMax`/
+    // `cargoMax`/`drill` and `boost` from them (done once the bay is back, since it
+    // clamps fuel/hull to their derived maxima).
     p.equipment = parseEquipment(save.equipment);
     // The bay comes back one stack at a time; ore is never among it, so a fresh run
     // starts with only the equipment the last one carried.
     p.inventory = parseKindCountStacks(save.bay, isCatalogKind);
+    applyEquipment(p);
     state.home = parseHome(save.home);
     state.scannerDevices = parseScannerDevices(save.scannerDevices);
     state.placedDynamite = parsePlacedDynamite(save.dynamiteSticks);

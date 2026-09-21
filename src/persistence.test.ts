@@ -162,6 +162,24 @@ describe('equipment persistence', () => {
     const restored = createInitialState();
     load(restored);
     expect(restored.player.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:3']);
+    // The four maxima and the boost flag are derived from the fitted slots on load,
+    // not stored: Tank Mk I adds +50 fuel, Drill Mk III adds +4.
+    expect(restored.player.fuelMax).toBe(150);
+    expect(restored.player.drill).toBe(5);
+    expect(restored.player.cargoMax).toBe(20);
+    expect(restored.player.hullMax).toBe(100);
+    expect(restored.player.boost).toBe(false);
+  });
+
+  it('raises the boost flag on load when a booster is fitted', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:booster:1', 'upgrade:cargo:2']});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.player.boost).toBe(true);
+    // Cargo Hold Mk II adds +20 to the starting 20.
+    expect(state.player.cargoMax).toBe(40);
   });
 
   it('keeps only real, catalogued upgrades and only the first two slots', () => {

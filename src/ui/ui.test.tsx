@@ -22,9 +22,9 @@ const DOM_CONTRACT = [
   'fuel', 'fuelLabel', 'fuelReturn', 'fuelSurplus', 'hull', 'hullLabel', 'cargo', 'cargoLabel',
   // The inventory panel ships expanded, so its slot list is part of the contract.
   'inventory', 'inventoryToggleBtn', 'inventorySlots',
-  'sell', 'shopBtn', 'teleporterBtn', 'infoBtn',
+  'sell', 'shipBtn', 'teleporterBtn', 'infoBtn',
   // Every overlay keeps its dialog shell mounted; their contents do not.
-  'shop-screen', 'info-screen', 'cargo-screen',
+  'shop-screen', 'ship-screen', 'info-screen', 'cargo-screen',
   'fuel-warning', 'toast'
 ];
 
@@ -176,7 +176,7 @@ describe('one overlay at a time', () => {
     installOverlayCommands();
     render(<MinerApp />);
 
-    act(() => { fireEvent.click(document.getElementById('shopBtn')!); });
+    act(() => { uiStore.getState().setActiveOverlay('shop'); });
     expect(dialog('shop-screen').open).toBe(true);
 
     act(() => { fireEvent.click(document.getElementById('infoBtn')!); });
@@ -403,7 +403,8 @@ describe('store-driven HUD', () => {
     const sell = document.getElementById('sell') as HTMLButtonElement;
     const teleporter = document.getElementById('teleporterBtn') as HTMLButtonElement;
     expect(sell.hidden).toBe(true);
-    expect(document.getElementById('shopBtn')?.hasAttribute('hidden')).toBe(true);
+    // The ship screen needs no station, so its button stays visible underground.
+    expect(document.getElementById('shipBtn')?.hasAttribute('hidden')).toBe(false);
     expect(teleporter.hidden).toBe(false);
     expect(teleporter.textContent).toBe('Teleport (T) · x2');
 

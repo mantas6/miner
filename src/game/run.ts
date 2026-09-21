@@ -7,7 +7,7 @@
 //   * death keeps cash, upgrades and stats, and loses cargo and position;
 //   * a boot keeps the position the save recorded, because only dying costs it.
 
-import { START_Y } from '../../shared/constants';
+import { SHIP_UPGRADE_SLOTS, START_Y } from '../../shared/constants';
 import { STARTING } from '../core/balance';
 import { createInventory, removeOres } from '../core/inventory';
 import { createDefaultStats, placeAtHome, respawnPlayer } from '../core/state';
@@ -71,10 +71,9 @@ export function createRun(deps: GameRunDeps): GameRun {
     if (full) {
       state.cash = STARTING.cash;
       Object.assign(state.player, {
-        fuelMax: STARTING.fuelMax,
-        hullMax: STARTING.hullMax,
-        cargoMax: STARTING.cargoMax,
-        drill: STARTING.drill,
+        // The four maxima are derived from the fitted slots, so unfitting every
+        // upgrade is the wipe; `respawnPlayer` re-derives them to the base below.
+        equipment: Array.from({length: SHIP_UPGRADE_SLOTS}, () => null),
         // Bought equipment lives in the bay, so emptying it is part of the wipe.
         inventory: createInventory()
       });

@@ -160,11 +160,14 @@ describe('booting the game', () => {
     expect(dialogOpen('info-screen')).toBe(false);
   });
 
-  it('routes surface-only actions through the depot check once underground', () => {
-    click('shopBtn');
+  it('opens and closes the ship equipment screen from anywhere', () => {
+    click('shipBtn');
+    expect(dialogOpen('ship-screen')).toBe(true);
+    // The fitting slots come from the store snapshot the game pushes on open.
+    expect(document.querySelectorAll('#shipSlots > li').length).toBeGreaterThan(0);
 
-    expect(dialogOpen('shop-screen')).toBe(false);
-    expect(text('toast')).toBe('Shop is at the home base.');
+    press('Escape');
+    expect(dialogOpen('ship-screen')).toBe(false);
   });
 
   // Kept last: this one digs far enough to change cargo and depth for good.

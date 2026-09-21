@@ -20,7 +20,8 @@ import { formatTerrainScanner } from '../core/scanner';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { createInitialState } from '../core/state';
 import { formatExpeditionStats, type ExpeditionStatRow } from '../core/stats';
-import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind } from '../core/inventory';
+import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
+import { itemForKind } from '../core/items';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
@@ -148,7 +149,22 @@ export type UiPhase = 'intro' | 'playing';
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'shop' | 'info' | 'container';
+export type OverlayId = 'shop' | 'info' | 'container' | 'ship';
+
+/**
+ * One ship-upgrade fitting slot, as the Ship screen paints it: the fitted upgrade,
+ * or a placeholder when the slot is empty.
+ */
+export interface ShipSlotView {
+  /** Slot position, and the stable React key. */
+  index: number;
+  /** The fitted upgrade kind, or `null` for an empty slot. */
+  kind: UpgradeKind | null;
+  /** The upgrade's name, or "Empty" for a vacant slot. */
+  label: string;
+  /** Swatch colour; transparent for an empty slot. */
+  color: string;
+}
 
 /**
  * Which overlay is up. One field rather than a flag per overlay, because
@@ -169,6 +185,11 @@ export interface UiState {
    * and after every transfer, so the menu never reaches into the simulation.
    */
   containerSlots: InventorySlotView[];
+  /**
+   * The ship's fitting slots, painted by the Ship screen. Written when the screen
+   * opens and after each equip/unequip, so the menu never reads the simulation.
+   */
+  shipEquipment: ShipSlotView[];
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
   activeOverlay: ActiveOverlay;
@@ -200,6 +221,7 @@ export interface UiState {
   syncPlayer(next: Readonly<PlayerSnapshot>): void;
   setInventorySlots(slots: InventorySlotView[]): void;
   setContainerSlots(slots: InventorySlotView[]): void;
+  setShipEquipment(slots: ShipSlotView[]): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
   /** Show one overlay, replacing whatever was up; `null` closes them all. */
@@ -317,6 +339,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   player: initialPlayer(),
   inventorySlots: buildInventorySlots(createInventory()),
   containerSlots: [],
+  shipEquipment: buildShipSlots(initialState.player.equipment),
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   activeOverlay: null,
@@ -351,6 +374,10 @@ export const uiStore = createStore<UiState>((set, get) => ({
   setContainerSlots(slots) {
     if (sameInventorySlots(get().containerSlots, slots)) return;
     set({containerSlots: slots});
+  },
+
+  setShipEquipment(slots) {
+    set({shipEquipment: slots});
   },
 
   setCargoRows(rows) {
@@ -451,6 +478,15 @@ export function buildInventorySlots(inventory: Inventory): InventorySlotView[] {
     color: stack.item.color,
     count: stack.count
   }));
+}
+
+/** Paint the ship's fitting slots for the Ship screen; empty slots read "Empty". */
+export function buildShipSlots(equipment: readonly (UpgradeKind | null)[]): ShipSlotView[] {
+  return equipment.map((kind, index) => {
+    if (!kind) return {index, kind: null, label: 'Empty', color: 'transparent'};
+    const item = itemForKind(kind);
+    return {index, kind, label: item.label, color: item.color};
+  });
 }
 
 /** Build the cargo-bay rows shown in the Info overlay from the ore stacks. */

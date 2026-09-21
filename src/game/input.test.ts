@@ -39,6 +39,7 @@ interface Harness {
   move: ReturnType<typeof vi.fn>;
   restartGame: ReturnType<typeof vi.fn>;
   closeShopScreen: ReturnType<typeof vi.fn>;
+  closeShipScreen: ReturnType<typeof vi.fn>;
   closeInfoScreen: ReturnType<typeof vi.fn>;
   cancelPlacement: ReturnType<typeof vi.fn>;
   toggleDynamitePlacement: ReturnType<typeof vi.fn>;
@@ -61,6 +62,7 @@ function harness(): Harness {
     move: vi.fn(),
     restartGame: vi.fn(),
     closeShopScreen: vi.fn(),
+    closeShipScreen: vi.fn(),
     closeInfoScreen: vi.fn(),
     // Nothing armed by default, so Escape stays as unhandled as it ever was.
     cancelPlacement: vi.fn(() => false),
@@ -150,10 +152,35 @@ describe('phase gating', () => {
     expect(h.closeInfoScreen).toHaveBeenCalledOnce();
     expect(h.closeShopScreen).toHaveBeenCalledOnce();
 
+    uiStore.getState().setActiveOverlay('ship');
+    press('Escape');
+    expect(h.closeShipScreen).toHaveBeenCalledOnce();
+
     uiStore.getState().setActiveOverlay('container');
     press('Escape');
     expect(h.closeContainer).toHaveBeenCalledOnce();
     expect(h.closeInfoScreen).toHaveBeenCalledOnce();
+  });
+});
+
+describe('the boost gate', () => {
+  it('only sprints on Shift once a Booster is fitted', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+
+    // No booster fitted: Shift is inert, so the move is unboosted.
+    press('Shift');
+    press('d');
+    h.input.tick();
+    expect(h.move).toHaveBeenLastCalledWith(1, 0, false);
+    expect(h.state.input.sprintDirection).toBeNull();
+
+    // Fit a booster and the same held Shift now sprints.
+    h.state.player.boost = true;
+    h.state.input.lastKeyboardMove = 0;
+    h.input.tick();
+    expect(h.move).toHaveBeenLastCalledWith(1, 0, true);
+    expect(h.state.input.sprintDirection).toEqual([1, 0]);
   });
 });
 

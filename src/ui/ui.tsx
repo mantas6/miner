@@ -25,6 +25,7 @@ import { FuelWarning } from './FuelWarning';
 import { Hud } from './Hud';
 import { InfoScreen } from './InfoScreen';
 import { Intro } from './Intro';
+import { ShipScreen } from './ShipScreen';
 import { ShopScreen } from './ShopScreen';
 import { useUiStore } from './store';
 import { Toast } from './Toast';
@@ -75,6 +76,7 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <GameStatus />
         <Hud />
         <ShopScreen />
+        <ShipScreen />
         <InfoScreen />
         <CargoScreen />
         <FuelWarning />

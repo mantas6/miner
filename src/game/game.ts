@@ -32,7 +32,8 @@ import { createDefaultStats, createInitialState, isAtHome } from '../core/state'
 import { createRenderer, type Renderer } from '../render/renderer';
 import { FUEL, REVEAL_FOOTPRINT } from '../core/balance';
 import { cargoCost, tankCost, hullCost, drillCost, cargoValue } from '../core/economy';
-import { countItem, totalItems, type Inventory, type InventoryItemKind } from '../core/inventory';
+import { countItem, totalItems, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
+import { equip, unequip } from '../core/ship-upgrades';
 import { isPlaceableKind } from '../core/placement-overlay';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
@@ -45,7 +46,7 @@ import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { formatExpeditionStats } from '../core/stats';
 import { rand } from '../world/world';
 import { resetUiCommands, setUiCommands } from '../ui/commands';
-import { buildCargoRows, buildInventorySlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot } from '../ui/store';
+import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot } from '../ui/store';
 
 import { TELEPORTER_ITEM, advanceTeleportEffect, canTeleport, canUseTeleporter } from '../core/teleporter';
 import type { AudioController } from '../core/types';
@@ -244,6 +245,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       useTeleporter: () => actions.useTeleporter(),
       openShop: openShopScreen,
       closeShop: closeShopScreen,
+      openShip: openShipScreen,
+      closeShip: closeShipScreen,
+      equipUpgrade: (kind, slot) => equipUpgrade(kind, slot),
+      unequipUpgrade: slot => unequipUpgrade(slot),
       openInfo: openInfoScreen,
       closeInfo: closeInfoScreen,
       toggleMusic: () => { void audio.toggleMusic(); },
@@ -301,6 +306,44 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   }
   function closeShopScreen(){
     uiStore.getState().closeOverlay('shop');
+  }
+  /** Push the current fitting slots to the store for the Ship screen to paint. */
+  function syncShipUpgrades(){
+    uiStore.getState().setShipEquipment(buildShipSlots(state.player.equipment));
+  }
+  function openShipScreen(){
+    // An overlay covers the mine, so a pointer armed for placement has nothing
+    // left to aim at. The ship screen opens anywhere — it needs no station.
+    disarmPlacements();
+    syncShipUpgrades();
+    syncPlayerSnapshot();
+    uiStore.getState().setActiveOverlay('ship');
+  }
+  function closeShipScreen(){
+    uiStore.getState().closeOverlay('ship');
+  }
+  /** The slot a fit lands in when none is given: the first empty one, else slot 0. */
+  function firstFittingSlot(){
+    const empty = state.player.equipment.findIndex(slot => slot === null);
+    return empty === -1 ? 0 : empty;
+  }
+  function equipUpgrade(kind: UpgradeKind, slot?: number){
+    const result = equip(state.player, slot ?? firstFittingSlot(), kind);
+    if (!result.ok) { audio.alarm(); return toast(result.reason); }
+    saveProgress();
+    syncShipUpgrades();
+    syncPlayerSnapshot();
+    audio.blip(520, .05, 'triangle', .04);
+    toast('Upgrade fitted.');
+  }
+  function unequipUpgrade(slot: number){
+    const result = unequip(state.player, slot);
+    if (!result.ok) { audio.alarm(); return toast(result.reason); }
+    saveProgress();
+    syncShipUpgrades();
+    syncPlayerSnapshot();
+    audio.blip(360, .05, 'triangle', .04);
+    toast('Upgrade returned to the cargo bay.');
   }
   function openInfoScreen(){
     disarmPlacements();
@@ -622,6 +665,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       isOpenMovementDestination: movement.isOpenMovementDestination,
       restartGame: run.restartGame,
       closeShopScreen,
+      closeShipScreen,
       closeInfoScreen,
       cancelPlacement: disarmPlacements,
       toggleDynamitePlacement: () => { scanners.disarm(); containers.disarm(); dynamite.toggleArmed(); },

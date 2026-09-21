@@ -23,7 +23,7 @@ const RESET_CONFIRM_MS = 3500;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
-const DIALOG_SURFACES = '#shop-screen, #info-screen, #cargo-screen';
+const DIALOG_SURFACES = '#shop-screen, #info-screen, #cargo-screen, #ship-screen';
 
 const movementKeys: Record<string, Direction> = {
   arrowleft: [-1, 0], a: [-1, 0],
@@ -65,6 +65,7 @@ export interface GameInputDeps {
   isOpenMovementDestination(dx: number, dy: number): boolean;
   restartGame(): void;
   closeShopScreen(): void;
+  closeShipScreen(): void;
   closeInfoScreen(): void;
   /** Stand down anything armed for placement. Reports whether the press was consumed. */
   cancelPlacement(): boolean;
@@ -125,7 +126,8 @@ export function createInput(deps: GameInputDeps): GameInput {
     state.input.sprintDirection = null;
     if (!isPlaying()) return;
     const now = performance.now();
-    const sprinting = keys.has('shift');
+    // Shift only sprints with a Booster fitted; without one the key does nothing.
+    const sprinting = keys.has('shift') && state.player.boost;
     const impulse = state.input.keyImpulse;
     if (impulse) {
       state.input.keyImpulse = null;
@@ -154,6 +156,10 @@ export function createInput(deps: GameInputDeps): GameInput {
       // Escape is handled here so the dialog closes through the same path as the
       // buttons; preventDefault keeps the UA from also firing its close request.
       if (key === 'escape') { deps.closeShopScreen(); e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if (ui.activeOverlay === 'ship') {
+      if (key === 'escape') { deps.closeShipScreen(); e.preventDefault(); e.stopPropagation(); }
       return;
     }
     if (ui.activeOverlay === 'info') {
