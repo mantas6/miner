@@ -16,7 +16,7 @@ import {
 /** Every non-ore kind the game can hold, built the same way the catalog is keyed. */
 const NON_ORE_KINDS: NonOreKind[] = [
   'dynamite', 'scanner', 'teleporter', 'container', 'repairKit',
-  'decor:steelPlate', 'decor:copperTrim', 'decor:lampPanel',
+  'decor:steelPlate', 'decor:stoneBlock', 'decor:copperTrim', 'decor:lampPanel',
   'upgrade:tank:1', 'upgrade:tank:2', 'upgrade:tank:3',
   'upgrade:cargo:1', 'upgrade:cargo:2', 'upgrade:cargo:3',
   'upgrade:drill:1', 'upgrade:drill:2', 'upgrade:drill:3',
@@ -37,7 +37,7 @@ describe('the item catalog', () => {
     }
   });
 
-  it('holds no keys beyond the twenty-one non-ore kinds', () => {
+  it('holds no keys beyond the twenty-two non-ore kinds', () => {
     expect(Object.keys(ITEM_CATALOG).sort()).toEqual([...NON_ORE_KINDS].sort());
   });
 
@@ -52,6 +52,7 @@ describe('the item catalog', () => {
 
   it('names the decorations and the repair kit', () => {
     expect(ITEM_CATALOG['decor:steelPlate'].label).toBe('Steel Plate');
+    expect(ITEM_CATALOG['decor:stoneBlock'].label).toBe('Stone Block');
     expect(ITEM_CATALOG['decor:copperTrim'].label).toBe('Copper Trim');
     expect(ITEM_CATALOG['decor:lampPanel'].label).toBe('Lamp Panel');
     expect(ITEM_CATALOG.repairKit.label).toBe('Repair Kit');

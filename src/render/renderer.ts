@@ -759,12 +759,12 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     }
   }
   /**
-   * A placed decoration: a flat panel, one of three looks. Steel is a riveted grey
-   * plate, copper trim a warm bordered panel, and the lamp panel a dark plate with
-   * a glowing strip. Deliberately simple and static — no `state.tick` — so it caches
-   * with the terrain like every other tile.
+   * A placed decoration: a flat panel, one of four looks. Steel is a riveted grey
+   * plate, stone a grey-brown masonry slab, copper trim a warm bordered panel, and
+   * the lamp panel a dark plate with a glowing strip. Deliberately simple and static
+   * — no `state.tick` — so it caches with the terrain like every other tile.
    */
-  function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'copperTrim' | 'lampPanel', sx: number, sy: number) {
+  function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel', sx: number, sy: number) {
     const x = sx + TILE*.10, y = sy + TILE*.10, w = TILE*.80, h = TILE*.80;
     if (decor === 'steelPlate') {
       ctx.fillStyle = '#8fa2b5'; ctx.fillRect(x, y, w, h);
@@ -774,6 +774,20 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       for (const rx of [x + TILE*.10, x + w - TILE*.14]) for (const ry of [y + TILE*.10, y + h - TILE*.14]) {
         ctx.beginPath(); ctx.arc(rx, ry, TILE*.03, 0, Math.PI*2); ctx.fill();
       }
+      return;
+    }
+    if (decor === 'stoneBlock') {
+      // A grey-brown masonry slab: flat fill, a darker mortar border, and a couple
+      // of chiselled lines to read as coursed blockwork.
+      ctx.fillStyle = '#7d7a72'; ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#4f4c46'; ctx.lineWidth = TILE*.05;
+      ctx.strokeRect(x + TILE*.03, y + TILE*.03, w - TILE*.06, h - TILE*.06);
+      ctx.strokeStyle = 'rgba(60,57,52,.7)'; ctx.lineWidth = TILE*.03;
+      ctx.beginPath();
+      ctx.moveTo(x, y + h*.5); ctx.lineTo(x + w, y + h*.5);
+      ctx.moveTo(x + w*.5, y); ctx.lineTo(x + w*.5, y + h*.5);
+      ctx.moveTo(x + w*.33, y + h*.5); ctx.lineTo(x + w*.33, y + h);
+      ctx.stroke();
       return;
     }
     if (decor === 'copperTrim') {

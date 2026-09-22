@@ -34,6 +34,7 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
     toggle: () => uiCommands.toggleContainerPlacement()
   },
   ...decorPlaceable('decor:steelPlate', 'Steel Plate'),
+  ...decorPlaceable('decor:stoneBlock', 'Stone Block'),
   ...decorPlaceable('decor:copperTrim', 'Copper Trim'),
   ...decorPlaceable('decor:lampPanel', 'Lamp Panel')
 };

@@ -51,7 +51,7 @@ export type UpgradeTier = 1 | 2 | 3;
 export type UpgradeKind = `upgrade:${Exclude<UpgradeId, 'booster'>}:${UpgradeTier}` | 'upgrade:booster:1';
 
 /** Placeable cosmetic tiles the player can craft, carry, and set down. */
-export type DecorId = 'steelPlate' | 'copperTrim' | 'lampPanel';
+export type DecorId = 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel';
 /** One decoration's stack key, e.g. `decor:lampPanel`. */
 export type DecorKind = `decor:${DecorId}`;
 

@@ -69,6 +69,7 @@ export const RECIPES: Recipe[] = [
   {output: 'upgrade:booster:1', count: 1, inputs: [ore('Copper', 3), ore('Coal', 2), ore('Silver', 1)]},
 
   {output: 'decor:steelPlate', count: 1, inputs: [ore('Iron', 2)]},
+  {output: 'decor:stoneBlock', count: 2, inputs: [ore('Coal', 1)]},
   {output: 'decor:copperTrim', count: 1, inputs: [ore('Copper', 2)]},
   {output: 'decor:lampPanel', count: 1, inputs: [ore('Copper', 1), ore('Coal', 1)]}
 ];
