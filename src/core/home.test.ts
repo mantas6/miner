@@ -37,9 +37,11 @@ describe('locating the stations', () => {
 
   it('opens the station the parked ship is standing on or beside, else none', () => {
     expect(nearestStation({x: STATIONS.manufacturer.x, y: HOME_ROW})).toBe('manufacturer');
-    expect(nearestStation({x: STATIONS.extractor.x - 1, y: HOME_ROW})).toBe('extractor');
-    // Midway between the two, out of reach of both.
-    expect(nearestStation({x: (STATIONS.manufacturer.x + STATIONS.extractor.x) / 2, y: HOME_ROW})).toBeNull();
+    expect(nearestStation({x: STATIONS.extractor.x + 1, y: HOME_ROW})).toBe('extractor');
+    // The spawn tile midway between the two is in reach of both; the manufacturer breaks the tie.
+    expect(nearestStation({x: (STATIONS.manufacturer.x + STATIONS.extractor.x) / 2, y: HOME_ROW})).toBe('manufacturer');
+    // Two tiles past the extractor is out of reach of both.
+    expect(nearestStation({x: STATIONS.extractor.x + 2, y: HOME_ROW})).toBeNull();
   });
 });
 

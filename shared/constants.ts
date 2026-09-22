@@ -23,8 +23,8 @@ export const HOME_ROW = 10;
 export const HOME_CAVERN = Object.freeze({ halfWidth: 6, height: 3 });
 /** Fixed world objects that sit on the cavern floor (drawn/handled outside the tile grid). */
 export const STATIONS = Object.freeze({
-  manufacturer: { x: HOME_X - 3, y: HOME_ROW },
-  extractor: { x: HOME_X + 3, y: HOME_ROW }
+  manufacturer: { x: HOME_X - 1, y: HOME_ROW },
+  extractor: { x: HOME_X + 1, y: HOME_ROW }
 });
 /** Reference row for depth measurement and world-generation offsets. */
 export const START_Y = HOME_ROW;

@@ -84,7 +84,7 @@ test.describe('gameplay', () => {
    * The materials are seeded into the station rather than mined, because
    * everything under test here happens at the base and digging up 2 Copper and a
    * Silver first would test the drill instead. The ship's `x`/`y` put it one tile
-   * from the manufacturing station (`STATIONS.manufacturer` at `HOME_X-3`).
+   * from the manufacturing station (`STATIONS.manufacturer` at `HOME_X-1`).
    */
   test('a scanner crafted at the manufacturing station is taken aboard', async ({page}) => {
     await page.addInitScript(() => {
