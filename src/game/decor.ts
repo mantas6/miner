@@ -11,6 +11,7 @@
 // ever armed, and it shares the single `armedPlacement` slot with the deployables,
 // so arming a panel stands any armed device down and vice versa.
 
+import { DECOR_HP } from '../../shared/constants';
 import { decorIdForKind, decorPlacementRefusal } from '../core/decor';
 import { isStationTile } from '../core/home';
 import { countItem, removeItem, type DecorKind } from '../core/inventory';
@@ -88,7 +89,7 @@ export function createDecor(deps: DecorDeps): DecorSim {
       toast(refusal);
       return false;
     }
-    grid.set(x, y, {type: 'decor', decor: decorIdForKind(kind)});
+    grid.set(x, y, {type: 'decor', decor: decorIdForKind(kind), hp: DECOR_HP, maxHp: DECOR_HP});
     state.player.inventory = removeItem(state.player.inventory, kind);
     setArmed(null);
     saveProgress();

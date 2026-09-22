@@ -7,7 +7,7 @@
 // two-press placement gesture — it is just a tile rather than a tracked device.
 
 import { describe, expect, it } from 'vitest';
-import { STATIONS } from '../../shared/constants';
+import { DECOR_HP, STATIONS } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { addItem, countItem, createInventory, type DecorKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
@@ -74,12 +74,12 @@ describe('arming a decoration', () => {
 });
 
 describe('placing a decoration', () => {
-  it('spends one from the bay and writes the decor tile', () => {
+  it('spends one from the bay and writes the decor tile with full durability', () => {
     const h = harness(2);
     h.decor.toggleArmed(STEEL);
 
     expect(h.decor.placeAt(40, 100)).toBe(true);
-    expect(h.grid.writes).toEqual([{x: 40, y: 100, tile: {type: 'decor', decor: 'steelPlate'}}]);
+    expect(h.grid.writes).toEqual([{x: 40, y: 100, tile: {type: 'decor', decor: 'steelPlate', hp: DECOR_HP, maxHp: DECOR_HP}}]);
     expect(countItem(h.state.player.inventory, STEEL)).toBe(1);
     expect(h.decor.armed).toBeNull();
     expect(h.toasts.saw('Decoration placed')).toBe(true);

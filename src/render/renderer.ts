@@ -791,8 +791,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.shadowBlur = 0;
   }
   function drawTileDamage(t: Tile, sx: number, sy: number) {
-    // Air, rock, and decorations carry no durability, so none shows damage.
-    if (t.type === 'air' || t.type === 'rock' || t.type === 'decor') return;
+    // Air and rock carry no durability, so neither shows damage.
+    if (t.type === 'air' || t.type === 'rock') return;
     if (t.hp >= t.maxHp) return;
     if (t.type === 'hazard') {
       ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(sx+TILE*.18, sy+TILE*.12, TILE*.64, TILE*.055);

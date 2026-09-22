@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import {
+  DECOR_HP,
   ENEMY_KINDS,
   MAX_ENEMIES,
   MAX_EXPLORED_CHARS,
@@ -63,11 +64,17 @@ export const rockTileSchema = z.object({ type: z.literal('rock'), hp });
 export const oreTileSchema = z.object({ type: z.literal('ore'), ore: oreSchema, hp, maxHp });
 export const hazardTileSchema = z.object({ type: z.literal('hazard'), hp, maxHp });
 /**
- * A placed decoration. Cosmetic and solid: it is dug back out (returning the item)
- * or blown up, but it carries no durability — one drill pass clears it — so it has
- * no `hp`/`maxHp`, only which of the three looks it wears.
+ * A placed decoration. Cosmetic and solid: it takes several seconds of drilling
+ * to break (`DECOR_HP`), then is dug back out (returning the item) or blown up.
+ * `hp`/`maxHp` default to `DECOR_HP` so decor tiles saved before durability
+ * existed still validate without a save-version bump.
  */
-export const decorTileSchema = z.object({ type: z.literal('decor'), decor: decorIdSchema });
+export const decorTileSchema = z.object({
+  type: z.literal('decor'),
+  decor: decorIdSchema,
+  hp: hp.default(DECOR_HP),
+  maxHp: maxHp.default(DECOR_HP)
+});
 /** Dormant enemy. Legacy payloads omit `kind`; they normalize to the weakest. */
 export const dormantEnemyTileSchema = z.object({
   type: z.literal('enemy'),

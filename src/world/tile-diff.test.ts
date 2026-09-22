@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SAVED_TILE_ENTRIES, WORLD_CHUNK_ROWS } from '../../shared/constants';
+import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, WORLD_CHUNK_ROWS } from '../../shared/constants';
 import { tileKey } from '../../shared/tile-key';
 import type { Tile, TileEntry } from '../../shared/world-schema';
 import {
@@ -53,7 +53,7 @@ describe('accumulating a diff', () => {
   });
 
   it('round-trips a placed decoration tile through entries', () => {
-    const entries: TileEntry[] = [{x: 8, y: 12, tile: {type: 'decor', decor: 'lampPanel'}}];
+    const entries: TileEntry[] = [{x: 8, y: 12, tile: {type: 'decor', decor: 'lampPanel', hp: DECOR_HP, maxHp: DECOR_HP}}];
     expect(tileDiffEntries(createTileDiff(entries))).toEqual(entries);
   });
 });

@@ -7,7 +7,7 @@ import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKin
 import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { MAX_SAVED_TILE_ENTRIES, ORES, START_Y } from '../shared/constants';
+import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, ORES, START_Y } from '../shared/constants';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
 import { createTileDiff, tileDiffEntries } from './world/tile-diff';
@@ -534,6 +534,33 @@ describe('solo terrain persistence', () => {
     const restored = createInitialState();
     load(restored);
     expect(restored.soloTileDiff).toEqual(state.soloTileDiff);
+  });
+
+  it('round-trips a placed decoration tile with its durability', () => {
+    stubStorage();
+    const decor: TileEntry = { x: 40, y: 61, tile: { type: 'decor', decor: 'lampPanel', hp: 12, maxHp: DECOR_HP } };
+    const state = createInitialState();
+    state.soloTileDiff = createTileDiff([decor]);
+
+    save(state);
+    const restored = createInitialState();
+    load(restored);
+
+    expect(tileDiffEntries(restored.soloTileDiff)).toEqual([decor]);
+  });
+
+  it('defaults durability on a decor tile saved before it existed', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      tiles: [{ x: 40, y: 61, tile: { type: 'decor', decor: 'steelPlate' } }]
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(tileDiffEntries(state.soloTileDiff)).toEqual([
+      { x: 40, y: 61, tile: { type: 'decor', decor: 'steelPlate', hp: DECOR_HP, maxHp: DECOR_HP } }
+    ]);
   });
 
   it('ignores a malformed tile list instead of failing the whole load', () => {

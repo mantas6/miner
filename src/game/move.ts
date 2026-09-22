@@ -169,23 +169,33 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
   }
 
   /**
-   * A placed decoration drills out in one pass and returns to the bay — the
-   * player recovers what they set down. A full bay refuses it (the ship stays
-   * put), so a decoration is never destroyed just to make the ship move.
+   * A placed decoration takes several seconds of drilling to break, then returns
+   * to the bay — the player recovers what they set down. The full-bay check runs
+   * only on the final hit, so the ship can chip away at one even with no room to
+   * stow it; a full bay then refuses that last hit (the ship stays put), so a
+   * decoration is never destroyed just to make the ship move.
    */
   function drillDecorTile(tile: DecorTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
     player.drillDx = dx; player.drillDy = dy; player.drillAnim = 1.2;
     const item = itemForKind(decorKindForId(tile.decor));
+    tile.hp -= player.drill;
+    useFuel(dig(FUEL.dig.dig));
+    spawnDust(nx, ny, item.color, 8);
+    audio.mine();
+    if (tile.hp > 0) {
+      grid.set(nx, ny, tile);
+      toast(`Drilling out ${item.label}... ${Math.max(1, Math.ceil(tile.hp))} hits left`);
+      return 'blocked';
+    }
     if (isFull(player.inventory, player.cargoMax)) {
+      tile.hp = 1;
+      grid.set(nx, ny, tile);
       audio.alarm();
       toast('Cargo bay full — clear space before recovering the decoration.');
       return 'blocked';
     }
-    useFuel(dig(FUEL.dig.dig));
     player.inventory = addItem(player.inventory, item);
     grid.set(nx, ny, {type: 'air'});
-    spawnDust(nx, ny, item.color, 8);
-    audio.mine();
     saveProgress();
     toast(`Recovered ${item.label}.`);
     return 'advance';

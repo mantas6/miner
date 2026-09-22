@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_WORLD_ROW, ORES, WORLD_STATE_VERSION } from './constants';
+import { DECOR_HP, MAX_WORLD_ROW, ORES, WORLD_STATE_VERSION } from './constants';
 import {
   emptyWorldState,
   oreSchema,
@@ -26,7 +26,10 @@ describe('tiles', () => {
   });
 
   it('accepts a decoration tile and rejects an unknown decor id', () => {
-    expect(parseTile({ type: 'decor', decor: 'lampPanel' })).toEqual({ type: 'decor', decor: 'lampPanel' });
+    // Durability is optional on the wire: a decor tile saved before it existed
+    // defaults to DECOR_HP so the whole payload still validates.
+    expect(parseTile({ type: 'decor', decor: 'lampPanel' })).toEqual({ type: 'decor', decor: 'lampPanel', hp: DECOR_HP, maxHp: DECOR_HP });
+    expect(parseTile({ type: 'decor', decor: 'steelPlate', hp: 12, maxHp: DECOR_HP })).toEqual({ type: 'decor', decor: 'steelPlate', hp: 12, maxHp: DECOR_HP });
     expect(parseTile({ type: 'decor', decor: 'gilded' })).toBeNull();
     expect(parseTile({ type: 'decor' })).toBeNull();
   });

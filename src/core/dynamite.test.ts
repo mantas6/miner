@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HULL } from './balance';
-import { WORLD_W } from '../../shared/constants';
+import { DECOR_HP, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import {
   DYNAMITE,
@@ -54,7 +54,7 @@ describe('dynamite blast targets', () => {
 
   it('destroys placed decorations, which are never returned by a blast', () => {
     const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
-    world[5][6] = {type: 'decor', decor: 'copperTrim'};
+    world[5][6] = {type: 'decor', decor: 'copperTrim', hp: DECOR_HP, maxHp: DECOR_HP};
 
     const targets = getDynamiteBlastTargets(world, 5, 5, 2);
     for (const {x, y} of targets) world[y][x] = {type: 'air'};

@@ -69,6 +69,14 @@ export const MAX_STATE_BYTES = 16 * 1024 * 1024;
 /** Highest value a valuable (ore/artifact) may declare. */
 export const MAX_VALUABLE_VALUE = 1_000_000;
 
+/**
+ * Durability of a placed decoration tile. A base drill (`STARTING.drill = 1`)
+ * lands one hit per keyboard repeat (`keyboardRepeatMs = 105`), so 48 hits is
+ * ~5 s of drilling — enough that a decoration is no longer cleared by a single
+ * accidental pass. Upgraded drills break it faster, which is acceptable.
+ */
+export const DECOR_HP = 48;
+
 export const ENEMY_KINDS = ['tunnelFiend', 'skitterling', 'ironback', 'abyssStalker'] as const;
 
 // World-generation thresholds shared with player-facing danger guidance.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ORES, START_Y, WORLD_W } from '../../shared/constants';
+import { DECOR_HP, ORES, START_Y, WORLD_W } from '../../shared/constants';
 import { FUEL, HULL, STARTING } from '../core/balance';
 import { addOre, countItem, countOres, createInventory, oreKind } from '../core/inventory';
 import { createInitialState } from '../core/state';
@@ -322,10 +322,16 @@ describe('digging', () => {
 });
 
 describe('drilling out a decoration', () => {
-  it('recovers the panel to the bay, clears the tile, and advances', () => {
+  it('takes several hits, leaving reduced hp between them, then recovers and advances', () => {
     const h = harness();
-    h.state.player.drill = 5;
-    h.grid.put(10, 41, {type: 'decor', decor: 'steelPlate'});
+    h.state.player.drill = 1;
+    h.grid.put(10, 41, {type: 'decor', decor: 'steelPlate', hp: 3, maxHp: DECOR_HP});
+
+    h.movement.move(0, 1);
+    h.movement.move(0, 1);
+    // An intermediate hit chips the panel down without freeing the ship.
+    expect(h.grid.get(10, 41)).toMatchObject({type: 'decor', decor: 'steelPlate', hp: 1});
+    expect(h.state.player.y).toBe(40);
 
     h.movement.move(0, 1);
 
@@ -335,16 +341,22 @@ describe('drilling out a decoration', () => {
     expect(h.saveProgress).toHaveBeenCalled();
   });
 
-  it('refuses to drill it out with a full bay, leaving both the tile and the ship', () => {
+  it('lets a full bay chip away but refuses only the final hit', () => {
     const h = harness();
-    h.state.player.drill = 5;
+    h.state.player.drill = 1;
     h.state.player.cargoMax = 1;
     h.state.player.inventory = addOre(createInventory(), ORES[0], 1)!;
-    h.grid.put(10, 41, {type: 'decor', decor: 'lampPanel'});
+    h.grid.put(10, 41, {type: 'decor', decor: 'lampPanel', hp: 2, maxHp: DECOR_HP});
 
+    // A non-final hit lands even with a full bay: the panel is only chipped.
     h.movement.move(0, 1);
+    expect(h.grid.get(10, 41)).toMatchObject({type: 'decor', decor: 'lampPanel', hp: 1});
+    expect(h.state.player.y).toBe(40);
+    expect(h.toasts.saw('Cargo bay full')).toBe(false);
 
-    expect(h.grid.get(10, 41)).toEqual({type: 'decor', decor: 'lampPanel'});
+    // The breaking hit is the one a full bay refuses, leaving the tile standing.
+    h.movement.move(0, 1);
+    expect(h.grid.get(10, 41)).toMatchObject({type: 'decor', decor: 'lampPanel', hp: 1});
     expect(h.state.player.y).toBe(40);
     expect(h.toasts.saw('Cargo bay full')).toBe(true);
     expect(h.audio.played).toContain('alarm');
