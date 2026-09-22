@@ -2,14 +2,14 @@
 //
 // It shows the two buffers — coal queued for conversion and fuel already stored,
 // read as `n / cap` — and, while a coal is burning, how long until the next unit
-// of fuel lands. Below sit the two transfers: "Load coal (n)" queues every coal
-// in the bay, and "Refuel ship (+n)" tops the tank up from stored fuel. Each names
-// the amount it would move and goes dead when that amount is zero.
+// of fuel lands. Below sits the one transfer: "Load coal (n)" queues every coal in
+// the bay; it names the amount it would move and goes dead when that amount is zero.
+// Refuelling is no longer a button here — the tank tops up on its own the moment the
+// ship parks on the extractor tile.
 //
 // Everything is painted from the store: the buffers and progress animate as the
 // fixed-step extractor tick pushes fresh values in while the screen is open, and
-// the button amounts follow the bay and the tank. The screen holds no copy of any
-// of it.
+// the button amount follows the bay. The screen holds no copy of any of it.
 //
 // The shell/card split and the backdrop press are the other dialogs', for the
 // same reasons.
@@ -60,13 +60,9 @@ function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null
   const coal = useUiStore(state => state.extractor.coal);
   const fuel = useUiStore(state => state.extractor.fuel);
   const progress = useUiStore(state => state.extractor.progress);
-  const playerFuel = useUiStore(state => state.player.fuel);
-  const fuelMax = useUiStore(state => state.player.fuelMax);
   const bayCoal = useUiStore(state => state.inventorySlots.find(slot => slot.kind === COAL_KIND)?.count ?? 0);
 
   const storedFuel = Math.round(fuel);
-  // Room the tank has left, and what one refuel would pour in: never more than is stored.
-  const refuelAmount = Math.round(Math.min(fuel, Math.max(0, fuelMax - playerFuel)));
   // Only count down while a coal is actually burning — full tank or empty queue, it idles.
   const converting = coal > 0 && fuel < EXTRACTOR.fuelCap;
   const secondsToNext = converting
@@ -100,7 +96,7 @@ function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null
           {converting
             ? `Converting — next fuel in ${secondsToNext}s.`
             : coal > 0
-              ? 'Fuel store full — refuel to resume converting.'
+              ? 'Fuel store full — park on the extractor to refuel.'
               : 'Idle — load coal to make fuel.'}
         </p>
         <div className={styles.actions}>
@@ -112,15 +108,6 @@ function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null
             onClick={() => uiCommands.loadCoal()}
           >
             Load coal ({bayCoal})
-          </button>
-          <button
-            id="refuelBtn"
-            type="button"
-            className={styles.action}
-            disabled={refuelAmount <= 0}
-            onClick={() => uiCommands.refuelFromExtractor()}
-          >
-            Refuel ship (+{refuelAmount})
           </button>
         </div>
       </div>

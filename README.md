@@ -325,8 +325,8 @@ one and press `Space` (or click its tile) to open it.
 - **Oil Extractor.** Fuel comes from coal now, not a pump. Load coal here and it
   converts on the simulation's own clock — 1 coal → 20 fuel every 180 ticks (~3 s),
   banked up to a 500-fuel store (`EXTRACTOR` in `src/core/balance.ts`). The
-  conversion runs whether or not you are watching; "Refuel ship" tops the tank up
-  from the store.
+  conversion runs whether or not you are watching; parking on the extractor tile
+  tops the tank up from the store on its own.
 
 ### Crafting & ship equipment
 

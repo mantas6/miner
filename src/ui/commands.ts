@@ -59,8 +59,6 @@ export interface UiCommands {
   craft(recipe: number | InventoryItemKind): void;
   /** Queue every coal aboard into the extractor. */
   loadCoal(): void;
-  /** Top the ship's tank up from the extractor's stored fuel. */
-  refuelFromExtractor(): void;
   openInfo(): void;
   closeInfo(): void;
   toggleMusic(): void;
@@ -110,7 +108,6 @@ function noopCommands(): UiCommands {
     takeFromStation: noop,
     craft: noop,
     loadCoal: noop,
-    refuelFromExtractor: noop,
     openInfo: noop,
     closeInfo: noop,
     toggleMusic: noop,

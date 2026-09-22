@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 //
 // The oil extractor screen as a component: does it paint the queued coal, the
-// stored fuel against its cap, and the countdown from the store, and do the two
-// transfer buttons name their amounts, disable at zero, and reach the right
-// command? What a load/refuel or a conversion actually does lives in
+// stored fuel against its cap, and the countdown from the store, and does the Load
+// coal button name its amount, disable at zero, and reach the right command? What a
+// load or a conversion actually does — and the auto-refuel on parking — lives in
 // core/home.test.ts and game/home-stations.test.ts.
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
@@ -83,30 +83,18 @@ describe('oil extractor dialog', () => {
     expect(emptyLoad.disabled).toBe(true);
   });
 
-  it('labels Refuel with the amount it would pour in, capped by tank room and stored fuel', () => {
-    open({extractor: {coal: 0, fuel: 50}, player: {fuel: 70, fuelMax: 100}});
-    const refuel = document.getElementById('refuelBtn') as HTMLButtonElement;
-    // 30 of room, 50 stored: only 30 moves.
-    expect(refuel.textContent).toContain('Refuel ship (+30)');
-    expect(refuel.disabled).toBe(false);
+  it('reads that the fuel store is full and to park to refuel', () => {
+    open({extractor: {coal: 4, fuel: EXTRACTOR.fuelCap, progress: 0}});
+    expect(document.getElementById('extractorStatus')!.textContent).toContain('park on the extractor to refuel');
   });
 
-  it('disables Refuel with a full tank or no stored fuel', () => {
-    open({extractor: {coal: 0, fuel: 0}, player: {fuel: 70, fuelMax: 100}});
-    expect((document.getElementById('refuelBtn') as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('routes the two buttons to their commands', () => {
+  it('routes the Load coal button to its command', () => {
     const loadCoal = vi.fn();
-    const refuelFromExtractor = vi.fn();
-    setUiCommands({loadCoal, refuelFromExtractor});
+    setUiCommands({loadCoal});
     open({extractor: {coal: 0, fuel: 50}, player: {fuel: 70, fuelMax: 100}, bayCoal: 3});
 
     fireEvent.click(document.getElementById('loadCoalBtn')!);
     expect(loadCoal).toHaveBeenCalledOnce();
-
-    fireEvent.click(document.getElementById('refuelBtn')!);
-    expect(refuelFromExtractor).toHaveBeenCalledOnce();
   });
 
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {

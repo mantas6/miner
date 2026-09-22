@@ -236,7 +236,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       takeFromStation: (kind, single) => homeStations.take(kind, single),
       craft: recipe => homeStations.craft(recipe),
       loadCoal: () => homeStations.loadCoal(),
-      refuelFromExtractor: () => homeStations.refuel(),
       openInfo: openInfoScreen,
       closeInfo: closeInfoScreen,
       toggleMusic: () => { void audio.toggleMusic(); },

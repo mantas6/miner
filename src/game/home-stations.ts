@@ -36,6 +36,7 @@ import {
   tickExtractor,
   type StationKey
 } from '../core/home';
+import { STATIONS } from '../../shared/constants';
 import type { AudioController, GameState } from '../core/types';
 
 /** The buffers the extractor screen paints, plus the current coal's tick progress. */
@@ -63,8 +64,6 @@ export interface HomeStationsSim {
   craft(recipe: number | InventoryItemKind): void;
   /** Queue every coal aboard into the extractor. */
   loadCoal(): void;
-  /** Top the ship's tank up from the extractor's stored fuel. */
-  refuel(): void;
   /** One fixed 60 Hz step: run the extractor, and tidy up after a lost ship. */
   tick(): void;
 }
@@ -85,6 +84,10 @@ export interface HomeStationsDeps {
 export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
   const {state, audio, toast, saveProgress} = deps;
   let open: StationKey | null = null;
+  // Auto-refuel fires once when the ship arrives on the extractor tile, and re-arms
+  // the moment it leaves. A respawn drops the ship on the spawn tile (`HOME_X`), not
+  // the extractor beside it, so the flag re-arms on its own — no reset hook needed.
+  let wasOnExtractor = false;
 
   function stock(): Inventory {
     return state.home.station.inventory;
@@ -202,25 +205,32 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     toast(`Loaded ${coal.count} coal into the extractor.`);
   }
 
-  function refuel(): void {
-    if (open !== 'extractor' || state.gameOver) return;
+  /** Pour as much stored fuel into the tank as it will take. Returns the amount moved. */
+  function pourFuel(): number {
     const p = state.player;
     const moved = Math.min(p.fuelMax - p.fuel, state.home.extractor.fuel);
-    if (moved <= 0) {
-      audio.alarm();
-      return toast(p.fuel >= p.fuelMax ? 'Fuel tank already full.' : 'No fuel stored in the extractor yet.');
-    }
+    if (moved <= 0) return 0;
     p.fuel += moved;
     state.home.extractor.fuel -= moved;
-    deps.syncPlayer();
-    repaint();
-    saveProgress();
-    audio.blip(500, .08, 'triangle', .045, 40);
-    toast(`Refueled +${Math.round(moved)} from the extractor.`);
+    return moved;
   }
 
   function tick(): void {
     if (state.gameOver) { close(); return; }
+    // Park on the extractor and it tops the tank up on the spot — once per visit,
+    // re-armed on leaving. Silent when there is nothing to move (full tank, empty store).
+    const onExtractor = state.player.x === STATIONS.extractor.x && state.player.y === STATIONS.extractor.y;
+    if (onExtractor && !wasOnExtractor) {
+      const moved = pourFuel();
+      if (moved > 0) {
+        deps.syncPlayer();
+        repaint();
+        saveProgress();
+        audio.blip(500, .08, 'triangle', .045, 40);
+        toast(`Refueled +${Math.round(moved)} from the extractor.`);
+      }
+    }
+    wasOnExtractor = onExtractor;
     // The extractor works whether or not the player is watching. A steady tick
     // that neither advances progress nor converts hands back the same buffer, so
     // most frames fall out here doing nothing.
@@ -245,7 +255,6 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     take,
     craft,
     loadCoal,
-    refuel,
     tick
   };
 }

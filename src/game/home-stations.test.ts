@@ -170,29 +170,77 @@ describe('the oil extractor transfers', () => {
     expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0, progress: 0});
   });
 
-  it('tops the ship tank up from stored fuel, capped by the tank', () => {
+});
+
+describe('parking on the extractor to refuel', () => {
+  it('pours stored fuel into the tank once on arrival, capped by the tank', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
     h.state.home.extractor.fuel = 50;
-    h.sim.openNearest();
 
-    h.sim.refuel();
+    h.sim.tick();
 
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
     expect(h.state.home.extractor.fuel).toBe(20);
+    expect(h.toasts.saw('Refueled +30 from the extractor')).toBe(true);
   });
 
-  it('refuses a refuel with an empty extractor', () => {
+  it('does not pour again on a second tick while still parked', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
-    h.sim.openNearest();
+    h.state.home.extractor.fuel = 50;
 
-    h.sim.refuel();
+    h.sim.tick();
+    h.state.home.extractor.fuel = 40;
+    h.sim.tick();
+
+    // Tank stayed full, and the store the second tick topped up is untouched.
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
+    expect(h.state.home.extractor.fuel).toBe(40);
+  });
+
+  it('pours again after leaving and returning', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.state.player.fuel = h.state.player.fuelMax - 30;
+    h.state.home.extractor.fuel = 50;
+
+    h.sim.tick();
+    // Fly off, burn some fuel, then park again.
+    Object.assign(h.state.player, {x: 5, y: 300});
+    h.sim.tick();
+    park(h.state, 'extractor');
+    h.state.player.fuel = h.state.player.fuelMax - 10;
+    h.sim.tick();
+
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
+    expect(h.state.home.extractor.fuel).toBe(10);
+  });
+
+  it('stays silent when the tank is already full', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.state.player.fuel = h.state.player.fuelMax;
+    h.state.home.extractor.fuel = 50;
+
+    h.sim.tick();
+
+    expect(h.state.home.extractor.fuel).toBe(50);
+    expect(h.toasts.saw('Refueled')).toBe(false);
+  });
+
+  it('stays silent when the store is empty', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.state.player.fuel = h.state.player.fuelMax - 30;
+    h.state.home.extractor.fuel = 0;
+
+    h.sim.tick();
 
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax - 30);
-    expect(h.toasts.saw('No fuel stored')).toBe(true);
+    expect(h.toasts.saw('Refueled')).toBe(false);
   });
 });
 
