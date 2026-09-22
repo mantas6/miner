@@ -36,7 +36,7 @@ function harness(): Harness {
   Object.assign(state.player, {
     x: 12, y: 60, drawX: 12, drawY: 60,
     fuel: 30, hull: 25,
-    // Fitted upgrades survive the wreck; the maxima derive from them.
+    // Fitted upgrades set the maxima mid-run; a death strips them back to base.
     equipment: ['upgrade:tank:1', 'upgrade:cargo:1'],
     // Ore to lose with the ship, and equipment that survives it.
     inventory: addItem(
@@ -120,7 +120,7 @@ describe('death consequences', () => {
 });
 
 describe('restarting after a death', () => {
-  it('keeps cash, upgrades and stats but loses cargo, position and fuel burn', () => {
+  it('keeps cash and stats but loses cargo, fitted upgrades, position and fuel burn', () => {
     const h = harness();
     h.run.gameOver();
 
@@ -132,16 +132,19 @@ describe('restarting after a death', () => {
     expect(h.state.player).toMatchObject({
       x: Math.floor(WORLD_W / 2),
       y: START_Y,
-      // Tank Mk I adds +50 to the starting tank, and respawn tops it right up.
-      fuel: STARTING.fuelMax + 50,
-      hull: STARTING.hullMax
+      // The fitted upgrades go down with the ship, so the maxima fall back to base.
+      fuel: STARTING.fuelMax,
+      fuelMax: STARTING.fuelMax,
+      hull: STARTING.hullMax,
+      cargoMax: STARTING.cargoMax
     });
-    // Equipment is not cargo: the replacement ship keeps the teleporter.
+    expect(h.state.player.equipment).toEqual([null, null]);
+    // Bay equipment is not cargo: the replacement ship keeps the teleporter.
     expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.gameOver).toBe(false);
     expect(h.input.reset).toHaveBeenCalled();
-    expect(h.toasts.saw('Replacement ship')).toBe(true);
+    expect(h.toasts.saw('Cargo and fitted upgrades lost')).toBe(true);
   });
 
   it('regenerates the whole world and re-seeds enemy exposure', () => {

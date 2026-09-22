@@ -688,7 +688,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       actions,
       move: movement.move,
       isOpenMovementDestination: movement.isOpenMovementDestination,
-      restartGame: run.restartGame,
+      // A replacement ship deploys with empty fitting slots, so the Ship screen's
+      // store snapshot has to be re-synced or it would still paint the dead ship's
+      // upgrades until the screen is next reopened.
+      restartGame: () => { run.restartGame(); syncShipUpgrades(); },
       closeShipScreen,
       closeInfoScreen,
       cancelPlacement: disarmPlacements,

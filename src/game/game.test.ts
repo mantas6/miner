@@ -14,7 +14,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react';
-import { uiStore } from '../ui/store';
+import { buildShipSlots, uiStore } from '../ui/store';
 import { MinerApp } from '../ui/ui';
 import type { GameRuntime } from './game';
 
@@ -168,6 +168,18 @@ describe('booting the game', () => {
 
     press('Escape');
     expect(dialogOpen('ship-screen')).toBe(false);
+  });
+
+  it('empties the fitted-slot display when a replacement ship deploys', () => {
+    // Stand in for a run that fitted an upgrade: the store still paints it.
+    act(() => { uiStore.getState().setShipEquipment(buildShipSlots(['upgrade:tank:1', null])); });
+    expect(uiStore.getState().shipEquipment.some(slot => slot.kind !== null)).toBe(true);
+
+    // R twice confirms a redeploy; the wreck takes the fitted upgrades with it, so
+    // the store must be re-synced to empty slots rather than the dead ship's.
+    press('r');
+    press('r');
+    expect(uiStore.getState().shipEquipment.every(slot => slot.kind === null)).toBe(true);
   });
 
   // Kept last: this one digs far enough to change cargo and depth for good.

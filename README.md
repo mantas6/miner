@@ -23,8 +23,9 @@ mutations and forgets older ones rather than outgrowing `localStorage`.
 
 The ship is part of that mine. The save records the tile it parked on, so a
 refresh resumes down the shaft instead of at the home base — with a full tank, a
-whole hull and an empty cargo bay, since none of those are saved. Only dying
-costs you your position. If the restored mine turns out to be solid rock at that
+whole hull and an empty cargo bay, since none of those are saved. Dying is the
+break: it costs you your position, the cargo aboard, and the upgrades fitted to
+the ship (the ones in the bay survive). If the restored mine turns out to be solid rock at that
 tile (a capped save), the ship starts at the home base rather than buried,
 because the drill cannot dig upward.
 
@@ -384,8 +385,9 @@ one and press `Space` (or click its tile) to open it.
 - The mine has no bottom: the run's goal is to keep hauling richer loads home
   alive, crafting better equipment, and setting depth records.
 - Progress (cash, fitted equipment, the bay, the home base, stats, explored tiles,
-  the mine you dug, and where you parked) is saved locally; death keeps all of it
-  and costs you the cargo aboard and your position.
+  the mine you dug, and where you parked) is saved locally; death keeps your cash,
+  bay equipment, home base and stats, and costs you the cargo aboard, the upgrades
+  fitted to the ship, and your position.
 - The camera zoom is remembered too, but as a preference rather than progress:
   it is stored under `moleload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
   clamped back into the 0.5x–2x range on load, and survives a death, a fresh

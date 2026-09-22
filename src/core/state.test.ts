@@ -29,12 +29,12 @@ describe('initial game state', () => {
 });
 
 describe('player respawn', () => {
-  it('restores the ship and clears cargo without losing fitted upgrades', () => {
+  it('restores the ship, clears cargo, and strips the fitted upgrades', () => {
     const state = createInitialState();
     const player = state.player;
     player.x = 4;
     player.y = 80;
-    // Fitted upgrades survive the wreck; the maxima derive from them.
+    // Fitted upgrades do not survive the wreck; the maxima fall back to base.
     player.equipment = ['upgrade:tank:1', 'upgrade:drill:1'];
     applyEquipment(player);
     player.fuel = 0;
@@ -50,17 +50,18 @@ describe('player respawn', () => {
     expect(player).toMatchObject({
       x: Math.floor(WORLD_W / 2),
       y: START_Y,
-      fuel: STARTING.fuelMax + 50,
-      fuelMax: STARTING.fuelMax + 50,
-      hull: player.hullMax,
+      fuel: STARTING.fuelMax,
+      fuelMax: STARTING.fuelMax,
+      hull: STARTING.hullMax,
+      hullMax: STARTING.hullMax,
       cargoMax: STARTING.cargoMax,
-      drill: STARTING.drill + 1
+      drill: STARTING.drill
     });
     expect(countItem(player.inventory, DYNAMITE_ITEM.kind)).toBe(2);
     expect(countItem(player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
     expect(countOres(player.inventory)).toBe(0);
-    // Ore gone, the two equipment stacks remain, and the fitted upgrades are kept.
+    // Ore gone, the two bay equipment stacks remain, and every fitting slot empties.
     expect(player.inventory).toHaveLength(2);
-    expect(player.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:1']);
+    expect(player.equipment).toEqual([null, null]);
   });
 });

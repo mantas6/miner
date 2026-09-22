@@ -4,7 +4,7 @@
 // thrown away — so they are grouped here rather than spread across the loop code.
 // The rules worth remembering:
 //   * hull damage that empties the hull ends the run exactly once;
-//   * death keeps cash, upgrades and stats, and loses cargo and position;
+//   * death keeps cash and stats, and loses cargo, fitted upgrades and position;
 //   * a boot keeps the position the save recorded, because only dying costs it.
 
 import { SHIP_UPGRADE_SLOTS, START_Y } from '../../shared/constants';
@@ -139,7 +139,7 @@ export function createRun(deps: GameRunDeps): GameRun {
     const died = state.gameOver;
     deps.input().reset();
     generate();
-    if (died) toast('Replacement ship deployed. Cash and upgrades kept; cargo lost.');
+    if (died) toast('Replacement ship deployed. Cargo and fitted upgrades lost.');
   }
 
   function gameOver(message = 'Game over. Tap anywhere or press R to restart.'): void {

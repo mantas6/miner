@@ -27,15 +27,18 @@ export function isAtHome(player: Pick<Player, 'x' | 'y'>): boolean {
 
 export function respawnPlayer(player: Player): void {
   placeAtHome(player);
-  // Fitted upgrades survive the wreck, so the derived maxima are re-derived first,
-  // then the ship deploys with a full tank and hull against those maxima.
+  // Fitted upgrades do not survive the wreck: unfitting every slot is the wipe,
+  // and re-deriving the maxima against the empty loadout drops them back to base
+  // before the replacement ship deploys with a full tank and hull.
+  player.equipment = Array.from({length: SHIP_UPGRADE_SLOTS}, () => null);
   applyEquipment(player);
   Object.assign(player, {
     fuel: player.fuelMax,
     hull: player.hullMax,
-    // Ore never survives a death; bought equipment — dynamite, scanners,
-    // teleporters, containers — rides out of the wreck with the miner. Ore stored
-    // in a crate is not aboard at all, so it is not lost either.
+    // Ore never survives a death, and neither do the upgrades fitted to the hull.
+    // Bought equipment still riding in the bay — dynamite, scanners, teleporters,
+    // containers — rides out of the wreck with the miner. Ore stored in a crate is
+    // not aboard at all, so it is not lost either.
     inventory: removeOres(player.inventory)
   });
 }
