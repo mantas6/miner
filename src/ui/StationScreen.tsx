@@ -1,7 +1,7 @@
 // The manufacturing station screen.
 //
-// Two halves. On top, the transfer: the station's own stock beside the ship's
-// bay, with a "Stow all" that empties what fits of the bay into the station and a
+// Two halves. On top, the transfer: the ship's bay beside the station's own
+// stock, with a "Stow all" that empties what fits of the bay into the station and a
 // Take on every station stack that pulls it back aboard. Below, the recipes: one
 // row each, its inputs listed, a Craft button that is live only while the station
 // holds the materials and names what is missing when it does not.
@@ -78,6 +78,31 @@ function StationCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}
         <section className={styles.columns} aria-label="Storage">
           <div className={styles.column}>
             <div className={styles.columnHeading}>
+              <h3>Cargo Bay</h3>
+              <button
+                id="stowAllBtn"
+                type="button"
+                className={styles.action}
+                onClick={() => uiCommands.stowAll()}
+              >Stow all</button>
+            </div>
+            <ul id="stationBay" className={styles.slots}>
+              {baySlots.length === 0 && (
+                <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>
+              )}
+              {baySlots.map(slot => (
+                <li key={slot.index}>
+                  <div className={styles.slot}>
+                    <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
+                    <span className={styles.label}>{slot.label}</span>
+                    <span className={styles.count}>×{slot.count}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className={styles.column}>
+            <div className={styles.columnHeading}>
               <h3>Station Stock</h3>
               <span>Press Take to pull a stack aboard.</span>
             </div>
@@ -97,31 +122,6 @@ function StationCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}
                       data-station-take={slot.kind}
                       onClick={event => uiCommands.takeFromStation(slot.kind, event.ctrlKey || event.metaKey)}
                     >Take</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className={styles.column}>
-            <div className={styles.columnHeading}>
-              <h3>Cargo Bay</h3>
-              <button
-                id="stowAllBtn"
-                type="button"
-                className={styles.action}
-                onClick={() => uiCommands.stowAll()}
-              >Stow all</button>
-            </div>
-            <ul id="stationBay" className={styles.slots}>
-              {baySlots.length === 0 && (
-                <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>
-              )}
-              {baySlots.map(slot => (
-                <li key={slot.index}>
-                  <div className={styles.slot}>
-                    <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
-                    <span className={styles.label}>{slot.label}</span>
-                    <span className={styles.count}>×{slot.count}</span>
                   </div>
                 </li>
               ))}

@@ -1,6 +1,6 @@
 // The cargo container's transfer menu.
 //
-// Two columns of stacks — the crate on the left, the ship's bay on the right —
+// Two columns of stacks — the ship's bay on the left, the crate on the right —
 // and one rule: a press on a stack sends it to the other side. There is no drag,
 // no quantity stepper and no confirm, because there is nothing to decide: a stack
 // is either aboard or it is in the crate, and the only question the menu ever asks
@@ -74,15 +74,6 @@ function CargoCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
       <div className={styles.body}>
         <div className={styles.columns}>
           <SlotColumn
-            listId="containerSlots"
-            title="Container"
-            hint="Press a stack to take it aboard"
-            slots={containerSlots}
-            capacity={CARGO_CONTAINER.capacity}
-            action="take"
-            onPress={(kind, single) => uiCommands.takeFromContainer(kind, single)}
-          />
-          <SlotColumn
             listId="shipSlots"
             title="Cargo Bay"
             hint="Press a stack to store it"
@@ -90,6 +81,15 @@ function CargoCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
             capacity={cargoMax}
             action="store"
             onPress={(kind, single) => uiCommands.storeInContainer(kind, single)}
+          />
+          <SlotColumn
+            listId="containerSlots"
+            title="Container"
+            hint="Press a stack to take it aboard"
+            slots={containerSlots}
+            capacity={CARGO_CONTAINER.capacity}
+            action="take"
+            onPress={(kind, single) => uiCommands.takeFromContainer(kind, single)}
           />
         </div>
         <p className={styles.tip}>Ctrl+click a stack to transfer one.</p>
