@@ -34,14 +34,19 @@ import type { GameState, GameStats } from './core/types';
 // `shared/world-schema.ts` tile entries that differ from the generated terrain
 // (see `src/world/tile-diff.ts`).
 //
-// Version 15 is a clean break. The underground-home rework changed too much for a
-// migration to be honest — the four ship stats became derived from fitted
-// equipment, the four consumable counters became one `bay` of stacks, and the home
-// base gained persisted state — so every save written before it is discarded on
-// load (see the version gate in `load`). A returning player from an older build
-// simply starts fresh.
+// Version 16 is a clean break. Sinking the home cavern deeper (`HOME_ROW` 10 -> 20,
+// with a band of unreachable terrain above it) shifted every absolute world
+// coordinate a save records — the parked ship, the explored fog, the tile diff,
+// and every placed device — relative to the terrain that now regenerates around
+// them. A migration would have to translate all of them, and the exploration codec
+// even accepts the shallower rows now, so an old save would decode into a mine that
+// no longer matches. As with the v15 underground-home rework before it (which made
+// ship stats derived, folded the consumable counters into one `bay`, and gave the
+// home base persisted state), the honest option is to discard anything older on
+// load (see the version gate in `load`): a returning player simply starts fresh.
 //
-// The v15 shape:
+// The v16 shape is identical to v15's; only the world geometry it maps onto
+// changed. Its fields:
 //   * `x`/`y`     — the tile the ship parked on.
 //   * `cash`      — the wallet.
 //   * `tiles`     — the solo world's tile diff, in the relay world format.
@@ -75,7 +80,7 @@ interface SavedProgress {
 }
 
 export const SAVE_KEY = 'moleload-progress-v1';
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 /** A stored stack is a count, not a licence to write an unbounded number. */
 const MAX_SAVED_STACK = 9999;
 

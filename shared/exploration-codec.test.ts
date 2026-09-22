@@ -40,9 +40,13 @@ describe('persistent fog exploration', () => {
     expect(mergeExploration(host, encoded)).toEqual([]);
   });
 
-  it('keeps the bedrock ceiling usable without storing it', () => {
-    expect(isTileExplored(new Set(), 0, 0)).toBe(true);
+  it('fogs the terrain above the cavern until the ship reveals it', () => {
+    expect(isTileExplored(new Set(), 0, 0)).toBe(false);
     expect(isTileExplored(new Set(), 20, 20)).toBe(false);
+
+    const explored = new Set<number>();
+    revealFootprint(explored, 0, 0, 3);
+    expect(isTileExplored(explored, 0, 0)).toBe(true);
   });
 
   it('round-trips explored terrain below 10,000 m', () => {

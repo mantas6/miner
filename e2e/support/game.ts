@@ -63,13 +63,13 @@ export async function openIntro(page: Page): Promise<void> {
  * drilling through the ~5 s stone slab the generator now lays there. Call before
  * `startSoloRun`, since the save has to be in place before the page loads.
  *
- * The coordinate is the tile below the spawn: `HOME_X` (45), `HOME_ROW + 1` (11).
+ * The coordinate is the tile below the spawn: `HOME_X` (45), `HOME_ROW + 1` (21).
  */
 export async function seedDirtUnderHome(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('moleload-progress-v1', JSON.stringify({
-      version: 15,
-      tiles: [{x: 45, y: 11, tile: {type: 'dirt', hp: 2, maxHp: 2}}]
+      version: 16,
+      tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}]
     }));
   });
 }

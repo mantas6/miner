@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ensureWorldRow, rand, naturalAirPocket, makeTile, oreForDepthRoll, oreSpawnChanceAtDepth, starterOreForCoordinate } from './world';
-import { DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
+import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
 
 describe('rand', () => {
@@ -118,10 +118,20 @@ describe('makeTile', () => {
     expect(makeTile(0, 0)).toEqual(makeTile(0, 0));
   });
 
-  it('caps the world with indestructible bedrock above the home cavern', () => {
-    for (let y = 0; y < HOME_CAVERN_TOP; y++) {
+  it('caps the world with an indestructible bedrock band at the very top', () => {
+    for (let y = 0; y < BEDROCK_ROWS; y++) {
       for (let x = 0; x < WORLD_W; x += 7) {
         expect(makeTile(x, y)).toEqual({type: 'rock', hp: 999});
+      }
+    }
+  });
+
+  it('fills the rows between the bedrock cap and the cavern with plain dirt', () => {
+    for (let y = BEDROCK_ROWS; y < HOME_CAVERN_TOP; y++) {
+      for (let x = 0; x < WORLD_W; x++) {
+        // Unreachable filler above the cavern: ordinary dirt, never bedrock, ore,
+        // an air pocket, a hazard, or an enemy — nothing generates this shallow.
+        expect(makeTile(x, y).type).toBe('dirt');
       }
     }
   });

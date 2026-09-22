@@ -94,9 +94,9 @@ test.describe('gameplay', () => {
   test('a scanner crafted at the manufacturing station is taken aboard', async ({page}) => {
     await page.addInitScript(() => {
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 15,
+        version: 16,
         x: 43,
-        y: 10,
+        y: 20,
         home: {station: [{kind: 'ore:Copper', count: 2}, {kind: 'ore:Silver', count: 1}]}
       }));
     });
@@ -135,24 +135,25 @@ test.describe('gameplay', () => {
 
   /**
    * The other half of the gesture: a press on the mine puts the device on the
-   * tile that was pressed. The save below hollows out and surveys rows 8–45 of
+   * tile that was pressed. The save below hollows out and surveys rows 18–45 of
    * the whole mine — the band starts at the cavern ceiling (`HOME_CAVERN_TOP`),
-   * the first row exploration is allowed to record, and runs deep enough that the
-   * middle of the canvas is a legal target whatever the framing, since the ship
-   * now spawns down at the home cavern floor rather than at the top of the world.
-   * The test is about the screen-to-tile conversion, not about aiming.
+   * and runs deep enough that the middle of the canvas is a legal target whatever
+   * the framing, since the ship spawns down at the home cavern floor rather than
+   * at the top of the world. The test is about the screen-to-tile conversion, not
+   * about aiming.
    */
   test('a press on the mine deploys the armed scanner and spends it', async ({page}) => {
     await page.addInitScript(() => {
       const worldWidth = 90;
+      const cavernTop = 18;
       const tiles = [];
-      for (let y = 8; y <= 45; y++) {
+      for (let y = cavernTop; y <= 45; y++) {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 15,
+        version: 16,
         bay: [{kind: 'scanner', count: 1}],
-        explored: `${8 * worldWidth}-${46 * worldWidth - 1}`,
+        explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
         tiles
       }));
     });
@@ -185,14 +186,15 @@ test.describe('gameplay', () => {
   test('a planted stick leaves the bay, burns its fuse, and blows on its own', async ({page}) => {
     await page.addInitScript(() => {
       const worldWidth = 90;
+      const cavernTop = 18;
       const tiles = [];
-      for (let y = 8; y <= 45; y++) {
+      for (let y = cavernTop; y <= 45; y++) {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 15,
+        version: 16,
         bay: [{kind: 'dynamite', count: 2}],
-        explored: `${8 * worldWidth}-${46 * worldWidth - 1}`,
+        explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
         tiles
       }));
     });
@@ -225,6 +227,9 @@ test.describe('gameplay', () => {
   });
 
   test('the canvas keeps the keyboard while mining', async ({page}) => {
+    // A plain dirt tile under the spawn, so one keypress drills something that
+    // charges fuel rather than chipping free hits off the stone-paved floor.
+    await seedDirtUnderHome(page);
     await startSoloRun(page);
     await drillDown(page);
     await expect(page.locator('#game')).toBeFocused();

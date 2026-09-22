@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { HOME_ROW, HOME_X } from '../../shared/constants';
 import { createPlacedContainer } from '../core/cargo-container';
 import { addItem } from '../core/inventory';
 import { createInitialState } from '../core/state';
@@ -47,6 +48,6 @@ describe('world state reset', () => {
     expect(state.teleportReturnPosition).toBeNull();
     expect(state.cash).toBe(9999);
     expect(state.stats).toEqual(statsBefore);
-    expect(state.player).toMatchObject({ ...playerBefore, x:45, y:10, drawX:45, drawY:10 });
+    expect(state.player).toMatchObject({ ...playerBefore, x:HOME_X, y:HOME_ROW, drawX:HOME_X, drawY:HOME_ROW });
   });
 });

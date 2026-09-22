@@ -198,7 +198,7 @@ describe('resuming a saved run', () => {
     });
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.cash).toBe(900);
-    expect(h.toasts.saw('500 m')).toBe(true);
+    expect(h.toasts.saw(`${(60 - START_Y) * 10} m`)).toBe(true);
     // The camera opens on the ship instead of panning down from the home base.
     expect(h.state.camY).toBeGreaterThan(0);
   });

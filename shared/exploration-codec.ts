@@ -1,9 +1,9 @@
-import { HOME_CAVERN_TOP, MAX_EXPLORED_TILES, MAX_WORLD_ROW, WORLD_W } from './constants.ts';
+import { MAX_EXPLORED_TILES, MAX_WORLD_ROW, WORLD_W } from './constants.ts';
 
 const RANGE = /^(\d+)(?:-(\d+))?$/;
-// The indestructible bedrock ceiling above the home cavern is always visible, so
-// exploration only ever stores rows at or below it.
-const MIN_INDEX = HOME_CAVERN_TOP * WORLD_W;
+// Everything above the home cavern is now fogged like the rest of the mine, so
+// exploration can record any row from the very top of the world downward.
+const MIN_INDEX = 0;
 const MAX_INDEX = MAX_WORLD_ROW * WORLD_W + WORLD_W - 1;
 
 export function explorationIndex(x: number, y: number): number {
@@ -11,7 +11,7 @@ export function explorationIndex(x: number, y: number): number {
 }
 
 export function isTileExplored(explored: ReadonlySet<number>, x: number, y: number): boolean {
-  return y < HOME_CAVERN_TOP || explored.has(explorationIndex(x, y));
+  return explored.has(explorationIndex(x, y));
 }
 
 /**
@@ -25,7 +25,7 @@ export function revealFootprint(explored: Set<number>, x: number, y: number, siz
   const added: number[] = [];
 
   for (let wy = startY; wy < startY + footprint; wy++) {
-    if (wy < HOME_CAVERN_TOP || wy > MAX_WORLD_ROW) continue;
+    if (wy < 0 || wy > MAX_WORLD_ROW) continue;
     for (let wx = startX; wx < startX + footprint; wx++) {
       if (wx < 0 || wx >= WORLD_W) continue;
       const index = explorationIndex(wx, wy);

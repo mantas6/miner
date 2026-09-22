@@ -1,6 +1,6 @@
 // Pure deterministic world generation. DOM-free / testable.
 // No imports from dom.js, game.js, or balance.js.
-import { DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
+import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
 import { enemyHealth, enemyKindForDepthRoll } from '../core/enemy-types';
 
@@ -55,8 +55,10 @@ export function oreForDepthRoll(depth: number, roll: number) {
 
 /** Generate the tile at a world coordinate. Deterministic for a given (x,y). */
 export function makeTile(x: number, y: number): Tile {
-  // Indestructible bedrock caps the world above the home cavern.
-  if (y < HOME_CAVERN_TOP) return {type:'rock', hp:999};
+  // An indestructible bedrock cap seals the top of the world. Below it, the rows
+  // between the cap and the cavern ceiling generate as ordinary terrain: they are
+  // unreachable (upward digging is blocked), so they stay a fogged dark band.
+  if (y < BEDROCK_ROWS) return {type:'rock', hp:999};
   // The home cavern is deterministic air, never stored in the tile diff.
   if (isHomeCavern(x, y)) return {type:'air'};
   // The cavern floor is a stone-paved base: deterministic decor tiles the player

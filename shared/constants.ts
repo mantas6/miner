@@ -18,7 +18,14 @@ export const WORLD_CHUNK_ROWS = 32;
 /** Column of the home cavern's centre, where the ship starts and returns. */
 export const HOME_X = 45;
 /** Floor row of the home cavern. Depth is measured downward from here. */
-export const HOME_ROW = 10;
+export const HOME_ROW = 20;
+/**
+ * The indestructible rock cap: rows 0..BEDROCK_ROWS-1 are always solid `rock`.
+ * The rows between the cap and the cavern ceiling (`HOME_CAVERN_TOP`) are
+ * ordinary fogged terrain the player can never reach (upward digging is blocked),
+ * so they read as a dark band above the base rather than more bedrock.
+ */
+export const BEDROCK_ROWS = 8;
 /** The carved cavern: `halfWidth` tiles either side of `HOME_X`, `height` rows tall (floor included). */
 export const HOME_CAVERN = Object.freeze({ halfWidth: 6, height: 3 });
 /** Fixed world objects that sit on the cavern floor (drawn/handled outside the tile grid). */
@@ -28,7 +35,10 @@ export const STATIONS = Object.freeze({
 });
 /** Reference row for depth measurement and world-generation offsets. */
 export const START_Y = HOME_ROW;
-/** Topmost cavern row; everything above it is indestructible bedrock. */
+/**
+ * Topmost cavern row. Above it sits a band of unreachable fogged terrain and,
+ * higher still (rows 0..`BEDROCK_ROWS`-1), the indestructible bedrock cap.
+ */
 export const HOME_CAVERN_TOP = HOME_ROW - HOME_CAVERN.height + 1;
 
 /** Whether a coordinate falls inside the deterministic home cavern (air). */
