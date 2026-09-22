@@ -1,6 +1,6 @@
 // Pure deterministic world generation. DOM-free / testable.
 // No imports from dom.js, game.js, or balance.js.
-import { DANGER, HOME_CAVERN_TOP, HOME_ROW, MAX_WORLD_ROW, ORES, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
+import { DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
 import { enemyHealth, enemyKindForDepthRoll } from '../core/enemy-types';
 
@@ -59,6 +59,10 @@ export function makeTile(x: number, y: number): Tile {
   if (y < HOME_CAVERN_TOP) return {type:'rock', hp:999};
   // The home cavern is deterministic air, never stored in the tile diff.
   if (isHomeCavern(x, y)) return {type:'air'};
+  // The cavern floor is a stone-paved base: deterministic decor tiles the player
+  // can drill out (~5 s) for Stone Blocks. Like the cavern it is not stored in the
+  // diff; digging through one writes air to the diff as usual.
+  if (y === HOME_ROW + 1 && Math.abs(x - HOME_X) <= HOME_CAVERN.halfWidth) return {type:'decor', decor:'stoneBlock', hp: DECOR_HP, maxHp: DECOR_HP};
   // Natural cave seams only open up below the cavern's immediate floor.
   if (y > HOME_ROW + 1 && naturalAirPocket(x,y)) return {type:'air'};
   const r = rand(x,y), depth = y;

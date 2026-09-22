@@ -9,16 +9,19 @@
 //   drilling   + 0.90 surcharge, then x1.5        = 1.845 fuel per drill hit
 //
 // and the HUD rounds up, so 100 → 98.155 reads `99/100` and 96.31 reads `97/100`.
-// The ship spawns on the home-cavern floor (`HOME_ROW`, depth 0 m), and the first
-// tile below it is dirt with 2 hp against a starting drill of 1, so it takes
-// exactly two hits to clear and the ship then stands one tile down — 10 m. If
-// balance moves, these constants move with it.
+// The ship spawns on the home-cavern floor (`HOME_ROW`, depth 0 m). That floor is
+// now paved with stone (48 hp), which would take ~5 s to drill, so the tests that
+// care about a clean one-tile dig seed a plain 2-hp dirt tile under the spawn with
+// `seedDirtUnderHome`: against a starting drill of 1 it takes exactly two hits to
+// clear and the ship then stands one tile down — 10 m. If balance moves, these
+// constants move with it.
 
 import { expect, test } from '@playwright/test';
-import { collectPageFailures, drillDown, readDepth, readFuel, startSoloRun } from './support/game';
+import { collectPageFailures, drillDown, readDepth, readFuel, seedDirtUnderHome, startSoloRun } from './support/game';
 
 test.describe('gameplay', () => {
   test('one keypress is charged exactly once and clears exactly one tile', async ({page}) => {
+    await seedDirtUnderHome(page);
     await startSoloRun(page);
     const depth = page.locator('#depth');
     const fuel = page.locator('#fuelLabel');
@@ -39,11 +42,12 @@ test.describe('gameplay', () => {
 
   test('mining downward increases depth and burns fuel', async ({page}) => {
     const failures = collectPageFailures(page);
+    await seedDirtUnderHome(page);
     await startSoloRun(page);
 
     let fuel = await readFuel(page);
-    // Ten hits are more than enough to get clear of the home cavern floor,
-    // whatever the generator put under it.
+    // Ten hits are more than enough to get clear of the seeded dirt floor and into
+    // the starter seam below, whatever the generator put under it.
     for (let hit = 0; hit < 10; hit++) {
       await drillDown(page);
       const remaining = await readFuel(page);
@@ -56,6 +60,7 @@ test.describe('gameplay', () => {
   });
 
   test('digging below home leaves the base and drops into the mine', async ({page}) => {
+    await seedDirtUnderHome(page);
     await startSoloRun(page);
     // The ship spawns on the home-cavern floor, so depth reads zero and the live
     // region says it is at the base. The Ship button is always available.

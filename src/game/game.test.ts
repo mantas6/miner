@@ -138,9 +138,10 @@ describe('booting the game', () => {
     press('s');
     renderFrame();
 
-    // The starter shaft below the home base is diggable dirt, so the first press
-    // spends fuel drilling; a later one drops the ship into the cleared tile.
-    for (let attempt = 0; attempt < 12 && text('depth') === '0 m'; attempt++) {
+    // The home base sits on a stone-paved floor (48 hp against a starting drill of
+    // 1), so it takes a full slab of presses to break through before the ship drops
+    // into the cleared tile — each press spends fuel drilling either way.
+    for (let attempt = 0; attempt < 60 && text('depth') === '0 m'; attempt++) {
       press('s');
       renderFrame();
     }

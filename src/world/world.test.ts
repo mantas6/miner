@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ensureWorldRow, rand, naturalAirPocket, makeTile, oreForDepthRoll, oreSpawnChanceAtDepth, starterOreForCoordinate } from './world';
-import { DANGER, HOME_CAVERN_TOP, HOME_ROW, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
+import { DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
 
 describe('rand', () => {
@@ -136,6 +136,15 @@ describe('makeTile', () => {
 
     expect(cavern.length).toBeGreaterThan(0);
     expect(cavern.every(tile => tile.type === 'air')).toBe(true);
+  });
+
+  it('paves the cavern floor with stone blocks', () => {
+    for (let x = HOME_X - HOME_CAVERN.halfWidth; x <= HOME_X + HOME_CAVERN.halfWidth; x++) {
+      expect(makeTile(x, HOME_ROW + 1)).toEqual({type: 'decor', decor: 'stoneBlock', hp: DECOR_HP, maxHp: DECOR_HP});
+    }
+    // Just past the cavern's width the floor row is ordinary generated terrain again.
+    expect(makeTile(HOME_X - HOME_CAVERN.halfWidth - 1, HOME_ROW + 1).type).not.toBe('decor');
+    expect(makeTile(HOME_X + HOME_CAVERN.halfWidth + 1, HOME_ROW + 1).type).not.toBe('decor');
   });
 
   it('never spawns ore above its minimum depth', () => {
