@@ -411,13 +411,13 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
    * coal is queued. Both are culled off-screen and skipped under fog.
    */
   function drawHomeStations(camX: number, camY: number) {
-    drawStation(STATIONS.manufacturer.x, STATIONS.manufacturer.y, camX, camY, drawManufacturerBody, false);
+    drawStation(STATIONS.manufacturer.x, STATIONS.manufacturer.y, camX, camY, drawManufacturerBody, false, 'Manufacturer');
     const pumping = (state.home?.extractor.coal ?? 0) > 0;
-    drawStation(STATIONS.extractor.x, STATIONS.extractor.y, camX, camY, drawExtractorBody, pumping);
+    drawStation(STATIONS.extractor.x, STATIONS.extractor.y, camX, camY, drawExtractorBody, pumping, 'Oil Extractor');
   }
   function drawStation(
     tx: number, ty: number, camX: number, camY: number,
-    body: (active: boolean) => void, active: boolean
+    body: (active: boolean) => void, active: boolean, label: string
   ) {
     if (!isExplored(tx, ty)) return;
     const sx = (tx - camX) * TILE, sy = (ty - camY) * TILE;
@@ -425,6 +425,19 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.save();
     ctx.translate(sx + TILE*.5, sy + TILE*.5);
     body(active);
+    // Name label above the station. Reset shadowBlur first so the body painters'
+    // glow doesn't smear the text.
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,.6)';
+    ctx.strokeText(label, 0, -TILE*.36);
+    ctx.fillStyle = '#dbe8ff';
+    ctx.fillText(label, 0, -TILE*.36);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
     ctx.restore();
   }
   /** Manufacturing station: a squat press bench with a work lamp glowing over it. */

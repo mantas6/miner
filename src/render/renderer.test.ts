@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => {
     globalAlpha: 1,
     stroke: vi.fn(),
     strokeRect: vi.fn(),
+    strokeText: vi.fn(),
     translate: vi.fn()
   });
 
@@ -470,6 +471,33 @@ describe('terrain cache lifecycle', () => {
     state.exploredTiles = new Set<number>();
     renderer.draw();
     expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(false);
+  });
+
+  /**
+   * The home stations wear their names above them so the base reads at a glance.
+   * The labels ride the same explored gate as the bodies: painted when the tiles
+   * are revealed, absent while they sit under fog.
+   */
+  it('labels the home stations once their tiles are explored, and hides the names under fog', () => {
+    const state = {
+      world: [], camX: 40, camY: 15, tick: 4, gameOver: false, reducedMotion: false,
+      exploredTiles: new Set([explorationIndex(44, 20), explorationIndex(46, 20)]), teleportEffect: null,
+      particles: [], enemies: [],
+      player: {x:45, y:18, drawX:45, drawY:18, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    const labelled = (name: string) => mocks.mainContext.fillText.mock.calls.some(call => call[0] === name);
+
+    renderer.draw();
+    expect(labelled('Oil Extractor')).toBe(true);
+    expect(labelled('Manufacturer')).toBe(true);
+
+    // Fog the tiles again and neither name should be painted.
+    vi.clearAllMocks();
+    state.exploredTiles = new Set<number>();
+    renderer.draw();
+    expect(labelled('Oil Extractor')).toBe(false);
+    expect(labelled('Manufacturer')).toBe(false);
   });
 
   /**
