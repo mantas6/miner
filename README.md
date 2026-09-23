@@ -57,6 +57,7 @@ miner-mp/
 ├── AGENTS.md
 ├── index.html
 ├── package.json
+├── opencode.json
 ├── tsconfig.json
 ├── tsconfig.test.json
 ├── tsconfig.e2e.json
@@ -86,6 +87,7 @@ miner-mp/
 ├── src/
 │   ├── main.tsx
 │   ├── persistence.ts
+│   ├── agent/
 │   ├── core/
 │   ├── world/
 │   ├── game/
@@ -97,12 +99,17 @@ miner-mp/
 │   │   └── tracks.ts
 │   ├── ui/
 │   └── styles/
+├── agent/
+│   ├── chromium.ts
+│   ├── session.ts
+│   └── mcp-server.ts
 ├── e2e/
 │   ├── boot.spec.ts
 │   ├── gameplay.spec.ts
 │   ├── dialogs.spec.ts
 │   ├── focus-visible.spec.ts
 │   ├── failure.spec.ts
+│   ├── agent.spec.ts
 │   └── support/
 │       └── game.ts
 └── .github/
@@ -124,6 +131,7 @@ miner-mp/
 | `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the home base and oil extractor (`home.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation, the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
 | `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
 | `src/audio/tracks.ts` | Track registry for playback: the `TrackId` union, `TRACKS` (title plus mp3/ogg URLs), `DEFAULT_TRACK_ID`. |
@@ -141,7 +149,9 @@ miner-mp/
 | `tsconfig.test.json` | The test half of `npm run typecheck`: the same strict options plus `vitest/globals`, which `tsconfig.json` withholds from production source. |
 | `tsconfig.e2e.json` | The third `npm run typecheck` pass: `e2e/` and `playwright.config.ts`, which run in Node and so need those globals rather than Vitest's. |
 | `playwright.config.ts` | End-to-end config: one Chromium project, the Vite dev server started as a `webServer`, and the local/CI browser resolution described under "End-to-end tests". |
-| `e2e/` | The Playwright suite — boot flow, keyboard mining, the modal dialogs and focus restoration, the `:focus-visible` ring, and the runtime-failure notice — plus `support/game.ts`, the shared page fixtures. |
+| `agent/` | The Node-side programmatic-play harness (no React, no test runner): `chromium.ts` resolves the Chromium to drive (shared with `playwright.config.ts`), `session.ts` (`openGameSession`) starts/reuses a Vite server, launches a headed Chromium, and drives the game with real key/mouse events plus the pause model, and `mcp-server.ts` is the stdio MCP server that exposes it to an LLM agent. See "Agent play". |
+| `e2e/` | The Playwright suite — boot flow, keyboard mining, the modal dialogs and focus restoration, the `:focus-visible` ring, the runtime-failure notice, and the agent-harness smoke test — plus `support/game.ts`, the shared page fixtures. |
+| `opencode.json` | Registers the `miner` MCP server (`npx tsx agent/mcp-server.ts`) so an opencode agent can drive the game. See "Agent play". |
 | `.oxlintrc.json` | Lint rules for `src/`, `shared/` and `e2e/` (oxlint), with the reason behind every disabled rule. |
 | `.oxfmtrc.json` | oxfmt configuration; `npm run fmt` formats every stylesheet under `src/`. |
 | `init.sh` | Installs dependencies and starts a background Vite dev server for smoke testing. |
@@ -173,6 +183,16 @@ runtime again on cleanup. Three consequences:
 Game code stays React-free: the bridges remain store writes, the `commands.ts`
 table, and the two element refs. Teardown also resets that table to no-ops, so a
 button can never reach a disposed runtime.
+
+`boot()` also registers a third bridge beside `registerUiCommands()`:
+`setAgentBridge()` wires the running game into the `agentBridge` singleton
+(`src/agent/bridge.ts`) for programmatic play, and `dispose()` calls
+`resetAgentBridge()` to point it back at its no-op defaults. The loop carries a
+`paused` flag the bridge drives: while paused, `draw()` and `syncUi()` keep
+running so the window and the observation stay live, but the fixed-step advance is
+held; unpausing resets the stepper so the frozen wall-clock gap is discarded
+rather than replayed in a burst (the same reset the `visibilitychange` handler
+uses). See "Agent play".
 
 ## Run locally
 
@@ -489,6 +509,157 @@ restarts playback from that track's beginning if music was already running.
   the music on an `<audio>` element, and a rejected autoplay only downgrades the
   music to the synth fallback.
 
+## Agent play
+
+The game is playable programmatically, not just by a human at the keyboard. An LLM
+agent drives it over [MCP](https://modelcontextprotocol.io): a headed Chromium
+window — the same window a human watches — is driven with real trusted key and
+mouse events on the documented element ids, exactly the path the e2e suite uses.
+There are no `window.__*` test hooks; the harness reaches the running game through
+a dynamic `import('/src/agent/bridge.ts')` served by the Vite dev server, the same
+module `boot()` registered the live runtime into. The agent reads the world from a
+fog-respecting observation JSON (below) rather than the pixels.
+
+### Prerequisites
+
+A Chromium to drive. `agent/chromium.ts` resolves it the same way the e2e suite
+does: `PLAYWRIGHT_CHROMIUM_PATH` wins when set, otherwise the first of
+`chromium`/`chromium-browser`/`google-chrome-stable`/`google-chrome`/`chrome` on
+`PATH`; in CI (`CI` set) it uses neither so Playwright's own pinned download is
+used. A Playwright-downloaded Chromium does not run on NixOS, so there set
+`PLAYWRIGHT_CHROMIUM_PATH` or keep a system Chromium on `PATH`.
+
+### Running the server
+
+```bash
+npm run agent:mcp        # tsx agent/mcp-server.ts, a stdio MCP server
+```
+
+The repo's `opencode.json` registers it so an opencode agent picks it up
+automatically:
+
+```json
+{
+  "mcp": {
+    "miner": {
+      "type": "local",
+      "command": ["npx", "tsx", "agent/mcp-server.ts"],
+      "enabled": true
+    }
+  }
+}
+```
+
+The server owns **one game session at a time**: `game_start` errors if one is
+already open, and every action tool returns the fresh observation as JSON. It logs
+only to stderr (stdout is the MCP transport).
+
+### Tools
+
+| Tool | Arguments | What it does |
+|---|---|---|
+| `game_start` | `headless?` (bool, default false), `freshSave?` (bool, default false), `port?` (int, default 5180) | Start/reuse a dev server, launch Chromium, load the game, return the initial observation. |
+| `game_stop` | — | Close the session (browser, and any server this session started). |
+| `observe` | `radius?` (int, default 7) | Return the current observation without changing the world. |
+| `start_run` | — | Start the run from the title splash (presses Enter, waits for the HUD). |
+| `press` | `key` (string) | One key press, e.g. `ArrowDown`, `w`, `Space`, `e`, `t`, `c`, `Escape`. |
+| `hold` | `key` (string), `ms` (int), `shift?` (bool) | Hold a key for `ms` wall-clock (the sim runs during the hold); `shift` sprints if a Booster is fitted. |
+| `click` | `target` (string), `value?` (string), `kind?` (string) | Click one allowlisted UI control (below). |
+| `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station. |
+| `wait` | `ms` (int) | Let the sim run for `ms` wall-clock, then return the observation. |
+| `screenshot` | — | A PNG of the window, as image content. |
+| `set_realtime` | `enabled` (bool) | Switch the pause model (below). |
+
+`click` accepts an allowlisted set of controls only; anything else is refused with
+the full allowed list. Targets take two forms: an id (`shipBtn`, `stationCloseBtn`,
+with or without a leading `#`), or an attribute control in `name=value` form
+(`data-craft=drill`), with the two-attribute cargo control joining both values with
+a comma (`data-cargo=take,ore:Iron`). The equivalent object form is
+`{target, value?, kind?}` — the MCP `click` tool takes `target`/`value`/`kind`
+fields directly. Allowlisted controls: the HUD/action bar (`shipBtn`,
+`teleporterBtn`, `infoBtn`, `musicBtn`, `sfxBtn`, `inventoryToggleBtn`), inventory
+slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBtn`,
+the `decor:*SlotBtn` panels), the ship screen (`data-ship-equip`,
+`data-ship-unequip`, `shipCloseBtn`), the station (`stowAllBtn`, `data-station-take`,
+`data-craft`, `stationCloseBtn`), the oil extractor (`loadCoalBtn`, `refuelBtn`,
+`extractorCloseBtn`), the cargo container (`data-cargo`, `cargoCloseBtn`), the info
+tabs (`data-info-section`, `infoCloseBtn`), and the intro (`introStartBtn`).
+
+### The observation
+
+Every tool returns an `AgentObservation` (`src/agent/observation.ts`) — exactly
+what a sighted player sees, as JSON. The top-level shape:
+
+- `tick`, `phase`, `activeOverlay`, `gameOver`
+- `ship`: `{x, y, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface}` (vitals read from the live sim, not the UI snapshot)
+- `cash`, `stats`
+- `bay`: the cargo bay as `{kind, label, count}` stacks; `armedPlacement`: the item armed for placement, or `null`
+- `hud`: `{objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, return, usable}, alerts{fuel, hull, cargo}, announcement}`
+- `view`: `{origin:{x, y}, rows:[…], legend}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship
+- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | scanner | dynamite | station`
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), or `info` (tab) — else `null`
+- `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
+
+Fog is honoured: a tile the player has not explored is `?` and never appears in
+`notable`, using the same `isTileExplored` gate the renderer paints fog with.
+Station stock, extractor buffers and container contents only appear while that
+overlay is open — open it to see them.
+
+The `view.rows` legend (`VIEW_LEGEND`):
+
+```text
+. air   # dirt   R rock   o ore   ! hazard   E enemy   D decor
+M manufacturer   X oil extractor   C container   S scanner
+* dynamite   @ ship   ? fogged
+```
+
+### Pause / real-time model
+
+By default (`realtime = true`) the sim is **frozen between tool calls** and runs
+only while an action is in flight: each `press`/`hold`/`click`/`press_tile`/
+`start_run` unpauses, fires its real events, lets two animation frames settle, then
+pauses again — so the window shows smooth human-speed motion during the action and
+holds still in between, and every returned observation is a stable snapshot.
+`wait` always lets the sim run for its duration. Call `set_realtime` with
+`enabled: false` to leave the sim running continuously between calls too; the world
+the next observation describes will then have moved on by however long the agent
+took to think. A paused sim still paints and syncs, so pausing never blanks the
+window.
+
+### Watching, and options
+
+`game_start` launches Chromium **headed by default** at a 1280x800 viewport; that
+window is the human's live view of what the agent is doing. Pass `headless: true`
+to hide it (the e2e smoke test runs this way). Pass `freshSave: true` to wipe the
+persisted `localStorage` save before the page loads, for a clean run from the home
+base. `port` picks the port to serve on (default 5180); a dev server already
+listening there — including one you started with `npm run dev` — is reused rather
+than fought.
+
+### Adding support for a new feature
+
+Per `AGENTS.md`: a gameplay feature is not done until the agent can use it too.
+Any new player action needs a harness path — a key handled in
+`src/game/input.ts` (reachable via `press`/`hold`), an allowlisted control in
+`agent/session.ts` (reachable via `click`), or a tile press (`press_tile`) — and
+any new player-visible state needs to be surfaced in `buildObservation`
+(`src/agent/observation.ts`), with coverage in `src/agent/` and/or
+`e2e/agent.spec.ts`.
+
+### Troubleshooting
+
+- **Port already in use.** If something is already answering HTTP on the port, the
+  session reuses it instead of starting its own; if that is not this game, pass a
+  different `port` to `game_start`. If the port is held by a process that does not
+  answer HTTP, the session's own Vite server (started with `strictPort`) fails to
+  bind — again, choose another `port`.
+- **No Chromium found.** With no `PLAYWRIGHT_CHROMIUM_PATH` and none on `PATH`,
+  Playwright falls back to its pinned download, which will not launch on NixOS. Set
+  `PLAYWRIGHT_CHROMIUM_PATH` to a working Chromium (or install one on `PATH`).
+- **"The agent bridge did not register within 15s".** The page loaded but the game
+  did not boot (a build/import error). Open the same URL in a normal browser and
+  check the console.
+
 ## Development checklist
 
 After making changes, run the full check sequence — `./test.sh` does all of it
@@ -534,6 +705,7 @@ the boot flow gets from the splash to a live run without the browser complaining
 | `e2e/dialogs.spec.ts` | Ship, station and info dialogs opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the ship and info overlays handing the screen over rather than stacking. |
 | `e2e/focus-visible.spec.ts` | The ring drawn for `Tab` (3px, and inset on the canvas) and gone for a click that moves focus, including the focus a clicked-shut dialog restores. |
 | `e2e/failure.spec.ts` | A refused 2D context — stubbed with an init script — surfacing as the "Mine offline" notice with its detail line, its `role="alert"` and a working Reload, while the crash boundary stays out of it. |
+| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down. |
 
 Two notes on how the suite is wired:
 

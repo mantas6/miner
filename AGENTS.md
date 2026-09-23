@@ -1,1 +1,2 @@
 - Avoid unnecessary UI clutter
+- Every gameplay feature must be reachable through programmatic play: every player action must have a harness path (a key, a click on an allowlisted control, or a tile press) and every player-visible piece of state must appear in the observation JSON, with coverage in `src/agent/` and/or `e2e/agent.spec.ts`. A feature a human can use but the agent cannot is incomplete.
