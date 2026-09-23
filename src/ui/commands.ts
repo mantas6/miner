@@ -35,6 +35,12 @@ export interface UiCommands {
    * station or container tile packs the empty entity back into the bay.
    */
   toggleToolkit(): void;
+  /** Shut the trading-post screen; also what its dialog's own close request reports. */
+  closeTrade(): void;
+  /** Sell a stack (or one unit) of `kind` ore to the open trading post for cash. */
+  sellToPost(kind: InventoryItemKind, single?: boolean): void;
+  /** Buy one of `kind` from the open trading post, deducting cash. */
+  buyFromPost(kind: InventoryItemKind): void;
   /** Shut the transfer menu; also what the dialog's own close request reports. */
   closeContainer(): void;
   /** Move a stack of this kind out of the bay into the open container; `single` moves one. */
@@ -109,6 +115,9 @@ function noopCommands(): UiCommands {
     toggleManufacturerPlacement: noop,
     toggleExtractorPlacement: noop,
     toggleToolkit: noop,
+    closeTrade: noop,
+    sellToPost: noop,
+    buyFromPost: noop,
     closeContainer: noop,
     storeInContainer: noop,
     takeFromContainer: noop,

@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { ensureWorldRow, rand, naturalAirPocket, makeTile, oreForDepthRoll, oreSpawnChanceAtDepth, starterOreForCoordinate } from './world';
+import {
+  TRADING_POST_CHUNK,
+  TRADING_POST_MIN_ROW,
+  ensureWorldRow,
+  rand,
+  naturalAirPocket,
+  makeTile,
+  oreForDepthRoll,
+  oreSpawnChanceAtDepth,
+  starterOreForCoordinate,
+  tradingPostAt,
+  tradingPostPocket
+} from './world';
 import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
 
@@ -112,6 +124,70 @@ describe('ore depth distribution', () => {
   });
 });
 
+/** The first trading post found by scanning an interior column band, or throws. */
+function firstPostInBand() {
+  for (let y = TRADING_POST_MIN_ROW; y < TRADING_POST_MIN_ROW + 4000; y++) {
+    for (let x = TRADING_POST_CHUNK; x < TRADING_POST_CHUNK * 2; x++) {
+      const post = tradingPostAt(x, y);
+      if (post) return post;
+    }
+  }
+  throw new Error('no trading post found in the sampled band');
+}
+
+describe('trading posts', () => {
+  it('places a post in 8–16% of qualifying chunks, over a sampled interior band', () => {
+    // The middle column of chunks (x 32..63) sits well inside the world's side
+    // walls, so no post is ever rejected for lack of room — the density there is
+    // exactly the placement roll.
+    const chunkX = 1;
+    let chunks = 0;
+    let withPost = 0;
+    for (let chunkY = 2; chunkY < 260; chunkY++) {
+      chunks++;
+      let found = false;
+      for (let y = chunkY * TRADING_POST_CHUNK; y < chunkY * TRADING_POST_CHUNK + TRADING_POST_CHUNK && !found; y++) {
+        for (let x = chunkX * TRADING_POST_CHUNK; x < chunkX * TRADING_POST_CHUNK + TRADING_POST_CHUNK; x++) {
+          if (tradingPostAt(x, y)) { found = true; break; }
+        }
+      }
+      if (found) withPost++;
+    }
+    const density = withPost / chunks;
+    expect(density).toBeGreaterThanOrEqual(0.08);
+    expect(density).toBeLessThanOrEqual(0.16);
+  });
+
+  it('derives the same post from a coordinate every time', () => {
+    const post = firstPostInBand();
+    expect(tradingPostAt(post.x, post.y)).toEqual(post);
+    // A post's own tile is inside its pocket; a tile two away never is.
+    expect(tradingPostPocket(post.x, post.y)).toBe(true);
+    expect(tradingPostPocket(post.x + 2, post.y)).toBe(false);
+  });
+
+  it('never places a post in or near the home cavern, nor above the depth gate', () => {
+    for (let y = 0; y <= HOME_ROW + 3; y++) {
+      for (let x = 0; x < WORLD_W; x++) {
+        expect(tradingPostAt(x, y)).toBeNull();
+        expect(tradingPostPocket(x, y)).toBe(false);
+      }
+    }
+    // Every post found in the band sits below the depth gate and outside the cavern.
+    const chunkX = 1;
+    for (let chunkY = 2; chunkY < 40; chunkY++) {
+      for (let y = chunkY * TRADING_POST_CHUNK; y < chunkY * TRADING_POST_CHUNK + TRADING_POST_CHUNK; y++) {
+        for (let x = chunkX * TRADING_POST_CHUNK; x < chunkX * TRADING_POST_CHUNK + TRADING_POST_CHUNK; x++) {
+          const post = tradingPostAt(x, y);
+          if (!post) continue;
+          expect(post.y).toBeGreaterThanOrEqual(TRADING_POST_MIN_ROW);
+          expect(isHomeCavern(post.x, post.y)).toBe(false);
+        }
+      }
+    }
+  });
+});
+
 describe('makeTile', () => {
   it('is deterministic', () => {
     expect(makeTile(10, 50)).toEqual(makeTile(10, 50));
@@ -211,6 +287,15 @@ describe('makeTile', () => {
     }
     expect(hazards).toBeGreaterThan(0);
     expect(enemies).toBeGreaterThan(0);
+  });
+
+  it('carves an air pocket for a trading post', () => {
+    const post = firstPostInBand();
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        expect(makeTile(post.x + dx, post.y + dy).type).toBe('air');
+      }
+    }
   });
 
   it('generates deterministic terrain chunks on demand beyond 10,000 m', () => {

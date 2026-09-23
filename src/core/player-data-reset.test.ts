@@ -43,8 +43,11 @@ describe('player-data reset', () => {
     state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4};
     state.teleportReturnPosition = {x: 8, y: 80};
     state.exploredTiles.add(1234);
+    state.tradeLedger = {'40,120': [0, 1]};
 
     resetPlayerData(state);
+
+    expect(state.tradeLedger).toEqual({});
 
     const fresh = createInitialState();
     expect(state.player).toEqual(fresh.player);

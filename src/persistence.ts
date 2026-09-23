@@ -88,6 +88,7 @@ interface SavedProgress {
   dynamiteSticks?: unknown;
   scannerDevices?: unknown;
   cargoContainers?: unknown;
+  tradeLedger?: unknown;
   explored?: unknown;
   stats?: Partial<Record<keyof GameStats, unknown>>;
 }
@@ -275,6 +276,22 @@ function parseStations(value: unknown): PlacedStation[] {
   return stations;
 }
 
+/**
+ * Rebuild the trading-post ledger: the remaining buy stock per offer, keyed by the
+ * post's `"x,y"` coordinate. A hand-edited key that is not a coordinate pair, or a
+ * value that is not an array of counts, is dropped; every count is floored and
+ * clamped, so a corrupt save can never restore negative or unbounded stock.
+ */
+function parseTradeLedger(value: unknown): Record<string, number[]> {
+  const ledger: Record<string, number[]> = {};
+  if (!value || typeof value !== 'object') return ledger;
+  for (const [key, stocks] of Object.entries(value as Record<string, unknown>)) {
+    if (!/^-?\d+,-?\d+$/.test(key) || !Array.isArray(stocks)) continue;
+    ledger[key] = stocks.map(count => Math.floor(numeric(count, 0, 0, MAX_SAVED_STACK)));
+  }
+  return ledger;
+}
+
 /** One station, flattened: where it stands and either its stock or its buffers. */
 function serializeStation(station: PlacedStation): Record<string, unknown> {
   if (station.kind === 'manufacturer') {
@@ -335,6 +352,7 @@ export function load(state: GameState): void {
     state.scannerDevices = parseScannerDevices(save.scannerDevices);
     state.placedDynamite = parsePlacedDynamite(save.dynamiteSticks);
     state.cargoContainers = parseCargoContainers(save.cargoContainers);
+    state.tradeLedger = parseTradeLedger(save.tradeLedger);
     // The ship resumes on the tile it parked on, render position included so it
     // appears there instead of easing in from home. The clamps are the ones
     // `movementDestination` enforces, so no save can park a miner in a wall.
@@ -369,6 +387,7 @@ export function save(state: GameState): void {
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),
     cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializeContainer),
+    tradeLedger: state.tradeLedger,
     explored: encodeExploration(state.exploredTiles),
     tiles: capTileEntries(tileDiffEntries(state.soloTileDiff)),
     stats: state.stats,

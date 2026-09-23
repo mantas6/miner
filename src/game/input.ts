@@ -23,7 +23,7 @@ const RESET_CONFIRM_MS = 3500;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
-const DIALOG_SURFACES = '#info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen';
+const DIALOG_SURFACES = '#info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen, #trade-screen';
 
 const movementKeys: Record<string, Direction> = {
   arrowleft: [-1, 0], a: [-1, 0],
@@ -80,6 +80,8 @@ export interface GameInputDeps {
   closeStation(): void;
   /** Escape/Space while the oil extractor screen is up. */
   closeExtractor(): void;
+  /** Escape/Space while the trading-post screen is up. */
+  closeTrade(): void;
   toast(message: string): void;
   /** Enable sound on the first trusted gesture, when the browser allows it. */
   tryAutoAudio(event?: Event): void;
@@ -179,6 +181,11 @@ export function createInput(deps: GameInputDeps): GameInput {
     }
     if (ui.activeOverlay === 'extractor') {
       if (key === 'escape' || key === ' ') { deps.closeExtractor(); e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if (ui.activeOverlay === 'trade') {
+      // Space opened it and Space shuts it again, the round trip on one key.
+      if (key === 'escape' || key === ' ') { deps.closeTrade(); e.preventDefault(); e.stopPropagation(); }
       return;
     }
     const dir = movementKeys[key];

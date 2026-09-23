@@ -56,8 +56,9 @@ function instructions(): string {
     '    every other move burns fuel.',
     '  Shift (hold with a direction, `hold key ms shift:true`) — sprint/boost. Inert',
     '    unless a Booster is fitted to the ship.',
-    '  Space — open the home station (Manufacturer or Oil Extractor) the ship is',
-    '    parked beside; press Space or Escape again to close it.',
+    '  Space — open the station-like thing the ship is parked beside: a home station',
+    '    (Manufacturer or Oil Extractor) or a Trading Post; press Space or Escape',
+    '    again to close it.',
     '  e — arm/disarm a stick of dynamite, then `press_tile` the target to plant it.',
     '  t — use a teleporter (returns you to the surface, or back down).',
     '  c — open/close the cargo container under or beside the ship.',
@@ -70,7 +71,7 @@ function instructions(): string {
     '  Escape — cancel an armed placement, or close the ship/info/container overlay.',
     '  Enter — start the run from the title splash (use the `start_run` tool).',
     '  Click a tile with `press_tile` to move/drill toward it, plant an armed device,',
-    '    or open a station. Click named UI controls with `click`.',
+    '    or open a station or trading post. Click named UI controls with `click`.',
     '',
     'VIEW LEGEND (the `view.rows` ASCII grid, ~15x11 around the ship @):',
     `  ${legendText()}`,
@@ -82,8 +83,11 @@ function instructions(): string {
     'PLAY TIPS:',
     '  - Keep a fuel reserve: `hud.fuelReserve` tells you the fuel needed to climb',
     '    back to the surface and your current margin. Running dry underground is fatal.',
-    '  - Return to the surface to sell ore and refuel; the Oil Extractor refuels the',
+    '  - Return to the surface to refuel and craft; the Oil Extractor refuels the',
     '    ship, the Manufacturer crafts and stores.',
+    '  - Trading Posts (T) stand deep in the mine: sell ore for cash there, and buy',
+    '    a small, limited stock of gear. `hud.cash` is your wallet; the open post\'s',
+    '    sell prices and buy offers are in the `trade` overlay.',
     '  - Station stock, extractor buffers and container contents are only in the',
     '    observation while that overlay is open (`overlay`) — open it to see them.',
     '  - Pause model: by default the sim is FROZEN between tool calls and only runs',
@@ -197,9 +201,10 @@ server.registerTool(
       '"stationCloseBtn") or an attribute name (e.g. "data-craft"); pass `value` for ' +
       'attribute controls (e.g. target "data-craft", value "upgrade:drill:1"); the ' +
       'transfer controls also need `kind` — the station (target "data-station", value ' +
-      '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal") and the cargo container ' +
-      '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"). ' +
-      'A wrong target is refused with the full allowed list.',
+      '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal"), the cargo container ' +
+      '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"), ' +
+      'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +
+      '"ore:Iron" to sell or "repairKit" to buy). A wrong target is refused with the full allowed list.',
     inputSchema: {
       target: z.string().describe('The control id or attribute name.'),
       value: z.string().optional().describe('The attribute value (for data-station/data-cargo it is the transfer action).'),

@@ -127,10 +127,10 @@ miner-mp/
 | `shared/world-schema.ts` | Zod schemas and derived types for tiles, enemies, and the persisted world state. |
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
-| `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
-| `src/world/` | World generation, the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), and the world's tile diff (`localStorage`). |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -308,8 +308,8 @@ zooming the camera with the wheel or a trackpad.
   stats are not fixed — they are *derived* from the upgrades fitted to the ship
   (see below).
 - Dig ore, fly it back to the home cavern, and stow it at the Manufacturing
-  Station. Ore is only useful as a crafting material now — there is no shop and
-  nothing is bought or sold.
+  Station to craft with it — or sell it for cash at a **trading post** deep in the
+  mine (see below). Cash also drops from destroyed enemies.
 - The cargo bay (`src/core/inventory.ts`) holds a total *item count*, not a fixed
   number of slots, shown as a collapsible HUD panel. Each ore type stacks in one
   row, but what limits a load is the sum of every stack against the ship's cargo
@@ -355,6 +355,26 @@ one and press `Space` (or click its tile) to open it.
   conversion runs whether or not you are watching; parking on the extractor tile
   tops the tank up from the store on its own, and "Refuel ship" tops the tank up
   from the screen.
+
+### Trading posts
+
+Deep in the mine (below `START_Y + 40`, roughly 12% of 32×32 chunks) stand
+**trading posts** — kiosks in a cleared air pocket, never near the home cavern.
+Like the home cavern, a post is *derived* from its coordinate rather than stored
+(`tradingPostAt`/`tradingPostPocket` in `src/world/world.ts`), so it survives death,
+reload and world reset; only the stock a player has bought is persisted, in
+`state.tradeLedger`. Fly onto or beside one and press `Space` (or click its tile) to
+open it.
+
+- **Sell.** A post buys any ore at the ore table's own `value`, with no limit — the
+  Sell column lists the ore aboard, whole-stack or one at a time, and the takings
+  land in your cash.
+- **Buy.** A post stocks 2–3 finished items drawn from a depth-tiered pool (repair
+  kit, dynamite, scanner, container, then upgrades, the toolkit and the teleporter
+  deeper), each with a small stock of 1–3. A buy price is the item recipe's
+  ore-value marked up ×1.5 (`TRADING_MARKUP` in `src/core/trading.ts`), so it is
+  always sane against the ore you sell to afford it. A buy is refused when the wallet
+  is short, the offer is sold out, or the bay is full.
 
 ### Crafting & ship equipment
 
@@ -406,6 +426,11 @@ one and press `Space` (or click its tile) to open it.
   is the durable counterpart: armed from its slot, a press on an *empty* station or
   container packs it back into the bay (it refuses a loaded one — empty it first —
   and refuses when the bay has no room). The toolkit is never used up.
+- **Trading posts** (`src/core/trading.ts`, `src/game/trading.ts`) stand in cleared
+  air pockets deep in the mine, derived from their coordinate in `src/world/world.ts`
+  rather than stored. Open one to sell ore for cash at the ore table's value, or buy
+  a small, limited stock of gear; only the drawn-down stock persists, in
+  `state.tradeLedger`.
 
 ### Hazards and descent
 
@@ -422,9 +447,10 @@ one and press `Space` (or click its tile) to open it.
 - The mine has no bottom: the run's goal is to keep hauling richer loads home
   alive, crafting better equipment, and setting depth records.
 - Progress (cash, fitted equipment, the bay, the home base, stats, explored tiles,
-  the mine you dug, and where you parked) is saved locally; death keeps your cash,
-  bay equipment, home base and stats, and costs you the cargo aboard, the upgrades
-  fitted to the ship, and your position.
+  the trading stock you have drawn down, the mine you dug, and where you parked) is
+  saved locally; death keeps your cash, bay equipment, home base, drawn-down trading
+  stock and stats, and costs you the cargo aboard, the upgrades fitted to the ship,
+  and your position.
 - The camera zoom is remembered too, but as a preference rather than progress:
   it is stored under `moleload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
   clamped back into the 0.5x–2x range on load, and survives a death, a fresh
@@ -579,7 +605,7 @@ only to stderr (stdout is the MCP transport).
 | `press` | `key` (string) | One key press, e.g. `ArrowDown`, `w`, `Space`, `e`, `t`, `c`, `Escape`. |
 | `hold` | `key` (string), `ms` (int), `shift?` (bool) | Hold a key for `ms` wall-clock (the sim runs during the hold); `shift` sprints if a Booster is fitted. |
 | `click` | `target` (string), `value?` (string), `kind?` (string) | Click one allowlisted UI control (below). |
-| `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station. |
+| `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station or trading post. |
 | `wait` | `ms` (int) | Let the sim run for `ms` wall-clock, then return the observation. |
 | `screenshot` | — | A PNG of the window, as image content. |
 | `set_realtime` | `enabled` (bool) | Switch the pause model (below). |
@@ -589,7 +615,7 @@ the full allowed list. Targets take two forms: an id (`shipBtn`, `stationCloseBt
 with or without a leading `#`), or an attribute control in `name=value` form
 (`data-craft=upgrade:drill:1`), with the two-attribute transfer controls joining
 both values with a comma (`data-cargo=take,ore:Iron`,
-`data-station=stow-one,ore:Coal`). The equivalent object form is
+`data-station=stow-one,ore:Coal`, `data-trade=buy,repairKit`). The equivalent object form is
 `{target, value?, kind?}` — the MCP `click` tool takes `target`/`value`/`kind`
 fields directly. Allowlisted controls: the HUD/action bar (`shipBtn`,
 `teleporterBtn`, `infoBtn`, `musicBtn`, `sfxBtn`, `inventoryToggleBtn`), inventory
@@ -601,6 +627,8 @@ with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
 `data-craft`, `stationCloseBtn`), the oil extractor (`loadCoalBtn`, `refuelBtn`,
 `extractorCloseBtn`), the cargo container (`data-cargo` with values
 `store`/`store-one`/`take`/`take-one` and a `data-cargo-kind`, `cargoCloseBtn`), the
+trading post (`data-trade` with values `sell`/`sell-one`/`buy` and a `data-trade-kind`
+— an `ore:*` kind to sell, a catalog item kind to buy — `tradeCloseBtn`), the
 info tabs (`data-info-section`, `infoCloseBtn`), and the intro (`introStartBtn`).
 
 ### The observation
@@ -612,10 +640,10 @@ what a sighted player sees, as JSON. The top-level shape:
 - `ship`: `{x, y, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface}` (vitals read from the live sim, not the UI snapshot)
 - `cash`, `stats`
 - `bay`: the cargo bay as `{kind, label, count}` stacks; `armedPlacement`: the item armed for placement, or `null`
-- `hud`: `{objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, return, usable}, alerts{fuel, hull, cargo}, announcement}`
+- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, return, usable}, alerts{fuel, hull, cargo}, announcement}`
 - `view`: `{origin:{x, y}, rows:[…], legend}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship
-- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | scanner | dynamite | station`
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), or `info` (tab) — else `null`
+- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | scanner | dynamite | station | tradingPost`
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `trade` (cash, sell offers, buy offers), or `info` (tab) — else `null`
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
@@ -627,7 +655,7 @@ The `view.rows` legend (`VIEW_LEGEND`):
 
 ```text
 . air   # dirt   R rock   o ore   ! hazard   E enemy   D decor
-M manufacturer   X oil extractor   C container   S scanner
+M manufacturer   X oil extractor   T trading post   C container   S scanner
 * dynamite   @ ship   ? fogged
 ```
 

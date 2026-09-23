@@ -10,8 +10,10 @@ import { createInitialState } from '../core/state';
 import { createPlacedContainer } from '../core/cargo-container';
 import { createScannerDevice } from '../core/scanner-device';
 import { createPlacedDynamite } from '../core/dynamite';
-import { uiStore, type InventorySlotView, type UiState } from '../ui/store';
+import { uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
 import type { Enemy, GameState, Tile } from '../core/types';
+import { START_Y, WORLD_W } from '../../shared/constants';
+import { tradingPostAt } from '../world/world';
 import { appendToast, buildObservation, VIEW_LEGEND } from './observation';
 
 /** A tile grid backed by a map; anything unset reads as plain dirt. */
@@ -136,6 +138,71 @@ describe('buildObservation', () => {
     const teleporter = overlay.recipes.find(r => r.output === 'teleporter');
     expect(teleporter?.craftable).toBe(false);
     expect(teleporter?.missing.length).toBeGreaterThan(0);
+  });
+
+  it('draws a trading post as T in view and notable, and carries the wallet in hud.cash', () => {
+    const state = createInitialState();
+    // Find a real post and park the ship on it, revealing its 3×3 pocket.
+    let post: {x: number; y: number} | null = null;
+    for (let y = START_Y + 40; y < START_Y + 4000 && !post; y++) {
+      for (let x = 3; x < WORLD_W - 3; x++) {
+        if (tradingPostAt(x, y)) { post = {x, y}; break; }
+      }
+    }
+    if (!post) throw new Error('no trading post found');
+    // Stand one tile above the post so its own tile is visible (not under the ship).
+    state.player.x = post.x;
+    state.player.y = post.y - 1;
+    revealRect(state, post.x - 2, post.y - 2, post.x + 2, post.y + 2);
+
+    const obs = buildObservation({state, ui: ui({hud: {...uiStore.getState().hud, cash: 321}}), get: tileSource({})});
+
+    expect(obs.hud.cash).toBe(321);
+    expect(obs.notable.some(n => n.what === 'tradingPost' && n.x === post!.x && n.y === post!.y)).toBe(true);
+  });
+
+  it('renders a trading post glyph on a tile the ship is not standing on', () => {
+    const state = createInitialState();
+    let post: {x: number; y: number} | null = null;
+    for (let y = START_Y + 40; y < START_Y + 4000 && !post; y++) {
+      for (let x = 3; x < WORLD_W - 3; x++) {
+        if (tradingPostAt(x, y)) { post = {x, y}; break; }
+      }
+    }
+    if (!post) throw new Error('no trading post found');
+    // Stand one tile above the post so its own tile paints as T.
+    state.player.x = post.x;
+    state.player.y = post.y - 1;
+    revealRect(state, post.x - 2, post.y - 2, post.x + 2, post.y + 2);
+
+    const obs = buildObservation({state, ui: ui(), get: tileSource({})});
+    const originX = obs.view.origin.x;
+    const originY = obs.view.origin.y;
+    expect(obs.view.rows[post.y - originY][post.x - originX]).toBe('T');
+    expect(VIEW_LEGEND.T).toBe('trading post');
+  });
+
+  it('mirrors the trade overlay: the wallet, ore to sell, and the buy offers', () => {
+    const state = createInitialState();
+    const offers: TradeOfferView[] = [
+      {index: 0, kind: 'repairKit', label: 'Repair Kit', color: '#7be08a', price: 54, stock: 2}
+    ];
+    const overlay = buildObservation({
+      state,
+      ui: ui({
+        activeOverlay: 'trade',
+        hud: {...uiStore.getState().hud, cash: 200},
+        inventorySlots: [oreSlot('Iron', 5)],
+        tradeBuy: offers
+      }),
+      get: tileSource({})
+    }).overlay;
+
+    expect(overlay?.kind).toBe('trade');
+    if (overlay?.kind !== 'trade') throw new Error('expected trade overlay');
+    expect(overlay.cash).toBe(200);
+    expect(overlay.sell).toEqual([{kind: oreKind('Iron'), label: 'Iron', count: 5, price: 12}]);
+    expect(overlay.buy).toEqual([{kind: 'repairKit', label: 'Repair Kit', price: 54, stock: 2}]);
   });
 
   it('mirrors the extractor overlay with the refuel amount the screen would show', () => {

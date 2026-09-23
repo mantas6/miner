@@ -127,6 +127,8 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'loadCoalBtn', 'refuelBtn', 'extractorCloseBtn',
   // Cargo container screen.
   'cargoCloseBtn',
+  // Trading-post screen.
+  'tradeCloseBtn',
   // Info / cargo screen.
   'infoCloseBtn',
   // Intro.
@@ -135,7 +137,7 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
 
 /** Attribute controls, each needing a value (some need a value and a kind). */
 const ATTR_TARGETS: ReadonlySet<string> = new Set([
-  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-info-section', 'data-cargo', 'data-station'
+  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-info-section', 'data-cargo', 'data-station', 'data-trade'
 ]);
 
 /**
@@ -144,12 +146,12 @@ const ATTR_TARGETS: ReadonlySet<string> = new Set([
  * `data-station`/`data-station-kind`. Their `value,kind` string form joins the two
  * with a comma.
  */
-const KIND_TARGETS: ReadonlySet<string> = new Set(['data-cargo', 'data-station']);
+const KIND_TARGETS: ReadonlySet<string> = new Set(['data-cargo', 'data-station', 'data-trade']);
 
 /** The two attribute names a two-value transfer control resolves to. */
 function kindTargetAttrs(name: string): {action: string; kind: string} {
   // `data-cargo` addresses its action through `data-cargo-action`; `data-station`
-  // through the bare `data-station` attribute. Both name the kind with `-kind`.
+  // and `data-trade` through their bare attribute. All three name the kind with `-kind`.
   return {action: name === 'data-cargo' ? 'data-cargo-action' : name, kind: `${name}-kind`};
 }
 
@@ -158,7 +160,7 @@ function allowedTargetsDescription(): string {
   return [
     `ids: ${[...ID_TARGETS].join(' ')}`,
     `attributes (need a value): ${[...ATTR_TARGETS].filter(a => !KIND_TARGETS.has(a)).join(' ')}`,
-    'transfers (need value=action and kind): data-cargo (e.g. data-cargo=take,ore:Iron), data-station (e.g. data-station=stow-one,ore:Coal)'
+    'transfers (need value=action and kind): data-cargo (e.g. data-cargo=take,ore:Iron), data-station (e.g. data-station=stow-one,ore:Coal), data-trade (e.g. data-trade=sell,ore:Iron or data-trade=buy,repairKit)'
   ].join('; ');
 }
 

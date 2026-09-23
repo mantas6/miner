@@ -22,9 +22,12 @@ import { getEnemyType } from '../core/enemy-types';
 import { isScannerDone } from '../core/scanner-device';
 import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
+import { sellPrice } from '../core/trading';
+import { tradingPostAt } from '../world/world';
 import {
   addItem,
   createInventory,
+  isOreKind,
   isUpgradeKind,
   totalItems,
   type InventoryItemKind,
@@ -53,6 +56,7 @@ export const VIEW_LEGEND: Readonly<Record<string, string>> = Object.freeze({
   D: 'decor',
   M: 'manufacturer',
   X: 'oil extractor',
+  T: 'trading post',
   C: 'container',
   S: 'scanner',
   '*': 'dynamite',
@@ -99,7 +103,7 @@ export interface AgentShipSlot {
 }
 
 /** What a notable tile is. Decor, dirt, rock and air are not notable. */
-export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'scanner' | 'dynamite' | 'station';
+export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'scanner' | 'dynamite' | 'station' | 'tradingPost';
 
 /** One thing worth the agent's attention, at a world coordinate. */
 export interface NotableTile {
@@ -116,6 +120,12 @@ export type AgentOverlay =
   | {kind: 'extractor'; coal: number; fuel: number; progress: number; refuelAmount: number}
   | {kind: 'ship'; slots: AgentShipSlot[]; fittable: AgentSlot[]}
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
+  | {
+      kind: 'trade';
+      cash: number;
+      sell: {kind: InventoryItemKind; label: string; count: number; price: number}[];
+      buy: {kind: InventoryItemKind; label: string; price: number; stock: number}[];
+    }
   | {kind: 'info'; tab: InfoTab};
 
 export interface AgentObservation {
@@ -143,6 +153,7 @@ export interface AgentObservation {
   bay: AgentSlot[];
   armedPlacement: InventoryItemKind | null;
   hud: {
+    cash: number;
     objective: string;
     scanner: string;
     fuelReserve: {status: FuelReserveStatus; needed: number; margin: number};
@@ -233,6 +244,16 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       };
     case 'container':
       return {kind: 'container', ship: toSlots(ui.inventorySlots), container: toSlots(ui.containerSlots)};
+    case 'trade':
+      return {
+        kind: 'trade',
+        cash: ui.hud.cash,
+        // The sell side is the bay's ore, priced at the ore table's own value.
+        sell: ui.inventorySlots
+          .filter(slot => isOreKind(slot.kind))
+          .map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, price: sellPrice(slot.kind)})),
+        buy: ui.tradeBuy.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock}))
+      };
     case 'info':
       return {kind: 'info', tab: ui.infoTab};
     default:
@@ -311,6 +332,11 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
         notable.push({x, y, what: 'station', detail: 'Oil Extractor'});
         continue;
       }
+      if (tradingPostAt(x, y)) {
+        row += 'T';
+        notable.push({x, y, what: 'tradingPost'});
+        continue;
+      }
       const tile = get(x, y);
       switch (tile.type) {
         case 'air':
@@ -372,6 +398,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
     bay: toSlots(ui.inventorySlots),
     armedPlacement: ui.armedPlacement,
     hud: {
+      cash: hud.cash,
       objective: hud.objective,
       scanner: hud.scanner,
       fuelReserve: {status: hud.fuelReserveStatus, needed: hud.fuelReserveNeeded, margin: hud.fuelReserveMargin},

@@ -64,6 +64,7 @@ import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
 import { createDynamiteSticks, type DynamiteSim } from './dynamite-sticks';
 import { createCargoContainers, type CargoContainerSim } from './cargo-containers';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
+import { createTrading, type TradingSim } from './trading';
 import { createStationDevices, type StationDeviceSim } from './station-devices';
 import { createToolkit, TOOLKIT_ITEM, type ToolkitSim } from './toolkit';
 import { createDecor, type DecorSim } from './decor';
@@ -113,6 +114,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let dynamite: DynamiteSim;
   let containers: CargoContainerSim;
   let homeStations: HomeStationsSim;
+  let trading: TradingSim;
   let stationDevices: StationDeviceSim;
   let toolkit: ToolkitSim;
   let decor: DecorSim;
@@ -240,6 +242,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeContainer: () => containers.close(),
       storeInContainer: (kind, single) => containers.store(kind, single),
       takeFromContainer: (kind, single) => containers.take(kind, single),
+      closeTrade: () => trading.close(),
+      sellToPost: (kind, single) => trading.sell(kind, single),
+      buyFromPost: kind => trading.buy(kind),
       useTeleporter: () => actions.useTeleporter(),
       openShip: openShipScreen,
       closeShip: closeShipScreen,
@@ -354,6 +359,24 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   /** Space, or a click with no tile named: open the nearest station. */
   function openNearestStation(){
     homeStations.openNearest();
+  }
+  /**
+   * Space, or a click with no tile named, weighing the home stations against a
+   * trading post: whichever station-like thing is nearest wins, and a station
+   * breaks a tie. Toggles the open one shut, and stands any placement down before
+   * covering the mine with a new screen.
+   */
+  function openNearestStationLike(){
+    if (homeStations.openStation) return homeStations.close();
+    if (trading.open) return trading.close();
+    disarmPlacements();
+    const station = nearestStation(state.stations, state.player);
+    const stationDistance = station
+      ? Math.abs(station.x - state.player.x) + Math.abs(station.y - state.player.y)
+      : Infinity;
+    const post = trading.nearestPost();
+    if (post && post.distance < stationDistance) trading.openNearest();
+    else openNearestStation();
   }
   /** The slot a fit lands in when none is given: the first empty one, else slot 0. */
   function firstFittingSlot(){
@@ -524,6 +547,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toolkit.tick();
       decor.tick();
       homeStations.tick();
+      trading.tick();
       enemies.update();
     }
     updateAnimation();
@@ -747,6 +771,20 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       setExtractorUi,
       syncPlayer: syncPlayerSnapshot
     });
+    trading = createTrading({
+      state,
+      audio,
+      toast,
+      saveProgress,
+      addCash,
+      setOpenUi: offers => {
+        const store = uiStore.getState();
+        if (!offers) return store.closeOverlay('trade');
+        disarmPlacements();
+        store.setTradeBuy(offers);
+        store.setActiveOverlay('trade');
+      }
+    });
     stationDevices = createStationDevices({
       state,
       grid,
@@ -779,11 +817,13 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       // press on it — including the two deployables this module does not own.
       toggleContainer: () => { if (!containers.open) disarmPlacements(); containers.openNearest(); },
       closeContainer: () => containers.close(),
-      // Space opens whichever home station is in reach; a placement pointer has
-      // nothing left to aim at once its screen covers the mine.
-      openNearest: () => { if (!homeStations.openStation) disarmPlacements(); openNearestStation(); },
+      // Space opens whichever station-like thing is in reach — a home station or a
+      // trading post; a placement pointer has nothing left to aim at once its screen
+      // covers the mine.
+      openNearest: openNearestStationLike,
       closeStation: () => homeStations.close(),
       closeExtractor: () => homeStations.close(),
+      closeTrade: () => trading.close(),
       toast,
       tryAutoAudio
     });
@@ -830,9 +870,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     else if (stationDevices.armed) stationDevices.placeAt(point.x, point.y);
     else if (toolkit.armed) toolkit.liftAt(point.x, point.y);
     else if (decor.armed) decor.placeAt(point.x, point.y);
-    // An unarmed press opens a station tile the ship can reach, or the crate on
-    // the tile; a press on bare rock is not a refusal, it was about neither.
-    else if (!homeStations.openAt(point.x, point.y)) containers.openAt(point.x, point.y);
+    // An unarmed press opens a station tile the ship can reach, a trading post, or
+    // the crate on the tile; a press on bare rock is not a refusal, it was about none.
+    else if (!homeStations.openAt(point.x, point.y) && !trading.openAt(point.x, point.y)) containers.openAt(point.x, point.y);
   }
 
   /**
@@ -885,6 +925,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     uiStore.getState().closeOverlay('container');
     uiStore.getState().closeOverlay('station');
     uiStore.getState().closeOverlay('extractor');
+    uiStore.getState().closeOverlay('trade');
   }
 
   // --- Boot ------------------------------------------------------------------

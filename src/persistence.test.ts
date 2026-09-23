@@ -464,6 +464,39 @@ describe('cargo container persistence', () => {
 
     expect(state.cargoContainers).toHaveLength(CARGO_CONTAINER.maxPlaced);
   });
+});
+
+describe('trading ledger persistence', () => {
+  it('round-trips the drawn-down trading stock', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.tradeLedger = {'40,120': [2, 0, 1], '55,300': [3]};
+
+    save(state);
+    const restored = createInitialState();
+    load(restored);
+
+    expect(restored.tradeLedger).toEqual({'40,120': [2, 0, 1], '55,300': [3]});
+    expect(readSave(stored).tradeLedger).toEqual({'40,120': [2, 0, 1], '55,300': [3]});
+  });
+
+  it('drops keys that are not coordinate pairs and clamps the counts', () => {
+    stubStorage({version: SAVE_VERSION, tradeLedger: {bad: [1], '1,2': [3, -5, 'x']}});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.tradeLedger).toEqual({'1,2': [3, 0, 0]});
+  });
+
+  it('defaults to an empty ledger when the save has none', () => {
+    stubStorage({version: SAVE_VERSION});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.tradeLedger).toEqual({});
+  });
 
   it('drops junk stacks but keeps the sound ones beside them', () => {
     stubStorage({

@@ -147,6 +147,16 @@ describe('restarting after a death', () => {
     expect(h.toasts.saw('Cargo and fitted upgrades lost')).toBe(true);
   });
 
+  it('keeps the drawn-down trading stock through a death', () => {
+    const h = harness();
+    h.state.tradeLedger = {'40,120': [0, 1]};
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.tradeLedger).toEqual({'40,120': [0, 1]});
+  });
+
   it('regenerates the whole world and re-seeds enemy exposure', () => {
     const h = harness();
     h.state.world = [[{type: 'air'}]];
@@ -254,6 +264,15 @@ describe('a full player reset', () => {
     expect(h.state.exploredTiles.size).toBe(0);
     expect(h.state.stats).toMatchObject({maxDepth: 0, oreMined: 0, deaths: 0});
     expect(h.invalidateFog).toHaveBeenCalled();
+  });
+
+  it('clears the trading stock ledger, which a plain death would have kept', () => {
+    const h = harness();
+    h.state.tradeLedger = {'40,120': [0, 1]};
+
+    h.run.resetPlayer(true);
+
+    expect(h.state.tradeLedger).toEqual({});
   });
 });
 

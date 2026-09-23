@@ -29,6 +29,7 @@ import { Intro } from './Intro';
 import { ShipScreen } from './ShipScreen';
 import { StationHint } from './StationHint';
 import { StationScreen } from './StationScreen';
+import { TradeScreen } from './TradeScreen';
 import { useUiStore } from './store';
 import { Toast } from './Toast';
 import { useGameRuntime, type GameRuntimeFactory } from './useGameRuntime';
@@ -82,6 +83,7 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <CargoScreen />
         <StationScreen />
         <ExtractorScreen />
+        <TradeScreen />
         <FuelWarning />
         <StationHint />
         <Toast />

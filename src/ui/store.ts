@@ -151,7 +151,19 @@ export type UiPhase = 'intro' | 'playing';
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'info' | 'container' | 'ship' | 'station' | 'extractor';
+export type OverlayId = 'info' | 'container' | 'ship' | 'station' | 'extractor' | 'trade';
+
+/** One trading-post buy offer, as the trade screen paints it. */
+export interface TradeOfferView {
+  /** Position in the offer list, and the stable React key. */
+  index: number;
+  kind: InventoryItemKind;
+  label: string;
+  color: string;
+  price: number;
+  /** Units left to buy; a sold-out offer sits at zero. */
+  stock: number;
+}
 
 /** The oil extractor's buffers, as the extractor screen paints them, plus its tick progress. */
 export interface ExtractorView {
@@ -208,6 +220,12 @@ export interface UiState {
   stationSlots: InventorySlotView[];
   /** The oil extractor's buffers, written while its screen is up. */
   extractor: ExtractorView;
+  /**
+   * The open trading post's buy offers, written while the trade screen is up: the
+   * game pushes them on open and after each purchase, so the screen never reaches
+   * into the simulation. The sell side is the bay's ore, read from `inventorySlots`.
+   */
+  tradeBuy: TradeOfferView[];
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
   activeOverlay: ActiveOverlay;
@@ -242,6 +260,7 @@ export interface UiState {
   setShipEquipment(slots: ShipSlotView[]): void;
   setStationSlots(slots: InventorySlotView[]): void;
   setExtractor(view: ExtractorView): void;
+  setTradeBuy(offers: TradeOfferView[]): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
   /** Show one overlay, replacing whatever was up; `null` closes them all. */
@@ -335,6 +354,14 @@ function sameInventorySlots(a: InventorySlotView[], b: InventorySlotView[]): boo
   });
 }
 
+function sameTradeOffers(a: TradeOfferView[], b: TradeOfferView[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((offer, index) => {
+    const other = b[index];
+    return offer.kind === other.kind && offer.price === other.price && offer.stock === other.stock;
+  });
+}
+
 function sameCargoRows(a: CargoRow[], b: CargoRow[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((row, index) => {
@@ -362,6 +389,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   shipEquipment: buildShipSlots(initialState.player.equipment),
   stationSlots: [],
   extractor: {coal: 0, fuel: 0, progress: 0},
+  tradeBuy: [],
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   activeOverlay: null,
@@ -411,6 +439,11 @@ export const uiStore = createStore<UiState>((set, get) => ({
     const current = get().extractor;
     if (current.coal === view.coal && current.fuel === view.fuel && current.progress === view.progress) return;
     set({extractor: {...view}});
+  },
+
+  setTradeBuy(offers) {
+    if (sameTradeOffers(get().tradeBuy, offers)) return;
+    set({tradeBuy: offers});
   },
 
   setCargoRows(rows) {

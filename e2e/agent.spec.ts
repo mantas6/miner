@@ -48,6 +48,21 @@ function seedToolkitScenario(): void {
   }));
 }
 
+/**
+ * Seed the ship parked on a trading post. A post is generated deterministically at
+ * (43, 67) with a cleared 3×3 air pocket (see `src/world/world.ts`), so parking the
+ * ship there and putting a manufacturer holding iron one tile over gives the test
+ * ore to sell without a dig, and cash to start the buy side.
+ */
+function seedTradingPost(): void {
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 17,
+    x: 43, y: 67,
+    cash: 100,
+    stations: [{kind: 'manufacturer', x: 44, y: 67, items: [{kind: 'ore:Iron', count: 10}]}]
+  }));
+}
+
 /** Units of `kind` in a slot list, or 0 when none. */
 function countKind(slots: {kind: string; count: number}[], kind: string): number {
   return slots.find(slot => slot.kind === kind)?.count ?? 0;
@@ -137,6 +152,41 @@ test.describe.serial('agent harness', () => {
     expect(after.ship.y).toBeGreaterThan(before.ship.y);
     expect(after.view.origin.y).toBeGreaterThan(before.view.origin.y);
   });
+});
+
+test('a trading post buys ore for cash and sells its stock into the bay', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedTradingPost});
+  try {
+    await s.startRun();
+    let obs = await s.observe();
+    expect(obs.ship.x).toBe(43);
+    expect(obs.ship.y).toBe(67);
+
+    // The post sits under the ship; take iron aboard from the neighbouring station.
+    obs = await s.pressTile(44, 67);
+    expect(obs.overlay?.kind).toBe('station');
+    obs = await s.click({target: 'data-station', value: 'take', kind: 'ore:Iron'});
+    expect(countKind(obs.bay, 'ore:Iron')).toBe(10);
+    await s.press('Escape');
+
+    // Open the trading post and sell the iron: the wallet in hud.cash rises.
+    obs = await s.pressTile(43, 67);
+    expect(obs.overlay?.kind).toBe('trade');
+    const cashBefore = obs.hud.cash;
+    obs = await s.click({target: 'data-trade', value: 'sell', kind: 'ore:Iron'});
+    expect(obs.hud.cash).toBeGreaterThan(cashBefore);
+    expect(countKind(obs.bay, 'ore:Iron')).toBe(0);
+
+    // Buy an offered item; it lands in the bay and its stock drops.
+    if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
+    const offer = obs.overlay.buy[0];
+    obs = await s.click({target: 'data-trade', value: 'buy', kind: offer.kind});
+    expect(countKind(obs.bay, offer.kind)).toBeGreaterThanOrEqual(1);
+    if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
+    expect(obs.overlay.buy[0].stock).toBe(offer.stock - 1);
+  } finally {
+    await s.close();
+  }
 });
 
 test('the construction toolkit lifts a placed extractor, and it can be set back down', async () => {

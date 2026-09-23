@@ -9,6 +9,7 @@ import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
 import { isScannerDone, scannerTileProgress, type ScannerDevice } from '../core/scanner-device';
+import { tradingPostAt } from '../world/world';
 import { TERRAIN_CHUNK_TILES, terrainCacheScale, terrainChunkCoordinate, terrainChunkKeyForTile } from './terrain-cache-policy';
 import type {
   Direction,
@@ -254,6 +255,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     drawTerrainDamage(camX, camY);
     drawTerrainBlendOverlay(camY);
     drawHomeStations(camX, camY);
+    drawTradingPosts(camX, camY);
     drawCargoContainers(camX, camY);
     drawScannerDevices(camX, camY);
     drawPlacedDynamite(camX, camY);
@@ -490,6 +492,50 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillStyle = active ? '#8fe6ff' : '#2a333c';
     if (active) { ctx.shadowColor = '#5cc8ff'; ctx.shadowBlur = 10; }
     ctx.beginPath(); ctx.arc(-TILE*.22, TILE*.06, TILE*.05, 0, Math.PI*2); ctx.fill();
+  }
+  /**
+   * Trading posts, as a lit kiosk with a coin sign. Derived from the tile
+   * coordinate like the home cavern (see `world.ts`), so the renderer walks the
+   * visible tile range and asks `tradingPostAt` rather than reading any stored list.
+   * Culled off-screen and skipped under fog, exactly like the other mine fixtures.
+   */
+  function drawTradingPosts(camX: number, camY: number) {
+    const range = getVisibleTileRange(camX, camY, viewport.tilesX, viewport.tilesY, WORLD_W);
+    for (let wy = range.startY; wy <= range.endY; wy++) for (let wx = range.startX; wx <= range.endX; wx++) {
+      if (!isExplored(wx, wy)) continue;
+      if (!tradingPostAt(wx, wy)) continue;
+      drawTradingPostBody((wx - camX) * TILE, (wy - camY) * TILE);
+    }
+  }
+  function drawTradingPostBody(sx: number, sy: number) {
+    ctx.save();
+    ctx.translate(sx + TILE * .5, sy + TILE * .5);
+    // Counter and stall base, sitting on the tile floor.
+    ctx.fillStyle = '#4a3a5a';
+    ctx.fillRect(-TILE * .32, TILE * .04, TILE * .64, TILE * .26);
+    ctx.fillStyle = 'rgba(0,0,0,.30)';
+    ctx.fillRect(-TILE * .32, TILE * .22, TILE * .64, TILE * .08);
+    // Awning over the counter: a warm striped canopy.
+    ctx.fillStyle = '#c85a4a';
+    ctx.fillRect(-TILE * .36, -TILE * .10, TILE * .72, TILE * .12);
+    ctx.fillStyle = 'rgba(255,255,255,.22)';
+    for (let i = 0; i < 3; i++) ctx.fillRect(-TILE * .36 + i * TILE * .24, -TILE * .10, TILE * .12, TILE * .12);
+    // Sign post and coin badge above the stall.
+    ctx.strokeStyle = '#8fa2b5'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -TILE * .10); ctx.lineTo(0, -TILE * .28); ctx.stroke();
+    ctx.fillStyle = '#ffd65c';
+    ctx.shadowColor = '#ffc857'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(0, -TILE * .32, TILE * .09, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // A dark "$" struck into the coin.
+    ctx.fillStyle = '#7a5a12';
+    ctx.font = `bold ${Math.round(TILE * .16)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', 0, -TILE * .31);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
   }
   /**
    * Cargo containers, as a banded crate. A crate with something in it shows a lit

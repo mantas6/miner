@@ -162,6 +162,14 @@ export interface GameState {
    */
   stations: PlacedStation[];
   /**
+   * Trading-post buy stock the player has drawn down, keyed by `"x,y"` — one entry
+   * per visited post, an array of remaining stock per offer index. Posts themselves
+   * are derived from the world (`world.ts`), so only this dwindling stock is stored;
+   * an absent key means the post is still at its freshly rolled stock. It survives
+   * death and reload, and clears only on a full player-data reset.
+   */
+  tradeLedger: Record<string, number[]>;
+  /**
    * The carried device armed for placement, or `null` when nothing is. Only the
    * placeable kinds (scanner, dynamite, container) ever appear here; it drives the
    * canvas placement grid, and mirrors the same state the sims paint onto the HUD

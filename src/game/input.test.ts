@@ -65,6 +65,7 @@ function harness(): Harness {
     openNearest: vi.fn(),
     closeStation: vi.fn(),
     closeExtractor: vi.fn(),
+    closeTrade: vi.fn(),
     toast: vi.fn(),
     tryAutoAudio: vi.fn()
   };
