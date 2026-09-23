@@ -21,6 +21,19 @@ import {
 } from './stations';
 import { addItem, countItem, createInventory, oreKind, totalItems, type Inventory } from './inventory';
 import { itemForKind } from './items';
+import { WORLD_W } from '../../shared/constants';
+import { tradingPostAt } from '../world/world';
+
+/** The first trading post in the interior band, for the occupancy checks. */
+function findPost(): {x: number; y: number} {
+  for (let y = HOME_ROW + 40; y < HOME_ROW + 4000; y++) {
+    for (let x = 3; x < WORLD_W - 3; x++) {
+      const post = tradingPostAt(x, y);
+      if (post) return post;
+    }
+  }
+  throw new Error('no trading post found');
+}
 
 /** A station stock or bay built from `{kind, count}` pairs. */
 function inventory(...stacks: [string, number][]): Inventory {
@@ -144,6 +157,13 @@ describe('placing a station device', () => {
     expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupied: true, count: 0})).toMatch(/already stands/);
     expect(stationPlacementRefusal(40, 100, 'manufacturer', {explored, open: true, occupied: false, count: STATION_DEVICE.manufacturer.maxPlaced}))
       .toMatch(/Manufacturing Stations/);
+  });
+
+  it('refuses a tile a trading post already stands on', () => {
+    const post = findPost();
+    const seen = new Set([explorationIndex(post.x, post.y)]);
+    expect(stationPlacementRefusal(post.x, post.y, 'extractor', {explored: seen, open: true, occupied: false, count: 0}))
+      .toMatch(/already stands/);
   });
 });
 

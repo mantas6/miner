@@ -21,6 +21,19 @@ import {
 } from './placement-overlay';
 import { createScannerDevice } from './scanner-device';
 import { createManufacturer } from './stations';
+import { HOME_ROW } from '../../shared/constants';
+import { tradingPostAt } from '../world/world';
+
+/** The first trading post in the interior band, for the occupancy check. */
+function findPost(): {x: number; y: number} {
+  for (let y = HOME_ROW + 40; y < HOME_ROW + 4000; y++) {
+    for (let x = 3; x < WORLD_W - 3; x++) {
+      const post = tradingPostAt(x, y);
+      if (post) return post;
+    }
+  }
+  throw new Error('no trading post found');
+}
 
 /** A mine that is open air everywhere, with a set of explored tiles seeded in. */
 function world(overrides: Partial<PlacementOverlayWorld> = {}): PlacementOverlayWorld {
@@ -116,6 +129,14 @@ describe('isPlacementValid', () => {
     expect(isPlacementValid('device:extractor', x, y, taken)).toBe(false);
     const onStation = world({explored, stations: [createManufacturer(x, y)]});
     expect(isPlacementValid('device:manufacturer', x, y, onStation)).toBe(false);
+  });
+
+  it('never places a container or station on a trading post tile', () => {
+    const post = findPost();
+    const seen = world({explored: new Set([explorationIndex(post.x, post.y)])});
+    expect(isPlacementValid('container', post.x, post.y, seen)).toBe(false);
+    expect(isPlacementValid('device:manufacturer', post.x, post.y, seen)).toBe(false);
+    expect(isPlacementValid('device:extractor', post.x, post.y, seen)).toBe(false);
   });
 });
 

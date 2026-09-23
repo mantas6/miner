@@ -29,16 +29,17 @@ the ship (the ones in the bay survive). If the restored mine turns out to be sol
 tile (a capped save), the ship starts at the home base rather than buried,
 because the drill cannot dig upward.
 
-The save is version 15 and a clean break: every save written by an older build is
-discarded on load rather than migrated, because the underground-home rework
-changed the shape too much to convert honestly (the four ship stats became
-derived from fitted equipment, the item counters became one `bay` of stacks, and
-the home base gained persisted state). A returning player from an older build
+The save is version 17 and a clean break: every save written by an older build is
+discarded on load rather than migrated, because the reworks changed the shape too
+much to convert honestly (the four ship stats became derived from fitted
+equipment, the item counters became one `bay` of stacks, and the stations became
+placed entities carrying their own state). A returning player from an older build
 starts fresh. What the save keeps: the parked tile, cash, the tile diff, explored
-tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the home base
-(the Manufacturing Station's stock and the Oil Extractor's coal/fuel), and the
-hardware left running in the mine (scanners, dynamite, crates with their
-contents). Ore aboard the ship is never saved — it is lost with the run.
+tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the placed
+stations (each Manufacturing Station's stock and each Oil Extractor's coal/fuel),
+the drawn-down trading-post stock (`tradeLedger`), and the hardware left standing
+in the mine (scanners, dynamite, crates and wrecks with their contents). Ore
+aboard the ship is never saved — it is lost with the run.
 
 Underground fog of war is persistent. Movement permanently reveals a fixed 3x3
 square around the ship. The indestructible bedrock ceiling above the home cavern
@@ -128,7 +129,7 @@ miner-mp/
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
 | `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
@@ -141,7 +142,7 @@ miner-mp/
 | `soundtrack/tracks/__init__.py` | Generator-side registry: the `TRACKS` dict keyed by slug and `get_track()`. |
 | `soundtrack/render.py` | CLI that renders registered tracks into `public/assets/music/`. |
 | `public/assets/music/` | The shipped soundtrack assets (`golden-signal.mp3`, `golden-signal.ogg`) — build products of `soundtrack/render.py`, copied verbatim into `dist/` by Vite. |
-| `src/ui/` | React components, the zustand UI store (`store.ts`), the command table the buttons dispatch into (`commands.ts`), the effect that owns the runtime's lifetime (`useGameRuntime.ts`), the boot/crash notices (`Failure.tsx`), and co-located CSS modules. |
+| `src/ui/` | React components — including the trading-post screen (`TradeScreen.tsx`) and the shared hover popup driven by the item-description registry (`Tooltip.tsx`) — the zustand UI store (`store.ts`), the command table the buttons dispatch into (`commands.ts`), the effect that owns the runtime's lifetime (`useGameRuntime.ts`), the boot/crash notices (`Failure.tsx`), and co-located CSS modules. |
 | `src/styles/base.css` | Design tokens plus element-level styling (`button`, `ul`, `kbd`, `meter`, `canvas`, `#shell`, `#game-panel`) and the app-wide `:focus-visible` ring. |
 | `src/styles/icons.css` | Global equipment sprite sheet (`icon-*`), addressed by name from the item catalog. |
 | `src/styles/intro-art.css` | Global intro badge art. |
@@ -257,7 +258,8 @@ zooming the camera with the wheel or a trackpad.
 | Move / fly / dig | `WASD` or arrow keys | — |
 | Sprint through open space (needs a fitted Booster) | Hold `Shift` + direction | — |
 | Zoom the camera (0.5x–2x, remembered) | — | Wheel scroll or trackpad pinch over the mine |
-| Open the home station in reach (Manufacturing Station / Oil Extractor) | `Space` | Press the station tile on the mine |
+| Open a station in reach (Manufacturing Station / Oil Extractor) | `Space` | Press the station tile on the mine |
+| Open a trading post in reach | `Space` | Press the post tile on the mine |
 | Ship equipment (fit/unfit upgrades) | — | Ship button |
 | Use a repair kit (patch the hull) | — | Repair Kit inventory slot |
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
@@ -296,9 +298,9 @@ zooming the camera with the wheel or a trackpad.
   situation — at home base, in the mine, holds full, hull critical, ship lost. It is
   driven by thresholds, so the 60 Hz HUD sync never makes it talk.
 - **Native dialogs.** The intro prompt is a `<button>`; the ship, info,
-  Manufacturing Station, Oil Extractor and cargo-container overlays are modal
-  `<dialog>`s, so the browser contains Tab, makes the rest of the page inert, and
-  each close returns focus to the control that opened it.
+  Manufacturing Station, Oil Extractor, cargo-container/wreck and trading-post
+  overlays are modal `<dialog>`s, so the browser contains Tab, makes the rest of the
+  page inert, and each close returns focus to the control that opened it.
 - **`prefers-reduced-motion`.** The looping start-prompt, low-fuel and HUD-alert
   animations stop; the alert colours stay.
 
@@ -324,8 +326,10 @@ zooming the camera with the wheel or a trackpad.
 
 The ship lives in a small deterministic cavern carved into the top of the mine;
 solid bedrock caps the world above it, so there is no surface and the depth meter
-reads 0 m at home. Two fixed stations sit on the cavern floor — fly onto or beside
-one and press `Space` (or click its tile) to open it.
+reads 0 m at home. Two stations are seeded on the cavern floor — fly onto or beside
+one and press `Space` (or click its tile) to open it. They are placed entities, not
+fixed world objects, so they can be crafted, carried and set down elsewhere too
+(see "Crafting & ship equipment").
 
 - **Manufacturing Station.** Stow cargo here (its stock holds up to 500 items),
   take stacks back aboard, and craft. Crafting consumes from the station stock and
@@ -347,6 +351,7 @@ one and press `Space` (or click its tile) to open it.
   | … **Mk III** | 2 Ruby + 2 Emerald + 1 Alienite |
   | Booster | 3 Copper + 2 Coal + 1 Silver |
   | Steel Plate (decor) | 2 Iron |
+  | Stone Block ×2 (decor) | 1 Coal |
   | Copper Trim (decor) | 2 Copper |
   | Lamp Panel (decor) | 1 Copper + 1 Coal |
 

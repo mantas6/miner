@@ -15,6 +15,19 @@ import { STATION_DEVICE, stationAt } from '../core/stations';
 import type { GameState } from '../core/types';
 import { createStationDevices, type StationDeviceSim } from './station-devices';
 import { createAudioStub, createFakeGrid, createToastLog, type AudioStub, type FakeGrid } from './test-support';
+import { HOME_ROW, WORLD_W } from '../../shared/constants';
+import { tradingPostAt } from '../world/world';
+
+/** The first trading post in the interior band, for the occupancy check. */
+function findPost(): {x: number; y: number} {
+  for (let y = HOME_ROW + 40; y < HOME_ROW + 4000; y++) {
+    for (let x = 3; x < WORLD_W - 3; x++) {
+      const post = tradingPostAt(x, y);
+      if (post) return post;
+    }
+  }
+  throw new Error('no trading post found');
+}
 
 interface Harness {
   state: GameState;
@@ -139,6 +152,17 @@ describe('setting a station down', () => {
     h.devices.toggleArmed('manufacturer');
 
     expect(h.devices.placeAt(40, 100)).toBe(false);
+    expect(h.toasts.saw('already stands')).toBe(true);
+    expect(h.state.stations).toEqual([]);
+  });
+
+  it('refuses a tile a trading post already stands on', () => {
+    const h = harness();
+    const post = findPost();
+    h.state.exploredTiles.add(explorationIndex(post.x, post.y));
+    h.devices.toggleArmed('manufacturer');
+
+    expect(h.devices.placeAt(post.x, post.y)).toBe(false);
     expect(h.toasts.saw('already stands')).toBe(true);
     expect(h.state.stations).toEqual([]);
   });

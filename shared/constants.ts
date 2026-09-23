@@ -28,7 +28,7 @@ export const HOME_ROW = 20;
 export const BEDROCK_ROWS = 8;
 /** The carved cavern: `halfWidth` tiles either side of `HOME_X`, `height` rows tall (floor included). */
 export const HOME_CAVERN = Object.freeze({ halfWidth: 6, height: 3 });
-/** Fixed world objects that sit on the cavern floor (drawn/handled outside the tile grid). */
+/** The cavern-floor tiles the two default stations are seeded on (`createInitialStations`). */
 export const STATIONS = Object.freeze({
   manufacturer: { x: HOME_X - 1, y: HOME_ROW },
   extractor: { x: HOME_X + 1, y: HOME_ROW }

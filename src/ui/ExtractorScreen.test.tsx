@@ -4,7 +4,7 @@
 // stored fuel against its cap, and the countdown from the store, and do the two
 // transfer buttons name their amounts, disable at zero, and reach the right
 // command? What a load/refuel or a conversion actually does — and the auto-refuel
-// on parking — lives in core/home.test.ts and game/home-stations.test.ts.
+// on parking — lives in core/stations.test.ts and game/home-stations.test.ts.
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

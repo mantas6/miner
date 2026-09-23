@@ -28,6 +28,19 @@ import {
   type Inventory
 } from './inventory';
 import type { Ore } from './types';
+import { HOME_ROW, WORLD_W } from '../../shared/constants';
+import { tradingPostAt } from '../world/world';
+
+/** The first trading post in the interior band, for the occupancy check. */
+function findPost(): {x: number; y: number} {
+  for (let y = HOME_ROW + 40; y < HOME_ROW + 4000; y++) {
+    for (let x = 3; x < WORLD_W - 3; x++) {
+      const post = tradingPostAt(x, y);
+      if (post) return post;
+    }
+  }
+  throw new Error('no trading post found');
+}
 
 const COPPER: Ore = {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1};
 const IRON: Ore = {name: 'Iron', color: '#9aa7b4', value: 12, min: 0, max: 900, chance: 1};
@@ -65,6 +78,13 @@ describe('placing a container', () => {
     // Even for a tile that would otherwise be perfectly good.
     expect(containerPlacementRefusal(40, 100, {...site, containers}))
       .toContain(`${CARGO_CONTAINER.maxPlaced} containers`);
+  });
+
+  it('refuses a tile a trading post already stands on', () => {
+    const post = findPost();
+    const seen = new Set([explorationIndex(post.x, post.y)]);
+    expect(containerPlacementRefusal(post.x, post.y, {explored: seen, open: true, containers: []}))
+      .toContain('already stands');
   });
 });
 

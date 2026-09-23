@@ -26,6 +26,7 @@ import {
 } from './inventory';
 import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
+import { tradingPostAt } from '../world/world';
 
 /** Which of the two kinds of station this is. */
 export type StationKind = 'manufacturer' | 'extractor';
@@ -266,7 +267,9 @@ export function stationPlacementRefusal(
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    occupied: context.occupied,
+    // A trading post stands in a derived air pocket, not in `state.stations`, so it
+    // is checked here from the coordinate rather than through `context.occupied`.
+    occupied: context.occupied || tradingPostAt(x, y) !== null,
     full: context.count >= STATION_DEVICE[kind].maxPlaced
   }, stationPlacementCopy(kind));
 }

@@ -31,6 +31,7 @@ import {
 } from './inventory';
 import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
+import { tradingPostAt } from '../world/world';
 
 export const CARGO_CONTAINER = Object.freeze({
   /**
@@ -119,7 +120,8 @@ export function containerPlacementRefusal(x: number, y: number, context: Contain
     explored: context.explored,
     open: context.open,
     occupied: context.containers.some(container => container.x === x && container.y === y)
-      || (context.wrecks?.some(wreck => wreck.x === x && wreck.y === y) ?? false),
+      || (context.wrecks?.some(wreck => wreck.x === x && wreck.y === y) ?? false)
+      || tradingPostAt(x, y) !== null,
     full: context.containers.length >= CARGO_CONTAINER.maxPlaced
   }, CONTAINER_PLACEMENT_COPY);
 }
@@ -155,7 +157,7 @@ function moveStack(
  * success — the crate takes what fits and the rest stays aboard — and the whole
  * stack goes in one press when there is room, because a menu that moved one unit
  * per click would ask for forty presses to empty a full load of ore. `maxUnits`
- * caps the move below the whole stack — a Ctrl-click asks for exactly one — and
+ * caps the move below the whole stack — the row's 1 button asks for exactly one — and
  * is still held under the crate's remaining room.
  */
 export function storeInContainer(
@@ -180,7 +182,7 @@ export function storeInContainer(
  * item already aboard, so equipment counts the same as ore. A partial load is a
  * success: taking two of the ten ore a crate holds is what a ship two short of
  * `cargoMax` should be able to do, and the rest stays where it was. `maxUnits`
- * caps the move below the whole stack — a Ctrl-click asks for exactly one — and
+ * caps the move below the whole stack — the row's 1 button asks for exactly one — and
  * is still held under the bay's remaining room.
  */
 export function takeFromContainer(

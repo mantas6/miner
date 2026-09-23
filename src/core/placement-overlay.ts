@@ -21,6 +21,7 @@ import { canPlaceDevice, inMineBounds, type PlacementSite } from './placement';
 import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
 import { STATION_DEVICE, isStationTile, stationAt, type PlacedStation } from './stations';
 import { type Wreck } from './wreck';
+import { tradingPostAt } from '../world/world';
 
 /**
  * How far around the ship the placement grid reaches. A device may legally go on
@@ -56,13 +57,14 @@ export interface PlacementOverlayWorld {
   isOpen(x: number, y: number): boolean;
 }
 
-/** Whether any placed entity — a station, container, wreck, scanner, or dynamite — sits on this tile. */
+/** Whether any placed entity — a station, container, wreck, scanner, dynamite, or trading post — sits on this tile. */
 function isTileOccupied(x: number, y: number, world: PlacementOverlayWorld): boolean {
   return stationAt(world.stations, x, y) !== null
     || world.cargoContainers.some(container => container.x === x && container.y === y)
     || world.wrecks.some(wreck => wreck.x === x && wreck.y === y)
     || world.scannerDevices.some(device => device.x === x && device.y === y)
-    || world.placedDynamite.some(stick => stick.x === x && stick.y === y);
+    || world.placedDynamite.some(stick => stick.x === x && stick.y === y)
+    || tradingPostAt(x, y) !== null;
 }
 
 /** One tile of the preview grid: where it is, and whether the device fits. */
@@ -126,7 +128,8 @@ function placementSiteFor(
         explored: world.explored,
         open,
         occupied: world.cargoContainers.some(container => container.x === x && container.y === y)
-          || world.wrecks.some(wreck => wreck.x === x && wreck.y === y),
+          || world.wrecks.some(wreck => wreck.x === x && wreck.y === y)
+          || tradingPostAt(x, y) !== null,
         full: world.cargoContainers.length >= CARGO_CONTAINER.maxPlaced
       };
     default:

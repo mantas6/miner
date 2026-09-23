@@ -18,6 +18,19 @@ import { createInitialState } from '../core/state';
 import type { GameState, Ore } from '../core/types';
 import { createCargoContainers, type CargoContainerSim } from './cargo-containers';
 import { createAudioStub, createFakeGrid, createToastLog, type AudioStub, type FakeGrid } from './test-support';
+import { HOME_ROW, WORLD_W } from '../../shared/constants';
+import { tradingPostAt } from '../world/world';
+
+/** The first trading post in the interior band, for the occupancy check. */
+function findPost(): {x: number; y: number} {
+  for (let y = HOME_ROW + 40; y < HOME_ROW + 4000; y++) {
+    for (let x = 3; x < WORLD_W - 3; x++) {
+      const post = tradingPostAt(x, y);
+      if (post) return post;
+    }
+  }
+  throw new Error('no trading post found');
+}
 
 const COPPER: Ore = {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1};
 
@@ -159,6 +172,17 @@ describe('setting a container down', () => {
     expect(h.toasts.saw('underground')).toBe(true);
   });
 
+  it('refuses a tile a trading post already stands on', () => {
+    const h = harness();
+    const post = findPost();
+    h.state.exploredTiles.add(explorationIndex(post.x, post.y));
+    h.containers.toggleArmed();
+
+    expect(h.containers.placeAt(post.x, post.y)).toBe(false);
+    expect(h.toasts.saw('already stands')).toBe(true);
+    expect(h.state.cargoContainers).toEqual([]);
+  });
+
   it('drops the armed pointer when the bay is emptied behind its back', () => {
     const h = harness();
     h.containers.toggleArmed();
@@ -275,7 +299,7 @@ describe('moving cargo across', () => {
     expect(h.toasts.saw('Stored 6 × Copper')).toBe(true);
   });
 
-  it('stores a single unit on a Ctrl-click, leaving the rest aboard', () => {
+  it('stores a single unit on the row\'s 1 button, leaving the rest aboard', () => {
     const h = opened();
 
     h.containers.store(oreItem(COPPER).kind, true);
@@ -285,7 +309,7 @@ describe('moving cargo across', () => {
     expect(h.toasts.saw('Stored 1 × Copper')).toBe(true);
   });
 
-  it('takes a single unit on a Ctrl-click, leaving the rest stored', () => {
+  it('takes a single unit on the row\'s 1 button, leaving the rest stored', () => {
     const h = opened();
     h.containers.store(oreItem(COPPER).kind);
 

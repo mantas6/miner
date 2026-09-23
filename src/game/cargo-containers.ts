@@ -194,7 +194,7 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
     // A reset can take the mine out from under an open crate. Moving cargo into
     // one the world no longer contains would quietly delete it.
     if (!state.cargoContainers.includes(container)) return close();
-    // A Ctrl-click asks for exactly one unit; a plain click moves the whole stack.
+    // The row's 1 button asks for exactly one unit; the plain button moves the whole stack.
     const maxUnits = single ? 1 : Infinity;
     const result = direction === 'store'
       ? storeInContainer(state.player.inventory, container.inventory, kind, maxUnits)

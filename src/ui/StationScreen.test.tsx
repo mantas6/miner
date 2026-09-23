@@ -3,7 +3,7 @@
 // The manufacturing station screen as a component: does it paint the station
 // stock, the bay, and the recipe list from the store, and does a press reach the
 // right command? What a stow/take/craft actually does lives in
-// core/home.test.ts, core/crafting.test.ts, and game/home-stations.test.ts.
+// core/stations.test.ts, core/crafting.test.ts, and game/home-stations.test.ts.
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

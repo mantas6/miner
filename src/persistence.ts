@@ -58,8 +58,7 @@ import type { GameState, GameStats } from './core/types';
 // home base persisted state), the honest option is to discard anything older on
 // load (see the version gate in `load`): a returning player simply starts fresh.
 //
-// The v16 shape is identical to v15's; only the world geometry it maps onto
-// changed. Its fields:
+// The current (v17) shape's fields:
 //   * `x`/`y`     — the tile the ship parked on.
 //   * `cash`      — the wallet.
 //   * `tiles`     — the solo world's tile diff, in the relay world format.
@@ -73,8 +72,10 @@ import type { GameState, GameStats } from './core/types';
 //   * `stations`  — the stations standing in the mine: each manufacturer with its
 //     own `{kind,count}` stock (ore included), each extractor with its queued coal,
 //     stored fuel, and tick progress. Two are seeded on the home-cavern floor.
-//   * `scannerDevices`/`dynamiteSticks`/`cargoContainers` — the hardware left
-//     running in the mine, crates saved with their contents.
+//   * `scannerDevices`/`dynamiteSticks`/`cargoContainers`/`wrecks` — the hardware
+//     and corpse loot left standing in the mine, crates and wrecks saved with their
+//     contents.
+//   * `tradeLedger` — the drawn-down buy stock per trading post, keyed `"x,y"`.
 
 /** The persisted save file. Every field is re-validated on load. */
 interface SavedProgress {
@@ -365,8 +366,8 @@ export function load(state: GameState): void {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const save: SavedProgress = JSON.parse(raw);
-    // Version 15 is a clean break: anything older is discarded, so the state keeps
-    // the pristine defaults `createInitialState` gave it.
+    // Hard-gate policy: any save older than `SAVE_VERSION` is discarded rather than
+    // migrated, so the state keeps the pristine defaults `createInitialState` gave it.
     if (numeric(save.version, 0, 0) < SAVE_VERSION) return;
     const p = state.player;
     state.cash = numeric(save.cash, state.cash, 0);
