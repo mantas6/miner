@@ -12,6 +12,7 @@ import { DYNAMITE_ITEM } from '../core/dynamite';
 import { addItem, addOre, createInventory } from '../core/inventory';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { setUiCommands, uiCommands } from './commands';
+import common from './common.module.css';
 import { buildInventorySlots, uiStore, type HudSnapshot } from './store';
 import { MinerApp } from './ui';
 
@@ -362,6 +363,8 @@ describe('store-driven HUD', () => {
     expect(document.getElementById('cash')?.textContent).toBe('$1234');
     expect(document.getElementById('depth')?.textContent).toBe('420 m');
     expect(document.getElementById('fuelLabel')?.textContent).toBe('13/200');
+    // The fuel number is a visible readout now, not hidden behind the dial.
+    expect(document.getElementById('fuelLabel')?.className).not.toMatch(common.srOnly);
     expect(document.getElementById('fuel')?.getAttribute('aria-valuenow')).toBe('12.2');
     // The LED, not a bar tint, is the low-fuel alarm on the analog gauge.
     expect(document.getElementById('fuelLed')?.className).toMatch(/on/);

@@ -1,6 +1,5 @@
 import clsx from 'clsx';
 import { useUiStore } from './store';
-import common from './common.module.css';
 import styles from './FuelGauge.module.css';
 
 /**
@@ -40,8 +39,9 @@ const [eX, eY] = polar(0, RADIUS);
 const [ledX, ledY] = polar(-12, RADIUS - 22);
 
 /**
- * The bottom-left HUD panel: an analog fuel gauge over a plain hull readout. The
- * cargo bar is gone — the objective line and the spoken status carry a full hold.
+ * The bottom-left HUD panel: an analog fuel gauge over plain fuel and hull
+ * readouts, each a caption and a `current/max` number. The cargo bar is gone —
+ * the objective line and the spoken status carry a full hold.
  */
 export function FuelGauge() {
   const fuel = useUiStore(state => state.hud.fuel);
@@ -110,11 +110,14 @@ export function FuelGauge() {
           {/* The banner announces low fuel; this is the same alarm for the eye. */}
           <circle id="fuelLed" className={clsx(styles.led, fuelAlert && styles.on)} cx={ledX} cy={ledY} r={3.5} />
         </svg>
-        <span id="fuelLabel" className={common.srOnly}>{text}</span>
       </div>
-      <div id="hull" className={clsx(styles.hull, hullAlert && styles.alert)}>
+      <div id="fuelReadout" className={clsx(styles.line, fuelAlert && styles.alert)}>
+        <span className={styles.caption}>Fuel</span>
+        <span id="fuelLabel" className={styles.value}>{text}</span>
+      </div>
+      <div id="hull" className={clsx(styles.line, hullAlert && styles.alert)}>
         <span className={styles.caption}>Hull</span>
-        <span id="hullLabel" className={styles.hullValue}>{`${Math.ceil(hullValue)}/${hullMax}`}</span>
+        <span id="hullLabel" className={styles.value}>{`${Math.ceil(hullValue)}/${hullMax}`}</span>
       </div>
     </div>
   );

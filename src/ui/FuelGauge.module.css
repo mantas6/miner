@@ -83,8 +83,8 @@
   }
 }
 
-/* The hull readout: caption plus number, no track. */
-.hull {
+/* A readout line: caption plus number, no track. Shared by fuel and hull. */
+.line {
   display: flex;
   gap: 8px;
   align-items: baseline;
@@ -99,17 +99,17 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.hullValue {
+.value {
   color: #dbe8ff;
   font-size: var(--fs-xs);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.hull.alert {
+.line.alert {
   animation: hudBarFlash 0.7s ease-in-out infinite alternate;
 }
-.hull.alert .caption,
-.hull.alert .hullValue {
+.line.alert .caption,
+.line.alert .value {
   color: #fff1a3;
   text-shadow: 0 0 10px rgba(255, 205, 76, 0.72);
 }
@@ -131,7 +131,7 @@
   .led.on {
     animation: none;
   }
-  .hull.alert {
+  .line.alert {
     animation: none;
     background: rgba(255, 82, 37, 0.28);
   }
