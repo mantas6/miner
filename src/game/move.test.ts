@@ -330,18 +330,17 @@ describe('drilling out a decoration', () => {
     h.movement.move(0, 1);
     h.movement.move(0, 1);
     // An intermediate hit chips the panel down without freeing the ship, and
-    // costs no fuel: the toll on a decoration is time, not tank.
+    // each hit pays a dig's fuel just like dirt or ore would.
     expect(h.grid.get(10, 41)).toMatchObject({type: 'decor', decor: 'steelPlate', hp: 1});
     expect(h.state.player.y).toBe(40);
-    expect(h.state.player.fuel).toBe(STARTING.fuel);
+    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - 2 * DIG_COST(FUEL.dig.dig, 1));
 
     h.movement.move(0, 1);
 
     expect(countItem(h.state.player.inventory, 'decor:steelPlate')).toBe(1);
     expect(h.grid.get(10, 41)).toEqual({type: 'air'});
     expect(h.state.player.y).toBe(41);
-    // Only the breaking hit pays, and it pays for one dig.
-    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - DIG_COST(FUEL.dig.dig, 1));
+    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - 3 * DIG_COST(FUEL.dig.dig, 1));
     expect(h.saveProgress).toHaveBeenCalled();
   });
 
@@ -364,8 +363,8 @@ describe('drilling out a decoration', () => {
     expect(h.state.player.y).toBe(40);
     expect(h.toasts.saw('Cargo bay full')).toBe(true);
     expect(h.audio.played).toContain('alarm');
-    // A refused breaking hit is not charged either.
-    expect(h.state.player.fuel).toBe(STARTING.fuel);
+    // Both hits burned fuel, the refused one included: the drill still ran.
+    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - 2 * DIG_COST(FUEL.dig.dig, 1));
   });
 });
 

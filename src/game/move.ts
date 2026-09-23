@@ -173,16 +173,14 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
    * to the bay — the player recovers what they set down. The full-bay check runs
    * only on the final hit, so the ship can chip away at one even with no room to
    * stow it; a full bay then refuses that last hit (the ship stays put), so a
-   * decoration is never destroyed just to make the ship move.
-   *
-   * The price of breaking one is time, not fuel: the many chip hits are free and
-   * only the breaking hit pays a single dig, so the paved home floor never
-   * drains a fresh tank the way charging every one of its 48 hits would.
+   * decoration is never destroyed just to make the ship move. Every hit pays a
+   * dig's worth of fuel, the same as dirt or ore — a decoration is no exception.
    */
   function drillDecorTile(tile: DecorTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
     player.drillDx = dx; player.drillDy = dy; player.drillAnim = 1.2;
     const item = itemForKind(decorKindForId(tile.decor));
     tile.hp -= player.drill;
+    useFuel(dig(FUEL.dig.dig));
     spawnDust(nx, ny, item.color, 8);
     audio.mine();
     if (tile.hp > 0) {
@@ -197,7 +195,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       toast('Cargo bay full — clear space before recovering the decoration.');
       return 'blocked';
     }
-    useFuel(dig(FUEL.dig.dig));
     player.inventory = addItem(player.inventory, item);
     grid.set(nx, ny, {type: 'air'});
     saveProgress();
