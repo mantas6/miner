@@ -19,6 +19,7 @@
 import { isTileExplored } from '../../shared/exploration-codec';
 import { canCraft, missingInputs, RECIPES } from '../core/crafting';
 import { getEnemyType } from '../core/enemy-types';
+import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
 import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
@@ -76,6 +77,12 @@ export interface AgentSlot {
   kind: InventoryItemKind;
   label: string;
   count: number;
+  /**
+   * The `describeItem` lines a human reads off the row's tooltip. Present only on
+   * slots inside an overlay (station stock/bay, container, wreck, ship fittable);
+   * the top-level `bay` stays lean and omits it.
+   */
+  info?: string[];
 }
 
 /** One recipe input line, resolved to a label. */
@@ -94,6 +101,8 @@ export interface AgentRecipe {
   craftable: boolean;
   /** The shortfall when it does not — empty when `craftable`. */
   missing: AgentRecipeInput[];
+  /** The tooltip lines: the output item's description followed by each input's have/need count. */
+  info: string[];
 }
 
 /** One ship fitting slot, as the Ship screen paints it. */
@@ -101,6 +110,8 @@ export interface AgentShipSlot {
   index: number;
   kind: UpgradeKind | null;
   label: string;
+  /** The fitted upgrade's tooltip lines; empty for a vacant slot. */
+  info: string[];
 }
 
 /** What a notable tile is. Decor, dirt, rock and air are not notable. */
@@ -125,8 +136,8 @@ export type AgentOverlay =
   | {
       kind: 'trade';
       cash: number;
-      sell: {kind: InventoryItemKind; label: string; count: number; price: number}[];
-      buy: {kind: InventoryItemKind; label: string; price: number; stock: number}[];
+      sell: {kind: InventoryItemKind; label: string; count: number; price: number; info: string[]}[];
+      buy: {kind: InventoryItemKind; label: string; price: number; stock: number; info: string[]}[];
     }
   | {kind: 'info'; tab: InfoTab};
 
@@ -203,6 +214,11 @@ function toSlots(slots: readonly InventorySlotView[]): AgentSlot[] {
   return slots.map(slot => ({kind: slot.kind, label: slot.label, count: slot.count}));
 }
 
+/** Like `toSlots`, but carrying each row's tooltip lines — for slots shown inside an overlay. */
+function toSlotsWithInfo(slots: readonly InventorySlotView[]): AgentSlot[] {
+  return slots.map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, info: describeItem(slot.kind).lines}));
+}
+
 /** Rebuild an inventory from its slot views, to check recipe affordances. */
 function slotsToInventory(slots: readonly InventorySlotView[]) {
   return slots.reduce((inventory, slot) => addItem(inventory, itemForKind(slot.kind), slot.count), createInventory());
@@ -219,8 +235,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       const stock = slotsToInventory(ui.stationSlots);
       return {
         kind: 'station',
-        bay: toSlots(ui.inventorySlots),
-        stock: toSlots(ui.stationSlots),
+        bay: toSlotsWithInfo(ui.inventorySlots),
+        stock: toSlotsWithInfo(ui.stationSlots),
         recipes: RECIPES.map(recipe => {
           const craftable = canCraft(stock, recipe);
           return {
@@ -228,7 +244,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
             label: itemForKind(recipe.output).label,
             inputs: resolveInputs(recipe.inputs),
             craftable,
-            missing: craftable ? [] : resolveInputs(missingInputs(stock, recipe))
+            missing: craftable ? [] : resolveInputs(missingInputs(stock, recipe)),
+            info: [...describeItem(recipe.output).lines, ...recipeInputLines(recipe, stock)]
           };
         })
       };
@@ -241,13 +258,18 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
     case 'ship':
       return {
         kind: 'ship',
-        slots: ui.shipEquipment.map(slot => ({index: slot.index, kind: slot.kind, label: slot.label})),
-        fittable: toSlots(ui.inventorySlots.filter(slot => isUpgradeKind(slot.kind)))
+        slots: ui.shipEquipment.map(slot => ({
+          index: slot.index,
+          kind: slot.kind,
+          label: slot.label,
+          info: slot.kind ? describeItem(slot.kind).lines : []
+        })),
+        fittable: toSlotsWithInfo(ui.inventorySlots.filter(slot => isUpgradeKind(slot.kind)))
       };
     case 'container':
-      return {kind: 'container', ship: toSlots(ui.inventorySlots), container: toSlots(ui.containerSlots)};
+      return {kind: 'container', ship: toSlotsWithInfo(ui.inventorySlots), container: toSlotsWithInfo(ui.containerSlots)};
     case 'wreck':
-      return {kind: 'wreck', ship: toSlots(ui.inventorySlots), wreck: toSlots(ui.wreckSlots)};
+      return {kind: 'wreck', ship: toSlotsWithInfo(ui.inventorySlots), wreck: toSlotsWithInfo(ui.wreckSlots)};
     case 'trade':
       return {
         kind: 'trade',
@@ -255,8 +277,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         // The sell side is the bay's ore, priced at the ore table's own value.
         sell: ui.inventorySlots
           .filter(slot => isOreKind(slot.kind))
-          .map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, price: sellPrice(slot.kind)})),
-        buy: ui.tradeBuy.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock}))
+          .map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, price: sellPrice(slot.kind), info: describeItem(slot.kind).lines})),
+        buy: ui.tradeBuy.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock, info: describeItem(offer.kind).lines}))
       };
     case 'info':
       return {kind: 'info', tab: ui.infoTab};

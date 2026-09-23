@@ -135,8 +135,10 @@ describe('buildObservation', () => {
 
     expect(overlay?.kind).toBe('wreck');
     if (overlay?.kind !== 'wreck') throw new Error('expected wreck overlay');
-    expect(overlay.wreck).toEqual([{kind: oreKind('Gold'), label: 'Gold', count: 4}]);
-    expect(overlay.ship).toEqual([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
+    expect(overlay.wreck).toMatchObject([{kind: oreKind('Gold'), label: 'Gold', count: 4}]);
+    expect(overlay.ship).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
+    // Overlay slots carry the tooltip lines a human would read off the row.
+    expect(overlay.wreck[0].info?.length).toBeGreaterThan(0);
   });
 
   it('names the home stations in view and notable', () => {
@@ -166,12 +168,30 @@ describe('buildObservation', () => {
 
     expect(overlay?.kind).toBe('station');
     if (overlay?.kind !== 'station') throw new Error('expected station overlay');
-    expect(overlay.stock).toEqual([{kind: oreKind('Iron'), label: 'Iron', count: 3}]);
+    expect(overlay.stock).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 3}]);
     // Three Iron affords the repair kit but not the teleporter.
     expect(overlay.recipes.find(r => r.output === 'repairKit')?.craftable).toBe(true);
     const teleporter = overlay.recipes.find(r => r.output === 'teleporter');
     expect(teleporter?.craftable).toBe(false);
     expect(teleporter?.missing.length).toBeGreaterThan(0);
+
+    // A stock slot and every recipe carry non-empty tooltip lines; the recipe's
+    // include a have/need line for each input read against the station stock.
+    expect(overlay.stock[0].info?.length).toBeGreaterThan(0);
+    const repairKit = overlay.recipes.find(r => r.output === 'repairKit');
+    expect(repairKit?.info.length).toBeGreaterThan(0);
+    expect(repairKit?.info.some(line => line.includes('Iron 3/3'))).toBe(true);
+  });
+
+  it('keeps the top-level bay lean, with no tooltip info on its slots', () => {
+    const state = createInitialState();
+    const obs = buildObservation({
+      state,
+      ui: ui({inventorySlots: [oreSlot('Iron', 2)]}),
+      get: tileSource({})
+    });
+    expect(obs.bay).toEqual([{kind: oreKind('Iron'), label: 'Iron', count: 2}]);
+    expect(obs.bay[0].info).toBeUndefined();
   });
 
   it('draws a trading post as T in view and notable, and carries the wallet in hud.cash', () => {
@@ -235,8 +255,10 @@ describe('buildObservation', () => {
     expect(overlay?.kind).toBe('trade');
     if (overlay?.kind !== 'trade') throw new Error('expected trade overlay');
     expect(overlay.cash).toBe(200);
-    expect(overlay.sell).toEqual([{kind: oreKind('Iron'), label: 'Iron', count: 5, price: 12}]);
-    expect(overlay.buy).toEqual([{kind: 'repairKit', label: 'Repair Kit', price: 54, stock: 2}]);
+    expect(overlay.sell).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 5, price: 12}]);
+    expect(overlay.buy).toMatchObject([{kind: 'repairKit', label: 'Repair Kit', price: 54, stock: 2}]);
+    expect(overlay.sell[0].info.length).toBeGreaterThan(0);
+    expect(overlay.buy[0].info.length).toBeGreaterThan(0);
   });
 
   it('mirrors the extractor overlay with the refuel amount the screen would show', () => {

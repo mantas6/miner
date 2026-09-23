@@ -19,9 +19,11 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import { canCraft, missingInputs, RECIPES, type Recipe } from '../core/crafting';
 import { addItem, createInventory, type Inventory } from '../core/inventory';
+import { recipeInputLines } from '../core/item-info';
 import { itemForKind } from '../core/items';
 import { uiCommands } from './commands';
 import { useUiStore, type InventorySlotView } from './store';
+import { useItemTooltip } from './Tooltip';
 import styles from './StationScreen.module.css';
 
 export function StationScreen() {
@@ -135,9 +137,10 @@ function StationCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}
  */
 function TransferRow({slot, action}: {slot: InventorySlotView; action: 'stow' | 'take'}) {
   const move = action === 'stow' ? uiCommands.stowStack : uiCommands.takeFromStation;
+  const tooltip = useItemTooltip(slot.kind);
   return (
     <li>
-      <div className={styles.slot}>
+      <div className={styles.slot} {...tooltip}>
         <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
         <span className={styles.label}>{slot.label}</span>
         <span className={styles.count}>×{slot.count}</span>
@@ -166,9 +169,10 @@ function RecipeRow({recipe, index, stock}: {recipe: Recipe; index: number; stock
   const affordable = canCraft(stock, recipe);
   const missing = affordable ? [] : missingInputs(stock, recipe);
   const inputs = recipe.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(' · ');
+  const tooltip = useItemTooltip(recipe.output, recipeInputLines(recipe, stock));
   return (
     <li>
-      <div className={styles.recipe}>
+      <div className={styles.recipe} {...tooltip}>
         <span className={styles.icon} style={{background: item.color}} aria-hidden="true" />
         <span className={styles.recipeText}>
           <span className={styles.label}>{item.label}</span>

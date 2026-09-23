@@ -21,6 +21,7 @@ import { CARGO_CONTAINER } from '../core/cargo-container';
 import type { InventoryItemKind } from '../core/inventory';
 import { uiCommands } from './commands';
 import { useUiStore, type InventorySlotView } from './store';
+import { useItemTooltip } from './Tooltip';
 import styles from './CargoScreen.module.css';
 
 export function CargoScreen() {
@@ -95,29 +96,7 @@ function WreckCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
           >Loot all</button>
           <ul id="wreckSlots" className={styles.slots}>
             {wreckSlots.length === 0 && <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>}
-            {wreckSlots.map(slot => (
-              <li key={slot.index}>
-                <button
-                  type="button"
-                  className={styles.slot}
-                  data-cargo-action="take"
-                  data-cargo-kind={slot.kind}
-                  onClick={() => uiCommands.takeFromWreck(slot.kind, false)}
-                >
-                  <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
-                  <span className={styles.label}>{slot.label}</span>
-                  <span className={styles.count}>×{slot.count}</span>
-                </button>
-                <button
-                  type="button"
-                  className={styles.one}
-                  data-cargo-action="take-one"
-                  data-cargo-kind={slot.kind}
-                  aria-label={`Salvage one ${slot.label}`}
-                  onClick={() => uiCommands.takeFromWreck(slot.kind, true)}
-                >1</button>
-              </li>
-            ))}
+            {wreckSlots.map(slot => <WreckRow key={slot.index} slot={slot} />)}
           </ul>
           <p className={styles.note}>
             The corpse of your last ship: its ore and fitted upgrades, waiting to be salvaged.
@@ -126,6 +105,35 @@ function WreckCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
         </section>
       </div>
     </div>
+  );
+}
+
+/** One salvage stack: a take-the-stack button and a single-unit "1", both take-only. */
+function WreckRow({slot}: {slot: InventorySlotView}) {
+  const tooltip = useItemTooltip(slot.kind);
+  return (
+    <li>
+      <button
+        type="button"
+        className={styles.slot}
+        data-cargo-action="take"
+        data-cargo-kind={slot.kind}
+        onClick={() => uiCommands.takeFromWreck(slot.kind, false)}
+        {...tooltip}
+      >
+        <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
+        <span className={styles.label}>{slot.label}</span>
+        <span className={styles.count}>×{slot.count}</span>
+      </button>
+      <button
+        type="button"
+        className={styles.one}
+        data-cargo-action="take-one"
+        data-cargo-kind={slot.kind}
+        aria-label={`Salvage one ${slot.label}`}
+        onClick={() => uiCommands.takeFromWreck(slot.kind, true)}
+      >1</button>
+    </li>
   );
 }
 
@@ -202,29 +210,43 @@ function SlotColumn({listId, title, hint, slots, capacity, action, onPress}: Slo
       <ul id={listId} className={styles.slots}>
         {slots.length === 0 && <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>}
         {slots.map(slot => (
-          <li key={slot.index}>
-            <button
-              type="button"
-              className={styles.slot}
-              data-cargo-action={action}
-              data-cargo-kind={slot.kind}
-              onClick={() => onPress(slot.kind, false)}
-            >
-              <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
-              <span className={styles.label}>{slot.label}</span>
-              <span className={styles.count}>×{slot.count}</span>
-            </button>
-            <button
-              type="button"
-              className={styles.one}
-              data-cargo-action={`${action}-one`}
-              data-cargo-kind={slot.kind}
-              aria-label={`${verb} one ${slot.label}`}
-              onClick={() => onPress(slot.kind, true)}
-            >1</button>
-          </li>
+          <TransferSlot key={slot.index} slot={slot} action={action} verb={verb} onPress={onPress} />
         ))}
       </ul>
     </section>
+  );
+}
+
+/** One transfer stack: the whole-stack button and its single-unit "1", either direction. */
+function TransferSlot({slot, action, verb, onPress}: {
+  slot: InventorySlotView;
+  action: 'store' | 'take';
+  verb: string;
+  onPress(kind: InventoryItemKind, single: boolean): void;
+}) {
+  const tooltip = useItemTooltip(slot.kind);
+  return (
+    <li>
+      <button
+        type="button"
+        className={styles.slot}
+        data-cargo-action={action}
+        data-cargo-kind={slot.kind}
+        onClick={() => onPress(slot.kind, false)}
+        {...tooltip}
+      >
+        <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
+        <span className={styles.label}>{slot.label}</span>
+        <span className={styles.count}>×{slot.count}</span>
+      </button>
+      <button
+        type="button"
+        className={styles.one}
+        data-cargo-action={`${action}-one`}
+        data-cargo-kind={slot.kind}
+        aria-label={`${verb} one ${slot.label}`}
+        onClick={() => onPress(slot.kind, true)}
+      >1</button>
+    </li>
   );
 }

@@ -96,6 +96,9 @@ function instructions(): string {
     '    lootAllBtn or the take controls; the wreck vanishes once emptied.',
     '  - Station stock, extractor buffers, container and wreck contents are only in the',
     '    observation while that overlay is open (`overlay`) — open it to see them.',
+    '  - Every item row inside an open overlay carries `info: string[]` — the hover',
+    '    tooltip lines describing that item; a recipe\'s `info` also lists each input\'s',
+    '    have/need count. The top-level `bay` stays lean and omits it.',
     '  - Pause model: by default the sim is FROZEN between tool calls and only runs',
     '    at wall-clock speed during `hold` and `wait`. Use `set_realtime enabled:false`',
     '    to let it run continuously between calls instead.'

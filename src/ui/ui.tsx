@@ -32,6 +32,7 @@ import { StationScreen } from './StationScreen';
 import { TradeScreen } from './TradeScreen';
 import { useUiStore } from './store';
 import { Toast } from './Toast';
+import { Tooltip } from './Tooltip';
 import { useGameRuntime, type GameRuntimeFactory } from './useGameRuntime';
 import common from './common.module.css';
 
@@ -89,6 +90,7 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <Toast />
         {phase === 'intro' && <Intro />}
       </section>
+      <Tooltip />
       <RuntimeFailure />
     </main>
   );

@@ -15,8 +15,10 @@
 import { DECOR_HP, ORES } from '../../shared/constants';
 import { HULL } from './balance';
 import { CARGO_CONTAINER } from './cargo-container';
+import type { Recipe } from './crafting';
 import { DYNAMITE } from './dynamite';
 import {
+  countItem,
   isDecorKind,
   isDeviceKind,
   isOreKind,
@@ -25,6 +27,7 @@ import {
   type ConsumableKind,
   type DecorKind,
   type DeviceKind,
+  type Inventory,
   type InventoryItemKind,
   type UpgradeId,
   type UpgradeKind
@@ -178,4 +181,14 @@ export function describeItem(kind: InventoryItemKind): ItemInfo {
   if (isDeviceKind(kind)) return describeStationDevice(kind);
   if (kind === 'toolkit') return describeToolkit();
   return describeConsumable(kind);
+}
+
+/**
+ * One "have / need" line per recipe input, read against the station stock — the
+ * extra detail a recipe row's tooltip carries below its output's description, and
+ * the same lines the overlay observation appends to a recipe's `info`. Kept here so
+ * the hovered row and the agent's JSON word the shortfall identically.
+ */
+export function recipeInputLines(recipe: Recipe, stock: Inventory): string[] {
+  return recipe.inputs.map(input => `${itemForKind(input.kind).label} ${countItem(stock, input.kind)}/${input.count}`);
 }

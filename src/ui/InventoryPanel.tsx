@@ -5,7 +5,8 @@ import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
 import type { DecorKind, InventoryItemKind } from '../core/inventory';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { uiCommands } from './commands';
-import { useUiStore } from './store';
+import { useUiStore, type InventorySlotView } from './store';
+import { useItemTooltip } from './Tooltip';
 import styles from './InventoryPanel.module.css';
 
 /** The kinds that are placed rather than merely carried, and how their slot acts. */
@@ -121,46 +122,68 @@ export function InventoryPanel() {
       {!collapsed && (
         <ul id="inventorySlots" className={styles.slots}>
           {slots.length === 0 && <li className={clsx(styles.slot, styles.empty)}><span className={styles.emptyLabel}>Empty</span></li>}
-          {slots.map(slot => {
-            const stack = (
-              <>
-                <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
-                <span className={styles.label}>{slot.label}</span>
-                <span className={styles.count}>×{slot.count}</span>
-              </>
-            );
-            const placeable = PLACEABLE[slot.kind];
-            const usable = USABLE[slot.kind];
-            const armed = placeable !== undefined && armedPlacement === slot.kind;
-            return (
-              <li key={slot.index} className={styles.slot}>
-                {placeable
-                  ? (
-                    <button
-                      id={placeable.buttonId}
-                      type="button"
-                      className={clsx(styles.place, armed && styles.armed)}
-                      aria-pressed={armed}
-                      title={armed ? placeable.armed : placeable.idle}
-                      onClick={placeable.toggle}
-                    >{stack}</button>
-                  )
-                  : usable
-                    ? (
-                      <button
-                        id={usable.buttonId}
-                        type="button"
-                        className={styles.place}
-                        title={usable.title}
-                        onClick={usable.use}
-                      >{stack}</button>
-                    )
-                    : stack}
-              </li>
-            );
-          })}
+          {slots.map(slot => (
+            <InventoryRow key={slot.index} slot={slot} armed={armedPlacement === slot.kind} />
+          ))}
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * One bay stack. A placeable arms placement, a usable spends on press, and both are
+ * buttons; a plain stack is a focusable row so its tooltip is reachable by keyboard.
+ * Either way the row carries the item's tooltip.
+ */
+function InventoryRow({slot, armed}: {slot: InventorySlotView; armed: boolean}) {
+  const tooltip = useItemTooltip(slot.kind);
+  const stack = (
+    <>
+      <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
+      <span className={styles.label}>{slot.label}</span>
+      <span className={styles.count}>×{slot.count}</span>
+    </>
+  );
+  const placeable = PLACEABLE[slot.kind];
+  const usable = USABLE[slot.kind];
+  if (placeable) {
+    return (
+      <li className={styles.slot}>
+        <button
+          id={placeable.buttonId}
+          type="button"
+          className={clsx(styles.place, armed && styles.armed)}
+          aria-pressed={armed}
+          title={armed ? placeable.armed : placeable.idle}
+          onClick={placeable.toggle}
+          {...tooltip}
+        >{stack}</button>
+      </li>
+    );
+  }
+  if (usable) {
+    return (
+      <li className={styles.slot}>
+        <button
+          id={usable.buttonId}
+          type="button"
+          className={styles.place}
+          title={usable.title}
+          onClick={usable.use}
+          {...tooltip}
+        >{stack}</button>
+      </li>
+    );
+  }
+  // A plain stack has no control of its own, so the row itself carries the tooltip
+  // and is made focusable for it; its spans stay direct grid children of the slot.
+  return (
+    <li
+      className={styles.slot}
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+      {...tooltip}
+    >{stack}</li>
   );
 }

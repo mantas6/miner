@@ -16,7 +16,8 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { isUpgradeKind, type UpgradeKind } from '../core/inventory';
 import { uiCommands } from './commands';
-import { useUiStore } from './store';
+import { useUiStore, type InventorySlotView, type ShipSlotView } from './store';
+import { useItemTooltip } from './Tooltip';
 import styles from './ShipScreen.module.css';
 
 export function ShipScreen() {
@@ -75,25 +76,7 @@ function ShipCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
             <span>Fitted upgrades stack; duplicates add.</span>
           </div>
           <ul id="shipSlots" className={styles.slots}>
-            {equipment.map(slot => (
-              <li key={slot.index}>
-                <div className={styles.slot} data-ship-slot={slot.index}>
-                  <span
-                    className={styles.icon}
-                    style={{background: slot.kind ? slot.color : undefined}}
-                    aria-hidden="true"
-                  />
-                  <span className={slot.kind ? styles.label : styles.emptyLabel}>{slot.label}</span>
-                  <button
-                    type="button"
-                    className={styles.action}
-                    data-ship-unequip={slot.index}
-                    disabled={slot.kind === null}
-                    onClick={event => { event.stopPropagation(); uiCommands.unequipUpgrade(slot.index); }}
-                  >Unfit</button>
-                </div>
-              </li>
-            ))}
+            {equipment.map(slot => <FittingSlot key={slot.index} slot={slot} />)}
           </ul>
         </section>
         <section className={styles.column} aria-labelledby="shipBay-title">
@@ -105,24 +88,73 @@ function ShipCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
             {bayUpgrades.length === 0 && (
               <li className={styles.empty}><span className={styles.emptyLabel}>No upgrades aboard</span></li>
             )}
-            {bayUpgrades.map(slot => (
-              <li key={slot.index}>
-                <div className={styles.slot}>
-                  <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
-                  <span className={styles.label}>{slot.label}</span>
-                  <span className={styles.count}>×{slot.count}</span>
-                  <button
-                    type="button"
-                    className={styles.action}
-                    data-ship-equip={slot.kind}
-                    onClick={event => { event.stopPropagation(); uiCommands.equipUpgrade(slot.kind as UpgradeKind); }}
-                  >Fit</button>
-                </div>
-              </li>
-            ))}
+            {bayUpgrades.map(slot => <BayUpgradeRow key={slot.index} slot={slot} />)}
           </ul>
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * One fitting slot. A filled slot carries the upgrade's tooltip (and is focusable
+ * for it); an empty slot has nothing to describe, so it stays a plain, un-hovered row.
+ */
+function FittingSlot({slot}: {slot: ShipSlotView}) {
+  if (!slot.kind) {
+    return (
+      <li>
+        <div className={styles.slot} data-ship-slot={slot.index}>
+          <span className={styles.icon} aria-hidden="true" />
+          <span className={styles.emptyLabel}>{slot.label}</span>
+          <button
+            type="button"
+            className={styles.action}
+            data-ship-unequip={slot.index}
+            disabled
+            onClick={event => { event.stopPropagation(); uiCommands.unequipUpgrade(slot.index); }}
+          >Unfit</button>
+        </div>
+      </li>
+    );
+  }
+  return <FilledFittingSlot slot={slot} kind={slot.kind} />;
+}
+
+function FilledFittingSlot({slot, kind}: {slot: ShipSlotView; kind: UpgradeKind}) {
+  const tooltip = useItemTooltip(kind);
+  return (
+    <li>
+      <div className={styles.slot} data-ship-slot={slot.index} {...tooltip}>
+        <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
+        <span className={styles.label}>{slot.label}</span>
+        <button
+          type="button"
+          className={styles.action}
+          data-ship-unequip={slot.index}
+          onClick={event => { event.stopPropagation(); uiCommands.unequipUpgrade(slot.index); }}
+        >Unfit</button>
+      </div>
+    </li>
+  );
+}
+
+/** One upgrade sitting in the bay, with its tooltip and a Fit button. */
+function BayUpgradeRow({slot}: {slot: InventorySlotView}) {
+  const tooltip = useItemTooltip(slot.kind);
+  return (
+    <li>
+      <div className={styles.slot} {...tooltip}>
+        <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
+        <span className={styles.label}>{slot.label}</span>
+        <span className={styles.count}>×{slot.count}</span>
+        <button
+          type="button"
+          className={styles.action}
+          data-ship-equip={slot.kind}
+          onClick={event => { event.stopPropagation(); uiCommands.equipUpgrade(slot.kind as UpgradeKind); }}
+        >Fit</button>
+      </div>
+    </li>
   );
 }

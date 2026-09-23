@@ -19,6 +19,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { isOreKind, type InventoryItemKind } from '../core/inventory';
 import { uiCommands } from './commands';
 import { useUiStore, type InventorySlotView, type TradeOfferView } from './store';
+import { useItemTooltip } from './Tooltip';
 import styles from './TradeScreen.module.css';
 
 export function TradeScreen() {
@@ -108,9 +109,10 @@ function TradeCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
 /** One ore stack, with a whole-stack Sell and a single-unit "1". */
 function SellRow({slot}: {slot: InventorySlotView}) {
   const sell = (kind: InventoryItemKind, single: boolean) => uiCommands.sellToPost(kind, single);
+  const tooltip = useItemTooltip(slot.kind);
   return (
     <li>
-      <div className={styles.slot}>
+      <div className={styles.slot} {...tooltip}>
         <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
         <span className={styles.label}>{slot.label}</span>
         <span className={styles.count}>×{slot.count}</span>
@@ -139,9 +141,10 @@ function BuyRow({offer, cash, bayFull}: {offer: TradeOfferView; cash: number; ba
   const soldOut = offer.stock <= 0;
   const unaffordable = cash < offer.price;
   const disabled = soldOut || unaffordable || bayFull;
+  const tooltip = useItemTooltip(offer.kind);
   return (
     <li>
-      <div className={styles.slot}>
+      <div className={styles.slot} {...tooltip}>
         <span className={styles.icon} style={{background: offer.color}} aria-hidden="true" />
         <span className={styles.label}>{offer.label}</span>
         <span className={styles.stock}>{soldOut ? 'Sold out' : `×${offer.stock}`}</span>

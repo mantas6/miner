@@ -1,0 +1,28 @@
+/* Portalled to document.body, so it sits above every modal `<dialog>` (z-index 16)
+   and is positioned in viewport coordinates by the component. Pointer-transparent:
+   it only ever reports what a row already holds, so it must never intercept the
+   press meant for that row. */
+.tooltip {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 2px;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: rgba(8, 12, 20, 0.94);
+  border: 1px solid var(--hairline-3);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+  color: var(--ink);
+  pointer-events: none;
+}
+.title {
+  color: var(--gold);
+  font-weight: 800;
+  font-size: var(--fs-sm);
+}
+.line {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  line-height: 1.3;
+}
