@@ -20,10 +20,10 @@
 // (`src/ui/commands.ts`) for the buttons to dispatch into; it never reads or
 // writes UI DOM apart from the canvas.
 
-import { START_Y, WORLD_W } from '../../shared/constants';
+import { START_Y, TILE, WORLD_W } from '../../shared/constants';
 import { createDisposalScope } from './disposal';
 import { createGameSurface, type GameSurfaceRefs } from './dom';
-import { advanceViewportZoom, setViewportZoom, tileAtViewportPoint, viewport } from './viewport';
+import { advanceViewportZoom, drawnCamera, setViewportZoom, tileAtViewportPoint, viewport } from './viewport';
 import { recenteredCamera } from './zoom';
 import { loadZoomLevel, saveZoomLevel } from './zoom-settings';
 import { createAudio } from '../audio/audio';
@@ -46,6 +46,7 @@ import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { formatExpeditionStats } from '../core/stats';
 import { rand } from '../world/world';
 import { resetUiCommands, setUiCommands } from '../ui/commands';
+import { resetAgentBridge, setAgentBridge } from '../agent/bridge';
 import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot } from '../ui/store';
 
 import { TELEPORTER_ITEM, advanceTeleportEffect, canTeleport, canUseTeleporter } from '../core/teleporter';
@@ -91,6 +92,13 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   const state = createInitialState();
   let audio: AudioController;
   let renderer: Renderer | undefined;
+
+  /**
+   * Whether the simulation is frozen between an agent's decisions. `draw()` and
+   * `syncUi()` keep running while paused so the window stays live and the
+   * observation stays current; only `stepper.advance()` is held.
+   */
+  let paused = false;
 
   // Feature modules, constructed by wireModules() once audio exists.
   let grid: WorldGrid;
@@ -500,9 +508,40 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   // 60 Hz step is small enough that interpolation buys nothing visible. The scope
   // owns the rescheduling, so disposing stops the loop after the current frame.
   function loop(now: number){
-    stepper.advance(now);
+    // A paused sim still paints and syncs, so the human's window and the agent's
+    // observation both stay live; only the fixed-step advance is held.
+    if (!paused) stepper.advance(now);
     renderer?.draw();
     syncUi();
+  }
+  /**
+   * Freeze or resume the simulation for programmatic play. Resuming discards the
+   * wall-clock gap the pause opened up — the same reset the visibility handler
+   * uses — so the sim carries on from now rather than fast-forwarding the frozen
+   * interval in one burst.
+   */
+  function setPaused(value: boolean){
+    if (paused === value) return;
+    paused = value;
+    if (!value) stepper.reset();
+  }
+  /**
+   * Canvas client coordinates of a tile's centre, inverting `tileAtViewportPoint`:
+   * undo the camera and the zoom, then map the viewport CSS pixels back onto the
+   * canvas's laid-out size. Returns `null` when the tile is off-screen or the
+   * canvas has no layout box, so a harness never clicks a point that is not there.
+   */
+  function screenPointForTile(tx: number, ty: number): {x: number; y: number} | null {
+    const rect = surface.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const camera = drawnCamera(state.camX, state.camY);
+    const viewX = (tx + 0.5 - camera.x) * TILE * viewport.zoom;
+    const viewY = (ty + 0.5 - camera.y) * TILE * viewport.zoom;
+    if (viewX < 0 || viewY < 0 || viewX > viewport.widthPx || viewY > viewport.heightPx) return null;
+    return {
+      x: rect.left + viewX * (rect.width / viewport.widthPx),
+      y: rect.top + viewY * (rect.height / viewport.heightPx)
+    };
   }
   /** Enable sound on the first trusted pointer gesture, if the player wants it. */
   function tryAutoAudio(event?: Event) {
@@ -794,6 +833,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // Buttons must not reach a runtime whose listeners and frames are gone, and a
     // replacement runtime re-announces its own boot toast.
     resetUiCommands();
+    resetAgentBridge();
     uiStore.getState().clearToasts();
     // An armed slot outlives its runtime otherwise, and there is nothing left to
     // take the press it is waiting for. A crate's transfer menu is worse: every
@@ -841,6 +881,14 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     });
     scope.onWindow('pointerdown', tryAutoAudio);
     registerUiCommands();
+    setAgentBridge({
+      getState: () => state,
+      getUi: () => uiStore.getState(),
+      getTile: (x, y) => grid.get(x, y),
+      setPaused,
+      isPaused: () => paused,
+      screenPointForTile
+    });
     run.resume();
     scope.interval(saveProgress, 60000);
     scope.onWindow('beforeunload', () => { saveProgress(); flushZoomSave(); });
