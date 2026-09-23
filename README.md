@@ -266,7 +266,9 @@ zooming the camera with the wheel or a trackpad.
   `base.css`. Programmatic focus after a click — including the focus a closing
   dialog restores to the button that opened it — draws nothing, while a session
   driven from the keyboard keeps its ring. `e2e/focus-visible.spec.ts` pins both.
-- **State outside the canvas.** The meters and readouts are text, the toast and the
+- **State outside the canvas.** The bottom-left panel is an analog fuel gauge over
+  a plain hull readout, with a screen-reader fuel value behind it; the other
+  readouts are text, the toast and the
   fuel banner are live regions, and `#game-status` politely announces the ship's
   situation — at home base, in the mine, holds full, hull critical, ship lost. It is
   driven by thresholds, so the 60 Hz HUD sync never makes it talk.

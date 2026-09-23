@@ -199,8 +199,8 @@ describe('booting the game', () => {
     expect(text('depth')).toBe('30 m');
     expect(text('toast')).toContain('Depth 30 m');
     expect(text('depthTarget')).toBe('↓ 30 m to Copper');
-    // 30 m down, the climb home now owns a visible slice of the fuel gauge.
-    expect((document.getElementById('fuelReturn') as HTMLElement).style.width).not.toBe('0%');
+    // 30 m down, the descent has burned into the tank, so the gauge reads below full.
+    expect(Number(document.getElementById('fuel')?.getAttribute('aria-valuenow'))).toBeLessThan(100);
 
     // Crossing announces once: the next frame leaves the toast alone.
     act(() => { uiStore.getState().pushToast('Cleared.'); });

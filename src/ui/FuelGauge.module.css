@@ -1,0 +1,150 @@
+.panel {
+  composes: glass from "./common.module.css";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 150px;
+  padding: 10px;
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+/* The dial's box: a plain wrapper so the `role="meter"` semantics sit on one
+   element and the SVG paints inside it. */
+.gauge {
+  display: block;
+  width: 96px;
+  height: 96px;
+}
+.dial {
+  display: block;
+  width: 96px;
+  height: 96px;
+  overflow: visible;
+}
+
+.arc {
+  fill: none;
+  stroke: var(--hairline-3);
+  stroke-width: 1.5;
+}
+/* The E-side quarter of the scale, drawn as a fat translucent stroke over the
+   hairline arc so it reads as a band rather than a second line. */
+.redBand {
+  fill: none;
+  stroke: var(--red);
+  stroke-opacity: 0.28;
+  stroke-width: 5;
+}
+.tick {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+.tickMinor {
+  stroke: var(--muted);
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+.letter {
+  fill: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.needle {
+  stroke: #dbe8ff;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  /* Rotate around the pivot in the viewBox's own coordinate system. */
+  transform-box: view-box;
+  transition: transform 0.3s ease-out;
+}
+.hub {
+  fill: #dbe8ff;
+}
+/* Off: a dim, dead red. On (low fuel): full red with a glow, blinking. */
+.led {
+  fill: #3a0d12;
+}
+.led.on {
+  fill: var(--red);
+  filter: drop-shadow(0 0 4px var(--red));
+  animation: ledBlink 0.7s ease-in-out infinite alternate;
+}
+@keyframes ledBlink {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The hull readout: caption plus number, no track. */
+.hull {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  border-radius: var(--r-md);
+  padding: 2px 6px;
+  margin: -2px -6px;
+}
+.caption {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.hullValue {
+  color: #dbe8ff;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.hull.alert {
+  animation: hudBarFlash 0.7s ease-in-out infinite alternate;
+}
+.hull.alert .caption,
+.hull.alert .hullValue {
+  color: #fff1a3;
+  text-shadow: 0 0 10px rgba(255, 205, 76, 0.72);
+}
+@keyframes hudBarFlash {
+  from {
+    background: rgba(255, 50, 50, 0.1);
+  }
+  to {
+    background: rgba(255, 82, 37, 0.28);
+  }
+}
+
+/* Without the animation the alert background would come from nowhere, so reduced
+   motion keeps the flash's bright end as a steady state and freezes the LED red. */
+@media (prefers-reduced-motion: reduce) {
+  .needle {
+    transition: none;
+  }
+  .led.on {
+    animation: none;
+  }
+  .hull.alert {
+    animation: none;
+    background: rgba(255, 82, 37, 0.28);
+  }
+}
+
+@media (max-width: 760px) {
+  .panel {
+    padding: 8px;
+  }
+  .gauge,
+  .dial {
+    width: 72px;
+    height: 72px;
+  }
+}

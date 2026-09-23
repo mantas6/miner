@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { ActionBar } from './ActionBar';
-import { BarRow } from './BarRow';
+import { FuelGauge } from './FuelGauge';
 import { InventoryPanel } from './InventoryPanel';
 import { Scanner } from './Scanner';
 import { StatsGrid } from './StatsGrid';
@@ -46,7 +46,7 @@ export function Hud() {
         <Scanner />
         <InventoryPanel />
       </div>
-      <BarRow />
+      <FuelGauge />
       <ActionBar />
     </div>
   );

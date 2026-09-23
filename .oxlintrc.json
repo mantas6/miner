@@ -22,7 +22,7 @@
     "react/react-in-jsx-scope": "off",
     // Every overlay that can be one *is* a native `<dialog>` now (shop, info).
     // What is left are roles with no tag to prefer: the fuel gauge is a
-    // `role="meter"` div because it paints two slices, and the canvas is a
+    // `role="meter"` div wrapping an analog dial, and the canvas is a
     // `role="application"`.
     "jsx-a11y/prefer-tag-over-role": "off",
     // Side-effect imports are how CSS modules and global stylesheets are pulled in.

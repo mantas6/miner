@@ -72,8 +72,8 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
           station — the Manufacturing Station to stow and craft, the Oil Extractor
           to refuel. E plants dynamite, T uses a teleporter, C opens a cargo
           container the ship is standing on or beside. Escape closes an open screen.
-          The readouts and meters after this report cash, depth, fuel, hull
-          and cargo; the Info and Cargo button has the full rules.
+          The readouts after this report cash, depth, fuel and hull; the Info
+          and Cargo button has the full rules.
         </p>
         <GameStatus />
         <Hud />

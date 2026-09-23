@@ -3,7 +3,6 @@ import {
   classifyFuelReserve,
   estimateFuelReturnReserve,
   formatFuelReserveForecast,
-  getFuelGaugeSegments,
   getFuelReserveForecast
 } from './fuel-reserve';
 
@@ -36,30 +35,5 @@ describe('fuel reserve forecast helper', () => {
       .toBe('Fuel reserve: SAFE — at home base; refuel at the Oil Extractor before the next descent.');
     expect(formatFuelReserveForecast({ ...underground, fuel: 0, gameOver: true }))
       .toBe('Fuel reserve: URGENT — ship disabled; restart at home base.');
-  });
-});
-
-describe('fuel gauge split', () => {
-  it('splits the tank into the climb home and what would survive it', () => {
-    expect(getFuelGaugeSegments(50, 100, 20)).toEqual({ returnFraction: 0.2, surplusFraction: 0.3 });
-    // Empty tank above the fill, always: the two slices only ever sum to the fuel aboard.
-    const { returnFraction, surplusFraction } = getFuelGaugeSegments(50, 100, 20);
-    expect(returnFraction + surplusFraction).toBeCloseTo(0.5);
-  });
-
-  it('leaves no surplus once the climb costs more than the tank holds', () => {
-    expect(getFuelGaugeSegments(30, 100, 80)).toEqual({ returnFraction: 0.3, surplusFraction: 0 });
-    expect(getFuelGaugeSegments(30, 100, 30)).toEqual({ returnFraction: 0.3, surplusFraction: 0 });
-  });
-
-  it('is all surplus at the home base, where there is no climb to pay for', () => {
-    expect(getFuelGaugeSegments(80, 100, 0)).toEqual({ returnFraction: 0, surplusFraction: 0.8 });
-  });
-
-  it('clamps a dry, overfull, or unmeasurable tank instead of overflowing the bar', () => {
-    expect(getFuelGaugeSegments(-5, 100, 10)).toEqual({ returnFraction: 0, surplusFraction: 0 });
-    expect(getFuelGaugeSegments(140, 100, 20)).toEqual({ returnFraction: 0.2, surplusFraction: 0.8 });
-    expect(getFuelGaugeSegments(50, 0, 10)).toEqual({ returnFraction: 0, surplusFraction: 0 });
-    expect(getFuelGaugeSegments(50, Number.NaN, 10)).toEqual({ returnFraction: 0, surplusFraction: 0 });
   });
 });

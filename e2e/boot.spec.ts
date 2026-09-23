@@ -43,22 +43,6 @@ test.describe('boot', () => {
     await expect(page.locator('#app-failure')).toHaveCount(0);
   });
 
-  // The regression this guards: hull and cargo were native `<meter>`s, whose bar
-  // each engine paints to its own metrics, so the three tracks were never the same
-  // height and disagreed between Chrome and Firefox. Measuring is the only way to
-  // see it — nothing in the DOM says how tall a widget an engine decided to draw.
-  test('the fuel, hull and cargo bars are exactly one height', async ({page}) => {
-    await startSoloRun(page);
-    for (const width of [1280, 700]) {
-      await page.setViewportSize({width, height: 800});
-      const heights = await page.evaluate(() =>
-        ['fuel', 'hull', 'cargo'].map(id => document.getElementById(id)!.getBoundingClientRect().height)
-      );
-      expect(heights[0]).toBeGreaterThan(0);
-      expect(heights).toEqual([heights[0], heights[0], heights[0]]);
-    }
-  });
-
   test('the canvas is the game surface\'s only tab stop', async ({page}) => {
     await startSoloRun(page);
     // One Tab leaves the mine for the HUD; the panel around the canvas is layout

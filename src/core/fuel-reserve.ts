@@ -17,14 +17,6 @@ export interface FuelReserveForecast {
   depthTiles: number;
 }
 
-/** The two coloured slices of the fuel gauge, as shares of the whole tank. */
-export interface FuelGaugeSegments {
-  /** Fuel the climb home would burn, capped by what is actually in the tank. */
-  returnFraction: number;
-  /** Fuel that would still be aboard once that climb is paid for. */
-  surplusFraction: number;
-}
-
 /**
  * Estimates an ascent through a clear shaft, then doubles that cost as a
  * conservative detour/hover allowance. It intentionally does not pretend to
@@ -51,21 +43,6 @@ export function getFuelReserveForecast({ fuel, playerY, startY, atSurface = fals
     fuelAfterReturn: fuel - reserve,
     depthTiles
   };
-}
-
-/**
- * Splits the tank where the climb home ends, so the gauge itself can show the
- * forecast instead of a widget beside it: the first slice is what the return
- * trip owes, the second is what would survive it. Once the climb costs more than
- * the tank holds the surplus slice is empty and the whole fill is the debt —
- * which is exactly the moment the reserve status turns urgent.
- */
-export function getFuelGaugeSegments(fuel: number, fuelMax: number, reserve: number): FuelGaugeSegments {
-  const capacity = Number.isFinite(fuelMax) && fuelMax > 0 ? fuelMax : 0;
-  if (capacity <= 0) return {returnFraction: 0, surplusFraction: 0};
-  const inTank = Math.min(Math.max(0, fuel), capacity);
-  const owed = Math.min(Math.max(0, reserve), inTank);
-  return {returnFraction: owed / capacity, surplusFraction: (inTank - owed) / capacity};
 }
 
 /** Formats an always-visible, route-honest return-fuel forecast. */

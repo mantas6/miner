@@ -19,7 +19,7 @@ import { MinerApp } from './ui';
 const DOM_CONTRACT = [
   'shell', 'game-panel', 'game', 'game-instructions', 'game-status',
   'hud', 'musicBtn', 'sfxBtn', 'cash', 'depth', 'depthTarget', 'scanner',
-  'fuel', 'fuelLabel', 'fuelReturn', 'fuelSurplus', 'hull', 'hullLabel', 'cargo', 'cargoLabel',
+  'fuel', 'fuelLabel', 'hull', 'hullLabel',
   // The inventory panel ships expanded, so its slot list is part of the contract.
   'inventory', 'inventoryToggleBtn', 'inventorySlots',
   'shipBtn', 'teleporterBtn', 'infoBtn',
@@ -357,36 +357,49 @@ describe('store-driven HUD', () => {
   it('repaints readouts, meters and alert styling from the synced snapshot', () => {
     render(<MinerApp />);
 
-    patchHud({cash: 1234.7, depthMeters: 420, fuel: 12.2, fuelMax: 200, cargo: 10, cargoMax: 10, fuelAlert: true, cargoAlert: true});
+    patchHud({cash: 1234.7, depthMeters: 420, fuel: 12.2, fuelMax: 200, fuelAlert: true});
 
     expect(document.getElementById('cash')?.textContent).toBe('$1234');
     expect(document.getElementById('depth')?.textContent).toBe('420 m');
     expect(document.getElementById('fuelLabel')?.textContent).toBe('13/200');
     expect(document.getElementById('fuel')?.getAttribute('aria-valuenow')).toBe('12.2');
-    expect(document.getElementById('cargoLabel')?.textContent).toBe('10/10');
-    expect(document.getElementById('fuel')?.parentElement?.className).toMatch(/alert/);
-    expect(document.getElementById('cargo')?.parentElement?.className).toMatch(/alert/);
-    expect(document.getElementById('hull')?.parentElement?.className).not.toMatch(/alert/);
+    // The LED, not a bar tint, is the low-fuel alarm on the analog gauge.
+    expect(document.getElementById('fuelLed')?.className).toMatch(/on/);
+    expect(document.getElementById('hull')?.className).not.toMatch(/alert/);
     expect(document.getElementById('fuel-warning')?.className).toMatch(/show/);
   });
 
-  // The three bars only line up because none of them is a native `<meter>`: an
-  // engine draws that one at whatever height it likes (Chrome 151 uses half the
-  // element box and ignores `height` on the shadow parts), so a meter next to the
-  // fuel gauge's div is a different bar in every browser.
-  it('draws all three bars as the same author-owned track', () => {
+  // The fuel gauge is an analog dial, not a `<meter>` whose bar every engine
+  // paints to its own metrics: the needle is an SVG line the page rotates itself,
+  // so it reads the same everywhere. The forecast it used to draw stays in the
+  // accessible name alone.
+  it('turns the needle with the tank', () => {
     render(<MinerApp />);
+    const gauge = document.getElementById('fuel') as HTMLElement;
+    const needle = document.getElementById('fuelNeedle') as unknown as SVGLineElement;
 
+    expect(gauge.getAttribute('role')).toBe('meter');
     expect(document.querySelectorAll('#hud meter')).toHaveLength(0);
-    const bars = ['fuel', 'hull', 'cargo'].map(id => document.getElementById(id)!);
-    // Same first class on each: one `.gauge` rule, so one height for all three.
-    const track = bars[0]!.classList[0];
-    expect(track).toBeTruthy();
-    for (const bar of bars) {
-      expect(bar.classList[0]).toBe(track);
-      expect(bar.getAttribute('role')).toBe('meter');
-      expect(bar.getAttribute('aria-valuemax')).toBeTruthy();
-    }
+    expect(document.getElementById('fuelLabel')).not.toBeNull();
+
+    // At the depot there is no climb to pay for, so the name is just the reading.
+    patchHud({fuel: 100, fuelMax: 200, fuelReserveNeeded: 0, fuelReserveMargin: 100});
+    // Half a tank points the needle halfway through the 90° sweep.
+    expect(needle.style.transform).toBe('rotate(-45deg)');
+    expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200');
+
+    // Underground the climb home is named in the label, not drawn on the dial.
+    patchHud({atSurface: false, fuelReserveStatus: 'caution', fuelReserveNeeded: 34, fuelReserveMargin: 66});
+    expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200 — 66 left after climbing home');
+
+    // A dry tank rests the needle at E; a climb it cannot pay for changes wording.
+    patchHud({fuel: 0, fuelReserveStatus: 'urgent', fuelReserveNeeded: 34, fuelReserveMargin: 0});
+    expect(needle.style.transform).toBe('rotate(-90deg)');
+    expect(gauge.getAttribute('aria-label')).toBe('Fuel 0/200 — climb home needs 34');
+
+    // A full tank swings the needle all the way to F.
+    patchHud({fuel: 200});
+    expect(needle.style.transform).toBe('rotate(0deg)');
   });
 
   it('shows the underground actions and dispatches the ones it shows', () => {
@@ -435,34 +448,6 @@ describe('store-driven HUD', () => {
 
     patchHud({gameOver: true});
     expect(scanner.hidden).toBe(true);
-  });
-
-  it('paints the return-fuel forecast as the two slices of the fuel gauge', () => {
-    render(<MinerApp />);
-    const gauge = document.getElementById('fuel') as HTMLElement;
-    const owed = document.getElementById('fuelReturn') as HTMLElement;
-    const surplus = document.getElementById('fuelSurplus') as HTMLElement;
-
-    // At the depot there is no climb to pay for, so the whole fill is surplus.
-    patchHud({fuel: 100, fuelMax: 200, fuelReserveNeeded: 0, fuelReserveMargin: 100});
-    expect(owed.style.width).toBe('0%');
-    expect(surplus.style.width).toBe('50%');
-    expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200');
-
-    // Underground the climb home claims its share of the fill.
-    patchHud({atSurface: false, fuelReserveStatus: 'caution', fuelReserveNeeded: 34, fuelReserveMargin: 66});
-    expect(gauge.dataset.status).toBe('caution');
-    expect(gauge.className).toMatch(/caution/);
-    expect(owed.style.width).toBe('17%');
-    expect(surplus.style.width).toBe('33%');
-    expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200 — 66 left after climbing home');
-
-    // A climb it can no longer pay for leaves no surplus slice at all.
-    patchHud({fuel: 20, fuelReserveStatus: 'urgent', fuelReserveNeeded: 34, fuelReserveMargin: 0});
-    expect(owed.style.width).toBe('10%');
-    expect(surplus.style.width).toBe('0%');
-    expect(gauge.className).toMatch(/urgent/);
-    expect(gauge.getAttribute('aria-label')).toBe('Fuel 20/200 — climb home needs 34');
   });
 
   it('raises the fuel banner for a dry tank or a climb it can no longer pay for', () => {
