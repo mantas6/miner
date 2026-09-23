@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "miner": {
+      "type": "local",
+      "command": ["npx", "tsx", "agent/mcp-server.ts"],
+      "enabled": true
+    }
+  }
+}
