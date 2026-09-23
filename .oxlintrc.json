@@ -64,6 +64,12 @@
       // callbacks they hand to `page.evaluate()` run in the page.
       "files": ["e2e/**/*.ts", "playwright.config.ts"],
       "env": { "browser": true, "node": true }
+    },
+    {
+      // The agent harness is Node that ships callbacks into the page too: the
+      // session evaluates `import('/src/agent/bridge.ts')` and rAF loops there.
+      "files": ["agent/**/*.ts"],
+      "env": { "browser": true, "node": true }
     }
   ]
 }

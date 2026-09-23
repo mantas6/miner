@@ -13,6 +13,6 @@
     // needed here too; they come from the inherited `lib`.
     "noEmit": true
   },
-  "include": ["e2e", "playwright.config.ts"],
+  "include": ["e2e", "agent", "playwright.config.ts"],
   "exclude": []
 }

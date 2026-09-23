@@ -352,13 +352,17 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       x: player.x,
       y: player.y,
       depthMeters: hud.depthMeters,
-      fuel: ui.player.fuel,
-      fuelMax: ui.player.fuelMax,
-      hull: ui.player.hull,
-      hullMax: ui.player.hullMax,
+      // Ship vitals come from the live simulation, not the UI snapshot: `ui.player`
+      // is only re-synced while an overlay is open (`syncUi` in `src/game/game.ts`),
+      // so reading fuel/hull/etc. from it would freeze them during normal mining —
+      // an agent would never see its fuel drop. `state.player` is the ground truth.
+      fuel: player.fuel,
+      fuelMax: player.fuelMax,
+      hull: player.hull,
+      hullMax: player.hullMax,
       cargo: hud.cargo,
-      cargoMax: ui.player.cargoMax,
-      drill: ui.player.drill,
+      cargoMax: player.cargoMax,
+      drill: player.drill,
       boost: player.boost,
       equipment: [...player.equipment],
       atSurface: hud.atSurface
