@@ -55,14 +55,21 @@ export type DecorId = 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel';
 /** One decoration's stack key, e.g. `decor:lampPanel`. */
 export type DecorKind = `decor:${DecorId}`;
 
+/** The two placeable stations, carried as bay items until they are set down. */
+export type DeviceKind = 'device:manufacturer' | 'device:extractor';
+
+/** The durable Construction Toolkit that lifts empty stations and containers back aboard. */
+export type ToolkitKind = 'toolkit';
+
 /** Everything the bay can hold that is not ore — the keys of `ITEM_CATALOG`. */
-export type NonOreKind = ConsumableKind | UpgradeKind | DecorKind;
+export type NonOreKind = ConsumableKind | UpgradeKind | DecorKind | DeviceKind | ToolkitKind;
 
 /** Everything the bay can hold. Extend the union as kinds move in. */
 export type InventoryItemKind = OreKind | NonOreKind;
 
 const UPGRADE_KIND_PREFIX = 'upgrade:';
 const DECOR_KIND_PREFIX = 'decor:';
+const DEVICE_KIND_PREFIX = 'device:';
 
 /** What one unit of a stack is: its identity and how it is shown and priced. */
 export interface InventoryItem {
@@ -105,6 +112,11 @@ export function isUpgradeKind(kind: InventoryItemKind): kind is UpgradeKind {
 /** Whether a kind names a decoration, e.g. `decor:lampPanel`. */
 export function isDecorKind(kind: InventoryItemKind): kind is DecorKind {
   return kind.startsWith(DECOR_KIND_PREFIX);
+}
+
+/** Whether a kind names a placeable station device, e.g. `device:extractor`. */
+export function isDeviceKind(kind: InventoryItemKind): kind is DeviceKind {
+  return kind.startsWith(DEVICE_KIND_PREFIX);
 }
 
 /** Split an upgrade kind into its family and mark, e.g. `{id: 'drill', tier: 2}`. */

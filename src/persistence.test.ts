@@ -202,61 +202,88 @@ describe('equipment persistence', () => {
   });
 });
 
-describe('home base persistence', () => {
-  it('round-trips the station stock and the extractor buffers', () => {
+describe('station persistence', () => {
+  /** The first manufacturer standing in the mine, or `undefined` when none is. */
+  function manufacturer(state: ReturnType<typeof createInitialState>) {
+    return state.stations.find(s => s.kind === 'manufacturer');
+  }
+  /** The first extractor standing in the mine, or `undefined` when none is. */
+  function extractor(state: ReturnType<typeof createInitialState>) {
+    return state.stations.find(s => s.kind === 'extractor');
+  }
+
+  it('round-trips the manufacturer stock and the extractor buffers', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.home.station.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20)!, ITEM_CATALOG.repairKit, 2)!;
-    state.home.extractor = {coal: 9, fuel: 40, progress: 120};
+    manufacturer(state)!.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20)!, ITEM_CATALOG.repairKit, 2)!;
+    Object.assign(extractor(state)!, {coal: 9, fuel: 40, progress: 120});
 
     save(state);
 
     expect(readSave(stored)).toMatchObject({
       version: SAVE_VERSION,
-      home: {
-        station: [{kind: 'ore:Coal', count: 20}, {kind: 'repairKit', count: 2}],
-        extractor: {coal: 9, fuel: 40, progress: 120}
-      }
+      stations: [
+        {kind: 'manufacturer', items: [{kind: 'ore:Coal', count: 20}, {kind: 'repairKit', count: 2}]},
+        {kind: 'extractor', coal: 9, fuel: 40, progress: 120}
+      ]
     });
 
     const restored = createInitialState();
     load(restored);
-    expect(restored.home.extractor).toEqual({coal: 9, fuel: 40, progress: 120});
-    expect(countItem(restored.home.station.inventory, oreKind('Coal'))).toBe(20);
-    expect(countItem(restored.home.station.inventory, 'repairKit')).toBe(2);
+    expect(extractor(restored)).toMatchObject({coal: 9, fuel: 40, progress: 120});
+    expect(countItem(manufacturer(restored)!.inventory, oreKind('Coal'))).toBe(20);
+    expect(countItem(manufacturer(restored)!.inventory, 'repairKit')).toBe(2);
   });
 
-  it('drops junk station stacks and clamps the extractor buffers', () => {
+  it('drops junk manufacturer stacks and clamps the extractor buffers', () => {
     stubStorage({
       version: SAVE_VERSION,
-      home: {station: [{kind: 'bogus', count: 5}, {kind: 'ore:Iron', count: '3'}], extractor: {coal: -4, fuel: 'nope'}}
+      stations: [
+        {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'bogus', count: 5}, {kind: 'ore:Iron', count: '3'}]},
+        {kind: 'extractor', x: 46, y: 20, coal: -4, fuel: 'nope'}
+      ]
     });
     const state = createInitialState();
 
     load(state);
 
-    expect(countItem(state.home.station.inventory, oreKind('Iron'))).toBe(3);
-    expect(state.home.station.inventory).toHaveLength(1);
-    expect(state.home.extractor).toEqual({coal: 0, fuel: 0, progress: 0});
+    expect(countItem(manufacturer(state)!.inventory, oreKind('Iron'))).toBe(3);
+    expect(manufacturer(state)!.inventory).toHaveLength(1);
+    expect(extractor(state)).toMatchObject({coal: 0, fuel: 0, progress: 0});
   });
 
   it('defaults extractor progress to 0 when a save predates the field', () => {
-    stubStorage({version: SAVE_VERSION, home: {extractor: {coal: 3, fuel: 20}}});
+    stubStorage({version: SAVE_VERSION, stations: [{kind: 'extractor', x: 46, y: 20, coal: 3, fuel: 20}]});
     const state = createInitialState();
 
     load(state);
 
-    expect(state.home.extractor).toEqual({coal: 3, fuel: 20, progress: 0});
+    expect(state.stations).toHaveLength(1);
+    expect(extractor(state)).toMatchObject({coal: 3, fuel: 20, progress: 0});
   });
 
-  it('gives a save with no home block a fresh, empty base', () => {
+  it('keeps the two seeded stations when a save records none', () => {
     stubStorage({version: SAVE_VERSION, cash: 100});
     const state = createInitialState();
 
     load(state);
 
-    expect(state.home.station.inventory).toHaveLength(0);
-    expect(state.home.extractor).toEqual({coal: 0, fuel: 0, progress: 0});
+    expect(state.stations).toHaveLength(2);
+    expect(manufacturer(state)!.inventory).toHaveLength(0);
+    expect(extractor(state)).toMatchObject({coal: 0, fuel: 0, progress: 0});
+  });
+
+  it('records an emptied mine as an empty station array, not the seeded default', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.stations = [];
+
+    save(state);
+    expect(readSave(stored)).toMatchObject({stations: []});
+
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.stations).toHaveLength(0);
   });
 });
 

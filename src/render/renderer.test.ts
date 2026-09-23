@@ -4,6 +4,7 @@ import { explorationIndex } from '../../shared/exploration-codec';
 import { createPlacedContainer } from '../core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
 import { addItem } from '../core/inventory';
+import { createInitialStations } from '../core/stations';
 import type { Direction } from '../core/types';
 
 const mocks = vi.hoisted(() => {
@@ -482,7 +483,7 @@ describe('terrain cache lifecycle', () => {
     const state = {
       world: [], camX: 40, camY: 15, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(44, 20), explorationIndex(46, 20)]), teleportEffect: null,
-      particles: [], enemies: [],
+      particles: [], enemies: [], stations: createInitialStations(),
       player: {x:45, y:18, drawX:45, drawY:18, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});

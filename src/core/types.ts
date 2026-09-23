@@ -6,9 +6,9 @@ import type { EnemyKind, Tile } from '../../shared/world-schema';
 import type { TrackId } from '../audio/tracks';
 import type { PlacedContainer } from './cargo-container';
 import type { PlacedDynamite } from './dynamite';
-import type { HomeState } from './home';
 import type { Inventory, InventoryItemKind, UpgradeKind } from './inventory';
 import type { ScannerDevice } from './scanner-device';
+import type { PlacedStation } from './stations';
 import type { TileDiff } from '../world/tile-diff';
 
 export type {
@@ -155,8 +155,12 @@ export interface GameState {
   placedDynamite: PlacedDynamite[];
   /** Cargo containers standing in the mine, each with its own slots. */
   cargoContainers: PlacedContainer[];
-  /** The home base's mutable state: the station's stock and the extractor's buffers. */
-  home: HomeState;
+  /**
+   * Stations standing in the mine — manufacturers with their own stock, extractors
+   * with their coal/fuel buffers. Two are seeded on the home-cavern floor; the
+   * player can craft, place, and lift more with the Construction Toolkit.
+   */
+  stations: PlacedStation[];
   /**
    * The carried device armed for placement, or `null` when nothing is. Only the
    * placeable kinds (scanner, dynamite, container) ever appear here; it drives the

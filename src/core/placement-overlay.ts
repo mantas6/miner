@@ -16,10 +16,10 @@
 import { explorationIndex } from '../../shared/exploration-codec';
 import { CARGO_CONTAINER, type PlacedContainer } from './cargo-container';
 import { DYNAMITE, type PlacedDynamite } from './dynamite';
-import { isStationTile } from './home';
-import { isDecorKind, type InventoryItemKind } from './inventory';
+import { isDecorKind, isDeviceKind, type InventoryItemKind } from './inventory';
 import { canPlaceDevice, inMineBounds, type PlacementSite } from './placement';
 import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
+import { STATION_DEVICE, isStationTile, stationAt, type PlacedStation } from './stations';
 
 /**
  * How far around the ship the placement grid reaches. A device may legally go on
@@ -29,12 +29,14 @@ import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
 export const PLACEMENT_OVERLAY_RADIUS = 4;
 
 /** The device kinds that are set down onto a tile, and so earn a placement grid. */
-const PLACEABLE_KINDS: ReadonlySet<InventoryItemKind> = new Set<InventoryItemKind>(['scanner', 'dynamite', 'container']);
+const PLACEABLE_KINDS: ReadonlySet<InventoryItemKind> = new Set<InventoryItemKind>([
+  'scanner', 'dynamite', 'container', 'device:manufacturer', 'device:extractor'
+]);
 
 /**
  * Whether this armed kind is one placed into the world (vs. spent, or mere cargo).
- * The three devices, plus any decoration — decorations are set down as tiles, so
- * they earn the same preview grid as the devices do.
+ * The deployables and the two placeable stations, plus any decoration — decorations
+ * are set down as tiles, so they earn the same preview grid as the devices do.
  */
 export function isPlaceableKind(kind: InventoryItemKind | null | undefined): boolean {
   if (kind === null || kind === undefined) return false;
@@ -47,8 +49,17 @@ export interface PlacementOverlayWorld {
   scannerDevices: readonly ScannerDevice[];
   placedDynamite: readonly PlacedDynamite[];
   cargoContainers: readonly PlacedContainer[];
+  stations: readonly PlacedStation[];
   /** Whether the tile is cleared open space a device can be dropped into. */
   isOpen(x: number, y: number): boolean;
+}
+
+/** Whether any placed entity — a station, container, scanner, or dynamite — sits on this tile. */
+function isTileOccupied(x: number, y: number, world: PlacementOverlayWorld): boolean {
+  return stationAt(world.stations, x, y) !== null
+    || world.cargoContainers.some(container => container.x === x && container.y === y)
+    || world.scannerDevices.some(device => device.x === x && device.y === y)
+    || world.placedDynamite.some(stick => stick.x === x && stick.y === y);
 }
 
 /** One tile of the preview grid: where it is, and whether the device fits. */
@@ -76,9 +87,20 @@ function placementSiteFor(
   if (isDecorKind(kind)) {
     return {
       explored: world.explored,
-      open: open && !isStationTile(x, y),
+      open: open && !isStationTile(world.stations, x, y),
       occupied: false,
       full: false
+    };
+  }
+  // The two placeable stations share the container's shape, but any placed entity
+  // — station, crate, scanner, or dynamite — counts the tile as taken.
+  if (isDeviceKind(kind)) {
+    const key = kind === 'device:manufacturer' ? 'manufacturer' : 'extractor';
+    return {
+      explored: world.explored,
+      open,
+      occupied: isTileOccupied(x, y, world),
+      full: world.stations.filter(station => station.kind === key).length >= STATION_DEVICE[key].maxPlaced
     };
   }
   switch (kind) {

@@ -117,6 +117,7 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'shipBtn', 'teleporterBtn', 'infoBtn', 'musicBtn', 'sfxBtn', 'inventoryToggleBtn',
   // Inventory slots.
   'scannerSlotBtn', 'dynamiteSlotBtn', 'containerSlotBtn', 'repairKitSlotBtn',
+  'manufacturerSlotBtn', 'extractorSlotBtn', 'toolkitSlotBtn',
   'decor:steelPlateSlotBtn', 'decor:stoneBlockSlotBtn', 'decor:copperTrimSlotBtn', 'decor:lampPanelSlotBtn',
   // Ship screen.
   'shipCloseBtn',

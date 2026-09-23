@@ -1,7 +1,7 @@
 import { HOME_ROW, HOME_X, SHIP_UPGRADE_SLOTS, isHomeCavern } from '../../shared/constants';
 import { STARTING } from './balance';
-import { createHomeState } from './home';
 import { createInventory, removeOres } from './inventory';
+import { createInitialStations } from './stations';
 import { applyEquipment } from './ship-upgrades';
 import type { GameState, GameStats, Player } from './types';
 
@@ -74,7 +74,7 @@ export function createInitialState(): GameState {
     scannerDevices: [],
     placedDynamite: [],
     cargoContainers: [],
-    home: createHomeState(),
+    stations: createInitialStations(),
     armedPlacement: null,
     hoverTile: null,
     input: {

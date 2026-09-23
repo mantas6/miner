@@ -32,7 +32,7 @@ import { createDefaultStats, createInitialState, isAtHome } from '../core/state'
 import { createRenderer, type Renderer } from '../render/renderer';
 import { FUEL, REVEAL_FOOTPRINT } from '../core/balance';
 import { countItem, totalItems, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
-import { nearestStation } from '../core/home';
+import { manufacturerStock, nearestStation, stationDeviceItemKind } from '../core/stations';
 import { equip, unequip } from '../core/ship-upgrades';
 import { isPlaceableKind } from '../core/placement-overlay';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
@@ -64,6 +64,8 @@ import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
 import { createDynamiteSticks, type DynamiteSim } from './dynamite-sticks';
 import { createCargoContainers, type CargoContainerSim } from './cargo-containers';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
+import { createStationDevices, type StationDeviceSim } from './station-devices';
+import { createToolkit, TOOLKIT_ITEM, type ToolkitSim } from './toolkit';
 import { createDecor, type DecorSim } from './decor';
 import { createMovement } from './move';
 import { createReadouts, type HudReadouts } from './readouts';
@@ -111,6 +113,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let dynamite: DynamiteSim;
   let containers: CargoContainerSim;
   let homeStations: HomeStationsSim;
+  let stationDevices: StationDeviceSim;
+  let toolkit: ToolkitSim;
   let decor: DecorSim;
 
   state.stats = createDefaultStats();
@@ -208,14 +212,16 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     saveProgress();
     syncPlayerSnapshot();
     // Repaint the station screen if it happens to be open, so the overflow shows.
-    if (homeStations.openStation === 'manufacturer') setStationUi(state.home.station.inventory);
+    const open = homeStations.openStation;
+    if (open?.kind === 'manufacturer') setStationUi(open.inventory);
     toast(granted > 0 ? `Developer action: granted ${granted} ore for $0.` : 'Developer action: no room for more ore.');
   }
   function fillExtractorCheat(){
     fillDeveloperExtractor(state);
     saveProgress();
     // Repaint the extractor screen if it is open, so the new buffers show at once.
-    if (homeStations.openStation === 'extractor') setExtractorUi({...state.home.extractor});
+    const open = homeStations.openStation;
+    if (open?.kind === 'extractor') setExtractorUi({coal: open.coal, fuel: open.fuel, progress: open.progress});
     toast('Developer action: extractor stocked for $0.');
   }
 
@@ -225,9 +231,12 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     setUiCommands({
       // Only one press on the mine is available, so arming any deployable stands
       // the others down.
-      toggleScannerPlacement: () => { dynamite.disarm(); containers.disarm(); scanners.toggleArmed(); },
-      toggleDynamitePlacement: () => { scanners.disarm(); containers.disarm(); dynamite.toggleArmed(); },
-      toggleContainerPlacement: () => { scanners.disarm(); dynamite.disarm(); containers.toggleArmed(); },
+      toggleScannerPlacement: () => { standDownExcept('scanner'); scanners.toggleArmed(); },
+      toggleDynamitePlacement: () => { standDownExcept('dynamite'); dynamite.toggleArmed(); },
+      toggleContainerPlacement: () => { standDownExcept('container'); containers.toggleArmed(); },
+      toggleManufacturerPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('manufacturer'); },
+      toggleExtractorPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('extractor'); },
+      toggleToolkit: () => { standDownExcept('toolkit'); toolkit.toggleArmed(); },
       closeContainer: () => containers.close(),
       storeInContainer: (kind, single) => containers.store(kind, single),
       takeFromContainer: (kind, single) => containers.take(kind, single),
@@ -236,7 +245,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeShip: closeShipScreen,
       equipUpgrade: (kind, slot) => equipUpgrade(kind, slot),
       unequipUpgrade: slot => unequipUpgrade(slot),
-      toggleDecorPlacement: kind => { scanners.disarm(); dynamite.disarm(); containers.disarm(); decor.toggleArmed(kind); },
+      toggleDecorPlacement: kind => { standDownExcept('decor'); decor.toggleArmed(kind); },
       useRepairKit: () => { actions.useRepairKit(); syncPlayerSnapshot(); },
       closeStation: () => homeStations.close(),
       closeExtractor: () => homeStations.close(),
@@ -284,6 +293,17 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       }
     });
   }
+  /** The armed-tool groups that all share the single press on the mine. */
+  type ArmGroup = 'scanner' | 'dynamite' | 'container' | 'decor' | 'stationDevices' | 'toolkit';
+  /** Stand every armed tool down except the one about to be (re)armed. */
+  function standDownExcept(keep: ArmGroup): void {
+    if (keep !== 'scanner') scanners.disarm();
+    if (keep !== 'dynamite') dynamite.disarm();
+    if (keep !== 'container') containers.disarm();
+    if (keep !== 'decor') decor.disarm();
+    if (keep !== 'stationDevices') stationDevices.disarm();
+    if (keep !== 'toolkit') toolkit.disarm();
+  }
   /** Stand down whichever deployable is waiting for a press on the mine. */
   function disarmPlacements(): boolean {
     // All of them, and not short-circuited: only one can be armed, but a disarm
@@ -291,7 +311,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const hadScanner = scanners.disarm();
     const hadDynamite = dynamite.disarm();
     const hadDecor = decor.disarm();
-    return containers.disarm() || hadDecor || hadDynamite || hadScanner;
+    const hadStation = stationDevices.disarm();
+    const hadToolkit = toolkit.disarm();
+    return containers.disarm() || hadToolkit || hadStation || hadDecor || hadDynamite || hadScanner;
   }
   /** Push the current fitting slots to the store for the Ship screen to paint. */
   function syncShipUpgrades(){
@@ -451,14 +473,14 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       cargoCount: hudScratch.cargo,
       atSurface: surf,
       bay: p.inventory,
-      station: state.home.station.inventory
+      station: manufacturerStock(state.stations)
     });
     hudScratch.atSurface = surf;
     hudScratch.gameOver = state.gameOver;
-    const near = nearestStation(p);
-    hudScratch.stationHint = near === 'manufacturer'
+    const near = nearestStation(state.stations, p);
+    hudScratch.stationHint = near?.kind === 'manufacturer'
       ? 'Space: Manufacturing Station'
-      : near === 'extractor'
+      : near?.kind === 'extractor'
         ? 'Space: Oil Extractor'
         : '';
     hudScratch.teleporters = countItem(p.inventory, TELEPORTER_ITEM.kind);
@@ -498,6 +520,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       scanners.tick();
       dynamite.tick();
       containers.tick();
+      stationDevices.tick();
+      toolkit.tick();
       decor.tick();
       homeStations.tick();
       enemies.update();
@@ -723,6 +747,21 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       setExtractorUi,
       syncPlayer: syncPlayerSnapshot
     });
+    stationDevices = createStationDevices({
+      state,
+      grid,
+      audio,
+      toast,
+      saveProgress,
+      setArmedUi: kind => paintArmedPlacement(kind ? stationDeviceItemKind(kind) : null)
+    });
+    toolkit = createToolkit({
+      state,
+      audio,
+      toast,
+      saveProgress,
+      setArmedUi: value => paintArmedPlacement(value ? TOOLKIT_ITEM.kind : null)
+    });
     gameInput = createInput({
       state,
       actions,
@@ -735,7 +774,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeShipScreen,
       closeInfoScreen,
       cancelPlacement: disarmPlacements,
-      toggleDynamitePlacement: () => { scanners.disarm(); containers.disarm(); decor.disarm(); dynamite.toggleArmed(); },
+      toggleDynamitePlacement: () => { standDownExcept('dynamite'); dynamite.toggleArmed(); },
       // A crate's menu covers the mine, so nothing may be left waiting for a
       // press on it — including the two deployables this module does not own.
       toggleContainer: () => { if (!containers.open) disarmPlacements(); containers.openNearest(); },
@@ -770,7 +809,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // flag as pointer-driven (no ring) while keeping the keys on the mine; the
     // next Tab or keyboard focus brings the ring back, so nothing is lost.
     resetCanvasFocusRing();
-    const armed = scanners.armed || dynamite.armed || containers.armed || decor.armed !== null;
+    const armed = scanners.armed || dynamite.armed || containers.armed
+      || stationDevices.armed !== null || toolkit.armed || decor.armed !== null;
     // Nothing is armed and something is already over the mine: the press belongs
     // to whatever is on top of it, not to the tile underneath.
     if (!armed && uiStore.getState().activeOverlay !== null) return;
@@ -787,6 +827,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     if (scanners.armed) scanners.placeAt(point.x, point.y);
     else if (dynamite.armed) dynamite.placeAt(point.x, point.y);
     else if (containers.armed) containers.placeAt(point.x, point.y);
+    else if (stationDevices.armed) stationDevices.placeAt(point.x, point.y);
+    else if (toolkit.armed) toolkit.liftAt(point.x, point.y);
     else if (decor.armed) decor.placeAt(point.x, point.y);
     // An unarmed press opens a station tile the ship can reach, or the crate on
     // the tile; a press on bare rock is not a refusal, it was about neither.

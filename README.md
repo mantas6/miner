@@ -128,9 +128,9 @@ miner-mp/
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the home base and oil extractor (`home.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation, the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -263,6 +263,8 @@ zooming the camera with the wheel or a trackpad.
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
 | Deploy a scanner | — | Scanner inventory slot, then a mine tile |
 | Set a cargo container down | — | Container inventory slot, then a mine tile |
+| Set a crafted station down (Manufacturing Station / Oil Extractor) | — | Its inventory slot, then a mine tile |
+| Lift an empty station or container back aboard | — | Construction Toolkit inventory slot, then press the station/crate |
 | Set a decoration down | — | Decoration inventory slot, then a mine tile |
 | Open a placed cargo container (on it or beside it) | `C` | Press the crate on the mine |
 | Move a stack between the crate and the bay | — | Press the stack in either column |
@@ -336,6 +338,9 @@ one and press `Space` (or click its tile) to open it.
   | Scanner | 2 Copper + 1 Silver |
   | Container | 6 Iron |
   | Teleporter | 3 Silver + 2 Gold |
+  | Manufacturing Station | 8 Iron + 4 Copper + 2 Silver |
+  | Oil Extractor | 6 Iron + 4 Copper + 2 Coal |
+  | Construction Toolkit | 4 Iron + 2 Copper |
   | Fuel Tank / Cargo Hold / Drill / Hull Plating **Mk I** | 4 Iron + 2 Copper |
   | … **Mk II** | 3 Silver + 3 Gold |
   | … **Mk III** | 2 Ruby + 2 Emerald + 1 Alienite |
@@ -392,6 +397,15 @@ one and press `Space` (or click its tile) to open it.
   death and reload, which makes it the only way to protect ore from a lost run.
   Anything taken back out still counts against the ship's cargo capacity, so a
   crate buys storage, never carrying capacity. Six may stand in the mine at once.
+- **Placeable stations** (`src/core/stations.ts`). The Manufacturing Station and
+  the Oil Extractor are entities like a crate, not fixed world objects: two are
+  seeded on the home-cavern floor, and more can be crafted, carried, and set down
+  on explored, cleared ground from their own inventory slots. Each manufacturer
+  keeps its own stock; each extractor runs its own coal→fuel conversion. Up to four
+  of each may stand in the mine. The **Construction Toolkit** (`src/game/toolkit.ts`)
+  is the durable counterpart: armed from its slot, a press on an *empty* station or
+  container packs it back into the bay (it refuses a loaded one — empty it first —
+  and refuses when the bay has no room). The toolkit is never used up.
 
 ### Hazards and descent
 
@@ -580,7 +594,8 @@ both values with a comma (`data-cargo=take,ore:Iron`,
 fields directly. Allowlisted controls: the HUD/action bar (`shipBtn`,
 `teleporterBtn`, `infoBtn`, `musicBtn`, `sfxBtn`, `inventoryToggleBtn`), inventory
 slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBtn`,
-the `decor:*SlotBtn` panels), the ship screen (`data-ship-equip`,
+`manufacturerSlotBtn`, `extractorSlotBtn`, `toolkitSlotBtn`, the `decor:*SlotBtn`
+panels), the ship screen (`data-ship-equip`,
 `data-ship-unequip`, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
 with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
 `data-craft`, `stationCloseBtn`), the oil extractor (`loadCoalBtn`, `refuelBtn`,

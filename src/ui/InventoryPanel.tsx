@@ -33,6 +33,24 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleContainerPlacement()
   },
+  'device:manufacturer': {
+    buttonId: 'manufacturerSlotBtn',
+    idle: 'Set a Manufacturing Station down in the mine',
+    armed: 'Click a mapped tile to set it down · Esc cancels',
+    toggle: () => uiCommands.toggleManufacturerPlacement()
+  },
+  'device:extractor': {
+    buttonId: 'extractorSlotBtn',
+    idle: 'Set an Oil Extractor down in the mine',
+    armed: 'Click a mapped tile to set it down · Esc cancels',
+    toggle: () => uiCommands.toggleExtractorPlacement()
+  },
+  toolkit: {
+    buttonId: 'toolkitSlotBtn',
+    idle: 'Pick up an empty station or container',
+    armed: 'Click an empty station or container to pack it up · Esc cancels',
+    toggle: () => uiCommands.toggleToolkit()
+  },
   ...decorPlaceable('decor:steelPlate', 'Steel Plate'),
   ...decorPlaceable('decor:stoneBlock', 'Stone Block'),
   ...decorPlaceable('decor:copperTrim', 'Copper Trim'),

@@ -6,8 +6,8 @@
 
 import { ORES } from '../../shared/constants';
 import { EXTRACTOR } from './balance';
-import { STATION_CAPACITY } from './home';
-import { addItem, oreItem, roomLeft } from './inventory';
+import { STATION_CAPACITY, firstManufacturer } from './stations';
+import { addItem, createInventory, oreItem, roomLeft } from './inventory';
 import type { GameState } from './types';
 
 /** How many of each ore one "Grant ores" press adds. */
@@ -24,8 +24,9 @@ export const DEVELOPER_EXTRACTOR_COAL = 25;
  */
 export function grantDeveloperOres(state: GameState): number {
   const player = state.player;
+  const manufacturer = firstManufacturer(state.stations);
   let bay = player.inventory;
-  let station = state.home.station.inventory;
+  let station = manufacturer ? manufacturer.inventory : createInventory();
   let granted = 0;
   for (const ore of ORES) {
     const item = oreItem(ore);
@@ -36,12 +37,15 @@ export function grantDeveloperOres(state: GameState): number {
     if (toStation > 0) { station = addItem(station, item, toStation); granted += toStation; }
   }
   player.inventory = bay;
-  state.home.station.inventory = station;
+  if (manufacturer) manufacturer.inventory = station;
   return granted;
 }
 
-/** Queue coal and top the extractor's stored fuel to its cap. */
+/** Queue coal and top every extractor's stored fuel to its cap. */
 export function fillDeveloperExtractor(state: GameState): void {
-  state.home.extractor.coal = DEVELOPER_EXTRACTOR_COAL;
-  state.home.extractor.fuel = EXTRACTOR.fuelCap;
+  for (const station of state.stations) {
+    if (station.kind !== 'extractor') continue;
+    station.coal = DEVELOPER_EXTRACTOR_COAL;
+    station.fuel = EXTRACTOR.fuelCap;
+  }
 }

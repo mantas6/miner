@@ -4,6 +4,11 @@ import { EXTRACTOR } from '../core/balance';
 import { addItem, countItem, createInventory, oreKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { createInitialState } from '../core/state';
+import {
+  firstManufacturer,
+  type ExtractorStation,
+  type ManufacturerStation
+} from '../core/stations';
 import type { GameState } from '../core/types';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
@@ -40,6 +45,16 @@ function harness(): Harness {
   return {...context, sim};
 }
 
+/** The seeded manufacturer, which crafting and stowing act on. */
+function manufacturer(state: GameState): ManufacturerStation {
+  return firstManufacturer(state.stations)!;
+}
+
+/** The seeded extractor, which the coal/fuel transfers act on. */
+function extractor(state: GameState): ExtractorStation {
+  return state.stations.find((s): s is ExtractorStation => s.kind === 'extractor')!;
+}
+
 /** Park the ship on a station tile so `nearestStation` resolves to it. */
 function park(state: GameState, station: 'manufacturer' | 'extractor'): void {
   Object.assign(state.player, {x: STATIONS[station].x, y: STATIONS[station].y});
@@ -55,8 +70,8 @@ describe('opening the stations', () => {
     park(h.state, 'manufacturer');
 
     expect(h.sim.openNearest()).toBe(true);
-    expect(h.sim.openStation).toBe('manufacturer');
-    expect(h.setStationUi).toHaveBeenLastCalledWith(h.state.home.station.inventory);
+    expect(h.sim.openStation?.kind).toBe('manufacturer');
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state).inventory);
 
     expect(h.sim.openNearest()).toBe(true);
     expect(h.sim.openStation).toBeNull();
@@ -68,7 +83,7 @@ describe('opening the stations', () => {
     park(h.state, 'extractor');
 
     expect(h.sim.openNearest()).toBe(true);
-    expect(h.sim.openStation).toBe('extractor');
+    expect(h.sim.openStation?.kind).toBe('extractor');
     expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 0, fuel: 0, progress: 0});
   });
 
@@ -90,6 +105,20 @@ describe('opening the stations', () => {
     expect(h.sim.openAt(STATIONS.manufacturer.x, STATIONS.manufacturer.y)).toBe(false);
     expect(h.toasts.saw('Too far from the station')).toBe(true);
   });
+
+  it('closes the screen when the toolkit lifts the open station out from under it', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    h.sim.openNearest();
+    expect(h.sim.openStation?.kind).toBe('manufacturer');
+
+    // Something (the toolkit) removes the open station from the world.
+    h.state.stations = h.state.stations.filter(s => s.kind !== 'manufacturer');
+    h.sim.tick();
+
+    expect(h.sim.openStation).toBeNull();
+    expect(h.setStationUi).toHaveBeenLastCalledWith(null);
+  });
 });
 
 describe('moving cargo through the station', () => {
@@ -101,10 +130,10 @@ describe('moving cargo through the station', () => {
 
     h.sim.stowAll();
 
-    expect(countItem(h.state.home.station.inventory, oreKind('Iron'))).toBe(6);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(6);
     expect(h.state.player.inventory).toHaveLength(0);
     expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.setStationUi).toHaveBeenLastCalledWith(h.state.home.station.inventory);
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state).inventory);
   });
 
   it('stows a single stack of one kind, leaving the rest of the bay aboard', () => {
@@ -118,12 +147,12 @@ describe('moving cargo through the station', () => {
 
     h.sim.stow(oreKind('Iron'));
 
-    expect(countItem(h.state.home.station.inventory, oreKind('Iron'))).toBe(6);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(6);
     expect(countItem(h.state.player.inventory, oreKind('Iron'))).toBe(0);
     // The coal was never asked for, so it stays in the bay.
     expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(4);
     expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.setStationUi).toHaveBeenLastCalledWith(h.state.home.station.inventory);
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state).inventory);
   });
 
   it('stows a single unit when asked, leaving the rest of the stack aboard', () => {
@@ -134,20 +163,20 @@ describe('moving cargo through the station', () => {
 
     h.sim.stow(oreKind('Iron'), true);
 
-    expect(countItem(h.state.home.station.inventory, oreKind('Iron'))).toBe(1);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(1);
     expect(countItem(h.state.player.inventory, oreKind('Iron'))).toBe(5);
   });
 
   it('takes a stack back out, held under the cargo limit', () => {
     const h = harness();
     park(h.state, 'manufacturer');
-    h.state.home.station.inventory = addItem(createInventory(), itemForKind(oreKind('Gold')), 3);
+    manufacturer(h.state).inventory = addItem(createInventory(), itemForKind(oreKind('Gold')), 3);
     h.sim.openNearest();
 
     h.sim.take(oreKind('Gold'));
 
     expect(countItem(h.state.player.inventory, oreKind('Gold'))).toBe(3);
-    expect(countItem(h.state.home.station.inventory, oreKind('Gold'))).toBe(0);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Gold'))).toBe(0);
   });
 
   it('does nothing outside the station screen', () => {
@@ -164,15 +193,15 @@ describe('crafting at the station', () => {
   it('turns station ore into an item by output kind', () => {
     const h = harness();
     park(h.state, 'manufacturer');
-    h.state.home.station.inventory = [ore('Iron', 3)].reduce(
+    manufacturer(h.state).inventory = [ore('Iron', 3)].reduce(
       (inv, stack) => addItem(inv, itemForKind(stack.kind), stack.count), createInventory()
     );
     h.sim.openNearest();
 
     h.sim.craft('repairKit');
 
-    expect(countItem(h.state.home.station.inventory, 'repairKit')).toBe(1);
-    expect(countItem(h.state.home.station.inventory, oreKind('Iron'))).toBe(0);
+    expect(countItem(manufacturer(h.state).inventory, 'repairKit')).toBe(1);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(0);
   });
 
   it('refuses a recipe the station cannot afford', () => {
@@ -182,7 +211,7 @@ describe('crafting at the station', () => {
 
     h.sim.craft('repairKit');
 
-    expect(countItem(h.state.home.station.inventory, 'repairKit')).toBe(0);
+    expect(countItem(manufacturer(h.state).inventory, 'repairKit')).toBe(0);
     expect(h.toasts.saw('Not enough materials')).toBe(true);
   });
 });
@@ -196,7 +225,7 @@ describe('the oil extractor transfers', () => {
 
     h.sim.loadCoal();
 
-    expect(h.state.home.extractor.coal).toBe(7);
+    expect(extractor(h.state).coal).toBe(7);
     expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(0);
     expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0, progress: 0});
   });
@@ -205,13 +234,13 @@ describe('the oil extractor transfers', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
-    h.state.home.extractor.fuel = 50;
+    extractor(h.state).fuel = 50;
     h.sim.openNearest();
 
     h.sim.refuel();
 
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
-    expect(h.state.home.extractor.fuel).toBe(20);
+    expect(extractor(h.state).fuel).toBe(20);
   });
 
   it('refuses with an empty extractor (`No fuel stored`)', () => {
@@ -232,12 +261,12 @@ describe('parking on the extractor to refuel', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
-    h.state.home.extractor.fuel = 50;
+    extractor(h.state).fuel = 50;
 
     h.sim.tick();
 
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
-    expect(h.state.home.extractor.fuel).toBe(20);
+    expect(extractor(h.state).fuel).toBe(20);
     expect(h.toasts.saw('Refueled +30 from the extractor')).toBe(true);
   });
 
@@ -245,22 +274,22 @@ describe('parking on the extractor to refuel', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
-    h.state.home.extractor.fuel = 50;
+    extractor(h.state).fuel = 50;
 
     h.sim.tick();
-    h.state.home.extractor.fuel = 40;
+    extractor(h.state).fuel = 40;
     h.sim.tick();
 
     // Tank stayed full, and the store the second tick topped up is untouched.
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
-    expect(h.state.home.extractor.fuel).toBe(40);
+    expect(extractor(h.state).fuel).toBe(40);
   });
 
   it('pours again after leaving and returning', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
-    h.state.home.extractor.fuel = 50;
+    extractor(h.state).fuel = 50;
 
     h.sim.tick();
     // Fly off, burn some fuel, then park again.
@@ -271,18 +300,18 @@ describe('parking on the extractor to refuel', () => {
     h.sim.tick();
 
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
-    expect(h.state.home.extractor.fuel).toBe(10);
+    expect(extractor(h.state).fuel).toBe(10);
   });
 
   it('stays silent when the tank is already full', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax;
-    h.state.home.extractor.fuel = 50;
+    extractor(h.state).fuel = 50;
 
     h.sim.tick();
 
-    expect(h.state.home.extractor.fuel).toBe(50);
+    expect(extractor(h.state).fuel).toBe(50);
     expect(h.toasts.saw('Refueled')).toBe(false);
   });
 
@@ -290,7 +319,7 @@ describe('parking on the extractor to refuel', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
-    h.state.home.extractor.fuel = 0;
+    extractor(h.state).fuel = 0;
 
     h.sim.tick();
 
@@ -304,11 +333,11 @@ describe('the extractor tick', () => {
     const h = harness();
     // The ship is nowhere near the extractor: the tick runs anyway.
     Object.assign(h.state.player, {x: 5, y: 300});
-    h.state.home.extractor = {coal: 1, fuel: 0, progress: 0};
+    Object.assign(extractor(h.state), {coal: 1, fuel: 0, progress: 0});
 
     for (let i = 0; i < EXTRACTOR.ticksPerCoal; i++) h.sim.tick();
 
-    expect(h.state.home.extractor).toEqual({coal: 0, fuel: EXTRACTOR.fuelPerCoal, progress: 0});
+    expect(extractor(h.state)).toMatchObject({coal: 0, fuel: EXTRACTOR.fuelPerCoal, progress: 0});
     // The banked fuel is persisted the moment a coal is spent.
     expect(h.saveProgress).toHaveBeenCalled();
   });
@@ -316,7 +345,7 @@ describe('the extractor tick', () => {
   it('repaints the open extractor screen as the conversion advances', () => {
     const h = harness();
     park(h.state, 'extractor');
-    h.state.home.extractor = {coal: 2, fuel: 0, progress: 0};
+    Object.assign(extractor(h.state), {coal: 2, fuel: 0, progress: 0});
     h.sim.openNearest();
     h.setExtractorUi.mockClear();
 
@@ -343,7 +372,7 @@ describe('a lost ship', () => {
     const h = harness();
     park(h.state, 'manufacturer');
     h.sim.openNearest();
-    expect(h.sim.openStation).toBe('manufacturer');
+    expect(h.sim.openStation?.kind).toBe('manufacturer');
 
     h.state.gameOver = true;
     h.sim.tick();

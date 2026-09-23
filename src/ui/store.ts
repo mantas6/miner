@@ -22,6 +22,7 @@ import { createInitialState } from '../core/state';
 import { formatExpeditionStats, type ExpeditionStatRow } from '../core/stats';
 import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
+import { manufacturerStock } from '../core/stations';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
@@ -283,7 +284,7 @@ function initialHud(): HudSnapshot {
       cargoCount: 0,
       atSurface: true,
       bay: initialState.player.inventory,
-      station: initialState.home.station.inventory
+      station: manufacturerStock(initialState.stations)
     }),
     atSurface: true,
     gameOver: false,

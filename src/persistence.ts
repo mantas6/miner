@@ -21,7 +21,12 @@ import { isCatalogKind, itemForKind } from './core/items';
 import { SCANNER_DEVICE, type ScannerDevice } from './core/scanner-device';
 import { applyEquipment } from './core/ship-upgrades';
 import { createDefaultStats } from './core/state';
-import { createHomeState, type HomeState } from './core/home';
+import {
+  STATION_DEVICE,
+  createExtractor,
+  createManufacturer,
+  type PlacedStation
+} from './core/stations';
 import { encodeExploration, mergeExploration } from '../shared/exploration-codec';
 import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries } from './world/tile-diff';
 import type { GameState, GameStats } from './core/types';
@@ -35,9 +40,11 @@ import type { GameState, GameStats } from './core/types';
 // (see `src/world/tile-diff.ts`).
 //
 // Version 17 is another clean break under the same hard-gate policy: the generic
-// per-item transfer rework reshaped the transfer controls (not the save schema),
-// but rather than carry a migration for a shape that is otherwise unchanged, any
-// save older than 17 is discarded on load and a returning player starts fresh.
+// per-item transfer rework reshaped the transfer controls, and the stations became
+// placed entities — the old `home` block (one manufacturer stock, one extractor
+// buffer) is now a `stations` array, each entry a manufacturer or an extractor with
+// its own position. Rather than carry a migration, any save older than 17 is
+// discarded on load and a returning player starts fresh.
 //
 // Version 16 is a clean break. Sinking the home cavern deeper (`HOME_ROW` 10 -> 20,
 // with a band of unreachable terrain above it) shifted every absolute world
@@ -62,8 +69,9 @@ import type { GameState, GameStats } from './core/types';
 //   * `equipment` — the fitted ship upgrades, one entry per upgrade slot, each a
 //     `upgrade:*` kind or `null`. The ship's `fuelMax`/`hullMax`/`cargoMax`/`drill`
 //     are derived from these, not stored.
-//   * `home`      — the home base: the manufacturing station's stock (`{kind,count}`
-//     stacks, ore included) and the oil extractor's queued coal and stored fuel.
+//   * `stations`  — the stations standing in the mine: each manufacturer with its
+//     own `{kind,count}` stock (ore included), each extractor with its queued coal,
+//     stored fuel, and tick progress. Two are seeded on the home-cavern floor.
 //   * `scannerDevices`/`dynamiteSticks`/`cargoContainers` — the hardware left
 //     running in the mine, crates saved with their contents.
 
@@ -76,7 +84,7 @@ interface SavedProgress {
   cash?: unknown;
   bay?: unknown;
   equipment?: unknown;
-  home?: unknown;
+  stations?: unknown;
   dynamiteSticks?: unknown;
   scannerDevices?: unknown;
   cargoContainers?: unknown;
@@ -233,20 +241,53 @@ function parseEquipment(value: unknown): (UpgradeKind | null)[] {
   return slots;
 }
 
-/** The home base, rebuilt with only the station stock and extractor buffers a save may hold. */
-function parseHome(value: unknown): HomeState {
-  const home = createHomeState();
-  if (!value || typeof value !== 'object') return home;
-  const saved = value as {station?: unknown; extractor?: unknown};
-  home.station.inventory = parseKindCountStacks(saved.station, isStationKind);
-  if (saved.extractor && typeof saved.extractor === 'object') {
-    const {coal, fuel, progress} = saved.extractor as {coal?: unknown; fuel?: unknown; progress?: unknown};
-    home.extractor.coal = Math.floor(numeric(coal, 0, 0, MAX_SAVED_STACK));
-    home.extractor.fuel = Math.floor(numeric(fuel, 0, 0, MAX_SAVED_STACK));
-    // Progress is optional: a save written before it was tracked simply resumes at 0.
-    home.extractor.progress = Math.floor(numeric(progress, 0, 0, EXTRACTOR.ticksPerCoal));
+/**
+ * Rebuild the stations standing in the mine. Each kind is capped the way the game
+ * caps it, so a save can never restore more stations than the player could have
+ * placed; a manufacturer's stock and an extractor's buffers come back clamped.
+ */
+function parseStations(value: unknown): PlacedStation[] {
+  if (!Array.isArray(value)) return [];
+  const stations: PlacedStation[] = [];
+  const counts: Record<'manufacturer' | 'extractor', number> = {manufacturer: 0, extractor: 0};
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const kind = (entry as {kind?: unknown}).kind;
+    if (kind !== 'manufacturer' && kind !== 'extractor') continue;
+    if (counts[kind] >= STATION_DEVICE[kind].maxPlaced) continue;
+    const tile = parsePlacedTile(entry);
+    if (!tile) continue;
+    if (kind === 'manufacturer') {
+      const station = createManufacturer(tile.x, tile.y);
+      station.inventory = parseKindCountStacks((entry as {items?: unknown}).items, isStationKind);
+      stations.push(station);
+    } else {
+      const station = createExtractor(tile.x, tile.y);
+      const {coal, fuel, progress} = entry as {coal?: unknown; fuel?: unknown; progress?: unknown};
+      station.coal = Math.floor(numeric(coal, 0, 0, MAX_SAVED_STACK));
+      station.fuel = Math.floor(numeric(fuel, 0, 0, MAX_SAVED_STACK));
+      // Progress is optional: a save written before it was tracked simply resumes at 0.
+      station.progress = Math.floor(numeric(progress, 0, 0, EXTRACTOR.ticksPerCoal));
+      stations.push(station);
+    }
+    counts[kind]++;
   }
-  return home;
+  return stations;
+}
+
+/** One station, flattened: where it stands and either its stock or its buffers. */
+function serializeStation(station: PlacedStation): Record<string, unknown> {
+  if (station.kind === 'manufacturer') {
+    return {kind: 'manufacturer', x: station.x, y: station.y, items: serializeStacks(station.inventory)};
+  }
+  return {
+    kind: 'extractor',
+    x: station.x,
+    y: station.y,
+    coal: Math.floor(station.coal),
+    fuel: Math.floor(station.fuel),
+    progress: Math.floor(station.progress)
+  };
 }
 
 /** One crate, flattened: where it stands and one entry per stack inside it. */
@@ -288,7 +329,9 @@ export function load(state: GameState): void {
     // starts with only the equipment the last one carried.
     p.inventory = parseKindCountStacks(save.bay, isCatalogKind);
     applyEquipment(p);
-    state.home = parseHome(save.home);
+    // Absent leaves the two seeded stations `createInitialState` set up; a present
+    // (even empty) array is a save that recorded the mine's stations verbatim.
+    if (save.stations !== undefined) state.stations = parseStations(save.stations);
     state.scannerDevices = parseScannerDevices(save.scannerDevices);
     state.placedDynamite = parsePlacedDynamite(save.dynamiteSticks);
     state.cargoContainers = parseCargoContainers(save.cargoContainers);
@@ -322,14 +365,7 @@ export function save(state: GameState): void {
     // decor — are written out of the bay.
     bay: serializeStacks(p.inventory).filter(stack => !isOreKind(stack.kind)),
     equipment: p.equipment.slice(0, SHIP_UPGRADE_SLOTS),
-    home: {
-      station: serializeStacks(state.home.station.inventory),
-      extractor: {
-        coal: Math.floor(state.home.extractor.coal),
-        fuel: Math.floor(state.home.extractor.fuel),
-        progress: Math.floor(state.home.extractor.progress)
-      }
-    },
+    stations: state.stations.map(serializeStation),
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),
     cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializeContainer),

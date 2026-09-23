@@ -18,14 +18,33 @@ const PORT = 5199;
 
 /**
  * Seed a solo save with a soft dirt tile directly under the spawn (45, 21), and a
- * few coal in the manufacturing station's stock so the transfer controls have
- * something to move.
+ * few coal in the manufacturer's stock so the transfer controls have something to
+ * move. The two default stations are seeded at their home-cavern positions.
  */
 function seedDirtUnderHome(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
     version: 17,
     tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}],
-    home: {station: [{kind: 'ore:Coal', count: 3}]}
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Coal', count: 3}]},
+      {kind: 'extractor', x: 46, y: 20}
+    ]
+  }));
+}
+
+/**
+ * Seed a solo save with a Construction Toolkit aboard and the two default stations
+ * in place, so a test can lift the extractor and set it back down without first
+ * crafting anything.
+ */
+function seedToolkitScenario(): void {
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 17,
+    bay: [{kind: 'toolkit', count: 1}],
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20}
+    ]
   }));
 }
 
@@ -118,4 +137,29 @@ test.describe.serial('agent harness', () => {
     expect(after.ship.y).toBeGreaterThan(before.ship.y);
     expect(after.view.origin.y).toBeGreaterThan(before.view.origin.y);
   });
+});
+
+test('the construction toolkit lifts a placed extractor, and it can be set back down', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedToolkitScenario});
+  try {
+    await s.startRun();
+    // The seeded extractor stands at (46,20), one tile from the spawn at (45,20),
+    // and its tile is inside the spawn's reveal footprint, so it paints as `X`.
+    let obs = await s.observe();
+    expect(obs.view.rows.join('')).toContain('X');
+    expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Oil Extractor')).toBe(true);
+
+    // Arm the toolkit from its slot and lift the empty extractor into the bay.
+    await s.click('toolkitSlotBtn');
+    obs = await s.pressTile(46, 20);
+    expect(obs.view.rows.join('')).not.toContain('X');
+    expect(obs.bay.some(slot => slot.kind === 'device:extractor')).toBe(true);
+
+    // The lifted extractor is aboard; arm it and set it back down where it was.
+    await s.click('extractorSlotBtn');
+    obs = await s.pressTile(46, 20);
+    expect(obs.view.rows.join('')).toContain('X');
+  } finally {
+    await s.close();
+  }
 });

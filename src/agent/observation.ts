@@ -20,7 +20,7 @@ import { isTileExplored } from '../../shared/exploration-codec';
 import { canCraft, missingInputs, RECIPES } from '../core/crafting';
 import { getEnemyType } from '../core/enemy-types';
 import { isScannerDone } from '../core/scanner-device';
-import { stationAt } from '../core/home';
+import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
 import {
   addItem,
@@ -300,13 +300,13 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
         notable.push({x, y, what: 'container', detail: totalItems(container.inventory) > 0 ? 'loaded' : 'empty'});
         continue;
       }
-      const station = stationAt(x, y);
-      if (station === 'manufacturer') {
+      const station = stationAt(state.stations, x, y);
+      if (station?.kind === 'manufacturer') {
         row += 'M';
         notable.push({x, y, what: 'station', detail: 'Manufacturer'});
         continue;
       }
-      if (station === 'extractor') {
+      if (station?.kind === 'extractor') {
         row += 'X';
         notable.push({x, y, what: 'station', detail: 'Oil Extractor'});
         continue;

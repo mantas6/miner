@@ -20,6 +20,7 @@ import {
   type PlacementOverlayWorld
 } from './placement-overlay';
 import { createScannerDevice } from './scanner-device';
+import { createManufacturer } from './stations';
 
 /** A mine that is open air everywhere, with a set of explored tiles seeded in. */
 function world(overrides: Partial<PlacementOverlayWorld> = {}): PlacementOverlayWorld {
@@ -28,6 +29,7 @@ function world(overrides: Partial<PlacementOverlayWorld> = {}): PlacementOverlay
     scannerDevices: [],
     placedDynamite: [],
     cargoContainers: [],
+    stations: [],
     isOpen: () => true,
     ...overrides
   };
@@ -102,8 +104,17 @@ describe('isPlacementValid', () => {
   it('accepts a decoration on cleared ground but never on a station tile', () => {
     expect(isPlacementValid('decor:lampPanel', x, y, world({explored}))).toBe(true);
     const sx = STATIONS.manufacturer.x, sy = STATIONS.manufacturer.y;
-    const onStation = world({explored: new Set([explorationIndex(sx, sy)])});
+    const onStation = world({explored: new Set([explorationIndex(sx, sy)]), stations: [createManufacturer(sx, sy)]});
     expect(isPlacementValid('decor:lampPanel', sx, sy, onStation)).toBe(false);
+  });
+
+  it('places the two station devices on cleared ground, and never on an occupied tile', () => {
+    expect(isPlacementValid('device:manufacturer', x, y, world({explored}))).toBe(true);
+    expect(isPlacementValid('device:extractor', x, y, world({explored}))).toBe(true);
+    const taken = world({explored, cargoContainers: [createPlacedContainer(x, y)]});
+    expect(isPlacementValid('device:extractor', x, y, taken)).toBe(false);
+    const onStation = world({explored, stations: [createManufacturer(x, y)]});
+    expect(isPlacementValid('device:manufacturer', x, y, onStation)).toBe(false);
   });
 });
 

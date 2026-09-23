@@ -23,9 +23,18 @@ export interface UiCommands {
   toggleDynamitePlacement(): void;
   /**
    * The same gesture for a cargo container, which the press on the mine sets
-   * down. Arming any of the three stands the other two down.
+   * down. Arming any placeable stands the others down.
    */
   toggleContainerPlacement(): void;
+  /** Arm a carried Manufacturing Station for placement, or stand it down. */
+  toggleManufacturerPlacement(): void;
+  /** Arm a carried Oil Extractor for placement, or stand it down. */
+  toggleExtractorPlacement(): void;
+  /**
+   * Arm the Construction Toolkit, or stand it down. The press that follows on a
+   * station or container tile packs the empty entity back into the bay.
+   */
+  toggleToolkit(): void;
   /** Shut the transfer menu; also what the dialog's own close request reports. */
   closeContainer(): void;
   /** Move a stack of this kind out of the bay into the open container; `single` moves one. */
@@ -97,6 +106,9 @@ function noopCommands(): UiCommands {
     toggleScannerPlacement: noop,
     toggleDynamitePlacement: noop,
     toggleContainerPlacement: noop,
+    toggleManufacturerPlacement: noop,
+    toggleExtractorPlacement: noop,
+    toggleToolkit: noop,
     closeContainer: noop,
     storeInContainer: noop,
     takeFromContainer: noop,

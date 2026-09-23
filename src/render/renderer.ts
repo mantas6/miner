@@ -1,9 +1,10 @@
-import { STATIONS, TILE, WORLD_W } from '../../shared/constants';
+import { TILE, WORLD_W } from '../../shared/constants';
 import { viewport } from '../game/viewport';
 import { getVisibleTileRange } from '../world/visible-tile-range';
 import { isTileExplored } from '../../shared/exploration-codec';
 import { getEnemyType } from '../core/enemy-types';
 import { type PlacedContainer } from '../core/cargo-container';
+import { type PlacedStation } from '../core/stations';
 import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
@@ -48,9 +49,9 @@ export interface RendererState {
   placedDynamite?: readonly PlacedDynamite[];
   /** Cargo containers standing in the mine. Absent or empty means none is placed. */
   cargoContainers?: readonly PlacedContainer[];
+  /** Stations standing in the mine; a manufacturer or an extractor per entry. */
+  stations?: readonly PlacedStation[];
   teleportEffect?: TeleportEffect | null;
-  /** The home base's mutable state; the extractor's coal drives its beam. Absent means idle. */
-  home?: {extractor: {coal: number}};
   input?: {sprintDirection?: Direction | null};
   /** The carried device armed for placement, or `null`/absent when none is. */
   armedPlacement?: InventoryItemKind | null;
@@ -302,6 +303,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       scannerDevices: state.scannerDevices ?? [],
       placedDynamite: state.placedDynamite ?? [],
       cargoContainers: state.cargoContainers ?? [],
+      stations: state.stations ?? [],
       isOpen: (x: number, y: number) => get(x, y).type === 'air'
     };
     const cells = placementOverlayCells(kind, state.player.x, state.player.y, world);
@@ -411,9 +413,13 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
    * coal is queued. Both are culled off-screen and skipped under fog.
    */
   function drawHomeStations(camX: number, camY: number) {
-    drawStation(STATIONS.manufacturer.x, STATIONS.manufacturer.y, camX, camY, drawManufacturerBody, false, 'Manufacturer');
-    const pumping = (state.home?.extractor.coal ?? 0) > 0;
-    drawStation(STATIONS.extractor.x, STATIONS.extractor.y, camX, camY, drawExtractorBody, pumping, 'Oil Extractor');
+    for (const station of state.stations ?? []) {
+      if (station.kind === 'manufacturer') {
+        drawStation(station.x, station.y, camX, camY, drawManufacturerBody, false, 'Manufacturer');
+      } else {
+        drawStation(station.x, station.y, camX, camY, drawExtractorBody, station.coal > 0, 'Oil Extractor');
+      }
+    }
   }
   function drawStation(
     tx: number, ty: number, camX: number, camY: number,

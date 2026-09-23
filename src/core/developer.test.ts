@@ -12,6 +12,18 @@ import { ORES } from '../../shared/constants';
 import { totalItems } from './inventory';
 import { load, save } from '../persistence';
 import { createInitialState } from './state';
+import { firstManufacturer } from './stations';
+import type { GameState } from './types';
+
+/** The seeded manufacturer's stock, which the ore overflow lands in. */
+function stationStock(state: GameState) {
+  return firstManufacturer(state.stations)!.inventory;
+}
+
+/** The seeded extractor's buffers. */
+function extractor(state: GameState) {
+  return state.stations.find(s => s.kind === 'extractor')!;
+}
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -24,7 +36,7 @@ describe('developer grant ores', () => {
     expect(granted).toBe(DEVELOPER_ORE_BUNDLE * ORES.length);
     // The bay fills to its capacity; the rest lands in the station warehouse.
     expect(totalItems(state.player.inventory)).toBe(state.player.cargoMax);
-    expect(totalItems(state.home.station.inventory)).toBe(DEVELOPER_ORE_BUNDLE * ORES.length - state.player.cargoMax);
+    expect(totalItems(stationStock(state))).toBe(DEVELOPER_ORE_BUNDLE * ORES.length - state.player.cargoMax);
     // A grant is free — no cash and no earned-cash statistics move.
     expect(state.stats.totalCashEarned).toBe(0);
   });
@@ -37,7 +49,7 @@ describe('developer grant ores', () => {
     });
     const state = createInitialState();
     grantDeveloperOres(state);
-    const stationTotal = totalItems(state.home.station.inventory);
+    const stationTotal = totalItems(stationStock(state));
     save(state);
 
     const restored = createInitialState();
@@ -46,7 +58,7 @@ describe('developer grant ores', () => {
     // Ore in the bay is lost with the run and never saved; the station warehouse
     // keeps what was banked there.
     expect(totalItems(restored.player.inventory)).toBe(0);
-    expect(totalItems(restored.home.station.inventory)).toBe(stationTotal);
+    expect(totalItems(stationStock(restored))).toBe(stationTotal);
   });
 });
 
@@ -56,8 +68,8 @@ describe('developer fill extractor', () => {
 
     fillDeveloperExtractor(state);
 
-    expect(state.home.extractor.coal).toBe(DEVELOPER_EXTRACTOR_COAL);
-    expect(state.home.extractor.fuel).toBe(EXTRACTOR.fuelCap);
+    expect(extractor(state).coal).toBe(DEVELOPER_EXTRACTOR_COAL);
+    expect(extractor(state).fuel).toBe(EXTRACTOR.fuelCap);
     expect(state.cash).toBe(createInitialState().cash);
   });
 });

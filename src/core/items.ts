@@ -88,6 +88,9 @@ export const ITEM_CATALOG: Record<NonOreKind, InventoryItem> = {
   teleporter: {kind: 'teleporter', label: 'Teleporter', color: '#72d9ff', value: 0},
   container: {kind: 'container', label: 'Container', color: '#c8912f', value: 0},
   repairKit: {kind: 'repairKit', label: 'Repair Kit', color: '#7be08a', value: 0},
+  'device:manufacturer': {kind: 'device:manufacturer', label: 'Manufacturing Station', color: '#8fa2b5', value: 0},
+  'device:extractor': {kind: 'device:extractor', label: 'Oil Extractor', color: '#7fd4c0', value: 0},
+  toolkit: {kind: 'toolkit', label: 'Construction Toolkit', color: '#d9a441', value: 0},
   ...DECOR_ITEMS,
   ...upgradeItems()
 };

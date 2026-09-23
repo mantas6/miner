@@ -1,18 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { HOME_ROW, STATIONS } from '../../shared/constants';
 import { EXTRACTOR } from './balance';
+import { explorationIndex } from '../../shared/exploration-codec';
 import {
   STATION_CAPACITY,
-  createHomeState,
+  STATION_DEVICE,
+  createExtractor,
+  createInitialStations,
+  createManufacturer,
   isStationReachable,
   isStationTile,
+  manufacturerStock,
   nearestStation,
   stationAt,
+  stationPlacementRefusal,
   stowAll,
   stowStack,
   takeFromStation,
   tickExtractor
-} from './home';
+} from './stations';
 import { addItem, countItem, createInventory, oreKind, totalItems, type Inventory } from './inventory';
 import { itemForKind } from './items';
 
@@ -21,27 +27,53 @@ function inventory(...stacks: [string, number][]): Inventory {
   return stacks.reduce((inv, [kind, count]) => addItem(inv, itemForKind(kind as never), count), createInventory());
 }
 
+describe('the seeded stations', () => {
+  it('places one manufacturer and one extractor at the old fixed positions', () => {
+    const stations = createInitialStations();
+    expect(stations).toHaveLength(2);
+    expect(stationAt(stations, STATIONS.manufacturer.x, STATIONS.manufacturer.y)?.kind).toBe('manufacturer');
+    expect(stationAt(stations, STATIONS.extractor.x, STATIONS.extractor.y)?.kind).toBe('extractor');
+  });
+});
+
 describe('locating the stations', () => {
+  const stations = createInitialStations();
+
   it('reports which station a tile is, and none for the floor between them', () => {
-    expect(stationAt(STATIONS.manufacturer.x, STATIONS.manufacturer.y)).toBe('manufacturer');
-    expect(stationAt(STATIONS.extractor.x, STATIONS.extractor.y)).toBe('extractor');
-    expect(stationAt(STATIONS.manufacturer.x + 1, HOME_ROW)).toBeNull();
-    expect(isStationTile(STATIONS.extractor.x, STATIONS.extractor.y)).toBe(true);
-    expect(isStationTile(0, 0)).toBe(false);
+    expect(stationAt(stations, STATIONS.manufacturer.x, STATIONS.manufacturer.y)?.kind).toBe('manufacturer');
+    expect(stationAt(stations, STATIONS.manufacturer.x + 1, HOME_ROW)).toBeNull();
+    expect(isStationTile(stations, STATIONS.extractor.x, STATIONS.extractor.y)).toBe(true);
+    expect(isStationTile(stations, 0, 0)).toBe(false);
   });
 
   it('is reachable within one tile in any direction, and not beyond', () => {
-    expect(isStationReachable('manufacturer', STATIONS.manufacturer.x + 1, STATIONS.manufacturer.y - 1)).toBe(true);
-    expect(isStationReachable('manufacturer', STATIONS.manufacturer.x + 2, STATIONS.manufacturer.y)).toBe(false);
+    const manufacturer = stationAt(stations, STATIONS.manufacturer.x, STATIONS.manufacturer.y)!;
+    expect(isStationReachable(manufacturer, STATIONS.manufacturer.x + 1, STATIONS.manufacturer.y - 1)).toBe(true);
+    expect(isStationReachable(manufacturer, STATIONS.manufacturer.x + 2, STATIONS.manufacturer.y)).toBe(false);
   });
 
   it('opens the station the parked ship is standing on or beside, else none', () => {
-    expect(nearestStation({x: STATIONS.manufacturer.x, y: HOME_ROW})).toBe('manufacturer');
-    expect(nearestStation({x: STATIONS.extractor.x + 1, y: HOME_ROW})).toBe('extractor');
+    expect(nearestStation(stations, {x: STATIONS.manufacturer.x, y: HOME_ROW})?.kind).toBe('manufacturer');
+    expect(nearestStation(stations, {x: STATIONS.extractor.x + 1, y: HOME_ROW})?.kind).toBe('extractor');
     // The spawn tile midway between the two is in reach of both; the manufacturer breaks the tie.
-    expect(nearestStation({x: (STATIONS.manufacturer.x + STATIONS.extractor.x) / 2, y: HOME_ROW})).toBe('manufacturer');
+    expect(nearestStation(stations, {x: (STATIONS.manufacturer.x + STATIONS.extractor.x) / 2, y: HOME_ROW})?.kind).toBe('manufacturer');
     // Two tiles past the extractor is out of reach of both.
-    expect(nearestStation({x: STATIONS.extractor.x + 2, y: HOME_ROW})).toBeNull();
+    expect(nearestStation(stations, {x: STATIONS.extractor.x + 2, y: HOME_ROW})).toBeNull();
+  });
+
+  it('breaks a tie for the manufacturer even when it comes later in the array', () => {
+    const stationsExtractorFirst = [createExtractor(10, 10), createManufacturer(12, 10)];
+    // (11,10) is one tile from each; the manufacturer must still win the tie.
+    expect(nearestStation(stationsExtractorFirst, {x: 11, y: 10})?.kind).toBe('manufacturer');
+  });
+});
+
+describe('the primary manufacturer stock', () => {
+  it('returns the first manufacturer inventory, or an empty one when there is none', () => {
+    const manufacturer = createManufacturer(1, 1);
+    manufacturer.inventory = inventory([oreKind('Iron'), 4]);
+    expect(countItem(manufacturerStock([manufacturer]), oreKind('Iron'))).toBe(4);
+    expect(manufacturerStock([createExtractor(2, 2)])).toHaveLength(0);
   });
 });
 
@@ -99,6 +131,22 @@ describe('taking cargo back out', () => {
   });
 });
 
+describe('placing a station device', () => {
+  const explored = new Set([explorationIndex(40, 100)]);
+
+  it('accepts an explored, cleared, unoccupied tile', () => {
+    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupied: false, count: 0})).toBeNull();
+  });
+
+  it('refuses a fogged, solid, occupied, or capped tile', () => {
+    expect(stationPlacementRefusal(41, 100, 'extractor', {explored, open: true, occupied: false, count: 0})).toMatch(/already explored/);
+    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: false, occupied: false, count: 0})).toMatch(/cleared space/);
+    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupied: true, count: 0})).toMatch(/already stands/);
+    expect(stationPlacementRefusal(40, 100, 'manufacturer', {explored, open: true, occupied: false, count: STATION_DEVICE.manufacturer.maxPlaced}))
+      .toMatch(/Manufacturing Stations/);
+  });
+});
+
 describe('the extractor tick', () => {
   it('accumulates progress toward the current coal without converting yet', () => {
     const next = tickExtractor({coal: 5, fuel: 40, progress: 3});
@@ -126,14 +174,12 @@ describe('the extractor tick', () => {
 
   it('does not waste coal once the fuel store is full: same buffer, untouched', () => {
     const full = {coal: 5, fuel: EXTRACTOR.fuelCap, progress: 7};
-    const next = tickExtractor(full);
-    expect(next).toBe(full);
+    expect(tickExtractor(full)).toBe(full);
   });
 
   it('idles with no coal queued, handing back the same reference', () => {
     const empty = {coal: 0, fuel: 40, progress: 0};
-    const next = tickExtractor(empty);
-    expect(next).toBe(empty);
+    expect(tickExtractor(empty)).toBe(empty);
   });
 
   it('is pure: it never mutates the buffer it is given', () => {
@@ -142,7 +188,7 @@ describe('the extractor tick', () => {
     expect(extractor).toEqual({coal: 3, fuel: 10, progress: 3});
   });
 
-  it('a fresh home base starts with an empty, unstarted extractor', () => {
-    expect(createHomeState().extractor).toEqual({coal: 0, fuel: 0, progress: 0});
+  it('a fresh extractor starts empty and unstarted', () => {
+    expect(createExtractor(0, 0)).toMatchObject({coal: 0, fuel: 0, progress: 0});
   });
 });

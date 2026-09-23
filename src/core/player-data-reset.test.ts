@@ -57,7 +57,10 @@ describe('player-data reset', () => {
     expect(storage.removeItem).toHaveBeenCalledWith(SAVE_KEY);
     expect(JSON.parse(storage.values.get(SAVE_KEY)!)).toMatchObject({
       cash: fresh.cash, bay: [], equipment: [null, null],
-      home: {station: [], extractor: {coal: 0, fuel: 0}},
+      stations: [
+        {kind: 'manufacturer', items: []},
+        {kind: 'extractor', coal: 0, fuel: 0, progress: 0}
+      ],
       explored: '', stats: fresh.stats
     });
   });

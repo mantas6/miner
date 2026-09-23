@@ -173,6 +173,14 @@ describe('buildObservation', () => {
     expect(overlay.slots.length).toBe(state.player.equipment.length);
   });
 
+  it('mirrors the armed station device and toolkit, like any other armed tool', () => {
+    const state = createInitialState();
+    expect(buildObservation({state, ui: ui({armedPlacement: 'device:extractor'}), get: tileSource({})}).armedPlacement)
+      .toBe('device:extractor');
+    expect(buildObservation({state, ui: ui({armedPlacement: 'toolkit'}), get: tileSource({})}).armedPlacement)
+      .toBe('toolkit');
+  });
+
   it('caps the toast ring buffer, dropping the oldest lines', () => {
     let ring = appendToast([], {tick: 1, message: 'first'}, 3);
     ring = appendToast(ring, {tick: 2, message: 'second'}, 3);

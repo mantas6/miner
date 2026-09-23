@@ -18,11 +18,13 @@ import { CARGO_CONTAINER } from './cargo-container';
 import { DYNAMITE } from './dynamite';
 import {
   isDecorKind,
+  isDeviceKind,
   isOreKind,
   isUpgradeKind,
   parseUpgradeKind,
   type ConsumableKind,
   type DecorKind,
+  type DeviceKind,
   type InventoryItemKind,
   type UpgradeId,
   type UpgradeKind
@@ -31,6 +33,7 @@ import { itemForKind } from './items';
 import { formatDepthBandLabel } from './prospecting';
 import { SCANNER_DEVICE } from './scanner-device';
 import { UPGRADE_EFFECTS } from './ship-upgrades';
+import { STATION_DEVICE } from './stations';
 import { MIN_TELEPORT_DEPTH_METERS } from './teleporter';
 
 /** A title and a few detail lines for one item kind. Never empty. */
@@ -126,6 +129,33 @@ function describeConsumable(kind: ConsumableKind): ItemInfo {
   }
 }
 
+/** The two placeable stations, set down in the mine and lifted back with the toolkit. */
+function describeStationDevice(kind: DeviceKind): ItemInfo {
+  const manufacturer = kind === 'device:manufacturer';
+  const key = manufacturer ? 'manufacturer' : 'extractor';
+  return {
+    title: itemForKind(kind).label,
+    lines: [
+      manufacturer
+        ? 'Placeable Manufacturing Station: crafts and stores ore where you set it.'
+        : 'Placeable Oil Extractor: burns coal into fuel and refuels a ship parked on it.',
+      `Set it down on a cleared, explored tile; up to ${STATION_DEVICE[key].maxPlaced} of each can stand in the mine.`,
+      'Lift it back into the bay with the Construction Toolkit once it is empty.'
+    ]
+  };
+}
+
+/** The durable Construction Toolkit. */
+function describeToolkit(): ItemInfo {
+  return {
+    title: itemForKind('toolkit').label,
+    lines: [
+      'Lifts an empty station or cargo container back into the bay.',
+      'Durable: it is never used up. Empty the target first — it will not pack a loaded one.'
+    ]
+  };
+}
+
 /** One ore stack: its unit value and the depth band it is found in. */
 function describeOre(kind: InventoryItemKind): ItemInfo {
   const item = itemForKind(kind);
@@ -145,5 +175,7 @@ export function describeItem(kind: InventoryItemKind): ItemInfo {
   if (isOreKind(kind)) return describeOre(kind);
   if (isUpgradeKind(kind)) return describeUpgrade(kind);
   if (isDecorKind(kind)) return describeDecor(kind);
+  if (isDeviceKind(kind)) return describeStationDevice(kind);
+  if (kind === 'toolkit') return describeToolkit();
   return describeConsumable(kind);
 }

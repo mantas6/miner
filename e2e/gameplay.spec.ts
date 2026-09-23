@@ -97,7 +97,10 @@ test.describe('gameplay', () => {
         version: 17,
         x: 43,
         y: 20,
-        home: {station: [{kind: 'ore:Copper', count: 2}, {kind: 'ore:Silver', count: 1}]}
+        stations: [
+          {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Copper', count: 2}, {kind: 'ore:Silver', count: 1}]},
+          {kind: 'extractor', x: 46, y: 20}
+        ]
       }));
     });
     await startSoloRun(page);

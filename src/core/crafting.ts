@@ -51,6 +51,10 @@ export const RECIPES: Recipe[] = [
   {output: 'container', count: 1, inputs: [ore('Iron', 6)]},
   {output: 'teleporter', count: 1, inputs: [ore('Silver', 3), ore('Gold', 2)]},
 
+  {output: 'device:manufacturer', count: 1, inputs: [ore('Iron', 8), ore('Copper', 4), ore('Silver', 2)]},
+  {output: 'device:extractor', count: 1, inputs: [ore('Iron', 6), ore('Copper', 4), ore('Coal', 2)]},
+  {output: 'toolkit', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
+
   {output: 'upgrade:tank:1', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
   {output: 'upgrade:cargo:1', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
   {output: 'upgrade:drill:1', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
