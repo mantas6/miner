@@ -36,7 +36,12 @@ function tick(angle: number, inner: number): {x1: number; y1: number; x2: number
 /** The F letter sits above the arc's top end, E just past its right end. */
 const [fX, fY] = polar(-90, RADIUS);
 const [eX, eY] = polar(0, RADIUS);
-const [ledX, ledY] = polar(-12, RADIUS - 22);
+// The low-fuel LED sits below the pivot's horizontal line (y = PIVOT_Y) and just
+// right of the E letter. The needle only ever sweeps the quarter disc above that
+// line (angles −90°..0°), so it can never pass over the LED at any fuel level.
+// Both coordinates stay inside the 96×96 viewBox so the panel padding holds.
+const ledX = eX + 13;
+const ledY = eY + 4;
 
 /**
  * The bottom-left HUD panel: an analog fuel gauge over plain fuel and hull
@@ -96,7 +101,7 @@ export function FuelGauge() {
             return <line key={a} className={styles.tickMinor} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />;
           })}
           <text className={styles.letter} x={fX} y={fY - 6} textAnchor="middle">F</text>
-          <text className={styles.letter} x={eX + 6} y={eY + 4} textAnchor="middle">E</text>
+          <text className={styles.letter} x={eX + 4} y={eY + 4} textAnchor="middle">E</text>
           <line
             id="fuelNeedle"
             className={styles.needle}
@@ -107,7 +112,9 @@ export function FuelGauge() {
             style={{transform: `rotate(${angle}deg)`, transformOrigin: `${PIVOT_X}px ${PIVOT_Y}px`}}
           />
           <circle className={styles.hub} cx={PIVOT_X} cy={PIVOT_Y} r={3.5} />
-          {/* The banner announces low fuel; this is the same alarm for the eye. */}
+          {/* The banner announces low fuel; this is the same alarm for the eye. It
+              sits below the pivot line, clear of the needle's sweep, so a low tank's
+              needle resting near E can't cover the lit LED. */}
           <circle id="fuelLed" className={clsx(styles.led, fuelAlert && styles.on)} cx={ledX} cy={ledY} r={3.5} />
         </svg>
       </div>
