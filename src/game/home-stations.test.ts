@@ -170,6 +170,30 @@ describe('the oil extractor transfers', () => {
     expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0, progress: 0});
   });
 
+  it('tops the tank up via `refuel()` after `openNearest()`', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.state.player.fuel = h.state.player.fuelMax - 30;
+    h.state.home.extractor.fuel = 50;
+    h.sim.openNearest();
+
+    h.sim.refuel();
+
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
+    expect(h.state.home.extractor.fuel).toBe(20);
+  });
+
+  it('refuses with an empty extractor (`No fuel stored`)', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.state.player.fuel = h.state.player.fuelMax - 30;
+    h.sim.openNearest();
+
+    h.sim.refuel();
+
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax - 30);
+    expect(h.toasts.saw('No fuel stored')).toBe(true);
+  });
 });
 
 describe('parking on the extractor to refuel', () => {

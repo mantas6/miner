@@ -64,6 +64,8 @@ export interface HomeStationsSim {
   craft(recipe: number | InventoryItemKind): void;
   /** Queue every coal aboard into the extractor. */
   loadCoal(): void;
+  /** Top the ship's tank up from the extractor's stored fuel. */
+  refuel(): void;
   /** One fixed 60 Hz step: run the extractor, and tidy up after a lost ship. */
   tick(): void;
 }
@@ -215,6 +217,20 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     return moved;
   }
 
+  function refuel(): void {
+    if (open !== 'extractor' || state.gameOver) return;
+    const moved = pourFuel();
+    if (moved <= 0) {
+      audio.alarm();
+      return toast(state.player.fuel >= state.player.fuelMax ? 'Fuel tank already full.' : 'No fuel stored in the extractor yet.');
+    }
+    deps.syncPlayer();
+    repaint();
+    saveProgress();
+    audio.blip(500, .08, 'triangle', .045, 40);
+    toast(`Refueled +${Math.round(moved)} from the extractor.`);
+  }
+
   function tick(): void {
     if (state.gameOver) { close(); return; }
     // Park on the extractor and it tops the tank up on the spot — once per visit,
@@ -255,6 +271,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     take,
     craft,
     loadCoal,
+    refuel,
     tick
   };
 }
