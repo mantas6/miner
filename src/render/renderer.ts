@@ -428,10 +428,10 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     // Name label above the station. Reset shadowBlur first so the body painters'
     // glow doesn't smear the text.
     ctx.shadowBlur = 0;
-    ctx.font = 'bold 10px sans-serif';
+    ctx.font = 'bold 7.5px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.strokeStyle = 'rgba(0,0,0,.6)';
     ctx.strokeText(label, 0, -TILE*.36);
     ctx.fillStyle = '#dbe8ff';

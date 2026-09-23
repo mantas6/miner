@@ -5,16 +5,16 @@ import styles from './FuelGauge.module.css';
 
 /**
  * The dial is a quarter circle pivoting in its bottom-left corner, so it tucks
- * into the HUD's bottom-left corner: E is at 12 o'clock (needle up, empty), F at
- * 3 o'clock (needle right, full), and the needle sweeps clockwise as the tank
- * fills. All geometry is in the 96×96 viewBox's user units.
+ * into the HUD's bottom-left corner: F is at 12 o'clock (needle up, full), E at
+ * 3 o'clock (needle right, empty), and the needle climbs counter-clockwise as
+ * the tank fills. All geometry is in the 96×96 viewBox's user units.
  */
 const PIVOT_X = 12;
 const PIVOT_Y = 84;
 const RADIUS = 66;
 const NEEDLE_LEN = 60;
 
-/** A point on the dial at `angle` degrees (−90 = up/E, 0 = right/F) and radius `r`. */
+/** A point on the dial at `angle` degrees (−90 = up/F, 0 = right/E) and radius `r`. */
 function polar(angle: number, r: number): [number, number] {
   const rad = (angle * Math.PI) / 180;
   return [PIVOT_X + r * Math.cos(rad), PIVOT_Y + r * Math.sin(rad)];
@@ -34,10 +34,10 @@ function tick(angle: number, inner: number): {x1: number; y1: number; x2: number
   return {x1, y1, x2, y2};
 }
 
-/** The E letter sits above the arc's top end, F just past its right end. */
-const [eX, eY] = polar(-90, RADIUS);
-const [fX, fY] = polar(0, RADIUS);
-const [ledX, ledY] = polar(-78, RADIUS - 22);
+/** The F letter sits above the arc's top end, E just past its right end. */
+const [fX, fY] = polar(-90, RADIUS);
+const [eX, eY] = polar(0, RADIUS);
+const [ledX, ledY] = polar(-12, RADIUS - 22);
 
 /**
  * The bottom-left HUD panel: an analog fuel gauge over a plain hull readout. The
@@ -66,8 +66,8 @@ export function FuelGauge() {
       : `Fuel ${text} — ${margin} left after climbing home`;
 
   const fraction = fuelMax > 0 ? Math.min(1, Math.max(0, value / fuelMax)) : 0;
-  // E = −90° (needle up), F = 0° (needle right); the tank fills clockwise.
-  const angle = -90 + 90 * fraction;
+  // E = 0° (needle right), F = −90° (needle up); the tank fills counter-clockwise.
+  const angle = -90 * fraction;
 
   const hullValue = Math.max(0, hull);
 
@@ -86,7 +86,7 @@ export function FuelGauge() {
         <svg className={styles.dial} viewBox="0 0 96 96" aria-hidden="true">
           <path className={styles.arc} d={arc(-90, 0)} />
           {/* Low-fuel band: the E-side quarter of the scale, in muted red. */}
-          <path className={styles.redBand} d={arc(-90, -67.5)} />
+          <path className={styles.redBand} d={arc(-22.5, 0)} />
           {[-90, -45, 0].map(a => {
             const t = tick(a, RADIUS - 8);
             return <line key={a} className={styles.tick} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />;
@@ -95,8 +95,8 @@ export function FuelGauge() {
             const t = tick(a, RADIUS - 5);
             return <line key={a} className={styles.tickMinor} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />;
           })}
-          <text className={styles.letter} x={eX} y={eY - 6} textAnchor="middle">E</text>
-          <text className={styles.letter} x={fX + 6} y={fY + 4} textAnchor="middle">F</text>
+          <text className={styles.letter} x={fX} y={fY - 6} textAnchor="middle">F</text>
+          <text className={styles.letter} x={eX + 6} y={eY + 4} textAnchor="middle">E</text>
           <line
             id="fuelNeedle"
             className={styles.needle}

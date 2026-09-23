@@ -392,14 +392,14 @@ describe('store-driven HUD', () => {
     patchHud({atSurface: false, fuelReserveStatus: 'caution', fuelReserveNeeded: 34, fuelReserveMargin: 66});
     expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200 — 66 left after climbing home');
 
-    // A dry tank rests the needle at E; a climb it cannot pay for changes wording.
+    // A dry tank rests the needle at E (pointing right); a climb it cannot pay for changes wording.
     patchHud({fuel: 0, fuelReserveStatus: 'urgent', fuelReserveNeeded: 34, fuelReserveMargin: 0});
-    expect(needle.style.transform).toBe('rotate(-90deg)');
+    expect(needle.style.transform).toBe('rotate(0deg)');
     expect(gauge.getAttribute('aria-label')).toBe('Fuel 0/200 — climb home needs 34');
 
-    // A full tank swings the needle all the way to F.
+    // A full tank swings the needle all the way up to F.
     patchHud({fuel: 200});
-    expect(needle.style.transform).toBe('rotate(0deg)');
+    expect(needle.style.transform).toBe('rotate(-90deg)');
   });
 
   it('shows the underground actions and dispatches the ones it shows', () => {

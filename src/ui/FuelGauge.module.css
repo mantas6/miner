@@ -3,7 +3,6 @@
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 150px;
   padding: 10px;
   border-radius: var(--r-lg);
   display: flex;
@@ -31,7 +30,7 @@
   stroke: var(--hairline-3);
   stroke-width: 1.5;
 }
-/* The E-side quarter of the scale, drawn as a fat translucent stroke over the
+/* The E-side (bottom-right) quarter of the scale, drawn as a fat translucent stroke over the
    hairline arc so it reads as a band rather than a second line. */
 .redBand {
   fill: none;
