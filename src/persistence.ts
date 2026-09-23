@@ -19,6 +19,7 @@ import {
 } from './core/inventory';
 import { isCatalogKind, itemForKind } from './core/items';
 import { SCANNER_DEVICE, type ScannerDevice } from './core/scanner-device';
+import { WRECK, createWreck, type Wreck } from './core/wreck';
 import { applyEquipment } from './core/ship-upgrades';
 import { createDefaultStats } from './core/state';
 import {
@@ -88,6 +89,7 @@ interface SavedProgress {
   dynamiteSticks?: unknown;
   scannerDevices?: unknown;
   cargoContainers?: unknown;
+  wrecks?: unknown;
   tradeLedger?: unknown;
   explored?: unknown;
   stats?: Partial<Record<keyof GameStats, unknown>>;
@@ -204,6 +206,33 @@ export function parseCargoContainers(value: unknown): PlacedContainer[] {
 }
 
 /**
+ * Rebuild the wrecks and what they still hold. Like the crates, contents go back
+ * through `addItem` so a hand-edited save cannot produce a wreck the game's own
+ * stacking rules could never have built, and the count is capped the way the game
+ * caps it so a save can never restore more than could have been dropped.
+ */
+export function parseWrecks(value: unknown): Wreck[] {
+  if (!Array.isArray(value)) return [];
+  const wrecks: Wreck[] = [];
+  for (const entry of value) {
+    if (wrecks.length >= WRECK.maxPlaced) break;
+    const tile = parsePlacedTile(entry);
+    if (!tile) continue;
+    const wreck = createWreck(tile.x, tile.y);
+    const {items} = entry as {items?: unknown};
+    if (Array.isArray(items)) {
+      for (const rawStack of items) {
+        const stack = parseStoredStack(rawStack);
+        if (!stack) continue;
+        wreck.inventory = addItem(wreck.inventory, stack.item, stack.count) ?? wreck.inventory;
+      }
+    }
+    wrecks.push(wreck);
+  }
+  return wrecks;
+}
+
+/**
  * Rebuild an inventory from `{kind, count}` stacks, resolving each kind's item
  * through the catalog (or the ore table) so its label, colour and price never have
  * to be stored. Any stack whose kind `allow` rejects — junk, or ore where only
@@ -307,12 +336,16 @@ function serializeStation(station: PlacedStation): Record<string, unknown> {
   };
 }
 
-/** One crate, flattened: where it stands and one entry per stack inside it. */
-function serializeContainer(container: PlacedContainer) {
+/**
+ * One placed inventory (a crate or a wreck), flattened: where it stands and one
+ * entry per stack inside it, each ore stack carrying its own label/colour/price so
+ * it comes back sellable regardless of a future ore table.
+ */
+function serializePlacedInventory(entity: {x: number; y: number; inventory: Inventory}) {
   return {
-    x: container.x,
-    y: container.y,
-    items: inventoryStacks(container.inventory).map(stack => ({
+    x: entity.x,
+    y: entity.y,
+    items: inventoryStacks(entity.inventory).map(stack => ({
       kind: stack.kind,
       count: stack.count,
       label: stack.item.label,
@@ -352,6 +385,7 @@ export function load(state: GameState): void {
     state.scannerDevices = parseScannerDevices(save.scannerDevices);
     state.placedDynamite = parsePlacedDynamite(save.dynamiteSticks);
     state.cargoContainers = parseCargoContainers(save.cargoContainers);
+    state.wrecks = parseWrecks(save.wrecks);
     state.tradeLedger = parseTradeLedger(save.tradeLedger);
     // The ship resumes on the tile it parked on, render position included so it
     // appears there instead of easing in from home. The clamps are the ones
@@ -386,7 +420,8 @@ export function save(state: GameState): void {
     stations: state.stations.map(serializeStation),
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),
-    cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializeContainer),
+    cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializePlacedInventory),
+    wrecks: state.wrecks.slice(0, WRECK.maxPlaced).map(serializePlacedInventory),
     tradeLedger: state.tradeLedger,
     explored: encodeExploration(state.exploredTiles),
     tiles: capTileEntries(tileDiffEntries(state.soloTileDiff)),

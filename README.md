@@ -128,9 +128,9 @@ miner-mp/
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -266,8 +266,9 @@ zooming the camera with the wheel or a trackpad.
 | Set a crafted station down (Manufacturing Station / Oil Extractor) | — | Its inventory slot, then a mine tile |
 | Lift an empty station or container back aboard | — | Construction Toolkit inventory slot, then press the station/crate |
 | Set a decoration down | — | Decoration inventory slot, then a mine tile |
-| Open a placed cargo container (on it or beside it) | `C` | Press the crate on the mine |
-| Move a stack between the crate and the bay | — | Press the stack in either column |
+ | Open a placed cargo container — or wreck — (on it or beside it) | `C` | Press the crate or wreck on the mine |
+ | Move a stack between the crate and the bay | — | Press the stack in either column |
+ | Salvage a wreck (its ore and fitted upgrades) | `C` | Press the wreck, then a stack or Loot all |
 | Cancel a placement | `Escape` | The armed slot again |
 | Teleporter round trip (100 m+, spends one carried teleporter) | `T` | Teleport button |
 | Cargo, stats and guides | — | Info / Cargo button |
@@ -429,8 +430,18 @@ open it.
 - **Trading posts** (`src/core/trading.ts`, `src/game/trading.ts`) stand in cleared
   air pockets deep in the mine, derived from their coordinate in `src/world/world.ts`
   rather than stored. Open one to sell ore for cash at the ore table's value, or buy
-  a small, limited stock of gear; only the drawn-down stock persists, in
-  `state.tradeLedger`.
+   a small, limited stock of gear; only the drawn-down stock persists, in
+   `state.tradeLedger`.
+- **Wrecks** (`src/core/wreck.ts`, `src/game/wrecks.ts`) are the corpse loot a lost
+  run leaves behind. When a ship dies — or is scrapped by a hand `R`-reset — the ore
+  it carried and the upgrades fitted to its hull do not survive the replacement, so
+  the run drops them as a greyed-out wreck (`W`) on the tile the ship stood on. Fly
+  back down, press the wreck from an adjacent tile — or `C` while on or beside it —
+  to open a take-only salvage menu: press a stack (or its "1" button) to haul it
+  aboard, or **Loot all** to take everything that fits in one press. A wreck vanishes
+  the moment it is emptied; up to five stand at once, the oldest dropped past the cap.
+  They survive death and reload and clear only on a full player-data reset. The
+  fitted upgrades come back as unequipped bay items, ready to refit.
 
 ### Hazards and descent
 
@@ -627,6 +638,8 @@ with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
 `data-craft`, `stationCloseBtn`), the oil extractor (`loadCoalBtn`, `refuelBtn`,
 `extractorCloseBtn`), the cargo container (`data-cargo` with values
 `store`/`store-one`/`take`/`take-one` and a `data-cargo-kind`, `cargoCloseBtn`), the
+wreck salvage menu (`data-cargo` with values `take`/`take-one` and a `data-cargo-kind`,
+`lootAllBtn`, `cargoCloseBtn`), the
 trading post (`data-trade` with values `sell`/`sell-one`/`buy` and a `data-trade-kind`
 — an `ore:*` kind to sell, a catalog item kind to buy — `tradeCloseBtn`), the
 info tabs (`data-info-section`, `infoCloseBtn`), and the intro (`introStartBtn`).
@@ -642,20 +655,20 @@ what a sighted player sees, as JSON. The top-level shape:
 - `bay`: the cargo bay as `{kind, label, count}` stacks; `armedPlacement`: the item armed for placement, or `null`
 - `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, return, usable}, alerts{fuel, hull, cargo}, announcement}`
 - `view`: `{origin:{x, y}, rows:[…], legend}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship
-- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | scanner | dynamite | station | tradingPost`
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `trade` (cash, sell offers, buy offers), or `info` (tab) — else `null`
+- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | scanner | dynamite | station | tradingPost`
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `trade` (cash, sell offers, buy offers), or `info` (tab) — else `null`
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
 `notable`, using the same `isTileExplored` gate the renderer paints fog with.
-Station stock, extractor buffers and container contents only appear while that
-overlay is open — open it to see them.
+Station stock, extractor buffers, and container and wreck contents only appear
+while that overlay is open — open it to see them.
 
 The `view.rows` legend (`VIEW_LEGEND`):
 
 ```text
 . air   # dirt   R rock   o ore   ! hazard   E enemy   D decor
-M manufacturer   X oil extractor   T trading post   C container   S scanner
+M manufacturer   X oil extractor   T trading post   C container   W wreck   S scanner
 * dynamite   @ ship   ? fogged
 ```
 

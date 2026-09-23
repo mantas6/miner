@@ -63,6 +63,9 @@ import { createActions, type GameActions } from './actions';
 import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
 import { createDynamiteSticks, type DynamiteSim } from './dynamite-sticks';
 import { createCargoContainers, type CargoContainerSim } from './cargo-containers';
+import { createWrecks, type WreckSim } from './wrecks';
+import { reachableContainer } from '../core/cargo-container';
+import { reachableWreck } from '../core/wreck';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
 import { createTrading, type TradingSim } from './trading';
 import { createStationDevices, type StationDeviceSim } from './station-devices';
@@ -113,6 +116,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let scanners: ScannerDeviceSim;
   let dynamite: DynamiteSim;
   let containers: CargoContainerSim;
+  let wrecks: WreckSim;
   let homeStations: HomeStationsSim;
   let trading: TradingSim;
   let stationDevices: StationDeviceSim;
@@ -242,6 +246,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeContainer: () => containers.close(),
       storeInContainer: (kind, single) => containers.store(kind, single),
       takeFromContainer: (kind, single) => containers.take(kind, single),
+      closeWreck: () => wrecks.close(),
+      takeFromWreck: (kind, single) => wrecks.take(kind, single),
+      lootAll: () => wrecks.lootAll(),
       closeTrade: () => trading.close(),
       sellToPost: (kind, single) => trading.sell(kind, single),
       buyFromPost: kind => trading.buy(kind),
@@ -377,6 +384,24 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const post = trading.nearestPost();
     if (post && post.distance < stationDistance) trading.openNearest();
     else openNearestStation();
+  }
+  /**
+   * The `c` key, weighing a cargo container against a wreck: open whichever
+   * salvageable stash is nearest, a container breaking a tie. Toggles the open one
+   * shut first, and stands any placement down before covering the mine.
+   */
+  function openNearestContainerOrWreck(){
+    if (containers.open) return containers.close();
+    if (wrecks.open) return wrecks.close();
+    disarmPlacements();
+    const {x, y} = state.player;
+    const container = reachableContainer(state.cargoContainers, x, y);
+    const wreck = reachableWreck(state.wrecks, x, y);
+    if (!container && !wreck) return void containers.openNearest();
+    const containerDistance = container ? Math.abs(container.x - x) + Math.abs(container.y - y) : Infinity;
+    const wreckDistance = wreck ? Math.abs(wreck.x - x) + Math.abs(wreck.y - y) : Infinity;
+    if (wreck && wreckDistance < containerDistance) wrecks.openNearest();
+    else containers.openNearest();
   }
   /** The slot a fit lands in when none is given: the first empty one, else slot 0. */
   function firstFittingSlot(){
@@ -543,6 +568,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       scanners.tick();
       dynamite.tick();
       containers.tick();
+      wrecks.tick();
       stationDevices.tick();
       toolkit.tick();
       decor.tick();
@@ -754,6 +780,18 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
         store.setActiveOverlay('container');
       }
     });
+    wrecks = createWrecks({
+      state,
+      audio,
+      toast,
+      saveProgress,
+      setOpenUi: contents => {
+        const store = uiStore.getState();
+        if (!contents) return store.closeOverlay('wreck');
+        store.setWreckSlots(buildInventorySlots(contents));
+        store.setActiveOverlay('wreck');
+      }
+    });
     decor = createDecor({
       state,
       grid,
@@ -813,10 +851,11 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeInfoScreen,
       cancelPlacement: disarmPlacements,
       toggleDynamitePlacement: () => { standDownExcept('dynamite'); dynamite.toggleArmed(); },
-      // A crate's menu covers the mine, so nothing may be left waiting for a
-      // press on it — including the two deployables this module does not own.
-      toggleContainer: () => { if (!containers.open) disarmPlacements(); containers.openNearest(); },
+      // A crate's or wreck's menu covers the mine, so nothing may be left waiting
+      // for a press on it — including the two deployables this module does not own.
+      toggleContainer: () => { if (!containers.open && !wrecks.open) disarmPlacements(); openNearestContainerOrWreck(); },
       closeContainer: () => containers.close(),
+      closeWreck: () => wrecks.close(),
       // Space opens whichever station-like thing is in reach — a home station or a
       // trading post; a placement pointer has nothing left to aim at once its screen
       // covers the mine.
@@ -870,9 +909,11 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     else if (stationDevices.armed) stationDevices.placeAt(point.x, point.y);
     else if (toolkit.armed) toolkit.liftAt(point.x, point.y);
     else if (decor.armed) decor.placeAt(point.x, point.y);
-    // An unarmed press opens a station tile the ship can reach, a trading post, or
-    // the crate on the tile; a press on bare rock is not a refusal, it was about none.
-    else if (!homeStations.openAt(point.x, point.y) && !trading.openAt(point.x, point.y)) containers.openAt(point.x, point.y);
+    // An unarmed press opens a station tile the ship can reach, a trading post, the
+    // crate, or the wreck on the tile; a press on bare rock is not a refusal, it was
+    // about none of them.
+    else if (!homeStations.openAt(point.x, point.y) && !trading.openAt(point.x, point.y)
+      && !containers.openAt(point.x, point.y)) wrecks.openAt(point.x, point.y);
   }
 
   /**
@@ -923,6 +964,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // button in it would dispatch into a table of no-ops.
     uiStore.getState().setArmedPlacement(null);
     uiStore.getState().closeOverlay('container');
+    uiStore.getState().closeOverlay('wreck');
     uiStore.getState().closeOverlay('station');
     uiStore.getState().closeOverlay('extractor');
     uiStore.getState().closeOverlay('trade');

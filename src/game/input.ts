@@ -74,6 +74,8 @@ export interface GameInputDeps {
   toggleContainer(): void;
   /** Escape while the transfer menu is up. */
   closeContainer(): void;
+  /** Escape/C while the wreck salvage menu is up. */
+  closeWreck(): void;
   /** Space: open the nearest home station, or toggle the open one shut. */
   openNearest(): void;
   /** Escape/Space while the manufacturing station screen is up. */
@@ -172,6 +174,11 @@ export function createInput(deps: GameInputDeps): GameInput {
     if (ui.activeOverlay === 'container') {
       // C shuts the crate it opened, so the one key is the whole round trip.
       if (key === 'escape' || key === 'c') { deps.closeContainer(); e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if (ui.activeOverlay === 'wreck') {
+      // C shuts the wreck it opened, mirroring the crate's round trip on one key.
+      if (key === 'escape' || key === 'c') { deps.closeWreck(); e.preventDefault(); e.stopPropagation(); }
       return;
     }
     if (ui.activeOverlay === 'station') {

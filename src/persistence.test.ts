@@ -6,6 +6,7 @@ import { DYNAMITE, DYNAMITE_ITEM, createPlacedDynamite } from './core/dynamite';
 import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKind } from './core/inventory';
 import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
+import { WRECK, createWreck } from './core/wreck';
 import { TELEPORTER_ITEM } from './core/teleporter';
 import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, ORES, START_Y } from '../shared/constants';
 import { explorationIndex } from '../shared/exploration-codec';
@@ -463,6 +464,76 @@ describe('cargo container persistence', () => {
     load(state);
 
     expect(state.cargoContainers).toHaveLength(CARGO_CONTAINER.maxPlaced);
+  });
+});
+
+describe('wreck persistence', () => {
+  it('round-trips wrecks with their salvageable contents', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    const wreck = createWreck(20, 640);
+    wreck.inventory = addItem(addItem(wreck.inventory, oreItem(GOLD), 4)!, ITEM_CATALOG['upgrade:tank:1'], 1)!;
+    state.wrecks = [wreck, createWreck(44, 700)];
+
+    save(state);
+
+    expect(readSave(stored)).toMatchObject({
+      version: SAVE_VERSION,
+      wrecks: [
+        {x: 20, y: 640, items: [
+          {kind: 'ore:Gold', count: 4, label: 'Gold', color: GOLD.color, value: GOLD.value},
+          {kind: 'upgrade:tank:1', count: 1, label: 'Fuel Tank Mk I', color: ITEM_CATALOG['upgrade:tank:1'].color, value: 0}
+        ]},
+        {x: 44, y: 700, items: []}
+      ]
+    });
+
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.wrecks).toEqual(state.wrecks);
+  });
+
+  it('keeps a wreck through a reload that empties the bay, ore intact', () => {
+    stubStorage();
+    const state = createInitialState();
+    const wreck = createWreck(12, 640);
+    wreck.inventory = addItem(wreck.inventory, oreItem(GOLD), 7)!;
+    state.wrecks = [wreck];
+    state.player.inventory = addItem(state.player.inventory, oreItem(GOLD), 5)!;
+
+    save(state);
+
+    const restored = createInitialState();
+    load(restored);
+    expect(countOres(restored.player.inventory)).toBe(0);
+    expect(countOres(restored.wrecks[0].inventory)).toBe(7);
+  });
+
+  it.each([
+    ['a wreck outside the side walls', [{x: -3, y: 400}]],
+    ['a wreck above the mine', [{x: 10, y: -1}]],
+    ['a nonsense wreck', [{x: 'deep', y: null}]],
+    ['something that is not a wreck at all', ['wreck']],
+    ['a wreck list that is not a list', 'wreck']
+  ])('drops %s on load', (_name, wrecks) => {
+    stubStorage({version: SAVE_VERSION, wrecks});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.wrecks).toEqual([]);
+  });
+
+  it('clamps a hand-edited save to the wreck cap', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      wrecks: Array.from({length: WRECK.maxPlaced + 4}, (_, index) => ({x: index, y: 400}))
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.wrecks).toHaveLength(WRECK.maxPlaced);
   });
 });
 

@@ -127,6 +127,8 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'loadCoalBtn', 'refuelBtn', 'extractorCloseBtn',
   // Cargo container screen.
   'cargoCloseBtn',
+  // Wreck salvage screen.
+  'lootAllBtn',
   // Trading-post screen.
   'tradeCloseBtn',
   // Info / cargo screen.

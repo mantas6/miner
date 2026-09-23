@@ -5,6 +5,7 @@ import { addItem, addOre, countItem, countOres, createInventory } from '../core/
 import { applyEquipment } from '../core/ship-upgrades';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
+import { WRECK } from '../core/wreck';
 import type { GameState } from '../core/types';
 import { createTileDiff } from '../world/tile-diff';
 import { makeTile } from '../world/world';
@@ -144,7 +145,8 @@ describe('restarting after a death', () => {
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.gameOver).toBe(false);
     expect(h.input.reset).toHaveBeenCalled();
-    expect(h.toasts.saw('Cargo and fitted upgrades lost')).toBe(true);
+    // The lost ore and upgrades are left in a wreck, not simply lost.
+    expect(h.toasts.saw('left in the wreck at (12, 60)')).toBe(true);
   });
 
   it('keeps the drawn-down trading stock through a death', () => {
@@ -184,12 +186,66 @@ describe('restarting after a death', () => {
     expect(h.state.soloTileDiff).toEqual(createTileDiff([dug, cracked]));
   });
 
-  it('stays quiet when a live run is reset by hand instead of by dying', () => {
+  it('stays quiet about a replacement when a live run is reset by hand', () => {
     const h = harness();
 
     h.run.restartGame();
 
     expect(h.toasts.saw('Replacement ship')).toBe(false);
+  });
+});
+
+describe('wrecks dropped on restart', () => {
+  it('a death leaves the ore and fitted upgrades in a wreck on the death tile', () => {
+    const h = harness();
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.wrecks).toHaveLength(1);
+    const wreck = h.state.wrecks[0];
+    expect(wreck).toMatchObject({x: 12, y: 60});
+    expect(countOres(wreck.inventory)).toBe(2);
+    expect(countItem(wreck.inventory, 'upgrade:tank:1')).toBe(1);
+    expect(countItem(wreck.inventory, 'upgrade:cargo:1')).toBe(1);
+    // Non-ore bay equipment rides out with the miner, so it is never in the wreck.
+    expect(countItem(wreck.inventory, TELEPORTER_ITEM.kind)).toBe(0);
+    expect(h.saveProgress).toHaveBeenCalled();
+  });
+
+  it('a hand reset leaves a wreck too, worded for a scrapping rather than a death', () => {
+    const h = harness();
+
+    h.run.restartGame();
+
+    expect(h.state.wrecks).toHaveLength(1);
+    expect(h.toasts.saw('Ship reset. Cargo and fitted upgrades left in the wreck at (12, 60)')).toBe(true);
+  });
+
+  it('drops no wreck when there is nothing to leave behind', () => {
+    const h = harness();
+    // Strip the ore and unfit every upgrade, leaving only surviving bay equipment.
+    h.state.player.inventory = createInventory();
+    h.state.player.equipment = [null, null];
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.wrecks).toEqual([]);
+    expect(h.toasts.saw('lost')).toBe(true);
+  });
+
+  it('keeps the mine bounded at the cap, dropping the oldest wreck', () => {
+    const h = harness();
+    h.state.wrecks = Array.from({length: WRECK.maxPlaced}, (_, i) => ({x: i, y: 500, inventory: createInventory()}));
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.wrecks).toHaveLength(WRECK.maxPlaced);
+    // The oldest (x:0) is gone; the freshly dropped wreck sits at the death tile.
+    expect(h.state.wrecks.some(w => w.x === 0 && w.y === 500)).toBe(false);
+    expect(h.state.wrecks.at(-1)).toMatchObject({x: 12, y: 60});
   });
 });
 

@@ -138,7 +138,8 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
     const refusal = containerPlacementRefusal(x, y, {
       explored: state.exploredTiles,
       open: inMineBounds(x, y) && grid.get(x, y).type === 'air',
-      containers: state.cargoContainers
+      containers: state.cargoContainers,
+      wrecks: state.wrecks
     });
     if (refusal) {
       audio.alarm();

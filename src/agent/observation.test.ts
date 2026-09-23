@@ -5,9 +5,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { explorationIndex } from '../../shared/exploration-codec';
-import { oreKind } from '../core/inventory';
+import { addItem, createInventory, oreItem, oreKind } from '../core/inventory';
 import { createInitialState } from '../core/state';
 import { createPlacedContainer } from '../core/cargo-container';
+import { createWreck } from '../core/wreck';
 import { createScannerDevice } from '../core/scanner-device';
 import { createPlacedDynamite } from '../core/dynamite';
 import { uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
@@ -103,6 +104,39 @@ describe('buildObservation', () => {
     expect(obs.notable.find(n => n.what === 'enemy')?.detail).toBe('Tunnel Fiend');
     expect(obs.view.rows[5][42 - 38]).toBe('E');
     expect(obs.view.rows[6][46 - 38]).toBe('*');
+  });
+
+  it('draws a wreck as W in view and notable, counting the items it holds', () => {
+    const state = createInitialState();
+    state.player.x = 45;
+    state.player.y = 100;
+    revealRect(state, 38, 95, 52, 105);
+    const wreck = createWreck(43, 101, addItem(addItem(createInventory(), oreItem({name: 'Gold', color: '#fff', value: 1, min: 0, max: 1, chance: 1}), 2), {kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', color: '#5ad1ff', value: 0}));
+    state.wrecks.push(wreck);
+
+    const obs = buildObservation({state, ui: ui(), get: tileSource({})});
+
+    expect(obs.view.rows[6][43 - 38]).toBe('W');
+    expect(obs.notable.find(n => n.what === 'wreck')?.detail).toBe('3 items');
+    expect(VIEW_LEGEND.W).toBe('wreck');
+  });
+
+  it('mirrors the wreck overlay only while it is open', () => {
+    const state = createInitialState();
+    const wreckSlots: InventorySlotView[] = [oreSlot('Gold', 4)];
+
+    expect(buildObservation({state, ui: ui({activeOverlay: null, wreckSlots}), get: tileSource({})}).overlay).toBeNull();
+
+    const overlay = buildObservation({
+      state,
+      ui: ui({activeOverlay: 'wreck', wreckSlots, inventorySlots: [oreSlot('Iron', 1)]}),
+      get: tileSource({})
+    }).overlay;
+
+    expect(overlay?.kind).toBe('wreck');
+    if (overlay?.kind !== 'wreck') throw new Error('expected wreck overlay');
+    expect(overlay.wreck).toEqual([{kind: oreKind('Gold'), label: 'Gold', count: 4}]);
+    expect(overlay.ship).toEqual([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
   });
 
   it('names the home stations in view and notable', () => {

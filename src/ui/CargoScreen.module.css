@@ -177,6 +177,30 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* The wreck's one shortcut: haul everything that fits in a single press, sitting
+   above the salvage stacks it acts on. */
+.lootAll {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: rgba(255, 200, 87, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 200, 87, 0.28);
+  color: var(--gold);
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.lootAll:hover {
+  background: rgba(255, 200, 87, 0.18);
+}
+.lootAll:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .note {
   margin: 12px 0 0;
   padding: 10px 12px;

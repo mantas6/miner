@@ -140,3 +140,69 @@ describe('cargo transfer dialog', () => {
     expect(rows[0].textContent).toBe('Empty');
   });
 });
+
+function openWreck(): HTMLDialogElement {
+  const rendered = render(<CargoScreen />);
+  act(() => {
+    const store = uiStore.getState();
+    store.setWreckSlots(buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 4)));
+    store.setActiveOverlay('wreck');
+  });
+  return rendered.container.querySelector('dialog')!;
+}
+
+describe('wreck salvage dialog', () => {
+  it('opens as a take-only menu titled Wreck, with a loot-all shortcut', () => {
+    const dialog = openWreck();
+
+    expect(dialog.open).toBe(true);
+    expect(document.getElementById('cargo-title')?.textContent).toBe('Wreck');
+    expect(document.getElementById('lootAllBtn')).not.toBeNull();
+    // Take controls only — nothing to store into a wreck.
+    expect(document.querySelector('[data-cargo-action="take"][data-cargo-kind="ore:Copper"]')).not.toBeNull();
+    expect(document.querySelector('[data-cargo-action="store"]')).toBeNull();
+  });
+
+  it('routes each press to its salvage command', () => {
+    const takeFromWreck = vi.fn();
+    const lootAll = vi.fn();
+    setUiCommands({takeFromWreck, lootAll});
+    openWreck();
+
+    fireEvent.click(document.querySelector('[data-cargo-action="take"][data-cargo-kind="ore:Copper"]')!);
+    expect(takeFromWreck).toHaveBeenCalledWith('ore:Copper', false);
+
+    fireEvent.click(document.querySelector('[data-cargo-action="take-one"][data-cargo-kind="ore:Copper"]')!);
+    expect(takeFromWreck).toHaveBeenCalledWith('ore:Copper', true);
+
+    fireEvent.click(document.getElementById('lootAllBtn')!);
+    expect(lootAll).toHaveBeenCalledOnce();
+  });
+
+  it('disables loot-all and shows Empty once the wreck is bare', () => {
+    openWreck();
+
+    act(() => { uiStore.getState().setWreckSlots(buildInventorySlots(createInventory())); });
+
+    expect(document.querySelector('[data-cargo-action="take"]')).toBeNull();
+    expect((document.getElementById('lootAllBtn') as HTMLButtonElement).disabled).toBe(true);
+    const rows = [...document.querySelectorAll('#wreckSlots > li')];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toBe('Empty');
+  });
+
+  it('dispatches close from the close button, the backdrop, and the browser', () => {
+    const closeWreck = vi.fn();
+    setUiCommands({closeWreck});
+    const dialog = openWreck();
+
+    fireEvent.click(document.getElementById('cargoCloseBtn')!);
+    expect(closeWreck).toHaveBeenCalledOnce();
+
+    fireEvent.pointerDown(dialog);
+    expect(closeWreck).toHaveBeenCalledTimes(2);
+
+    act(() => { dialog.close(); });
+    expect(closeWreck).toHaveBeenCalledTimes(3);
+  });
+});

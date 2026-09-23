@@ -5,6 +5,7 @@ import { isTileExplored } from '../../shared/exploration-codec';
 import { getEnemyType } from '../core/enemy-types';
 import { type PlacedContainer } from '../core/cargo-container';
 import { type PlacedStation } from '../core/stations';
+import { type Wreck } from '../core/wreck';
 import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
@@ -50,6 +51,8 @@ export interface RendererState {
   placedDynamite?: readonly PlacedDynamite[];
   /** Cargo containers standing in the mine. Absent or empty means none is placed. */
   cargoContainers?: readonly PlacedContainer[];
+  /** Wrecks standing in the mine. Absent or empty means none is left behind. */
+  wrecks?: readonly Wreck[];
   /** Stations standing in the mine; a manufacturer or an extractor per entry. */
   stations?: readonly PlacedStation[];
   teleportEffect?: TeleportEffect | null;
@@ -257,6 +260,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     drawHomeStations(camX, camY);
     drawTradingPosts(camX, camY);
     drawCargoContainers(camX, camY);
+    drawWrecks(camX, camY);
     drawScannerDevices(camX, camY);
     drawPlacedDynamite(camX, camY);
     drawEnemies(camX, camY);
@@ -305,6 +309,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       scannerDevices: state.scannerDevices ?? [],
       placedDynamite: state.placedDynamite ?? [],
       cargoContainers: state.cargoContainers ?? [],
+      wrecks: state.wrecks ?? [],
       stations: state.stations ?? [],
       isOpen: (x: number, y: number) => get(x, y).type === 'air'
     };
@@ -578,6 +583,32 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillStyle = loaded ? '#ffe58a' : '#2a333c';
     if (loaded) { ctx.shadowColor = '#ffc857'; ctx.shadowBlur = 8; }
     ctx.beginPath(); ctx.arc(0, TILE*.04, TILE*.05, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  /**
+   * Wrecks, as a greyed-out husk of the player's own ship — the dead-ship palette
+   * `drawShip` uses when the run is over, drawn static on the tile the ship was
+   * lost on. Culled off-screen and skipped under fog, exactly like the crate.
+   */
+  function drawWrecks(camX: number, camY: number) {
+    const wrecks = state.wrecks;
+    if (!wrecks?.length) return;
+    for (const wreck of wrecks) {
+      if (!isExplored(wreck.x, wreck.y)) continue;
+      const sx = (wreck.x - camX) * TILE, sy = (wreck.y - camY) * TILE;
+      if (sx < -TILE || sy < -TILE || sx > viewport.worldWidthPx + TILE || sy > viewport.worldHeightPx + TILE) continue;
+      drawWreckBody(sx, sy);
+    }
+  }
+  function drawWreckBody(sx: number, sy: number) {
+    ctx.save();
+    ctx.translate(sx + TILE*.5, sy + TILE*.5);
+    // The dead-ship gradient and dark canopy from `drawShip`, held still: a wreck
+    // reads as a spent hull without an engine flame or a drill.
+    const body = ctx.createLinearGradient(-TILE*.35,-TILE*.3,TILE*.35,TILE*.30);
+    body.addColorStop(0, '#555'); body.addColorStop(.45, '#676767'); body.addColorStop(1, '#333');
+    drawShipHull(body, 'rgba(196,214,210,.28)', '#26384d');
+    drawShipCanopy('rgba(14,20,24,.85)');
     ctx.restore();
   }
   /**

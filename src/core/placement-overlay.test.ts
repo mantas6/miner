@@ -29,6 +29,7 @@ function world(overrides: Partial<PlacementOverlayWorld> = {}): PlacementOverlay
     scannerDevices: [],
     placedDynamite: [],
     cargoContainers: [],
+    wrecks: [],
     stations: [],
     isOpen: () => true,
     ...overrides

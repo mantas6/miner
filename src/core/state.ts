@@ -74,6 +74,7 @@ export function createInitialState(): GameState {
     scannerDevices: [],
     placedDynamite: [],
     cargoContainers: [],
+    wrecks: [],
     stations: createInitialStations(),
     tradeLedger: {},
     armedPlacement: null,

@@ -100,6 +100,8 @@ export interface ContainerPlacementContext {
   /** Whether the target tile is open space the crate can be dropped into. */
   open: boolean;
   containers: readonly PlacedContainer[];
+  /** Wrecks in the mine; a crate may not stand on one. */
+  wrecks?: readonly {x: number; y: number}[];
 }
 
 /** How a container words each of the shared placement refusals. */
@@ -116,7 +118,8 @@ export function containerPlacementRefusal(x: number, y: number, context: Contain
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    occupied: context.containers.some(container => container.x === x && container.y === y),
+    occupied: context.containers.some(container => container.x === x && container.y === y)
+      || (context.wrecks?.some(wreck => wreck.x === x && wreck.y === y) ?? false),
     full: context.containers.length >= CARGO_CONTAINER.maxPlaced
   }, CONTAINER_PLACEMENT_COPY);
 }

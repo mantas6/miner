@@ -9,6 +9,7 @@ import type { PlacedDynamite } from './dynamite';
 import type { Inventory, InventoryItemKind, UpgradeKind } from './inventory';
 import type { ScannerDevice } from './scanner-device';
 import type { PlacedStation } from './stations';
+import type { Wreck } from './wreck';
 import type { TileDiff } from '../world/tile-diff';
 
 export type {
@@ -155,6 +156,13 @@ export interface GameState {
   placedDynamite: PlacedDynamite[];
   /** Cargo containers standing in the mine, each with its own slots. */
   cargoContainers: PlacedContainer[];
+  /**
+   * Wrecks standing in the mine: the corpse loot a lost or reset ship leaves
+   * behind, each holding the ore and (unequipped) upgrades that did not survive
+   * the run. Bounded to `WRECK.maxPlaced`, oldest dropped; they survive death and
+   * reload and clear only on a full player-data reset.
+   */
+  wrecks: Wreck[];
   /**
    * Stations standing in the mine — manufacturers with their own stock, extractors
    * with their coal/fuel buffers. Two are seeded on the home-cavern floor; the

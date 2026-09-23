@@ -36,6 +36,7 @@ interface Harness {
   toggleDynamitePlacement: ReturnType<typeof vi.fn>;
   toggleContainer: ReturnType<typeof vi.fn>;
   closeContainer: ReturnType<typeof vi.fn>;
+  closeWreck: ReturnType<typeof vi.fn>;
   openNearest: ReturnType<typeof vi.fn>;
   closeStation: ReturnType<typeof vi.fn>;
   closeExtractor: ReturnType<typeof vi.fn>;
@@ -62,6 +63,7 @@ function harness(): Harness {
     toggleDynamitePlacement: vi.fn(),
     toggleContainer: vi.fn(),
     closeContainer: vi.fn(),
+    closeWreck: vi.fn(),
     openNearest: vi.fn(),
     closeStation: vi.fn(),
     closeExtractor: vi.fn(),

@@ -12,6 +12,7 @@
 // about what the player is doing this instant, not what they own.
 
 import { containerAt } from '../core/cargo-container';
+import { wreckAt } from '../core/wreck';
 import { countItem, removeItem } from '../core/inventory';
 import { inMineBounds } from '../core/placement';
 import {
@@ -97,6 +98,7 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
   function occupied(x: number, y: number): boolean {
     return stationAt(state.stations, x, y) !== null
       || containerAt(state.cargoContainers, x, y) !== null
+      || wreckAt(state.wrecks, x, y) !== null
       || state.scannerDevices.some(device => device.x === x && device.y === y)
       || state.placedDynamite.some(stick => stick.x === x && stick.y === y);
   }

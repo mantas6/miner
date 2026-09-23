@@ -58,6 +58,7 @@ export const VIEW_LEGEND: Readonly<Record<string, string>> = Object.freeze({
   X: 'oil extractor',
   T: 'trading post',
   C: 'container',
+  W: 'wreck',
   S: 'scanner',
   '*': 'dynamite',
   '@': 'ship',
@@ -103,7 +104,7 @@ export interface AgentShipSlot {
 }
 
 /** What a notable tile is. Decor, dirt, rock and air are not notable. */
-export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'scanner' | 'dynamite' | 'station' | 'tradingPost';
+export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'wreck' | 'scanner' | 'dynamite' | 'station' | 'tradingPost';
 
 /** One thing worth the agent's attention, at a world coordinate. */
 export interface NotableTile {
@@ -120,6 +121,7 @@ export type AgentOverlay =
   | {kind: 'extractor'; coal: number; fuel: number; progress: number; refuelAmount: number}
   | {kind: 'ship'; slots: AgentShipSlot[]; fittable: AgentSlot[]}
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
+  | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]}
   | {
       kind: 'trade';
       cash: number;
@@ -244,6 +246,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       };
     case 'container':
       return {kind: 'container', ship: toSlots(ui.inventorySlots), container: toSlots(ui.containerSlots)};
+    case 'wreck':
+      return {kind: 'wreck', ship: toSlots(ui.inventorySlots), wreck: toSlots(ui.wreckSlots)};
     case 'trade':
       return {
         kind: 'trade',
@@ -281,6 +285,8 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
   for (const device of state.scannerDevices) scannerAt.set(key(device.x, device.y), device);
   const containerAt = new Map<string, GameState['cargoContainers'][number]>();
   for (const container of state.cargoContainers) containerAt.set(key(container.x, container.y), container);
+  const wreckAt = new Map<string, GameState['wrecks'][number]>();
+  for (const wreck of state.wrecks) wreckAt.set(key(wreck.x, wreck.y), wreck);
 
   const rows: string[] = [];
   const notable: NotableTile[] = [];
@@ -319,6 +325,13 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       if (container) {
         row += 'C';
         notable.push({x, y, what: 'container', detail: totalItems(container.inventory) > 0 ? 'loaded' : 'empty'});
+        continue;
+      }
+      const wreck = wreckAt.get(at);
+      if (wreck) {
+        row += 'W';
+        const items = totalItems(wreck.inventory);
+        notable.push({x, y, what: 'wreck', detail: `${items} item${items === 1 ? '' : 's'}`});
         continue;
       }
       const station = stationAt(state.stations, x, y);

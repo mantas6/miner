@@ -11,6 +11,7 @@ import { SHIP_UPGRADE_SLOTS, START_Y } from '../../shared/constants';
 import { STARTING } from '../core/balance';
 import { createInventory, removeOres } from '../core/inventory';
 import { createDefaultStats, placeAtHome, respawnPlayer } from '../core/state';
+import { dropWreck } from '../core/wreck';
 import { applyTileEntries, tileDiffEntries } from '../world/tile-diff';
 import { ensureWorldRow } from '../world/world';
 import { resetWorldTerrain } from '../world/world-state';
@@ -80,6 +81,7 @@ export function createRun(deps: GameRunDeps): GameRun {
       state.scannerDevices = [];
       state.placedDynamite = [];
       state.cargoContainers = [];
+      state.wrecks = [];
       // A full player wipe drops the drawn-down trading stock too; a plain death
       // (`full` false) leaves it, so a post the player emptied stays emptied.
       state.tradeLedger = {};
@@ -141,8 +143,21 @@ export function createRun(deps: GameRunDeps): GameRun {
   function restartGame(): void {
     const died = state.gameOver;
     deps.input().reset();
+    // Drop what the run was carrying — its ore and its fitted upgrades — as a
+    // wreck on the tile the old ship sat on, before `generate()` strips them off
+    // the replacement. Both a death and a hand `R`-reset come through here, so a
+    // scrapped ship leaves a salvageable corpse either way.
+    const wreck = dropWreck(state.wrecks, state.player);
+    if (wreck) saveProgress();
     generate();
-    if (died) toast('Replacement ship deployed. Cargo and fitted upgrades lost.');
+    if (wreck) {
+      const at = `(${wreck.x}, ${wreck.y})`;
+      toast(died
+        ? `Replacement ship deployed. Cargo and fitted upgrades left in the wreck at ${at}.`
+        : `Ship reset. Cargo and fitted upgrades left in the wreck at ${at}.`);
+    } else if (died) {
+      toast('Replacement ship deployed. Cargo and fitted upgrades lost.');
+    }
   }
 
   function gameOver(message = 'Game over. Tap anywhere or press R to restart.'): void {

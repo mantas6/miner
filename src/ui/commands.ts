@@ -47,6 +47,12 @@ export interface UiCommands {
   storeInContainer(kind: InventoryItemKind, single?: boolean): void;
   /** Move it back, as far as the cargo-bay limit allows; `single` moves one. */
   takeFromContainer(kind: InventoryItemKind, single?: boolean): void;
+  /** Shut the wreck salvage menu; also what the dialog's own close request reports. */
+  closeWreck(): void;
+  /** Salvage a stack of this kind out of the open wreck into the bay; `single` takes one. */
+  takeFromWreck(kind: InventoryItemKind, single?: boolean): void;
+  /** Haul everything that fits from the open wreck into the bay in one press. */
+  lootAll(): void;
   /** Open the ship equipment screen, from anywhere. */
   openShip(): void;
   /** Shut the ship equipment screen; also what its dialog's close request reports. */
@@ -121,6 +127,9 @@ function noopCommands(): UiCommands {
     closeContainer: noop,
     storeInContainer: noop,
     takeFromContainer: noop,
+    closeWreck: noop,
+    takeFromWreck: noop,
+    lootAll: noop,
     openShip: noop,
     closeShip: noop,
     equipUpgrade: noop,
