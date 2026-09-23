@@ -387,8 +387,8 @@ one and press `Space` (or click its tile) to open it.
   slot and it becomes a 50-item store standing in the mine, obeying the same
   stacking rules as the bay. Press it from an adjacent tile — or `C` while on or
   beside it — to open a two-column transfer menu; a press on a stack sends it to
-  the other side, up to whatever room the destination has left, and Ctrl-click (⌘
-  on a Mac) moves just one item of the stack. A crate keeps what it holds through
+  the other side, up to whatever room the destination has left, and the "1" button
+  beside each stack moves just one item of it. A crate keeps what it holds through
   death and reload, which makes it the only way to protect ore from a lost run.
   Anything taken back out still counts against the ship's cargo capacity, so a
   crate buys storage, never carrying capacity. Six may stand in the mine at once.
@@ -573,17 +573,20 @@ only to stderr (stdout is the MCP transport).
 `click` accepts an allowlisted set of controls only; anything else is refused with
 the full allowed list. Targets take two forms: an id (`shipBtn`, `stationCloseBtn`,
 with or without a leading `#`), or an attribute control in `name=value` form
-(`data-craft=drill`), with the two-attribute cargo control joining both values with
-a comma (`data-cargo=take,ore:Iron`). The equivalent object form is
+(`data-craft=upgrade:drill:1`), with the two-attribute transfer controls joining
+both values with a comma (`data-cargo=take,ore:Iron`,
+`data-station=stow-one,ore:Coal`). The equivalent object form is
 `{target, value?, kind?}` — the MCP `click` tool takes `target`/`value`/`kind`
 fields directly. Allowlisted controls: the HUD/action bar (`shipBtn`,
 `teleporterBtn`, `infoBtn`, `musicBtn`, `sfxBtn`, `inventoryToggleBtn`), inventory
 slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBtn`,
 the `decor:*SlotBtn` panels), the ship screen (`data-ship-equip`,
-`data-ship-unequip`, `shipCloseBtn`), the station (`stowAllBtn`, `data-station-take`,
+`data-ship-unequip`, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
+with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
 `data-craft`, `stationCloseBtn`), the oil extractor (`loadCoalBtn`, `refuelBtn`,
-`extractorCloseBtn`), the cargo container (`data-cargo`, `cargoCloseBtn`), the info
-tabs (`data-info-section`, `infoCloseBtn`), and the intro (`introStartBtn`).
+`extractorCloseBtn`), the cargo container (`data-cargo` with values
+`store`/`store-one`/`take`/`take-one` and a `data-cargo-kind`, `cargoCloseBtn`), the
+info tabs (`data-info-section`, `infoCloseBtn`), and the intro (`introStartBtn`).
 
 ### The observation
 

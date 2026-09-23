@@ -1,10 +1,11 @@
 // The cargo container's transfer menu.
 //
 // Two columns of stacks — the ship's bay on the left, the crate on the right —
-// and one rule: a press on a stack sends it to the other side. There is no drag,
-// no quantity stepper and no confirm, because there is nothing to decide: a stack
-// is either aboard or it is in the crate, and the only question the menu ever asks
-// is which.
+// and one rule: a press on a stack sends it to the other side. Each stack also
+// carries a "1" button that moves a single unit, for splitting a stack across the
+// gap; the stack itself moves the whole thing. There is no drag and no confirm,
+// because there is nothing else to decide: a stack is either aboard or it is in
+// the crate, and the only question the menu ever asks is which, and how much.
 //
 // Both columns are painted from the store, and both are live. The bay's stacks are
 // the same ones the HUD panel shows, synced every frame; the crate's are pushed by
@@ -76,7 +77,7 @@ function CargoCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
           <SlotColumn
             listId="shipSlots"
             title="Cargo Bay"
-            hint="Press a stack to store it"
+            hint="Press a stack to store it, or 1 for a single unit"
             slots={shipSlots}
             capacity={cargoMax}
             action="store"
@@ -85,14 +86,13 @@ function CargoCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
           <SlotColumn
             listId="containerSlots"
             title="Container"
-            hint="Press a stack to take it aboard"
+            hint="Press a stack to take it aboard, or 1 for a single unit"
             slots={containerSlots}
             capacity={CARGO_CONTAINER.capacity}
             action="take"
             onPress={(kind, single) => uiCommands.takeFromContainer(kind, single)}
           />
         </div>
-        <p className={styles.tip}>Ctrl+click a stack to transfer one.</p>
         <p className={styles.note}>
           Holds up to {CARGO_CONTAINER.capacity} items and keeps them through death and reload.
           Anything taken back aboard still obeys the cargo-bay limit.
@@ -111,13 +111,14 @@ interface SlotColumnProps {
   capacity: number;
   /** Which direction a press on this column moves a stack; also the test hook. */
   action: 'store' | 'take';
-  /** `single` is true when the player held Ctrl/⌘, asking for one unit only. */
+  /** `single` is true for the per-row "1" button, asking for one unit only. */
   onPress(kind: InventoryItemKind, single: boolean): void;
 }
 
 /** One side of the transfer: the stacks it holds, headed by how full it is. */
 function SlotColumn({listId, title, hint, slots, capacity, action, onPress}: SlotColumnProps) {
   const used = slots.reduce((count, slot) => count + slot.count, 0);
+  const verb = action === 'store' ? 'Store' : 'Take';
   return (
     <section className={styles.column} aria-labelledby={`${listId}-title`}>
       <div className={styles.columnHeading}>
@@ -133,12 +134,20 @@ function SlotColumn({listId, title, hint, slots, capacity, action, onPress}: Slo
               className={styles.slot}
               data-cargo-action={action}
               data-cargo-kind={slot.kind}
-              onClick={event => onPress(slot.kind, event.ctrlKey || event.metaKey)}
+              onClick={() => onPress(slot.kind, false)}
             >
               <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
               <span className={styles.label}>{slot.label}</span>
               <span className={styles.count}>×{slot.count}</span>
             </button>
+            <button
+              type="button"
+              className={styles.one}
+              data-cargo-action={`${action}-one`}
+              data-cargo-kind={slot.kind}
+              aria-label={`${verb} one ${slot.label}`}
+              onClick={() => onPress(slot.kind, true)}
+            >1</button>
           </li>
         ))}
       </ul>

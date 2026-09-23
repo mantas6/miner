@@ -190,13 +190,15 @@ server.registerTool(
     description:
       'Click one allowlisted UI control. Use `target` for an id (e.g. "shipBtn", ' +
       '"stationCloseBtn") or an attribute name (e.g. "data-craft"); pass `value` for ' +
-      'attribute controls (e.g. target "data-craft", value "drill"); the cargo ' +
-      'control also needs `kind` (target "data-cargo", value "take", kind "ore:Iron"). ' +
+      'attribute controls (e.g. target "data-craft", value "upgrade:drill:1"); the ' +
+      'transfer controls also need `kind` — the station (target "data-station", value ' +
+      '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal") and the cargo container ' +
+      '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"). ' +
       'A wrong target is refused with the full allowed list.',
     inputSchema: {
       target: z.string().describe('The control id or attribute name.'),
-      value: z.string().optional().describe('The attribute value, for attribute controls.'),
-      kind: z.string().optional().describe('The second attribute value, only for data-cargo (data-cargo-kind).')
+      value: z.string().optional().describe('The attribute value (for data-station/data-cargo it is the transfer action).'),
+      kind: z.string().optional().describe('The stack kind, for the transfer controls (data-station-kind / data-cargo-kind).')
     }
   },
   ({target, value, kind}) => withSession(game => {

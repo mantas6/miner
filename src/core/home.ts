@@ -127,11 +127,17 @@ export function stowAll(bay: Inventory, station: Inventory): {bay: Inventory; st
 /**
  * Move up to `count` units of one kind from the bay into the station, capped by
  * the station's remaining room. Reports how many moved so the caller can word it.
+ * `count` defaults to the whole stack; a single-unit stow passes `1`.
  */
-export function stowStack(bay: Inventory, station: Inventory, kind: InventoryItemKind): {bay: Inventory; station: Inventory; moved: number} {
+export function stowStack(
+  bay: Inventory,
+  station: Inventory,
+  kind: InventoryItemKind,
+  count = Infinity
+): {bay: Inventory; station: Inventory; moved: number} {
   const stack = findStack(bay, kind);
   if (!stack) return {bay, station, moved: 0};
-  const moved = Math.min(stack.count, roomLeft(station, STATION_CAPACITY));
+  const moved = Math.min(stack.count, count, roomLeft(station, STATION_CAPACITY));
   if (moved <= 0) return {bay, station, moved: 0};
   return {bay: removeItem(bay, kind, moved), station: addItem(station, stack.item, moved), moved};
 }

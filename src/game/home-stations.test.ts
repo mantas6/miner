@@ -107,6 +107,37 @@ describe('moving cargo through the station', () => {
     expect(h.setStationUi).toHaveBeenLastCalledWith(h.state.home.station.inventory);
   });
 
+  it('stows a single stack of one kind, leaving the rest of the bay aboard', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    h.state.player.inventory = addItem(
+      addItem(createInventory(), itemForKind(oreKind('Iron')), 6),
+      itemForKind(oreKind('Coal')), 4
+    );
+    h.sim.openNearest();
+
+    h.sim.stow(oreKind('Iron'));
+
+    expect(countItem(h.state.home.station.inventory, oreKind('Iron'))).toBe(6);
+    expect(countItem(h.state.player.inventory, oreKind('Iron'))).toBe(0);
+    // The coal was never asked for, so it stays in the bay.
+    expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(4);
+    expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.setStationUi).toHaveBeenLastCalledWith(h.state.home.station.inventory);
+  });
+
+  it('stows a single unit when asked, leaving the rest of the stack aboard', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    h.state.player.inventory = addItem(createInventory(), itemForKind(oreKind('Iron')), 6);
+    h.sim.openNearest();
+
+    h.sim.stow(oreKind('Iron'), true);
+
+    expect(countItem(h.state.home.station.inventory, oreKind('Iron'))).toBe(1);
+    expect(countItem(h.state.player.inventory, oreKind('Iron'))).toBe(5);
+  });
+
   it('takes a stack back out, held under the cargo limit', () => {
     const h = harness();
     park(h.state, 'manufacturer');

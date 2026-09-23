@@ -53,6 +53,8 @@ export interface UiCommands {
   closeExtractor(): void;
   /** Move everything that fits from the bay into the station stock. */
   stowAll(): void;
+  /** Move a stack (or one unit) of `kind` from the bay into the station stock. */
+  stowStack(kind: InventoryItemKind, single?: boolean): void;
   /** Take a stack (or one unit) of `kind` back out of the station stock. */
   takeFromStation(kind: InventoryItemKind, single?: boolean): void;
   /** Craft a recipe at the station, by table index or output kind. */
@@ -107,6 +109,7 @@ function noopCommands(): UiCommands {
     closeStation: noop,
     closeExtractor: noop,
     stowAll: noop,
+    stowStack: noop,
     takeFromStation: noop,
     craft: noop,
     loadCoal: noop,

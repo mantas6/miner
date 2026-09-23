@@ -67,12 +67,13 @@ export interface OpenGameSessionOptions {
  * A control the harness is allowed to click. Two forms:
  *
  *   string  `'shipBtn'` (an id, with or without a leading `#`), or an attribute
- *           control in `name=value` form — `'data-craft=drill'`. The
- *           two-attribute cargo control takes both values joined by a comma:
- *           `'data-cargo=take,ore:Iron'`.
+ *           control in `name=value` form — `'data-craft=upgrade:drill:1'`. The
+ *           two-attribute transfer controls take both values joined by a comma:
+ *           `'data-cargo=take,ore:Iron'`, `'data-station=stow-one,ore:Coal'`.
  *   object  `{target, value?, kind?}`: `target` names the allowlisted control,
  *           `value` supplies the attribute value it needs, and `kind` is the
- *           second value used only by the cargo control (`data-cargo-kind`).
+ *           second value used only by the transfer controls (`data-cargo-kind`
+ *           and `data-station-kind`).
  */
 export type ClickTarget = string | {target: string; value?: string; kind?: string};
 
@@ -131,17 +132,32 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'introStartBtn'
 ]);
 
-/** Attribute controls, each needing a value (`data-cargo` needs a value and a kind). */
+/** Attribute controls, each needing a value (some need a value and a kind). */
 const ATTR_TARGETS: ReadonlySet<string> = new Set([
-  'data-ship-equip', 'data-ship-unequip', 'data-station-take', 'data-craft', 'data-info-section', 'data-cargo'
+  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-info-section', 'data-cargo', 'data-station'
 ]);
+
+/**
+ * The transfer controls that carry two attributes: an action `value` and a stack
+ * `kind`. `data-cargo` → `data-cargo-action`/`data-cargo-kind`, `data-station` →
+ * `data-station`/`data-station-kind`. Their `value,kind` string form joins the two
+ * with a comma.
+ */
+const KIND_TARGETS: ReadonlySet<string> = new Set(['data-cargo', 'data-station']);
+
+/** The two attribute names a two-value transfer control resolves to. */
+function kindTargetAttrs(name: string): {action: string; kind: string} {
+  // `data-cargo` addresses its action through `data-cargo-action`; `data-station`
+  // through the bare `data-station` attribute. Both name the kind with `-kind`.
+  return {action: name === 'data-cargo' ? 'data-cargo-action' : name, kind: `${name}-kind`};
+}
 
 /** A human-readable roster of everything `click` accepts, for the refusal message. */
 function allowedTargetsDescription(): string {
   return [
     `ids: ${[...ID_TARGETS].join(' ')}`,
-    `attributes (need a value): ${[...ATTR_TARGETS].filter(a => a !== 'data-cargo').join(' ')}`,
-    'cargo (needs value=action and kind): data-cargo (e.g. data-cargo=take,ore:Iron)'
+    `attributes (need a value): ${[...ATTR_TARGETS].filter(a => !KIND_TARGETS.has(a)).join(' ')}`,
+    'transfers (need value=action and kind): data-cargo (e.g. data-cargo=take,ore:Iron), data-station (e.g. data-station=stow-one,ore:Coal)'
   ].join('; ');
 }
 
@@ -151,7 +167,7 @@ function parseTarget(target: ClickTarget): {target: string; value?: string; kind
   if (eq === -1) return {target: target.startsWith('#') ? target.slice(1) : target};
   const name = target.slice(0, eq);
   const rest = target.slice(eq + 1);
-  if (name === 'data-cargo') {
+  if (KIND_TARGETS.has(name)) {
     const comma = rest.indexOf(',');
     if (comma === -1) return {target: name, value: rest};
     return {target: name, value: rest.slice(0, comma), kind: rest.slice(comma + 1)};
@@ -169,9 +185,10 @@ function selectorForTarget(target: ClickTarget): string {
     return name.includes(':') ? `[id="${name}"]` : `#${name}`;
   }
   if (ATTR_TARGETS.has(name)) {
-    if (name === 'data-cargo') {
-      if (!value || !kind) throw new Error('Control "data-cargo" needs both a value (action) and a kind.');
-      return `[data-cargo-action="${value}"][data-cargo-kind="${kind}"]`;
+    if (KIND_TARGETS.has(name)) {
+      if (!value || !kind) throw new Error(`Control "${name}" needs both a value (action) and a kind.`);
+      const attrs = kindTargetAttrs(name);
+      return `[${attrs.action}="${value}"][${attrs.kind}="${kind}"]`;
     }
     if (value === undefined) throw new Error(`Control "${name}" needs a value.`);
     return `[${name}="${value}"]`;

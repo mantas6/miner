@@ -94,7 +94,7 @@ test.describe('gameplay', () => {
   test('a scanner crafted at the manufacturing station is taken aboard', async ({page}) => {
     await page.addInitScript(() => {
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 16,
+        version: 17,
         x: 43,
         y: 20,
         home: {station: [{kind: 'ore:Copper', count: 2}, {kind: 'ore:Silver', count: 1}]}
@@ -106,16 +106,16 @@ test.describe('gameplay', () => {
     // recipe's ore.
     await page.keyboard.press(' ');
     await expect(page.locator('#station-screen')).toBeVisible();
-    await expect(page.locator('[data-station-take="ore:Copper"]')).toBeVisible();
+    await expect(page.locator('[data-station="take"][data-station-kind="ore:Copper"]')).toBeVisible();
 
     // Crafting the scanner consumes the ore and lands the device in the stock.
     await page.locator('[data-craft="scanner"]').click();
-    await expect(page.locator('[data-station-take="scanner"]')).toBeVisible();
-    await expect(page.locator('[data-station-take="ore:Copper"]')).toHaveCount(0);
+    await expect(page.locator('[data-station="take"][data-station-kind="scanner"]')).toBeVisible();
+    await expect(page.locator('[data-station="take"][data-station-kind="ore:Copper"]')).toHaveCount(0);
 
     // Take it aboard and close the station: it shows up in the cargo bay as its
     // own armable slot, counting toward the bay's capacity.
-    await page.locator('[data-station-take="scanner"]').click();
+    await page.locator('[data-station="take"][data-station-kind="scanner"]').click();
     await page.keyboard.press('Escape');
     await expect(page.locator('#station-screen')).toBeHidden();
 
@@ -151,7 +151,7 @@ test.describe('gameplay', () => {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 16,
+        version: 17,
         bay: [{kind: 'scanner', count: 1}],
         explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
         tiles
@@ -192,7 +192,7 @@ test.describe('gameplay', () => {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 16,
+        version: 17,
         bay: [{kind: 'dynamite', count: 2}],
         explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
         tiles

@@ -56,15 +56,25 @@ describe('manufacturing station dialog', () => {
     expect(bay[0].textContent).toContain('×2');
   });
 
-  it('routes Take, Stow all, and Craft to their commands', () => {
+  it('routes Take/Stow, their single-unit "1" buttons, Stow all, and Craft to their commands', () => {
     const takeFromStation = vi.fn();
+    const stowStack = vi.fn();
     const stowAll = vi.fn();
     const craft = vi.fn();
-    setUiCommands({takeFromStation, stowAll, craft});
+    setUiCommands({takeFromStation, stowStack, stowAll, craft});
     open();
 
-    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-station-take="ore:Iron"]')!);
+    // The station's Iron stack takes a whole stack, or one, aboard.
+    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-station="take"][data-station-kind="ore:Iron"]')!);
     expect(takeFromStation).toHaveBeenCalledWith('ore:Iron', false);
+    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-station="take-one"][data-station-kind="ore:Iron"]')!);
+    expect(takeFromStation).toHaveBeenCalledWith('ore:Iron', true);
+
+    // The bay's Coal stack stows a whole stack, or one, into the station.
+    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-station="stow"][data-station-kind="ore:Coal"]')!);
+    expect(stowStack).toHaveBeenCalledWith('ore:Coal', false);
+    fireEvent.click(document.querySelector<HTMLButtonElement>('[data-station="stow-one"][data-station-kind="ore:Coal"]')!);
+    expect(stowStack).toHaveBeenCalledWith('ore:Coal', true);
 
     fireEvent.click(document.getElementById('stowAllBtn')!);
     expect(stowAll).toHaveBeenCalledOnce();

@@ -1,10 +1,12 @@
 // The manufacturing station screen.
 //
 // Two halves. On top, the transfer: the ship's bay beside the station's own
-// stock, with a "Stow all" that empties what fits of the bay into the station and a
-// Take on every station stack that pulls it back aboard. Below, the recipes: one
-// row each, its inputs listed, a Craft button that is live only while the station
-// holds the materials and names what is missing when it does not.
+// stock. Every bay stack carries a Stow and a "1" button that push the whole stack
+// or a single unit into the station; a "Stow all" empties what fits of the bay in
+// one press. Every station stack carries a Take and a "1" that pull the whole
+// stack or a single unit back aboard. Below, the recipes: one row each, its inputs
+// listed, a Craft button that is live only while the station holds the materials
+// and names what is missing when it does not.
 //
 // Everything is painted from the store and is live: the station stock and the bay
 // are snapshots the game pushes on open and after every change, so the screen
@@ -91,39 +93,21 @@ function StationCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}
                 <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>
               )}
               {baySlots.map(slot => (
-                <li key={slot.index}>
-                  <div className={styles.slot}>
-                    <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
-                    <span className={styles.label}>{slot.label}</span>
-                    <span className={styles.count}>×{slot.count}</span>
-                  </div>
-                </li>
+                <TransferRow key={slot.index} slot={slot} action="stow" />
               ))}
             </ul>
           </div>
           <div className={styles.column}>
             <div className={styles.columnHeading}>
               <h3>Station Stock</h3>
-              <span>Press Take to pull a stack aboard.</span>
+              <span>Take a stack, or 1, aboard.</span>
             </div>
             <ul id="stationStock" className={styles.slots}>
               {stationSlots.length === 0 && (
                 <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>
               )}
               {stationSlots.map(slot => (
-                <li key={slot.index}>
-                  <div className={styles.slot}>
-                    <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
-                    <span className={styles.label}>{slot.label}</span>
-                    <span className={styles.count}>×{slot.count}</span>
-                    <button
-                      type="button"
-                      className={styles.action}
-                      data-station-take={slot.kind}
-                      onClick={event => uiCommands.takeFromStation(slot.kind, event.ctrlKey || event.metaKey)}
-                    >Take</button>
-                  </div>
-                </li>
+                <TransferRow key={slot.index} slot={slot} action="take" />
               ))}
             </ul>
           </div>
@@ -141,6 +125,39 @@ function StationCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * One transfer stack — a bay stack that stows into the station, or a station stack
+ * that comes back aboard. Either way it is a whole-stack button beside a "1" that
+ * moves a single unit, both routed to the same command with the `single` flag.
+ */
+function TransferRow({slot, action}: {slot: InventorySlotView; action: 'stow' | 'take'}) {
+  const move = action === 'stow' ? uiCommands.stowStack : uiCommands.takeFromStation;
+  return (
+    <li>
+      <div className={styles.slot}>
+        <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
+        <span className={styles.label}>{slot.label}</span>
+        <span className={styles.count}>×{slot.count}</span>
+        <button
+          type="button"
+          className={styles.action}
+          data-station={action}
+          data-station-kind={slot.kind}
+          onClick={() => move(slot.kind, false)}
+        >{action === 'stow' ? 'Stow' : 'Take'}</button>
+        <button
+          type="button"
+          className={styles.action}
+          data-station={`${action}-one`}
+          data-station-kind={slot.kind}
+          aria-label={`${action === 'stow' ? 'Stow' : 'Take'} one ${slot.label}`}
+          onClick={() => move(slot.kind, true)}
+        >1</button>
+      </div>
+    </li>
   );
 }
 

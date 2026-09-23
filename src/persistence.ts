@@ -34,6 +34,11 @@ import type { GameState, GameStats } from './core/types';
 // `shared/world-schema.ts` tile entries that differ from the generated terrain
 // (see `src/world/tile-diff.ts`).
 //
+// Version 17 is another clean break under the same hard-gate policy: the generic
+// per-item transfer rework reshaped the transfer controls (not the save schema),
+// but rather than carry a migration for a shape that is otherwise unchanged, any
+// save older than 17 is discarded on load and a returning player starts fresh.
+//
 // Version 16 is a clean break. Sinking the home cavern deeper (`HOME_ROW` 10 -> 20,
 // with a band of unreachable terrain above it) shifted every absolute world
 // coordinate a save records — the parked ship, the explored fog, the tile diff,
@@ -80,7 +85,7 @@ interface SavedProgress {
 }
 
 export const SAVE_KEY = 'moleload-progress-v1';
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 /** A stored stack is a count, not a licence to write an unbounded number. */
 const MAX_SAVED_STACK = 9999;
 

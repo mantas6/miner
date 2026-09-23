@@ -99,6 +99,13 @@
 }
 .slots li {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+}
+/* The "Empty" placeholder is the whole row, with no "1" button beside it. */
+.slots li.empty {
+  display: block;
 }
 /* An empty slot is still a slot, so it keeps its box and loses only its contents. */
 .empty {
@@ -151,13 +158,23 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A quiet one-liner for the Ctrl-click shortcut: present for those who look for
-   it, never loud enough to compete with the stacks themselves. */
-.tip {
-  margin: 12px 0 0;
-  color: var(--muted);
-  font-size: var(--fs-2xs);
-  text-align: center;
+/* The single-unit split, beside its stack: the same box, sized to the digit it
+   holds, so it reads as part of the row rather than a control of its own. */
+.one {
+  flex: none;
+  min-width: 34px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  color: #cfe0fb;
+  font: inherit;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.one:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .note {

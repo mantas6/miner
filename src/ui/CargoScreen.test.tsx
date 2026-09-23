@@ -34,6 +34,10 @@ function stack(action: 'store' | 'take', kind: string): HTMLButtonElement {
   return document.querySelector<HTMLButtonElement>(`[data-cargo-action="${action}"][data-cargo-kind="${kind}"]`)!;
 }
 
+function oneButton(action: 'store' | 'take', kind: string): HTMLButtonElement {
+  return document.querySelector<HTMLButtonElement>(`[data-cargo-action="${action}-one"][data-cargo-kind="${kind}"]`)!;
+}
+
 beforeEach(() => {
   uiStore.setState(pristine);
   uiStore.getState().clearToasts();
@@ -89,16 +93,16 @@ describe('cargo transfer dialog', () => {
     expect(takeFromContainer).toHaveBeenCalledWith('ore:Copper', false);
   });
 
-  it('asks for a single unit when the press is held with Ctrl or ⌘', () => {
+  it('moves a single unit from the per-row "1" button', () => {
     const storeInContainer = vi.fn();
     const takeFromContainer = vi.fn();
     setUiCommands({storeInContainer, takeFromContainer});
     open();
 
-    fireEvent.click(stack('store', 'dynamite'), {ctrlKey: true});
+    fireEvent.click(oneButton('store', 'dynamite'));
     expect(storeInContainer).toHaveBeenCalledWith('dynamite', true);
 
-    fireEvent.click(stack('take', 'ore:Copper'), {metaKey: true});
+    fireEvent.click(oneButton('take', 'ore:Copper'));
     expect(takeFromContainer).toHaveBeenCalledWith('ore:Copper', true);
   });
 

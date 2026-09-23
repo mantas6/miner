@@ -16,12 +16,22 @@ import { openGameSession, type GameSession } from '../agent/session';
 /** The port the Playwright config's webServer serves the game on. */
 const PORT = 5199;
 
-/** Seed a solo save with a soft dirt tile directly under the spawn (45, 21). */
+/**
+ * Seed a solo save with a soft dirt tile directly under the spawn (45, 21), and a
+ * few coal in the manufacturing station's stock so the transfer controls have
+ * something to move.
+ */
 function seedDirtUnderHome(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 16,
-    tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}]
+    version: 17,
+    tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}],
+    home: {station: [{kind: 'ore:Coal', count: 3}]}
   }));
+}
+
+/** Units of `kind` in a slot list, or 0 when none. */
+function countKind(slots: {kind: string; count: number}[], kind: string): number {
+  return slots.find(slot => slot.kind === kind)?.count ?? 0;
 }
 
 test.describe.serial('agent harness', () => {
@@ -66,6 +76,27 @@ test.describe.serial('agent harness', () => {
       // The station mirror is only present while the screen is open.
       expect(Array.isArray(observation.overlay.recipes)).toBe(true);
     }
+  });
+
+  test('single-unit transfer controls move one item between station and bay', async () => {
+    // The station Space opened is the manufacturer; its stock holds the seeded coal.
+    const opened = await session.observe();
+    expect(opened.overlay?.kind).toBe('station');
+    if (opened.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(opened.overlay.stock, 'ore:Coal')).toBe(3);
+    expect(countKind(opened.overlay.bay, 'ore:Coal')).toBe(0);
+
+    // Take one coal aboard: the stock drops by one and the bay gains one.
+    const took = await session.click({target: 'data-station', value: 'take-one', kind: 'ore:Coal'});
+    if (took.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(took.overlay.stock, 'ore:Coal')).toBe(2);
+    expect(countKind(took.overlay.bay, 'ore:Coal')).toBe(1);
+
+    // Stow that one unit back: the deltas reverse exactly.
+    const stowed = await session.click({target: 'data-station', value: 'stow-one', kind: 'ore:Coal'});
+    if (stowed.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(stowed.overlay.stock, 'ore:Coal')).toBe(3);
+    expect(countKind(stowed.overlay.bay, 'ore:Coal')).toBe(0);
   });
 
   test('holding ArrowDown burns fuel and moves the view down', async () => {

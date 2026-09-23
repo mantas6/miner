@@ -32,6 +32,7 @@ import {
   stationAt,
   isStationReachable,
   stowAll as stowAllHome,
+  stowStack as stowStackHome,
   takeFromStation,
   tickExtractor,
   type StationKey
@@ -58,6 +59,8 @@ export interface HomeStationsSim {
   close(): void;
   /** Move everything that fits from the bay into the station stock. */
   stowAll(): void;
+  /** Move a stack (or one unit) of `kind` from the bay into the station stock. */
+  stow(kind: InventoryItemKind, single?: boolean): void;
   /** Take a stack (or one unit) of `kind` back out of the station stock. */
   take(kind: InventoryItemKind, single?: boolean): void;
   /** Craft a recipe, by table index or by output kind, at the station. */
@@ -155,6 +158,23 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     saveProgress();
     audio.blip(420, .06, 'triangle', .035);
     toast('Stowed cargo at the station.');
+  }
+
+  function stow(kind: InventoryItemKind, single = false): void {
+    if (open !== 'manufacturer' || state.gameOver) return;
+    const {bay, station, moved} = stowStackHome(
+      state.player.inventory, stock(), kind, single ? 1 : Infinity
+    );
+    if (moved <= 0) {
+      audio.alarm();
+      return toast('Nothing to stow, or the station stock is full.');
+    }
+    state.player.inventory = bay;
+    setStock(station);
+    repaint();
+    saveProgress();
+    audio.blip(420, .06, 'triangle', .035);
+    toast(`Stowed ${moved} × ${itemForKind(kind).label} at the station.`);
   }
 
   function take(kind: InventoryItemKind, single = false): void {
@@ -268,6 +288,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     openAt,
     close,
     stowAll,
+    stow,
     take,
     craft,
     loadCoal,

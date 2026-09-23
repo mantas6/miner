@@ -241,6 +241,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeStation: () => homeStations.close(),
       closeExtractor: () => homeStations.close(),
       stowAll: () => homeStations.stowAll(),
+      stowStack: (kind, single) => homeStations.stow(kind, single),
       takeFromStation: (kind, single) => homeStations.take(kind, single),
       craft: recipe => homeStations.craft(recipe),
       loadCoal: () => homeStations.loadCoal(),
