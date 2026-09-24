@@ -4,7 +4,7 @@
     "miner": {
       "type": "local",
       "command": ["npx", "tsx", "agent/mcp-server.ts"],
-      "enabled": true
+      "enabled": false
     }
   }
 }
