@@ -338,7 +338,11 @@ reads 0 m at home. Three stations are seeded on the cavern floor — the Manufac
 Station, the Fuel Extractor, and a Portal named `Home` — fly onto or beside one and
 press `Space` (or click its tile) to open it. They are placed entities, not
 fixed world objects, so they can be crafted, carried and set down elsewhere too
-(see "Crafting & ship equipment").
+(see "Crafting & ship equipment"). The cavern floor is paved with Stone Blocks, and
+two Lenin Portraits hang high in its upper corners (`HOME_PORTRAITS` in
+`src/world/world.ts`). Like the cavern's air they are derived from the coordinate
+rather than saved; drilling one out writes air to the tile diff and returns the
+decoration to the bay.
 
 - **Manufacturing Station.** Stow cargo here (its stock holds up to 500 items),
   take stacks back aboard, and craft. Crafting consumes from the station stock and
@@ -364,6 +368,7 @@ fixed world objects, so they can be crafted, carried and set down elsewhere too
   | Stone Block ×2 (decor) | 1 Coal |
   | Copper Trim (decor) | 2 Copper |
   | Lamp Panel (decor) | 1 Copper + 1 Coal |
+  | Lenin Portrait (decor) | 1 Iron + 1 Copper |
 
 - **Fuel Extractor.** Fuel comes from coal now, not a pump. Load coal here and it
   converts on the simulation's own clock — 1 coal → 20 fuel every 180 ticks (~3 s),
@@ -428,7 +433,7 @@ open it.
   picking a destination spends one teleporter and jumps the ship straight to that
   portal. There is no depth gate and no return trip — the charge is the fare for the
   jump, and travel between built portals is otherwise free.
-- **Decorations** — Steel Plate, Copper Trim, Lamp Panel — are crafted panels set
+- **Decorations** — Steel Plate, Copper Trim, Lamp Panel, Lenin Portrait — are crafted panels set
   down as solid tiles from their inventory slot onto explored, cleared ground
   (never on a station tile). Drilling one back out returns the panel to the bay;
   a blast destroys it outright.

@@ -17,7 +17,7 @@ import {
 const NON_ORE_KINDS: NonOreKind[] = [
   'dynamite', 'scanner', 'teleporter', 'container', 'repairKit',
   'device:manufacturer', 'device:extractor', 'device:portal', 'toolkit',
-  'decor:steelPlate', 'decor:stoneBlock', 'decor:copperTrim', 'decor:lampPanel',
+  'decor:steelPlate', 'decor:stoneBlock', 'decor:copperTrim', 'decor:lampPanel', 'decor:leninPortrait',
   'upgrade:tank:1', 'upgrade:tank:2', 'upgrade:tank:3',
   'upgrade:cargo:1', 'upgrade:cargo:2', 'upgrade:cargo:3',
   'upgrade:drill:1', 'upgrade:drill:2', 'upgrade:drill:3',
@@ -56,6 +56,8 @@ describe('the item catalog', () => {
     expect(ITEM_CATALOG['decor:stoneBlock'].label).toBe('Stone Block');
     expect(ITEM_CATALOG['decor:copperTrim'].label).toBe('Copper Trim');
     expect(ITEM_CATALOG['decor:lampPanel'].label).toBe('Lamp Panel');
+    expect(ITEM_CATALOG['decor:leninPortrait'].label).toBe('Lenin Portrait');
+    expect(ITEM_CATALOG['decor:leninPortrait'].color).toBe('#c8302a');
     expect(ITEM_CATALOG.repairKit.label).toBe('Repair Kit');
   });
 });

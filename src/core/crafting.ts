@@ -76,7 +76,8 @@ export const RECIPES: Recipe[] = [
   {output: 'decor:steelPlate', count: 1, inputs: [ore('Iron', 2)]},
   {output: 'decor:stoneBlock', count: 2, inputs: [ore('Coal', 1)]},
   {output: 'decor:copperTrim', count: 1, inputs: [ore('Copper', 2)]},
-  {output: 'decor:lampPanel', count: 1, inputs: [ore('Copper', 1), ore('Coal', 1)]}
+  {output: 'decor:lampPanel', count: 1, inputs: [ore('Copper', 1), ore('Coal', 1)]},
+  {output: 'decor:leninPortrait', count: 1, inputs: [ore('Iron', 1), ore('Copper', 1)]}
 ];
 
 /** Whether the station stock holds every input a recipe needs. */

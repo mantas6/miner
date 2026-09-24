@@ -1,6 +1,6 @@
 // Pure deterministic world generation. DOM-free / testable.
 // No imports from dom.js, game.js, or balance.js.
-import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
+import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
 import { enemyHealth, enemyKindForDepthRoll } from '../core/enemy-types';
 
@@ -112,13 +112,31 @@ export function oreForDepthRoll(depth: number, roll: number) {
   return eligible.at(-1) || null;
 }
 
+/**
+ * The two Lenin Portraits hung high in the home cavern's upper corners — its
+ * leftmost and rightmost tiles on the ceiling row. Deterministic decor like the
+ * stone floor: not stored in the diff, and drilled out for the item as usual.
+ */
+export const HOME_PORTRAITS: readonly {readonly x: number; readonly y: number}[] = Object.freeze([
+  Object.freeze({x: HOME_X - HOME_CAVERN.halfWidth, y: HOME_CAVERN_TOP}),
+  Object.freeze({x: HOME_X + HOME_CAVERN.halfWidth, y: HOME_CAVERN_TOP})
+]);
+
+/** Whether a coordinate is one of the home cavern's two hung portraits. */
+export function homePortraitAt(x: number, y: number): boolean {
+  return HOME_PORTRAITS.some(p => p.x === x && p.y === y);
+}
+
 /** Generate the tile at a world coordinate. Deterministic for a given (x,y). */
 export function makeTile(x: number, y: number): Tile {
   // An indestructible bedrock cap seals the top of the world. Below it, the rows
   // between the cap and the cavern ceiling generate as ordinary terrain: they are
   // unreachable (upward digging is blocked), so they stay a fogged dark band.
   if (y < BEDROCK_ROWS) return {type:'rock', hp:999};
-  // The home cavern is deterministic air, never stored in the tile diff.
+  // Two Lenin Portraits hang in the cavern's upper corners: deterministic decor
+  // the player can drill out, checked before the cavern's air.
+  if (homePortraitAt(x, y)) return {type:'decor', decor:'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP};
+  // The rest of the home cavern is deterministic air, never stored in the tile diff.
   if (isHomeCavern(x, y)) return {type:'air'};
   // The cavern floor is a stone-paved base: deterministic decor tiles the player
   // can drill out (~5 s) for Stone Blocks. Like the cavern it is not stored in the

@@ -30,6 +30,7 @@ describe('tiles', () => {
     // defaults to DECOR_HP so the whole payload still validates.
     expect(parseTile({ type: 'decor', decor: 'lampPanel' })).toEqual({ type: 'decor', decor: 'lampPanel', hp: DECOR_HP, maxHp: DECOR_HP });
     expect(parseTile({ type: 'decor', decor: 'steelPlate', hp: 12, maxHp: DECOR_HP })).toEqual({ type: 'decor', decor: 'steelPlate', hp: 12, maxHp: DECOR_HP });
+    expect(parseTile({ type: 'decor', decor: 'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP })).toEqual({ type: 'decor', decor: 'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP });
     expect(parseTile({ type: 'decor', decor: 'gilded' })).toBeNull();
     expect(parseTile({ type: 'decor' })).toBeNull();
   });

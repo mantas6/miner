@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  HOME_PORTRAITS,
   TRADING_POST_CHUNK,
   TRADING_POST_MIN_ROW,
   ensureWorldRow,
+  homePortraitAt,
   rand,
   naturalAirPocket,
   makeTile,
@@ -212,16 +214,34 @@ describe('makeTile', () => {
     }
   });
 
-  it('carves a deterministic air cavern for the home base', () => {
+  it('carves a deterministic air cavern for the home base, bar its two portraits', () => {
     const cavern: Tile[] = [];
     for (let y = HOME_CAVERN_TOP; y <= HOME_ROW; y++) {
       for (let x = 0; x < WORLD_W; x++) {
-        if (isHomeCavern(x, y)) cavern.push(makeTile(x, y));
+        if (isHomeCavern(x, y) && !homePortraitAt(x, y)) cavern.push(makeTile(x, y));
       }
     }
 
     expect(cavern.length).toBeGreaterThan(0);
     expect(cavern.every(tile => tile.type === 'air')).toBe(true);
+  });
+
+  it('hangs a Lenin Portrait in each of the cavern\'s upper corners', () => {
+    const left = {x: HOME_X - HOME_CAVERN.halfWidth, y: HOME_CAVERN_TOP};
+    const right = {x: HOME_X + HOME_CAVERN.halfWidth, y: HOME_CAVERN_TOP};
+    expect(HOME_PORTRAITS).toEqual([left, right]);
+    expect(left).toEqual({x: 39, y: 18});
+    expect(right).toEqual({x: 51, y: 18});
+    for (const {x, y} of HOME_PORTRAITS) {
+      expect(isHomeCavern(x, y)).toBe(true);
+      expect(makeTile(x, y)).toEqual({type: 'decor', decor: 'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP});
+    }
+    // Only the two corners: their neighbours along the ceiling and below stay air.
+    expect(makeTile(left.x + 1, left.y)).toEqual({type: 'air'});
+    expect(makeTile(left.x, left.y + 1)).toEqual({type: 'air'});
+    expect(makeTile(right.x - 1, right.y)).toEqual({type: 'air'});
+    expect(makeTile(right.x, right.y + 1)).toEqual({type: 'air'});
+    expect(homePortraitAt(HOME_X, HOME_CAVERN_TOP)).toBe(false);
   });
 
   it('paves the cavern floor with stone blocks', () => {

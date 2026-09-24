@@ -55,7 +55,7 @@ export const oreSchema = z.object({
 });
 
 /** The craftable decoration tiles the player can set down in the mine. */
-export const decorIdSchema = z.enum(['steelPlate', 'stoneBlock', 'copperTrim', 'lampPanel']);
+export const decorIdSchema = z.enum(['steelPlate', 'stoneBlock', 'copperTrim', 'lampPanel', 'leninPortrait']);
 
 export const airTileSchema = z.object({ type: z.literal('air') });
 export const dirtTileSchema = z.object({ type: z.literal('dirt'), hp, maxHp });

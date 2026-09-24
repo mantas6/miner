@@ -74,7 +74,8 @@ const DECOR_ITEMS: Record<DecorKind, InventoryItem> = {
   'decor:steelPlate': {kind: 'decor:steelPlate', label: 'Steel Plate', color: '#8fa2b5', value: 0},
   'decor:stoneBlock': {kind: 'decor:stoneBlock', label: 'Stone Block', color: '#7d7a72', value: 0},
   'decor:copperTrim': {kind: 'decor:copperTrim', label: 'Copper Trim', color: '#c47b45', value: 0},
-  'decor:lampPanel': {kind: 'decor:lampPanel', label: 'Lamp Panel', color: '#ffdf7a', value: 0}
+  'decor:lampPanel': {kind: 'decor:lampPanel', label: 'Lamp Panel', color: '#ffdf7a', value: 0},
+  'decor:leninPortrait': {kind: 'decor:leninPortrait', label: 'Lenin Portrait', color: '#c8302a', value: 0}
 };
 
 /**

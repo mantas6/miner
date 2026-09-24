@@ -880,12 +880,13 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     }
   }
   /**
-   * A placed decoration: a flat panel, one of four looks. Steel is a riveted grey
-   * plate, stone a grey-brown masonry slab, copper trim a warm bordered panel, and
-   * the lamp panel a dark plate with a glowing strip. Deliberately simple and static
+   * A placed decoration: a flat panel, one of five looks. Steel is a riveted grey
+   * plate, stone a grey-brown masonry slab, copper trim a warm bordered panel, the
+   * lamp panel a dark plate with a glowing strip, and the Lenin portrait a gilt-framed
+   * red canvas with a stylised bald, goateed head. Deliberately simple and static
    * — no `state.tick` — so it caches with the terrain like every other tile.
    */
-  function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel', sx: number, sy: number) {
+  function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel' | 'leninPortrait', sx: number, sy: number) {
     const x = sx + TILE*.10, y = sy + TILE*.10, w = TILE*.80, h = TILE*.80;
     if (decor === 'steelPlate') {
       ctx.fillStyle = '#8fa2b5'; ctx.fillRect(x, y, w, h);
@@ -916,6 +917,20 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       ctx.strokeStyle = '#c47b45'; ctx.lineWidth = TILE*.08;
       ctx.strokeRect(x + TILE*.05, y + TILE*.05, w - TILE*.10, h - TILE*.10);
       ctx.fillStyle = 'rgba(255,208,150,.35)'; ctx.fillRect(x + TILE*.14, y + TILE*.14, w - TILE*.28, TILE*.08);
+      return;
+    }
+    if (decor === 'leninPortrait') {
+      // A deep red canvas: dark jacket and collar at the bottom, a pale bald dome of
+      // a head, a dark moustache and goatee, all inside a gilt frame.
+      ctx.fillStyle = '#8e1c18'; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#26221f'; ctx.fillRect(x + w*.22, y + h*.70, w*.56, h*.22);
+      ctx.fillStyle = '#e8d3b4';
+      ctx.beginPath(); ctx.ellipse(x + w*.5, y + h*.42, w*.17, h*.22, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3a2a1e';
+      ctx.fillRect(x + w*.41, y + h*.51, w*.18, h*.04);
+      ctx.fillRect(x + w*.45, y + h*.55, w*.10, h*.10);
+      ctx.strokeStyle = '#d9a441'; ctx.lineWidth = TILE*.08;
+      ctx.strokeRect(x + TILE*.04, y + TILE*.04, w - TILE*.08, h - TILE*.08);
       return;
     }
     // lampPanel: a dark plate with a warm glowing strip down its middle.
