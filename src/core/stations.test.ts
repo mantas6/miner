@@ -47,7 +47,10 @@ describe('the seeded stations', () => {
     const stations = createInitialStations();
     expect(stations).toHaveLength(3);
     expect(stationAt(stations, STATIONS.manufacturer.x, STATIONS.manufacturer.y)?.kind).toBe('manufacturer');
-    expect(stationAt(stations, STATIONS.extractor.x, STATIONS.extractor.y)?.kind).toBe('extractor');
+    const seededExtractor = stationAt(stations, STATIONS.extractor.x, STATIONS.extractor.y);
+    expect(seededExtractor?.kind).toBe('extractor');
+    // A new game's extractor starts with a full fuel tank.
+    expect(seededExtractor?.kind === 'extractor' && seededExtractor.fuel).toBe(EXTRACTOR.fuelCap);
     const portal = stationAt(stations, STATIONS.portal.x, STATIONS.portal.y);
     expect(portal?.kind).toBe('portal');
     expect(portal?.kind === 'portal' && portal.name).toBe('Home');

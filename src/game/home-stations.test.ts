@@ -84,6 +84,7 @@ describe('opening the stations', () => {
   it('opens the extractor when the ship is parked beside it', () => {
     const h = harness();
     park(h.state, 'extractor');
+    extractor(h.state).fuel = 0;
 
     expect(h.sim.openNearest()).toBe(true);
     expect(h.sim.openStation?.kind).toBe('extractor');
@@ -246,6 +247,7 @@ describe('the fuel extractor transfers', () => {
   it('loads every coal aboard into the extractor', () => {
     const h = harness();
     park(h.state, 'extractor');
+    extractor(h.state).fuel = 0;
     h.state.player.inventory = addItem(createInventory(), itemForKind(oreKind('Coal')), 7);
     h.sim.openNearest();
 
@@ -272,6 +274,7 @@ describe('the fuel extractor transfers', () => {
   it('refuses with an empty extractor (`No fuel stored`)', () => {
     const h = harness();
     park(h.state, 'extractor');
+    extractor(h.state).fuel = 0;
     h.state.player.fuel = h.state.player.fuelMax - 30;
     h.sim.openNearest();
 

@@ -127,9 +127,14 @@ export function createPortal(x: number, y: number, name: string): PortalStation 
  * extractor at their old positions, plus the base's `Home` portal.
  */
 export function createInitialStations(): PlacedStation[] {
+  const extractor = createExtractor(STATIONS.extractor.x, STATIONS.extractor.y);
+  // A new game's seeded extractor starts with a full fuel tank, so a returning
+  // player can top the ship up before their first dig. Crafted extractors still
+  // start empty.
+  extractor.fuel = EXTRACTOR.fuelCap;
   return [
     createManufacturer(STATIONS.manufacturer.x, STATIONS.manufacturer.y),
-    createExtractor(STATIONS.extractor.x, STATIONS.extractor.y),
+    extractor,
     createPortal(STATIONS.portal.x, STATIONS.portal.y, 'Home')
   ];
 }

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ORES } from '../../shared/constants';
+import { EXTRACTOR } from './balance';
 import { addItem, addOre, createInventory } from './inventory';
 import { confirmPlayerDataReset, resetPlayerData } from './player-data-reset';
 import { SAVE_KEY } from '../persistence';
@@ -61,7 +62,7 @@ describe('player-data reset', () => {
       cash: fresh.cash, bay: [], equipment: [null, null],
       stations: [
         {kind: 'manufacturer', items: []},
-        {kind: 'extractor', coal: 0, fuel: 0, progress: 0},
+        {kind: 'extractor', coal: 0, fuel: EXTRACTOR.fuelCap, progress: 0},
         {kind: 'portal', name: 'Home'}
       ],
       explored: '', stats: fresh.stats

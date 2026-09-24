@@ -8,6 +8,7 @@ import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { WRECK, createWreck } from './core/wreck';
 import { STATION_DEVICE, type PortalStation } from './core/stations';
+import { EXTRACTOR } from './core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
 import { TELEPORTER_ITEM } from './core/teleporter';
 import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, ORES, START_Y } from '../shared/constants';
@@ -282,7 +283,7 @@ describe('station persistence', () => {
     // Manufacturer, extractor, and the seeded Home portal.
     expect(state.stations).toHaveLength(3);
     expect(manufacturer(state)!.inventory).toHaveLength(0);
-    expect(extractor(state)).toMatchObject({coal: 0, fuel: 0, progress: 0});
+    expect(extractor(state)).toMatchObject({coal: 0, fuel: EXTRACTOR.fuelCap, progress: 0});
   });
 
   it('records an emptied mine as an empty station array, not the seeded default', () => {
