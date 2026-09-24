@@ -40,25 +40,12 @@ import type { GameState, GameStats } from './core/types';
 // `shared/world-schema.ts` tile entries that differ from the generated terrain
 // (see `src/world/tile-diff.ts`).
 //
-// Version 17 is another clean break under the same hard-gate policy: the generic
-// per-item transfer rework reshaped the transfer controls, and the stations became
-// placed entities — the old `home` block (one manufacturer stock, one extractor
-// buffer) is now a `stations` array, each entry a manufacturer or an extractor with
-// its own position. Rather than carry a migration, any save older than 17 is
-// discarded on load and a returning player starts fresh.
+// Breaking changes always deprecate the save rather than migrating it: when the
+// on-disk shape changes incompatibly, bump `SAVE_VERSION`, and the version gate in
+// `load` discards any save an older build wrote so a returning player starts fresh
+// (see AGENTS.md). There is deliberately no migration path.
 //
-// Version 16 is a clean break. Sinking the home cavern deeper (`HOME_ROW` 10 -> 20,
-// with a band of unreachable terrain above it) shifted every absolute world
-// coordinate a save records — the parked ship, the explored fog, the tile diff,
-// and every placed device — relative to the terrain that now regenerates around
-// them. A migration would have to translate all of them, and the exploration codec
-// even accepts the shallower rows now, so an old save would decode into a mine that
-// no longer matches. As with the v15 underground-home rework before it (which made
-// ship stats derived, folded the consumable counters into one `bay`, and gave the
-// home base persisted state), the honest option is to discard anything older on
-// load (see the version gate in `load`): a returning player simply starts fresh.
-//
-// The current (v17) shape's fields:
+// The current shape's fields:
 //   * `x`/`y`     — the tile the ship parked on.
 //   * `cash`      — the wallet.
 //   * `tiles`     — the solo world's tile diff, in the relay world format.
@@ -297,7 +284,7 @@ function parseStations(value: unknown): PlacedStation[] {
       const {coal, fuel, progress} = entry as {coal?: unknown; fuel?: unknown; progress?: unknown};
       station.coal = Math.floor(numeric(coal, 0, 0, MAX_SAVED_STACK));
       station.fuel = Math.floor(numeric(fuel, 0, 0, MAX_SAVED_STACK));
-      // Progress is optional: a save written before it was tracked simply resumes at 0.
+      // A missing or corrupt progress value clamps to 0 rather than throwing.
       station.progress = Math.floor(numeric(progress, 0, 0, EXTRACTOR.ticksPerCoal));
       stations.push(station);
     }
@@ -366,7 +353,7 @@ export function load(state: GameState): void {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const save: SavedProgress = JSON.parse(raw);
-    // Hard-gate policy: any save older than `SAVE_VERSION` is discarded rather than
+    // Deprecation gate: any save older than `SAVE_VERSION` is discarded, never
     // migrated, so the state keeps the pristine defaults `createInitialState` gave it.
     if (numeric(save.version, 0, 0) < SAVE_VERSION) return;
     const p = state.player;
