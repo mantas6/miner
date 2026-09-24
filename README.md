@@ -29,14 +29,15 @@ the ship (the ones in the bay survive). If the restored mine turns out to be sol
 tile (a capped save), the ship starts at the home base rather than buried,
 because the drill cannot dig upward.
 
-The save is version 17 and a clean break: every save written by an older build is
+The save is version 18 and a clean break: every save written by an older build is
 discarded on load rather than migrated, because the reworks changed the shape too
 much to convert honestly (the four ship stats became derived from fitted
 equipment, the item counters became one `bay` of stacks, and the stations became
 placed entities carrying their own state). A returning player from an older build
 starts fresh. What the save keeps: the parked tile, cash, the tile diff, explored
 tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the placed
-stations (each Manufacturing Station's stock and each Oil Extractor's coal/fuel),
+stations (each Manufacturing Station's stock, each Oil Extractor's coal/fuel, and
+each Portal's name),
 the drawn-down trading-post stock (`tradeLedger`), and the hardware left standing
 in the mine (scanners, dynamite, crates and wrecks with their contents). Ore
 aboard the ship is never saved — it is lost with the run.
@@ -129,9 +130,9 @@ miner-mp/
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station and Oil Extractor — with their reach, transfers and coal/fuel conversion (`stations.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Oil Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -142,7 +143,7 @@ miner-mp/
 | `soundtrack/tracks/__init__.py` | Generator-side registry: the `TRACKS` dict keyed by slug and `get_track()`. |
 | `soundtrack/render.py` | CLI that renders registered tracks into `public/assets/music/`. |
 | `public/assets/music/` | The shipped soundtrack assets (`golden-signal.mp3`, `golden-signal.ogg`) — build products of `soundtrack/render.py`, copied verbatim into `dist/` by Vite. |
-| `src/ui/` | React components — including the trading-post screen (`TradeScreen.tsx`) and the shared hover popup driven by the item-description registry (`Tooltip.tsx`) — the zustand UI store (`store.ts`), the command table the buttons dispatch into (`commands.ts`), the effect that owns the runtime's lifetime (`useGameRuntime.ts`), the boot/crash notices (`Failure.tsx`), and co-located CSS modules. |
+| `src/ui/` | React components — including the trading-post screen (`TradeScreen.tsx`), the portal travel/teleporter/respawn screen (`PortalScreen.tsx`) and the shared hover popup driven by the item-description registry (`Tooltip.tsx`) — the zustand UI store (`store.ts`), the command table the buttons dispatch into (`commands.ts`), the effect that owns the runtime's lifetime (`useGameRuntime.ts`), the boot/crash notices (`Failure.tsx`), and co-located CSS modules. |
 | `src/styles/base.css` | Design tokens plus element-level styling (`button`, `ul`, `kbd`, `meter`, `canvas`, `#shell`, `#game-panel`) and the app-wide `:focus-visible` ring. |
 | `src/styles/icons.css` | Global equipment sprite sheet (`icon-*`), addressed by name from the item catalog. |
 | `src/styles/intro-art.css` | Global intro badge art. |
@@ -260,6 +261,7 @@ zooming the camera with the wheel or a trackpad.
 | Zoom the camera (0.5x–2x, remembered) | — | Wheel scroll or trackpad pinch over the mine |
 | Open a station in reach (Manufacturing Station / Oil Extractor) | `Space` | Press the station tile on the mine |
 | Open a trading post in reach | `Space` | Press the post tile on the mine |
+| Open a portal in reach (its travel list of the other portals) | `Space` | Press the portal tile on the mine |
 | Ship equipment (fit/unfit upgrades) | — | Ship button |
 | Use a repair kit (patch the hull) | — | Repair Kit inventory slot |
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
@@ -272,11 +274,14 @@ zooming the camera with the wheel or a trackpad.
  | Move a stack between the crate and the bay | — | Press the stack in either column |
  | Salvage a wreck (its ore and fitted upgrades) | `C` | Press the wreck, then a stack or Loot all |
 | Cancel a placement | `Escape` | The armed slot again |
-| Teleporter round trip (100 m+, spends one carried teleporter) | `T` | Teleport button |
+| Open the portal list with a teleporter aboard (picking a destination spends one teleporter) | `T` | Teleport button |
+| Travel to a portal from the list | — | Press a portal row |
 | Cargo, stats and guides | — | Info / Cargo button |
+| Close the portal travel/teleporter list | `Space` or `Escape` | × button or the backdrop |
 | Close a dialog | `Escape` | × button or the backdrop |
 | Redeploy mid-run | `R`, then `R` again within 3.5 s | — |
 | Restart after game over | `R` | Click/tap outside the dialogs |
+| Choose where to redeploy (with two or more portals; the prompt cannot be dismissed) | — | Press a portal row |
 | Toggle sound | — | 🔊 button; a trusted pointer/touch gesture may auto-enable |
 | Reset world | — | Info / Cargo -> Settings -> cheats -> Reset World State |
 
@@ -326,8 +331,9 @@ zooming the camera with the wheel or a trackpad.
 
 The ship lives in a small deterministic cavern carved into the top of the mine;
 solid bedrock caps the world above it, so there is no surface and the depth meter
-reads 0 m at home. Two stations are seeded on the cavern floor — fly onto or beside
-one and press `Space` (or click its tile) to open it. They are placed entities, not
+reads 0 m at home. Three stations are seeded on the cavern floor — the Manufacturing
+Station, the Oil Extractor, and a Portal named `Home` — fly onto or beside one and
+press `Space` (or click its tile) to open it. They are placed entities, not
 fixed world objects, so they can be crafted, carried and set down elsewhere too
 (see "Crafting & ship equipment").
 
@@ -345,6 +351,7 @@ fixed world objects, so they can be crafted, carried and set down elsewhere too
   | Teleporter | 3 Silver + 2 Gold |
   | Manufacturing Station | 8 Iron + 4 Copper + 2 Silver |
   | Oil Extractor | 6 Iron + 4 Copper + 2 Coal |
+  | Portal | 3 Silver + 3 Gold + 2 Iron |
   | Construction Toolkit | 4 Iron + 2 Copper |
   | Fuel Tank / Cargo Hold / Drill / Hull Plating **Mk I** | 4 Iron + 2 Copper |
   | … **Mk II** | 3 Silver + 3 Gold |
@@ -361,6 +368,13 @@ fixed world objects, so they can be crafted, carried and set down elsewhere too
   conversion runs whether or not you are watching; parking on the extractor tile
   tops the tank up from the store on its own, and "Refuel ship" tops the tank up
   from the screen.
+
+- **Portal.** The `Home` portal is the near end of the travel network. Open it to
+  see the travel list of every other built portal — name, depth and distance — and
+  press a row to jump the ship there for free. Rename it from the text input in the
+  travel screen (up to 16 characters). It is also a respawn point: a lost ship can
+  redeploy here (see "Death and redeploying"). Portals are placed entities like the
+  other stations (see "Crafting & ship equipment").
 
 ### Trading posts
 
@@ -406,9 +420,11 @@ open it.
   their own inventory slot onto explored, cleared ground. A planted stick blows a
   2-tile radius five seconds later — long enough to get clear, and close enough to
   wreck a ship that did not.
-- Teleporters ride in the bay too, and are spent rather than placed: from 100 m or
-  deeper one takes the ship home and leaves a return point behind. The trip up
-  costs the item; the trip back is free.
+- Teleporters ride in the bay too, and are spent rather than placed: pressing `T`
+  with one aboard opens the portal list (the portals not already within reach), and
+  picking a destination spends one teleporter and jumps the ship straight to that
+  portal. There is no depth gate and no return trip — the charge is the fare for the
+  jump, and travel between built portals is otherwise free.
 - **Decorations** — Steel Plate, Copper Trim, Lamp Panel — are crafted panels set
   down as solid tiles from their inventory slot onto explored, cleared ground
   (never on a station tile). Drilling one back out returns the panel to the bay;
@@ -432,6 +448,16 @@ open it.
   is the durable counterpart: armed from its slot, a press on an *empty* station or
   container packs it back into the bay (it refuses a loaded one — empty it first —
   and refuses when the bay has no room). The toolkit is never used up.
+- **Portals** (`src/core/portal.ts`, `src/game/portals.ts`) are placeable stations
+  too: crafted, carried, and set down from the portal inventory slot exactly like a
+  Manufacturing Station or Oil Extractor. The base is seeded with one named `Home`,
+  and up to six portals may stand in the mine at once — the `Home` portal counts
+  toward that cap. A portal holds no stock, so it is always "empty" and the
+  Construction Toolkit can always lift it back aboard. Each carries a player-facing
+  name, renameable up to 16 characters from the travel screen. Open one (press its
+  tile, or `Space` alongside it) to see the travel list of every other built portal
+  and jump the ship there for free; a portal is also a respawn point for a lost ship
+  (see "Death and redeploying").
 - **Trading posts** (`src/core/trading.ts`, `src/game/trading.ts`) stand in cleared
   air pockets deep in the mine, derived from their coordinate in `src/world/world.ts`
   rather than stored. Open one to sell ore for cash at the ore table's value, or buy
@@ -471,6 +497,20 @@ open it.
   it is stored under `moleload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
   clamped back into the 0.5x–2x range on load, and survives a death, a fresh
   world, and a player-data reset.
+
+### Death and redeploying
+
+A lost ship — from a destroyed hull or a hand `R`-reset — drops its wreck, rebuilds
+the world, and redeploys a fresh ship. Where the replacement lands depends on how
+many portals are built (`restartGame` in `src/game/run.ts`, `respawnPortals` in
+`src/core/portal.ts`):
+
+- **No portals.** The ship redeploys in the home cavern, as it always has.
+- **Exactly one portal.** The ship redeploys at that portal, with no prompt.
+- **Two or more portals.** A portal overlay opens in respawn mode listing every
+  portal; it has no close button and ignores `Escape`/`Space`, so the run cannot
+  continue until a destination is chosen. Picking one drops the wreck, rebuilds the
+  world, and spawns the ship at that portal with a full tank and whole hull.
 
 ## Soundtrack
 
@@ -619,9 +659,10 @@ only to stderr (stdout is the MCP transport).
 | `observe` | `radius?` (int, default 7) | Return the current observation without changing the world. |
 | `start_run` | — | Start the run from the title splash (presses Enter, waits for the HUD). |
 | `press` | `key` (string) | One key press, e.g. `ArrowDown`, `w`, `Space`, `e`, `t`, `c`, `Escape`. |
+| `type` | `text` (string) | Type text into the focused input (e.g. after clicking `portalNameInput`), then return the observation. |
 | `hold` | `key` (string), `ms` (int), `shift?` (bool) | Hold a key for `ms` wall-clock (the sim runs during the hold); `shift` sprints if a Booster is fitted. |
 | `click` | `target` (string), `value?` (string), `kind?` (string) | Click one allowlisted UI control (below). |
-| `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station or trading post. |
+| `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station, portal or trading post. |
 | `wait` | `ms` (int) | Let the sim run for `ms` wall-clock, then return the observation. |
 | `screenshot` | — | A PNG of the window, as image content. |
 | `set_realtime` | `enabled` (bool) | Switch the pause model (below). |
@@ -629,14 +670,14 @@ only to stderr (stdout is the MCP transport).
 `click` accepts an allowlisted set of controls only; anything else is refused with
 the full allowed list. Targets take two forms: an id (`shipBtn`, `stationCloseBtn`,
 with or without a leading `#`), or an attribute control in `name=value` form
-(`data-craft=upgrade:drill:1`), with the two-attribute transfer controls joining
-both values with a comma (`data-cargo=take,ore:Iron`,
+(`data-craft=upgrade:drill:1`, `data-portal=48,20`), with the two-attribute transfer
+controls joining both values with a comma (`data-cargo=take,ore:Iron`,
 `data-station=stow-one,ore:Coal`, `data-trade=buy,repairKit`). The equivalent object form is
 `{target, value?, kind?}` — the MCP `click` tool takes `target`/`value`/`kind`
 fields directly. Allowlisted controls: the HUD/action bar (`shipBtn`,
 `teleporterBtn`, `infoBtn`, `musicBtn`, `sfxBtn`, `inventoryToggleBtn`), inventory
 slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBtn`,
-`manufacturerSlotBtn`, `extractorSlotBtn`, `toolkitSlotBtn`, the `decor:*SlotBtn`
+`manufacturerSlotBtn`, `extractorSlotBtn`, `portalSlotBtn`, `toolkitSlotBtn`, the `decor:*SlotBtn`
 panels), the ship screen (`data-ship-equip`,
 `data-ship-unequip`, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
 with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
@@ -647,6 +688,8 @@ wreck salvage menu (`data-cargo` with values `take`/`take-one` and a `data-cargo
 `lootAllBtn`, `cargoCloseBtn`), the
 trading post (`data-trade` with values `sell`/`sell-one`/`buy` and a `data-trade-kind`
 — an `ore:*` kind to sell, a catalog item kind to buy — `tradeCloseBtn`), the
+portal travel/teleporter/respawn screen (`data-portal` with the destination `"x,y"`
+as its value, `portalNameInput`, `portalNameSaveBtn`, `portalCloseBtn`), the
 info tabs (`data-info-section`, `infoCloseBtn`), and the intro (`introStartBtn`).
 
 ### The observation
@@ -658,10 +701,10 @@ what a sighted player sees, as JSON. The top-level shape:
 - `ship`: `{x, y, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface}` (vitals read from the live sim, not the UI snapshot)
 - `cash`, `stats`
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
-- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, return, usable}, alerts{fuel, hull, cargo}, announcement}`
+- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, alerts{fuel, hull, cargo}, announcement}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now
 - `view`: `{origin:{x, y}, rows:[…], legend}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | scanner | dynamite | station | tradingPost`
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `trade` (cash, sell offers, buy offers), or `info` (tab) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `trade` (cash, sell offers, buy offers), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (tab) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
@@ -673,7 +716,7 @@ The `view.rows` legend (`VIEW_LEGEND`):
 
 ```text
 . air   # dirt   R rock   o ore   ! hazard   E enemy   D decor
-M manufacturer   X oil extractor   T trading post   C container   W wreck   S scanner
+M manufacturer   X oil extractor   P portal   T trading post   C container   W wreck   S scanner
 * dynamite   @ ship   ? fogged
 ```
 
