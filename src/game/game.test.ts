@@ -17,6 +17,21 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { buildShipSlots, uiStore } from '../ui/store';
 import { MinerApp } from '../ui/ui';
 import type { GameRuntime } from './game';
+import type * as IntroShowcaseModule from './intro-showcase';
+
+// The real showcase, with its `draw` counted, so the test can see which renderer
+// the loop paints with in each phase.
+const showcaseDraw = vi.hoisted(() => vi.fn());
+vi.mock('./intro-showcase', async importOriginal => {
+  const actual = await importOriginal<typeof IntroShowcaseModule>();
+  return {
+    ...actual,
+    createIntroShowcase: (deps: IntroShowcaseModule.IntroShowcaseDeps) => {
+      const showcase = actual.createIntroShowcase(deps);
+      return {...showcase, draw: (now: number) => { showcaseDraw(now); showcase.draw(now); }};
+    }
+  };
+});
 
 /** happy-dom has no canvas raster, so drawing calls go into a black hole. */
 function stubCanvasContext(): void {
@@ -99,8 +114,11 @@ describe('booting the game', () => {
   it('walks the splash straight into the run on one press', () => {
     // Keys belong to the splash, so nothing has moved before the press.
     press('s');
+    showcaseDraw.mockClear();
     renderFrame();
     expect(text('depth')).toBe('0 m');
+    // The splash paints the showcase mine behind the card, not the run's.
+    expect(showcaseDraw).toHaveBeenCalledTimes(1);
 
     act(() => { fireEvent.pointerDown(document.getElementById('intro')!); });
 
@@ -110,6 +128,10 @@ describe('booting the game', () => {
     expect(text('toast')).toContain('Drill ready');
     // The run takes the keyboard, and the canvas is the surface that holds it.
     expect(document.activeElement?.id).toBe('game');
+    // Once the run is live the loop paints the real mine and the showcase is done.
+    showcaseDraw.mockClear();
+    renderFrame();
+    expect(showcaseDraw).not.toHaveBeenCalled();
   });
 
   it('drops the keyboard focus ring on a pointer press but keeps the keys', () => {

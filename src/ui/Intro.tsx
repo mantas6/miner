@@ -6,6 +6,9 @@ import '../styles/intro-art.css';
 /**
  * Title card: the first and only screen before the run. Any press starts a shift.
  *
+ * The overlay is translucent: the slice of mine behind it is not React's work but
+ * the runtime's, painted onto the game canvas by `src/game/intro-showcase.ts`.
+ *
  * Deliberately short. The full rules live in the in-game Info / Cargo overlay
  * (`InfoScreen.tsx`), which the player can open at any time, so the splash only
  * carries the name, one line of flavour, the three keys needed to start, and

@@ -10,6 +10,9 @@ test.describe('boot', () => {
     await openIntro(page);
     await expect(page.locator('#intro')).toContainText('Stalinload');
     await expect(page.locator('#introStartBtn')).toBeVisible();
+    // The translucent splash sits over the live canvas, which paints the intro's
+    // showcase slice of the mine behind the card.
+    await expect(page.locator('#game')).toBeVisible();
     // The canvas takes the keyboard immediately, which is what makes Enter on the
     // splash work without anything having been clicked first.
     await expect(page.locator('#game')).toBeFocused();

@@ -61,6 +61,8 @@ export interface RendererState {
   armedPlacement?: InventoryItemKind | null;
   /** The tile under the pointer, for the stronger placement hover highlight. */
   hoverTile?: {x: number; y: number} | null;
+  /** Skip the player ship (and its teleport fade); the intro showcase has no ship. */
+  hideShip?: boolean;
 }
 
 export interface RendererDeps {
@@ -274,15 +276,17 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     }
     fogLayer.draw(camX, camY);
     drawPlacementOverlay(camX, camY);
-    const sx=(p.drawX-camX)*TILE, sy=(p.drawY-camY)*TILE;
     drawTeleportEffect(camX, camY, false);
-    ctx.save();
-    if (state.teleportEffect) ctx.globalAlpha = Math.min(1, .32 + state.teleportEffect.frame / Math.max(1, state.teleportEffect.duration * .42));
-    ctx.translate(sx+TILE*.5, sy+TILE*.5 + Math.sin(state.tick*.45)*p.bob*TILE*.08);
-    ctx.rotate((p.x - p.drawX) * -0.12 + (p.y - p.drawY) * 0.08 + (p.drillDy > 0 ? p.drillAnim * 0.10 : 0));
-    ctx.scale(p.facing, 1);
-    drawShip(p, state.input?.sprintDirection);
-    ctx.restore();
+    if (!state.hideShip) {
+      const sx=(p.drawX-camX)*TILE, sy=(p.drawY-camY)*TILE;
+      ctx.save();
+      if (state.teleportEffect) ctx.globalAlpha = Math.min(1, .32 + state.teleportEffect.frame / Math.max(1, state.teleportEffect.duration * .42));
+      ctx.translate(sx+TILE*.5, sy+TILE*.5 + Math.sin(state.tick*.45)*p.bob*TILE*.08);
+      ctx.rotate((p.x - p.drawX) * -0.12 + (p.y - p.drawY) * 0.08 + (p.drillDy > 0 ? p.drillAnim * 0.10 : 0));
+      ctx.scale(p.facing, 1);
+      drawShip(p, state.input?.sprintDirection);
+      ctx.restore();
+    }
     drawTeleportEffect(camX, camY, true);
     ctx.restore();
     if(state.gameOver){

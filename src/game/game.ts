@@ -30,6 +30,7 @@ import { createAudio } from '../audio/audio';
 import { shouldAttemptAutoAudio } from '../audio/audio-permission';
 import { createDefaultStats, createInitialState, isAtHome } from '../core/state';
 import { createRenderer, type Renderer } from '../render/renderer';
+import { createIntroShowcase, type IntroShowcase } from './intro-showcase';
 import { FUEL, REVEAL_FOOTPRINT } from '../core/balance';
 import { countItem, totalItems, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
 import { manufacturerStock, nearestStation, stationDeviceItemKind } from '../core/stations';
@@ -99,6 +100,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   const state = createInitialState();
   let audio: AudioController;
   let renderer: Renderer | undefined;
+  /** The title screen's mine backdrop; dropped once the run leaves the intro. */
+  let introShowcase: IntroShowcase | undefined;
 
   /**
    * Whether the simulation is frozen between an agent's decisions. `draw()` and
@@ -608,7 +611,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // A paused sim still paints and syncs, so the human's window and the agent's
     // observation both stay live; only the fixed-step advance is held.
     if (!paused) stepper.advance(now);
-    renderer?.draw();
+    // The splash paints its own fog-free slice of the mine behind the card. The
+    // phase never returns to `intro`, so the showcase is released on leaving it.
+    if (uiStore.getState().phase === 'intro' && introShowcase) introShowcase.draw(now);
+    else { introShowcase = undefined; renderer?.draw(); }
     syncUi();
   }
   /**
@@ -1021,6 +1027,11 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       ctx: surface.ctx,
       get: (x: number, y: number) => grid.get(x, y),
       rand
+    });
+    introShowcase = createIntroShowcase({
+      canvas: surface.canvas,
+      ctx: surface.ctx,
+      reducedMotion: state.reducedMotion
     });
     loadProgress();
     scope.onWindow('touchstart', tryAutoAudio, {passive:true});

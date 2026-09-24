@@ -553,6 +553,22 @@ describe('terrain cache lifecycle', () => {
     expect(firstFrame).not.toHaveLength(0);
     expect(firstFrame).toEqual(secondFrame);
   });
+
+  it('leaves the ship out when asked to, as the intro showcase does', () => {
+    const state = {
+      world: [], camX: 10, camY: 20, tick: 0, gameOver: false, hideShip: false,
+      particles: [], enemies: [],
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    // The ship is the only thing in an empty air pocket that rotates the context.
+    renderer.draw();
+    expect(mocks.mainContext.rotate).toHaveBeenCalled();
+    vi.clearAllMocks();
+    state.hideShip = true;
+    renderer.draw();
+    expect(mocks.mainContext.rotate).not.toHaveBeenCalled();
+  });
 });
 
 describe('camera zoom', () => {
