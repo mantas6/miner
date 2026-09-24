@@ -68,7 +68,7 @@ export async function openIntro(page: Page): Promise<void> {
 export async function seedDirtUnderHome(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('moleload-progress-v1', JSON.stringify({
-      version: 17,
+      version: 18,
       tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}]
     }));
   });

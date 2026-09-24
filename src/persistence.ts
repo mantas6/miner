@@ -26,8 +26,11 @@ import {
   STATION_DEVICE,
   createExtractor,
   createManufacturer,
+  createPortal,
+  portals,
   type PlacedStation
 } from './core/stations';
+import { defaultPortalName, sanitizePortalName } from './core/portal';
 import { encodeExploration, mergeExploration } from '../shared/exploration-codec';
 import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries } from './world/tile-diff';
 import type { GameState, GameStats } from './core/types';
@@ -84,7 +87,7 @@ interface SavedProgress {
 }
 
 export const SAVE_KEY = 'moleload-progress-v1';
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 /** A stored stack is a count, not a licence to write an unbounded number. */
 const MAX_SAVED_STACK = 9999;
 
@@ -267,11 +270,15 @@ function parseEquipment(value: unknown): (UpgradeKind | null)[] {
 function parseStations(value: unknown): PlacedStation[] {
   if (!Array.isArray(value)) return [];
   const stations: PlacedStation[] = [];
-  const counts: Record<'manufacturer' | 'extractor', number> = {manufacturer: 0, extractor: 0};
+  const counts: Record<'manufacturer' | 'extractor' | 'portal', number> = {
+    manufacturer: 0,
+    extractor: 0,
+    portal: 0
+  };
   for (const entry of value) {
     if (!entry || typeof entry !== 'object') continue;
     const kind = (entry as {kind?: unknown}).kind;
-    if (kind !== 'manufacturer' && kind !== 'extractor') continue;
+    if (kind !== 'manufacturer' && kind !== 'extractor' && kind !== 'portal') continue;
     if (counts[kind] >= STATION_DEVICE[kind].maxPlaced) continue;
     const tile = parsePlacedTile(entry);
     if (!tile) continue;
@@ -279,7 +286,7 @@ function parseStations(value: unknown): PlacedStation[] {
       const station = createManufacturer(tile.x, tile.y);
       station.inventory = parseKindCountStacks((entry as {items?: unknown}).items, isStationKind);
       stations.push(station);
-    } else {
+    } else if (kind === 'extractor') {
       const station = createExtractor(tile.x, tile.y);
       const {coal, fuel, progress} = entry as {coal?: unknown; fuel?: unknown; progress?: unknown};
       station.coal = Math.floor(numeric(coal, 0, 0, MAX_SAVED_STACK));
@@ -287,6 +294,13 @@ function parseStations(value: unknown): PlacedStation[] {
       // A missing or corrupt progress value clamps to 0 rather than throwing.
       station.progress = Math.floor(numeric(progress, 0, 0, EXTRACTOR.ticksPerCoal));
       stations.push(station);
+    } else {
+      // A blank or hand-edited name falls back to a deterministic unused preset,
+      // picked over the portals parsed so far so a nameless save is never left blank.
+      const {name} = entry as {name?: unknown};
+      const fallback = defaultPortalName(portals(stations), () => 0);
+      const sanitized = sanitizePortalName(typeof name === 'string' ? name : '', fallback);
+      stations.push(createPortal(tile.x, tile.y, sanitized));
     }
     counts[kind]++;
   }
@@ -324,9 +338,6 @@ function serializeStation(station: PlacedStation): Record<string, unknown> {
       progress: Math.floor(station.progress)
     };
   }
-  // TODO(portals phase 2): parse this back in `parseStations` (with `sanitizePortalName`
-  // and the portal cap) and bump `SAVE_VERSION`; for now the record is written but
-  // dropped on load, so a reloaded save falls back to the seeded `Home` portal.
   return {kind: 'portal', x: station.x, y: station.y, name: station.name};
 }
 

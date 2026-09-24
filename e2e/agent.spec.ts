@@ -23,7 +23,7 @@ const PORT = 5199;
  */
 function seedDirtUnderHome(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 17,
+    version: 18,
     tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}],
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Coal', count: 3}]},
@@ -39,7 +39,7 @@ function seedDirtUnderHome(): void {
  */
 function seedToolkitScenario(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 17,
+    version: 18,
     bay: [{kind: 'toolkit', count: 1}],
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: []},
@@ -56,7 +56,7 @@ function seedToolkitScenario(): void {
  */
 function seedTradingPost(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 17,
+    version: 18,
     x: 43, y: 67,
     cash: 100,
     stations: [{kind: 'manufacturer', x: 44, y: 67, items: [{kind: 'ore:Iron', count: 10}]}]
@@ -70,7 +70,7 @@ function seedTradingPost(): void {
  */
 function seedFittedUpgrade(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 17,
+    version: 18,
     equipment: ['upgrade:drill:1', null]
   }));
 }

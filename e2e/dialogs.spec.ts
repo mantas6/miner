@@ -49,7 +49,7 @@ test.describe('ship dialog', () => {
     // cycle, so the wrap is a real cycle rather than one control standing still.
     await page.addInitScript(() => {
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 17,
+        version: 18,
         bay: [{kind: 'upgrade:tank:1', count: 1}, {kind: 'upgrade:drill:1', count: 1}]
       }));
     });
@@ -80,7 +80,7 @@ test.describe('station dialog', () => {
   test('Space opens it beside a station, focused inside, and Escape closes it', async ({page}) => {
     // Park the ship one tile from the manufacturing station so Space reaches it.
     await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({version: 17, x: 43, y: 20}));
+      localStorage.setItem('moleload-progress-v1', JSON.stringify({version: 18, x: 43, y: 20}));
     });
     await startSoloRun(page);
 

@@ -7,6 +7,8 @@ import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKin
 import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { WRECK, createWreck } from './core/wreck';
+import { STATION_DEVICE, type PortalStation } from './core/stations';
+import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
 import { TELEPORTER_ITEM } from './core/teleporter';
 import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, ORES, START_Y } from '../shared/constants';
 import { explorationIndex } from '../shared/exploration-codec';
@@ -212,12 +214,17 @@ describe('station persistence', () => {
   function extractor(state: ReturnType<typeof createInitialState>) {
     return state.stations.find(s => s.kind === 'extractor');
   }
+  /** Every portal standing in the mine. */
+  function portalStations(state: ReturnType<typeof createInitialState>) {
+    return state.stations.filter((s): s is PortalStation => s.kind === 'portal');
+  }
 
-  it('round-trips the manufacturer stock and the extractor buffers', () => {
+  it('round-trips the manufacturer stock, the extractor buffers, and the portal', () => {
     const stored = stubStorage();
     const state = createInitialState();
     manufacturer(state)!.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20)!, ITEM_CATALOG.repairKit, 2)!;
     Object.assign(extractor(state)!, {coal: 9, fuel: 40, progress: 120});
+    const home = portalStations(state)[0]!;
 
     save(state);
 
@@ -226,8 +233,7 @@ describe('station persistence', () => {
       stations: [
         {kind: 'manufacturer', items: [{kind: 'ore:Coal', count: 20}, {kind: 'repairKit', count: 2}]},
         {kind: 'extractor', coal: 9, fuel: 40, progress: 120},
-        // TODO(portals phase 2): the seeded Home portal round-trips once parsing lands.
-        {kind: 'portal', name: 'Home'}
+        {kind: 'portal', x: home.x, y: home.y, name: 'Home'}
       ]
     });
 
@@ -236,6 +242,8 @@ describe('station persistence', () => {
     expect(extractor(restored)).toMatchObject({coal: 9, fuel: 40, progress: 120});
     expect(countItem(manufacturer(restored)!.inventory, oreKind('Coal'))).toBe(20);
     expect(countItem(manufacturer(restored)!.inventory, 'repairKit')).toBe(2);
+    // The seeded Home portal comes back with its tile and name intact.
+    expect(portalStations(restored)).toEqual([{kind: 'portal', x: home.x, y: home.y, name: 'Home'}]);
   });
 
   it('drops junk manufacturer stacks and clamps the extractor buffers', () => {
@@ -288,6 +296,66 @@ describe('station persistence', () => {
     const restored = createInitialState();
     load(restored);
     expect(restored.stations).toHaveLength(0);
+  });
+
+  it('round-trips a renamed portal at its tile', () => {
+    stubStorage({version: SAVE_VERSION, stations: [{kind: 'portal', x: 44, y: 20, name: 'Depot'}]});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(portalStations(state)).toEqual([{kind: 'portal', x: 44, y: 20, name: 'Depot'}]);
+  });
+
+  it.each([
+    ['an empty name', '', 'Depot'],
+    ['a whitespace-only name', '   ', 'Depot'],
+    ['a non-string name', 42, 'Depot']
+  ])('sanitizes %s to a deterministic default', (_name, raw, expected) => {
+    stubStorage({version: SAVE_VERSION, stations: [{kind: 'portal', x: 44, y: 20, name: raw}]});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(portalStations(state)).toEqual([{kind: 'portal', x: 44, y: 20, name: expected}]);
+  });
+
+  it('truncates an over-long portal name to the max length', () => {
+    stubStorage({version: SAVE_VERSION, stations: [{kind: 'portal', x: 44, y: 20, name: 'x'.repeat(40)}]});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(portalStations(state)[0]!.name).toBe('x'.repeat(MAX_PORTAL_NAME_LENGTH));
+  });
+
+  it('drops portals beyond the cap the game enforces', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      stations: Array.from({length: STATION_DEVICE.portal.maxPlaced + 3}, (_, index) => ({
+        kind: 'portal', x: index + 1, y: 20, name: `P${index}`
+      }))
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(portalStations(state)).toHaveLength(STATION_DEVICE.portal.maxPlaced);
+  });
+
+  it('skips a malformed portal entry but keeps the sound one beside it', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      stations: [
+        {kind: 'portal', x: 'deep', y: 20, name: 'Bad'},
+        {kind: 'portal', x: 44, y: 20, name: 'Good'}
+      ]
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(portalStations(state)).toEqual([{kind: 'portal', x: 44, y: 20, name: 'Good'}]);
   });
 });
 

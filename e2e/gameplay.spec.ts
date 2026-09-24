@@ -94,7 +94,7 @@ test.describe('gameplay', () => {
   test('a scanner crafted at the manufacturing station is taken aboard', async ({page}) => {
     await page.addInitScript(() => {
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 17,
+        version: 18,
         x: 43,
         y: 20,
         stations: [
@@ -154,7 +154,7 @@ test.describe('gameplay', () => {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 17,
+        version: 18,
         bay: [{kind: 'scanner', count: 1}],
         explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
         tiles
@@ -195,7 +195,7 @@ test.describe('gameplay', () => {
         for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
       }
       localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 17,
+        version: 18,
         bay: [{kind: 'dynamite', count: 2}],
         explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
         tiles
