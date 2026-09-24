@@ -12,7 +12,10 @@
 import { HULL } from '../core/balance';
 import { countItem, removeItem } from '../core/inventory';
 import { ITEM_CATALOG } from '../core/items';
+import { portalDestinations } from '../core/portal';
+import { teleportersCarried } from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
+import type { PortalsSim } from './portals';
 
 export interface GameActions {
   useTeleporter(): void;
@@ -29,6 +32,8 @@ export interface GameActionsDeps {
   toast(message: string): void;
   saveProgress(): void;
   atSurface(): boolean;
+  /** The portal sim: a teleporter opens its list in `teleporter` mode. */
+  portals: PortalsSim;
 }
 
 export function createActions(deps: GameActionsDeps): GameActions {
@@ -36,9 +41,19 @@ export function createActions(deps: GameActionsDeps): GameActions {
 
   function useTeleporter(): void {
     if (state.gameOver) return;
-    // TODO(portals phase 3): a carried teleporter opens the portal travel list and
-    // is spent on the jump. Until the portal sim lands, this is an inert stub.
-    toast('Teleporter travel is being rebuilt around portals.');
+    const p = state.player;
+    // A teleporter is a carried charge that opens the portal list and is spent on
+    // the jump; without one aboard there is nothing to open.
+    if (teleportersCarried(p) <= 0) {
+      audio.alarm();
+      return toast('No teleporter aboard. Craft one at the Manufacturing Station.');
+    }
+    // A charge is pointless when every portal is already at arm's reach — there is
+    // nowhere it could take the ship that it could not already fly to.
+    if (portalDestinations(state.stations, {x: p.x, y: p.y}, {excludeReachable: true}).length === 0) {
+      return toast('No portal out of reach to teleport to.');
+    }
+    deps.portals.openTeleporter();
   }
 
   function useRepairKit(): void {

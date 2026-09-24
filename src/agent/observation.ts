@@ -172,7 +172,7 @@ export interface AgentObservation {
     fuelReserve: {status: FuelReserveStatus; needed: number; margin: number};
     depthTarget: {name: string; kind: DepthMilestoneKind; remaining: number};
     stationHint: string;
-    teleport: {count: number; return: boolean; usable: boolean};
+    teleport: {count: number; usable: boolean};
     alerts: {fuel: boolean; hull: boolean; cargo: boolean};
     announcement: string;
   };
@@ -439,7 +439,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       fuelReserve: {status: hud.fuelReserveStatus, needed: hud.fuelReserveNeeded, margin: hud.fuelReserveMargin},
       depthTarget: {name: hud.depthTarget, kind: hud.depthTargetKind, remaining: hud.depthTargetRemaining},
       stationHint: hud.stationHint,
-      teleport: {count: hud.teleporters, return: hud.teleportReturn, usable: hud.teleportUsable},
+      teleport: {count: hud.teleport.count, usable: hud.teleport.usable},
       alerts: {fuel: hud.fuelAlert, hull: hud.hullAlert, cargo: hud.cargoAlert},
       announcement: hud.announcement
     },

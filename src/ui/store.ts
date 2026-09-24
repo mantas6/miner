@@ -48,14 +48,12 @@ export interface HudSnapshot {
   gameOver: boolean;
   /** Prompt shown when a station is in reach, e.g. "Space: Manufacturing Station"; empty when none is. */
   stationHint: string;
-  /** Single-use teleporters in the bay: the teleport button's whole availability. */
-  teleporters: number;
-  /** A stored underground return point exists. */
-  teleportReturn: boolean;
-  /** The ship is deep enough to teleport up. */
-  teleportDepthReached: boolean;
-  /** The teleport button would do something right now. */
-  teleportUsable: boolean;
+  /**
+   * The carried teleporter's whole HUD state: how many charges are aboard, and
+   * whether pressing the button would open the portal list right now (a charge is
+   * aboard and at least one portal is out of reach).
+   */
+  teleport: {count: number; usable: boolean};
   /** Adjacent drill/flight target readout, refreshed when the target changes. */
   scanner: string;
   /** Return-fuel forecast for the climb home. */
@@ -75,11 +73,12 @@ export interface HudSnapshot {
   announcement: string;
 }
 
+// `teleport` is left out on purpose: it is a nested object, so it is diffed by
+// value (below) rather than by the reference compare this list drives.
 const HUD_KEYS = [
   'cash', 'depthMeters', 'fuel', 'fuelMax', 'hull', 'hullMax', 'cargo', 'cargoMax',
   'fuelAlert', 'hullAlert', 'cargoAlert', 'objective',
-  'atSurface', 'gameOver', 'stationHint', 'teleporters',
-  'teleportReturn', 'teleportDepthReached', 'teleportUsable',
+  'atSurface', 'gameOver', 'stationHint',
   'scanner', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
@@ -151,7 +150,31 @@ export type UiPhase = 'intro' | 'playing';
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'info' | 'container' | 'wreck' | 'ship' | 'station' | 'extractor' | 'trade';
+export type OverlayId = 'info' | 'container' | 'wreck' | 'ship' | 'station' | 'extractor' | 'trade' | 'portal';
+
+/** One portal the travel/teleporter/respawn overlay lists as a destination. */
+export interface PortalDestinationView {
+  x: number;
+  y: number;
+  name: string;
+  /** Depth below the home row, in metres, the same figure the HUD reports. */
+  depthMeters: number;
+  /** Manhattan distance from the ship (or the death tile), in tiles. */
+  distance: number;
+}
+
+/**
+ * The portal overlay's contents, painted while it is up. `travel` lists the other
+ * portals a ship parked at `source` can jump to for free; `teleporter` lists the
+ * portals out of reach that a carried teleporter charge could reach; `respawn` is
+ * the no-close redeploy prompt a lost ship with two or more portals answers.
+ */
+export interface PortalView {
+  mode: 'travel' | 'teleporter' | 'respawn';
+  /** The portal the ship is standing at (travel mode only). */
+  source?: {x: number; y: number; name: string};
+  destinations: PortalDestinationView[];
+}
 
 /** One trading-post buy offer, as the trade screen paints it. */
 export interface TradeOfferView {
@@ -232,6 +255,12 @@ export interface UiState {
    * into the simulation. The sell side is the bay's ore, read from `inventorySlots`.
    */
   tradeBuy: TradeOfferView[];
+  /**
+   * The open portal overlay's contents, written only while it is up: the game
+   * pushes it on open, after a rename, and after each republish, so the screen
+   * never reaches into the simulation. `null` when no portal overlay is open.
+   */
+  portal: PortalView | null;
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
   activeOverlay: ActiveOverlay;
@@ -268,6 +297,8 @@ export interface UiState {
   setStationSlots(slots: InventorySlotView[]): void;
   setExtractor(view: ExtractorView): void;
   setTradeBuy(offers: TradeOfferView[]): void;
+  /** Publish the open portal overlay's contents, or take it away with `null`. */
+  setPortalUi(view: PortalView | null): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
   /** Show one overlay, replacing whatever was up; `null` closes them all. */
@@ -315,10 +346,7 @@ function initialHud(): HudSnapshot {
     atSurface: true,
     gameOver: false,
     stationHint: '',
-    teleporters: countItem(player.inventory, TELEPORTER_ITEM.kind),
-    teleportReturn: false,
-    teleportDepthReached: false,
-    teleportUsable: false,
+    teleport: {count: countItem(player.inventory, TELEPORTER_ITEM.kind), usable: false},
     // Nothing has been scanned before the first frame, which is exactly what the
     // scanner says about terrain it has not mapped yet.
     scanner: formatTerrainScanner({tile: {type: 'air'}, direction: [0, 1], explored: false}),
@@ -398,6 +426,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   stationSlots: [],
   extractor: {coal: 0, fuel: 0, progress: 0},
   tradeBuy: [],
+  portal: null,
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   activeOverlay: null,
@@ -414,8 +443,12 @@ export const uiStore = createStore<UiState>((set, get) => ({
 
   syncHud(next) {
     const current = get().hud;
-    if (HUD_KEYS.every(key => current[key] === next[key])) return;
-    set({hud: {...next}});
+    if (HUD_KEYS.every(key => current[key] === next[key])
+      && current.teleport.count === next.teleport.count
+      && current.teleport.usable === next.teleport.usable) return;
+    // Copy the nested teleport object so the store never shares it with the
+    // caller's reused scratch snapshot, which mutates it in place every frame.
+    set({hud: {...next, teleport: {...next.teleport}}});
   },
 
   syncPlayer(next) {
@@ -457,6 +490,10 @@ export const uiStore = createStore<UiState>((set, get) => ({
   setTradeBuy(offers) {
     if (sameTradeOffers(get().tradeBuy, offers)) return;
     set({tradeBuy: offers});
+  },
+
+  setPortalUi(view) {
+    set({portal: view});
   },
 
   setCargoRows(rows) {

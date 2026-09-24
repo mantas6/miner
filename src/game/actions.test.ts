@@ -8,8 +8,10 @@ import type { GameState } from '../core/types';
 import { createActions, type GameActions } from './actions';
 import {
   createAudioStub,
+  createPortalsSimStub,
   createToastLog,
-  type AudioStub
+  type AudioStub,
+  type PortalsSimStub
 } from './test-support';
 
 interface Harness {
@@ -18,6 +20,7 @@ interface Harness {
   audio: AudioStub;
   toasts: ReturnType<typeof createToastLog>;
   saveProgress: ReturnType<typeof vi.fn>;
+  portals: PortalsSimStub;
   flags: {atSurface: boolean};
 }
 
@@ -28,6 +31,7 @@ function harness(): Harness {
     audio: createAudioStub(),
     toasts: createToastLog(),
     saveProgress: vi.fn(),
+    portals: createPortalsSimStub(),
     flags: {atSurface: true}
   };
   const actions = createActions({
@@ -35,7 +39,8 @@ function harness(): Harness {
     audio: context.audio,
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
-    atSurface: () => context.flags.atSurface
+    atSurface: () => context.flags.atSurface,
+    portals: context.portals
   });
   return {...context, actions};
 }
@@ -78,17 +83,39 @@ describe('using a repair kit', () => {
   });
 });
 
-describe('using the teleporter (portals phase 1 stub)', () => {
-  // TODO(portals phase 3): replace with the portal-travel behaviour — a carried
-  // teleporter opens the portal list and is spent on the jump.
-  it('is an inert no-op that keeps the charge and toasts while travel is rebuilt', () => {
+describe('using the teleporter', () => {
+  it('opens the portal list in teleporter mode when a charge and an out-of-reach portal exist', () => {
     const h = harness();
+    // The seeded Home portal sits three tiles off the home base, out of reach.
     h.state.player.inventory = addItem(createInventory(), TELEPORTER_ITEM, 1);
 
     h.actions.useTeleporter();
 
+    expect(h.portals.openTeleporter).toHaveBeenCalledOnce();
+    // The charge is spent on the jump, not on opening the list.
     expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
-    expect(h.toasts.saw('being rebuilt')).toBe(true);
+  });
+
+  it('refuses with no teleporter aboard, warning audibly', () => {
+    const h = harness();
+
+    h.actions.useTeleporter();
+
+    expect(h.portals.openTeleporter).not.toHaveBeenCalled();
+    expect(h.toasts.saw('No teleporter aboard')).toBe(true);
+    expect(h.audio.played).toContain('alarm');
+  });
+
+  it('refuses when no portal is out of reach', () => {
+    const h = harness();
+    h.state.player.inventory = addItem(createInventory(), TELEPORTER_ITEM, 1);
+    // Strip every portal, so there is nowhere a teleporter could take the ship.
+    h.state.stations = h.state.stations.filter(s => s.kind !== 'portal');
+
+    h.actions.useTeleporter();
+
+    expect(h.portals.openTeleporter).not.toHaveBeenCalled();
+    expect(h.toasts.saw('No portal out of reach')).toBe(true);
   });
 
   it('does nothing once the ship is lost', () => {
@@ -97,6 +124,7 @@ describe('using the teleporter (portals phase 1 stub)', () => {
 
     h.actions.useTeleporter();
 
+    expect(h.portals.openTeleporter).not.toHaveBeenCalled();
     expect(h.toasts.messages).toHaveLength(0);
   });
 });

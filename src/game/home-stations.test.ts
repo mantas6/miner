@@ -11,7 +11,7 @@ import {
 } from '../core/stations';
 import type { GameState } from '../core/types';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
-import { createAudioStub, createToastLog, type AudioStub } from './test-support';
+import { createAudioStub, createPortalsSimStub, createToastLog, type AudioStub, type PortalsSimStub } from './test-support';
 
 interface Harness {
   state: GameState;
@@ -21,6 +21,7 @@ interface Harness {
   saveProgress: ReturnType<typeof vi.fn>;
   setStationUi: ReturnType<typeof vi.fn>;
   setExtractorUi: ReturnType<typeof vi.fn>;
+  portals: PortalsSimStub;
 }
 
 function harness(): Harness {
@@ -31,7 +32,8 @@ function harness(): Harness {
     toasts: createToastLog(),
     saveProgress: vi.fn(),
     setStationUi: vi.fn(),
-    setExtractorUi: vi.fn()
+    setExtractorUi: vi.fn(),
+    portals: createPortalsSimStub()
   };
   const sim = createHomeStations({
     state,
@@ -40,7 +42,8 @@ function harness(): Harness {
     saveProgress: context.saveProgress,
     setStationUi: context.setStationUi,
     setExtractorUi: context.setExtractorUi,
-    syncPlayer: vi.fn()
+    syncPlayer: vi.fn(),
+    portals: context.portals
   });
   return {...context, sim};
 }
@@ -118,6 +121,29 @@ describe('opening the stations', () => {
 
     expect(h.sim.openStation).toBeNull();
     expect(h.setStationUi).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe('opening a portal', () => {
+  it('opens the travel list on Space when a portal is the nearest station', () => {
+    const h = harness();
+    Object.assign(h.state.player, {x: STATIONS.portal.x, y: STATIONS.portal.y});
+
+    expect(h.sim.openNearest()).toBe(true);
+
+    const portal = h.state.stations.find(s => s.kind === 'portal');
+    expect(h.portals.openTravel).toHaveBeenCalledWith(portal);
+    // A portal has no station screen of its own, so none was published.
+    expect(h.sim.openStation).toBeNull();
+    expect(h.setStationUi).not.toHaveBeenCalled();
+  });
+
+  it('opens the travel list when a portal tile is pressed directly', () => {
+    const h = harness();
+    Object.assign(h.state.player, {x: STATIONS.portal.x, y: STATIONS.portal.y});
+
+    expect(h.sim.openAt(STATIONS.portal.x, STATIONS.portal.y)).toBe(true);
+    expect(h.portals.openTravel).toHaveBeenCalledOnce();
   });
 });
 

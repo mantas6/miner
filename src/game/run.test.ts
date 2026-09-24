@@ -4,6 +4,7 @@ import { STARTING } from '../core/balance';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
 import { applyEquipment } from '../core/ship-upgrades';
 import { createInitialState } from '../core/state';
+import { createPortal } from '../core/stations';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import { WRECK } from '../core/wreck';
 import type { GameState } from '../core/types';
@@ -14,9 +15,11 @@ import {
   createAudioStub,
   createEnemySimStub,
   createInputStub,
+  createPortalsSimStub,
   createToastLog,
   type AudioStub,
-  type EnemySimStub
+  type EnemySimStub,
+  type PortalsSimStub
 } from './test-support';
 
 interface Harness {
@@ -28,12 +31,16 @@ interface Harness {
   saveProgress: ReturnType<typeof vi.fn>;
   invalidateFog: ReturnType<typeof vi.fn>;
   invalidateTerrain: ReturnType<typeof vi.fn>;
+  portals: PortalsSimStub;
   run: GameRun;
 }
 
 /** A miner mid-run: upgraded, loaded with cargo, and away from the home base. */
 function harness(): Harness {
   const state = createInitialState();
+  // Clear the seeded stations (which include the base's `Home` portal) so a plain
+  // restart falls back to the home cavern; the portal-spawn tests seed their own.
+  state.stations = [];
   Object.assign(state.player, {
     x: 12, y: 60, drawX: 12, drawY: 60,
     fuel: 30, hull: 25,
@@ -58,13 +65,15 @@ function harness(): Harness {
     toasts: createToastLog(),
     saveProgress: vi.fn(),
     invalidateFog: vi.fn(),
-    invalidateTerrain: vi.fn()
+    invalidateTerrain: vi.fn(),
+    portals: createPortalsSimStub()
   };
   const run = createRun({
     state,
     audio: context.audio,
     enemies: () => context.enemies,
     input: () => context.input,
+    portals: () => context.portals,
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
     revealAtPlayer: vi.fn(),
@@ -192,6 +201,67 @@ describe('restarting after a death', () => {
     h.run.restartGame();
 
     expect(h.toasts.saw('Replacement ship')).toBe(false);
+  });
+});
+
+describe('redeploying at a portal after a restart', () => {
+  it('redeploys at the home cavern with no portals standing', () => {
+    const h = harness();
+    // The harness clears the seeded stations, so no portal stands.
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.portals.openRespawn).not.toHaveBeenCalled();
+    expect(h.state.player).toMatchObject({x: Math.floor(WORLD_W / 2), y: START_Y});
+  });
+
+  it('redeploys at the sole portal without prompting', () => {
+    const h = harness();
+    h.state.stations = [createPortal(30, 80, 'Home')];
+    // The portal sits on a dug-out tile, carried back out by the diff.
+    h.state.soloTileDiff = createTileDiff([{x: 30, y: 80, tile: {type: 'air'}}]);
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.portals.openRespawn).not.toHaveBeenCalled();
+    expect(h.state.player).toMatchObject({
+      x: 30,
+      y: 80,
+      fuel: STARTING.fuelMax,
+      hull: STARTING.hullMax
+    });
+    expect(h.state.gameOver).toBe(false);
+  });
+
+  it('raises the no-close prompt with two or more portals, and the pick rebuilds', () => {
+    const h = harness();
+    h.state.stations = [createPortal(30, 80, 'Home'), createPortal(50, 100, 'Deep')];
+    h.state.soloTileDiff = createTileDiff([{x: 50, y: 100, tile: {type: 'air'}}]);
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    // The prompt is up: no rebuild, no wreck, until the player chooses.
+    expect(h.portals.openRespawn).toHaveBeenCalledOnce();
+    expect(h.state.gameOver).toBe(true);
+    expect(h.state.wrecks).toEqual([]);
+
+    // Invoke the stored pick callback, as the overlay would on a choice.
+    const onPick = vi.mocked(h.portals.openRespawn).mock.calls[0][0] as (at: {x: number; y: number}) => void;
+    onPick({x: 50, y: 100});
+
+    expect(h.state.player).toMatchObject({
+      x: 50,
+      y: 100,
+      fuel: STARTING.fuelMax,
+      hull: STARTING.hullMax
+    });
+    expect(h.state.gameOver).toBe(false);
+    // The wreck is dropped at the death tile before the world is rebuilt.
+    expect(h.state.wrecks).toHaveLength(1);
+    expect(h.state.wrecks[0]).toMatchObject({x: 12, y: 60});
   });
 });
 

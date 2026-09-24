@@ -85,6 +85,7 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <StationScreen />
         <ExtractorScreen />
         <TradeScreen />
+        {/* TODO(portals phase 4): mount <PortalScreen /> for the travel/teleporter/respawn overlay. */}
         <FuelWarning />
         <StationHint />
         <Toast />

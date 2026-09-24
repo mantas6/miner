@@ -16,13 +16,17 @@ import { wreckAt } from '../core/wreck';
 import { tradingPostAt } from '../world/world';
 import { countItem, removeItem } from '../core/inventory';
 import { inMineBounds } from '../core/placement';
+import { defaultPortalName } from '../core/portal';
 import {
   STATION_DEVICE,
   createExtractor,
   createManufacturer,
+  createPortal,
+  portals,
   stationAt,
   stationDeviceItemKind,
   stationPlacementRefusal,
+  type PlacedStation,
   type StationKind
 } from '../core/stations';
 import type { AudioController, GameState } from '../core/types';
@@ -53,7 +57,14 @@ export interface StationDeviceDeps {
 
 /** The player-facing name of a station kind, for the placement toasts. */
 function stationLabel(kind: StationKind): string {
-  return kind === 'manufacturer' ? 'Manufacturing Station' : 'Oil Extractor';
+  return kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Oil Extractor' : 'Portal';
+}
+
+/** Build a station of `kind` at a tile: a portal draws a fresh unused name. */
+function createStation(kind: StationKind, x: number, y: number, existing: readonly PlacedStation[]): PlacedStation {
+  if (kind === 'manufacturer') return createManufacturer(x, y);
+  if (kind === 'extractor') return createExtractor(x, y);
+  return createPortal(x, y, defaultPortalName(portals(existing), Math.random));
 }
 
 export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim {
@@ -127,7 +138,7 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
       return false;
     }
     state.player.inventory = removeItem(state.player.inventory, itemKind);
-    state.stations.push(kind === 'manufacturer' ? createManufacturer(x, y) : createExtractor(x, y));
+    state.stations.push(createStation(kind, x, y, state.stations));
     setArmed(null);
     saveProgress();
     audio.blip(320, .1, 'square', .045, -40);

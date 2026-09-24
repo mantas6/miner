@@ -40,6 +40,7 @@ interface Harness {
   openNearest: ReturnType<typeof vi.fn>;
   closeStation: ReturnType<typeof vi.fn>;
   closeExtractor: ReturnType<typeof vi.fn>;
+  closePortal: ReturnType<typeof vi.fn>;
   toast: ReturnType<typeof vi.fn>;
   tryAutoAudio: ReturnType<typeof vi.fn>;
 }
@@ -68,6 +69,7 @@ function harness(): Harness {
     closeStation: vi.fn(),
     closeExtractor: vi.fn(),
     closeTrade: vi.fn(),
+    closePortal: vi.fn(),
     toast: vi.fn(),
     tryAutoAudio: vi.fn()
   };
@@ -177,6 +179,55 @@ describe('the home-station key', () => {
     expect(h.closeStation).toHaveBeenCalledOnce();
     expect(h.openNearest).toHaveBeenCalledOnce();
     expect(h.move).not.toHaveBeenCalled();
+  });
+});
+
+describe('the editable-element guard', () => {
+  it('ignores keys while a text field is focused, and Escape blurs it back to the game', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    const field = document.createElement('input');
+    document.body.appendChild(field);
+    field.focus();
+    expect(document.activeElement).toBe(field);
+
+    // A movement key typed into the field must not also drive the ship.
+    press('s', field);
+    h.input.tick();
+    expect(h.move).not.toHaveBeenCalled();
+
+    // Escape is the way out: it drops focus so the keys return to the mine.
+    press('Escape', field);
+    expect(document.activeElement).not.toBe(field);
+  });
+});
+
+describe('the portal overlay', () => {
+  it('closes on Escape/Space in travel mode but ignores them in respawn mode', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    uiStore.getState().setPortalUi({mode: 'travel', destinations: []});
+    uiStore.getState().setActiveOverlay('portal');
+
+    press('Escape');
+    expect(h.closePortal).toHaveBeenCalledOnce();
+
+    // The respawn prompt has no way out but a pick: Escape and Space are swallowed.
+    uiStore.getState().setPortalUi({mode: 'respawn', destinations: []});
+    press('Escape');
+    press(' ');
+    expect(h.closePortal).toHaveBeenCalledOnce();
+  });
+
+  it('suppresses the restart tap while any overlay is open', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    h.state.gameOver = true;
+    uiStore.getState().setActiveOverlay('portal');
+
+    pointerDown();
+
+    expect(h.restartGame).not.toHaveBeenCalled();
   });
 });
 

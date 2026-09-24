@@ -47,7 +47,7 @@ import { formatExpeditionStats } from '../core/stats';
 import { rand } from '../world/world';
 import { resetUiCommands, setUiCommands } from '../ui/commands';
 import { resetAgentBridge, setAgentBridge } from '../agent/bridge';
-import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot } from '../ui/store';
+import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot, type PortalView } from '../ui/store';
 
 import { TELEPORTER_ITEM, advanceTeleportEffect, canUsePortableTeleporter } from '../core/teleporter';
 import type { AudioController } from '../core/types';
@@ -67,6 +67,7 @@ import { createWrecks, type WreckSim } from './wrecks';
 import { reachableContainer } from '../core/cargo-container';
 import { reachableWreck } from '../core/wreck';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
+import { createPortalsSim, type PortalsSim } from './portals';
 import { createTrading, type TradingSim } from './trading';
 import { createStationDevices, type StationDeviceSim } from './station-devices';
 import { createToolkit, TOOLKIT_ITEM, type ToolkitSim } from './toolkit';
@@ -118,6 +119,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let containers: CargoContainerSim;
   let wrecks: WreckSim;
   let homeStations: HomeStationsSim;
+  let portals: PortalsSim;
   let trading: TradingSim;
   let stationDevices: StationDeviceSim;
   let toolkit: ToolkitSim;
@@ -242,6 +244,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toggleContainerPlacement: () => { standDownExcept('container'); containers.toggleArmed(); },
       toggleManufacturerPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('manufacturer'); },
       toggleExtractorPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('extractor'); },
+      togglePortalPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('portal'); },
       toggleToolkit: () => { standDownExcept('toolkit'); toolkit.toggleArmed(); },
       closeContainer: () => containers.close(),
       storeInContainer: (kind, single) => containers.store(kind, single),
@@ -252,6 +255,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeTrade: () => trading.close(),
       sellToPost: (kind, single) => trading.sell(kind, single),
       buyFromPost: kind => trading.buy(kind),
+      closePortal: () => portals.close(),
+      renamePortal: name => portals.rename(name),
+      travelToPortal: (x, y) => portals.travelTo(x, y),
       useTeleporter: () => actions.useTeleporter(),
       openShip: openShipScreen,
       closeShip: closeShipScreen,
@@ -363,6 +369,17 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     syncPlayerSnapshot();
     store.setActiveOverlay('extractor');
   }
+  /**
+   * Publish the portal overlay and raise it, or take it away with `null`. Like the
+   * station screens it covers the mine, so opening it stands any placement down.
+   */
+  function setPortalUi(view: PortalView | null){
+    const store = uiStore.getState();
+    if (!view) return store.closeOverlay('portal');
+    disarmPlacements();
+    store.setPortalUi(view);
+    store.setActiveOverlay('portal');
+  }
   /** Space, or a click with no tile named: open the nearest station. */
   function openNearestStation(){
     homeStations.openNearest();
@@ -439,7 +456,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
    * Reused scratch snapshots. The loop fills them every frame and the store copies
    * them only when a value actually changed, so a steady HUD allocates nothing.
    */
-  const hudScratch: HudSnapshot = {...uiStore.getState().hud};
+  // The nested `teleport` object is copied out, not shared, so mutating the scratch
+  // in place each frame never touches the store's own snapshot behind the diff.
+  const hudScratch: HudSnapshot = {...uiStore.getState().hud, teleport: {...uiStore.getState().hud.teleport}};
   const playerScratch: PlayerSnapshot = {...uiStore.getState().player};
 
   function syncPlayerSnapshot(){
@@ -531,12 +550,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       : near?.kind === 'extractor'
         ? 'Space: Oil Extractor'
         : '';
-    hudScratch.teleporters = countItem(p.inventory, TELEPORTER_ITEM.kind);
-    // TODO(portals phase 3/4): the teleporter opens the portal list — there is no
-    // return point and no depth gate, so those two flags collapse to constants.
-    hudScratch.teleportReturn = false;
-    hudScratch.teleportDepthReached = true;
-    hudScratch.teleportUsable = canUsePortableTeleporter(p, state.stations);
+    // The teleporter is a carried charge that opens the portal list: the whole HUD
+    // state is how many are aboard and whether a jump is available right now.
+    hudScratch.teleport.count = countItem(p.inventory, TELEPORTER_ITEM.kind);
+    hudScratch.teleport.usable = canUsePortableTeleporter(p, state.stations);
     // The canvas, spoken: the one HUD field that exists for the live region rather
     // than the layout. Thresholds only, so it changes when the ship crosses one and
     // is byte-identical (and therefore silent) on every frame in between.
@@ -575,6 +592,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toolkit.tick();
       decor.tick();
       homeStations.tick();
+      portals.tick();
       trading.tick();
       enemies.update();
     }
@@ -708,6 +726,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       audio,
       enemies: () => enemies,
       input: () => gameInput,
+      portals: () => portals,
       toast,
       saveProgress,
       revealAtPlayer,
@@ -740,12 +759,21 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       spawnDust,
       spawnExplosion
     });
+    portals = createPortalsSim({
+      state,
+      audio,
+      toast,
+      saveProgress,
+      setPortalUi,
+      revealAtPlayer
+    });
     actions = createActions({
       state,
       audio,
       toast,
       saveProgress,
-      atSurface
+      atSurface,
+      portals
     });
     readouts = createReadouts({state, grid, enemies, atSurface, toast});
     scanners = createScannerDevices({
@@ -809,7 +837,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       saveProgress,
       setStationUi,
       setExtractorUi,
-      syncPlayer: syncPlayerSnapshot
+      syncPlayer: syncPlayerSnapshot,
+      portals
     });
     trading = createTrading({
       state,
@@ -865,6 +894,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeStation: () => homeStations.close(),
       closeExtractor: () => homeStations.close(),
       closeTrade: () => trading.close(),
+      closePortal: () => portals.close(),
       toast,
       tryAutoAudio
     });
@@ -970,6 +1000,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     uiStore.getState().closeOverlay('station');
     uiStore.getState().closeOverlay('extractor');
     uiStore.getState().closeOverlay('trade');
+    uiStore.getState().closeOverlay('portal');
   }
 
   // --- Boot ------------------------------------------------------------------

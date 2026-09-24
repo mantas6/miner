@@ -11,15 +11,13 @@ import styles from './ActionBar.module.css';
  * is where its state — deep enough, how many are left — is shown.
  */
 export function ActionBar() {
-  const atSurface = useUiStore(state => state.hud.atSurface);
   const gameOver = useUiStore(state => state.hud.gameOver);
-  const teleporters = useUiStore(state => state.hud.teleporters);
-  const teleportReturn = useUiStore(state => state.hud.teleportReturn);
-  const teleportUsable = useUiStore(state => state.hud.teleportUsable);
+  const teleportCount = useUiStore(state => state.hud.teleport.count);
+  const teleportUsable = useUiStore(state => state.hud.teleport.usable);
 
   // TODO(portals phase 4): the teleporter opens the portal list; there is no depth
-  // gate, so the label no longer carries a "usable from N m" branch.
-  const teleportLabel = atSurface ? 'Return (T)' : `Teleport (T) · x${teleporters}`;
+  // gate and no return point, so the button is simply the charges aboard.
+  const teleportLabel = `Teleport (T) · x${teleportCount}`;
 
   return (
     <div className={styles.actionBar}>
@@ -33,12 +31,11 @@ export function ActionBar() {
         className={styles.openShipBtn}
         onClick={event => { event.stopPropagation(); uiCommands.openShip(); }}
       >Ship</button>
-      {/* Underground the button is only worth showing with a teleporter aboard;
-          at home base it is the stored return point, not an item, that the trip
-          back spends. */}
+      {/* The teleporter is a carried charge that opens the portal list, so the
+          button is only worth showing with one aboard, wherever the ship is. */}
       <button
         id="teleporterBtn"
-        hidden={atSurface ? !teleportReturn : teleporters <= 0}
+        hidden={teleportCount <= 0}
         disabled={gameOver || !teleportUsable}
         onClick={() => uiCommands.useTeleporter()}
       >{teleportLabel}</button>

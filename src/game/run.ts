@@ -10,6 +10,7 @@
 import { SHIP_UPGRADE_SLOTS, START_Y } from '../../shared/constants';
 import { STARTING } from '../core/balance';
 import { createInventory, removeOres } from '../core/inventory';
+import { respawnPortals } from '../core/portal';
 import { createDefaultStats, placeAtHome, respawnPlayer } from '../core/state';
 import { dropWreck } from '../core/wreck';
 import { applyTileEntries, tileDiffEntries } from '../world/tile-diff';
@@ -18,17 +19,21 @@ import { resetWorldTerrain } from '../world/world-state';
 import type { AudioController, GameState } from '../core/types';
 import type { EnemySim } from './enemies';
 import type { GameInput } from './input';
+import type { PortalsSim } from './portals';
 import { viewport } from './viewport';
+
+/** Where a fresh ship redeploys after a restart: a portal tile, or the home base. */
+type SpawnAt = {x: number; y: number} | undefined;
 
 export interface GameRun {
   /** Discard the generated world and deploy a fresh miner (offline reset). */
-  generate(): void;
+  generate(at?: SpawnAt): void;
   /** Boot into the loaded save: its mine, and its ship where it was parked. */
   resume(): void;
   /** Regenerate terrain in place, keeping all player progress. */
   clearWorldRuntime(): void;
-  /** Redeploy the ship; `full` also wipes cash, upgrades, stats, and fog. */
-  resetPlayer(full?: boolean): void;
+  /** Redeploy the ship at `at` (a portal) or the home base; `full` also wipes progress. */
+  resetPlayer(full?: boolean, at?: SpawnAt): void;
   /** R or a tap after death: a whole new world. */
   restartGame(): void;
   /** End the run once, banking the death. */
@@ -46,6 +51,8 @@ export interface GameRunDeps {
    */
   enemies(): EnemySim;
   input(): GameInput;
+  /** Resolved lazily, like the enemies: the portal sim is wired after the run. */
+  portals(): PortalsSim;
   toast(message: string): void;
   saveProgress(): void;
   /** Reveal the fog footprint around the ship. */
@@ -66,7 +73,7 @@ export function createRun(deps: GameRunDeps): GameRun {
     state.camY = Math.max(0, state.player.y - Math.floor(viewport.tilesY/2));
   }
 
-  function resetPlayer(full = true): void {
+  function resetPlayer(full = true, at?: SpawnAt): void {
     state.teleportEffect = null;
     if (full) {
       state.cash = STARTING.cash;
@@ -89,7 +96,7 @@ export function createRun(deps: GameRunDeps): GameRun {
       saveProgress();
       deps.invalidateFog();
     }
-    respawnPlayer(state.player);
+    respawnPlayer(state.player, at);
     deps.revealAtPlayer();
     centreCameraOnShip();
     state.particles.length = 0;
@@ -106,9 +113,12 @@ export function createRun(deps: GameRunDeps): GameRun {
     applyTileEntries(state.world, tileDiffEntries(state.soloTileDiff));
   }
 
-  function generate(): void {
+  function generate(at?: SpawnAt): void {
     buildSoloWorld();
-    resetPlayer(false);
+    // A portal placed underground sits on a dug-out (air) tile, and the solo tile
+    // diff carries that hole back out of the reseeded terrain, so a ship redeployed
+    // onto a portal tile always lands in open space rather than inside rock.
+    resetPlayer(false, at);
     deps.enemies().resetExposure();
   }
 
@@ -140,6 +150,19 @@ export function createRun(deps: GameRunDeps): GameRun {
   }
 
   function restartGame(): void {
+    const spawns = respawnPortals(state.stations);
+    // Two or more portals and the player has not chosen yet: raise the no-close
+    // redeploy prompt and let the pick drive the rebuild. One portal redeploys
+    // there without asking; none falls back to the home cavern.
+    if (spawns.length >= 2 && deps.portals().mode !== 'respawn') {
+      deps.portals().openRespawn(at => completeRestart(at));
+      return;
+    }
+    completeRestart(spawns.length === 1 ? {x: spawns[0].x, y: spawns[0].y} : undefined);
+  }
+
+  /** Drop the wreck at the death tile, rebuild the world, and redeploy at `at`. */
+  function completeRestart(at?: SpawnAt): void {
     const died = state.gameOver;
     deps.input().reset();
     // Drop what the run was carrying — its ore and its fitted upgrades — as a
@@ -148,12 +171,12 @@ export function createRun(deps: GameRunDeps): GameRun {
     // scrapped ship leaves a salvageable corpse either way.
     const wreck = dropWreck(state.wrecks, state.player);
     if (wreck) saveProgress();
-    generate();
+    generate(at);
     if (wreck) {
-      const at = `(${wreck.x}, ${wreck.y})`;
+      const where = `(${wreck.x}, ${wreck.y})`;
       toast(died
-        ? `Replacement ship deployed. Cargo and fitted upgrades left in the wreck at ${at}.`
-        : `Ship reset. Cargo and fitted upgrades left in the wreck at ${at}.`);
+        ? `Replacement ship deployed. Cargo and fitted upgrades left in the wreck at ${where}.`
+        : `Ship reset. Cargo and fitted upgrades left in the wreck at ${where}.`);
     } else if (died) {
       toast('Replacement ship deployed. Cargo and fitted upgrades lost.');
     }

@@ -30,6 +30,14 @@ export interface UiCommands {
   toggleManufacturerPlacement(): void;
   /** Arm a carried Oil Extractor for placement, or stand it down. */
   toggleExtractorPlacement(): void;
+  /** Arm a carried Portal for placement, or stand it down. */
+  togglePortalPlacement(): void;
+  /** Shut the portal overlay; ignored while the no-close respawn prompt is up. */
+  closePortal(): void;
+  /** Rename the portal the travel overlay hangs off, sanitizing the entry. */
+  renamePortal(name: string): void;
+  /** Travel to the listed portal at these coordinates (free, teleporter, or respawn). */
+  travelToPortal(x: number, y: number): void;
   /**
    * Arm the Construction Toolkit, or stand it down. The press that follows on a
    * station or container tile packs the empty entity back into the bay.
@@ -120,6 +128,10 @@ function noopCommands(): UiCommands {
     toggleContainerPlacement: noop,
     toggleManufacturerPlacement: noop,
     toggleExtractorPlacement: noop,
+    togglePortalPlacement: noop,
+    closePortal: noop,
+    renamePortal: noop,
+    travelToPortal: noop,
     toggleToolkit: noop,
     closeTrade: noop,
     sellToPost: noop,

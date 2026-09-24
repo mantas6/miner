@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPlacedContainer } from '../core/cargo-container';
 import { addItem, countItem, createInventory, oreItem } from '../core/inventory';
 import { createInitialState } from '../core/state';
-import { createExtractor, createManufacturer, type PlacedStation } from '../core/stations';
+import { createExtractor, createManufacturer, createPortal, type PlacedStation } from '../core/stations';
 import type { GameState, Ore } from '../core/types';
 import { TOOLKIT_ITEM, createToolkit, type ToolkitSim } from './toolkit';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
@@ -85,6 +85,20 @@ describe('lifting a station', () => {
     expect(countItem(h.state.player.inventory, TOOLKIT_ITEM.kind)).toBe(1);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Oil Extractor packed')).toBe(true);
+  });
+
+  it('packs an empty portal into the bay — a portal is always liftable', () => {
+    const h = harness();
+    h.state.stations.push(createPortal(41, 100, 'Depot'));
+    h.toolkit.toggleArmed();
+
+    expect(h.toolkit.liftAt(41, 100)).toBe(true);
+
+    expect(h.state.stations).toEqual([]);
+    expect(countItem(h.state.player.inventory, 'device:portal')).toBe(1);
+    // Durable: the toolkit is still aboard.
+    expect(countItem(h.state.player.inventory, TOOLKIT_ITEM.kind)).toBe(1);
+    expect(h.toasts.saw('Portal packed')).toBe(true);
   });
 
   it('refuses a manufacturer that still holds stock', () => {

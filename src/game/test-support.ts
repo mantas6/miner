@@ -11,6 +11,7 @@ import { DEFAULT_TRACK_ID } from '../audio/tracks';
 import type { AudioController, Enemy, Tile } from '../core/types';
 import type { EnemySim } from './enemies';
 import type { GameInput } from './input';
+import type { PortalMode, PortalsSim } from './portals';
 import type { WorldGrid } from './world-grid';
 
 /** An in-memory tile grid: no lazy generation, every write recorded. */
@@ -72,6 +73,29 @@ export function createEnemySimStub(): EnemySimStub {
 
 export function createInputStub(): GameInput {
   return {tick: vi.fn(), clearKeys: vi.fn(), reset: vi.fn(), attach: vi.fn(() => () => {})};
+}
+
+/**
+ * A portal sim double: every method a `vi.fn` spy, with a `mode` a test can set
+ * to stand in for an open overlay. The methods keep the real `PortalsSim`
+ * signatures (contextually typed from the object literal), so they double as spies.
+ */
+export interface PortalsSimStub extends PortalsSim {
+  /** Settable, unlike the real sim's read-only getter. */
+  mode: PortalMode | null;
+}
+
+export function createPortalsSimStub(): PortalsSimStub {
+  return {
+    mode: null,
+    openTravel: vi.fn(() => true),
+    openTeleporter: vi.fn(() => true),
+    openRespawn: vi.fn(),
+    close: vi.fn(),
+    rename: vi.fn(),
+    travelTo: vi.fn(() => true),
+    tick: vi.fn()
+  };
 }
 
 export interface AudioStub extends AudioController {

@@ -11,7 +11,8 @@ import { createPlacedContainer } from '../core/cargo-container';
 import { addItem, countItem, createInventory } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { createInitialState } from '../core/state';
-import { STATION_DEVICE, stationAt } from '../core/stations';
+import { PORTAL_NAMES } from '../core/portal';
+import { STATION_DEVICE, createPortal, stationAt, type PortalStation } from '../core/stations';
 import type { GameState } from '../core/types';
 import { createStationDevices, type StationDeviceSim } from './station-devices';
 import { createAudioStub, createFakeGrid, createToastLog, type AudioStub, type FakeGrid } from './test-support';
@@ -195,5 +196,35 @@ describe('setting a station down', () => {
     h.devices.tick();
 
     expect(h.devices.armed).toBeNull();
+  });
+});
+
+describe('setting a portal down', () => {
+  it('spends the device and stands a named portal in the mine', () => {
+    const h = harness(0);
+    h.state.player.inventory = addItem(createInventory(), itemForKind('device:portal'), 1);
+
+    h.devices.toggleArmed('portal');
+    expect(h.devices.placeAt(40, 100)).toBe(true);
+
+    const portal = stationAt(h.state.stations, 40, 100) as PortalStation | null;
+    expect(portal?.kind).toBe('portal');
+    // A fresh portal draws a default name from the preset list.
+    expect(PORTAL_NAMES).toContain(portal!.name);
+    expect(countItem(h.state.player.inventory, 'device:portal')).toBe(0);
+    expect(h.toasts.saw('Portal set down')).toBe(true);
+  });
+
+  it('names a fresh portal so it never clashes with one already standing', () => {
+    const h = harness(0);
+    h.state.player.inventory = addItem(createInventory(), itemForKind('device:portal'), 1);
+    // An existing portal already holds one of the preset names.
+    h.state.stations.push(createPortal(10, 500, 'Depot'));
+
+    h.devices.toggleArmed('portal');
+    h.devices.placeAt(40, 100);
+
+    const placed = stationAt(h.state.stations, 40, 100) as PortalStation;
+    expect(placed.name).not.toBe('Depot');
   });
 });

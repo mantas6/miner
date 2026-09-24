@@ -44,6 +44,7 @@ import {
   type PlacedStation
 } from '../core/stations';
 import type { AudioController, GameState } from '../core/types';
+import type { PortalsSim } from './portals';
 
 /** The buffers the extractor screen paints, plus the current coal's tick progress. */
 export interface ExtractorView {
@@ -89,6 +90,8 @@ export interface HomeStationsDeps {
   setExtractorUi(view: ExtractorView | null): void;
   /** Re-derive the HUD player snapshot (fuel changes on a refuel). */
   syncPlayer(): void;
+  /** The portal sim: a press on a portal tile opens its travel list. */
+  portals: PortalsSim;
 }
 
 export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
@@ -100,10 +103,17 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
   let wasOnExtractor = false;
 
   function show(station: PlacedStation): boolean {
+    if (station.kind === 'portal') {
+      // A portal has no station screen of its own: it opens the free travel list.
+      // It is not held in `open` — the toolkit-lift tidy-up below is the station
+      // screens' concern, and the portal overlay closes itself on a lift in its
+      // own tick — so opening one first shuts whatever station screen was up.
+      close();
+      return deps.portals.openTravel(station);
+    }
     open = station;
     if (station.kind === 'manufacturer') deps.setStationUi(station.inventory);
-    else if (station.kind === 'extractor') deps.setExtractorUi(extractorView(station));
-    // TODO(portals phase 3): a portal opens the travel list, not a station screen.
+    else deps.setExtractorUi(extractorView(station));
     return true;
   }
 

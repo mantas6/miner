@@ -410,7 +410,7 @@ describe('store-driven HUD', () => {
     setUiCommands({useTeleporter});
     render(<MinerApp />);
 
-    patchHud({atSurface: false, teleporters: 2, teleportDepthReached: true, teleportUsable: true});
+    patchHud({atSurface: false, teleport: {count: 2, usable: true}});
 
     const teleporter = document.getElementById('teleporterBtn') as HTMLButtonElement;
     // The ship screen needs no station, so its button stays visible underground.
@@ -422,23 +422,23 @@ describe('store-driven HUD', () => {
     expect(useTeleporter).toHaveBeenCalledOnce();
   });
 
-  it('hides the teleport button underground with an empty bay, and at the depot without a return point', () => {
+  it('hides the teleport button with an empty bay and disables it when no portal is out of reach', () => {
     render(<MinerApp />);
 
-    patchHud({atSurface: false, teleporters: 0, teleportDepthReached: true, teleportUsable: false});
+    // No charge aboard: the button opens nothing, so it is not shown.
+    patchHud({teleport: {count: 0, usable: false}});
     expect((document.getElementById('teleporterBtn') as HTMLButtonElement).hidden).toBe(true);
 
-    patchHud({teleporters: 1});
-    expect((document.getElementById('teleporterBtn') as HTMLButtonElement).hidden).toBe(false);
-
-    // At the depot the trip back rides on the stored point, not on an item.
-    patchHud({atSurface: true, teleporters: 0, teleportReturn: false});
-    expect((document.getElementById('teleporterBtn') as HTMLButtonElement).hidden).toBe(true);
-
-    patchHud({teleportReturn: true, teleportUsable: true});
+    // A charge aboard but every portal already in reach: shown, but disabled.
+    patchHud({teleport: {count: 1, usable: false}});
     const teleporter = document.getElementById('teleporterBtn') as HTMLButtonElement;
     expect(teleporter.hidden).toBe(false);
-    expect(teleporter.textContent).toBe('Return (T)');
+    expect(teleporter.disabled).toBe(true);
+    expect(teleporter.textContent).toBe('Teleport (T) · x1');
+
+    // A portal out of reach: now the jump is available.
+    patchHud({teleport: {count: 1, usable: true}});
+    expect((document.getElementById('teleporterBtn') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('paints the scanner line the game formatted, and drops it once the ship is lost', () => {

@@ -84,6 +84,8 @@ export interface GameInputDeps {
   closeExtractor(): void;
   /** Escape/Space while the trading-post screen is up. */
   closeTrade(): void;
+  /** Escape/Space while the portal overlay is up (ignored in respawn mode). */
+  closePortal(): void;
   toast(message: string): void;
   /** Enable sound on the first trusted gesture, when the browser allows it. */
   tryAutoAudio(event?: Event): void;
@@ -154,7 +156,20 @@ export function createInput(deps: GameInputDeps): GameInput {
     }
   }
 
+  /** Whether keystrokes belong to a focused text field, not the mine. */
+  function editingText(): boolean {
+    const active = document.activeElement;
+    return active !== null && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+  }
+
   function handleKeyDown(e: KeyboardEvent): void {
+    // A focused text field — the portal rename input — owns its own keystrokes, so
+    // the mine must not also drive on them. Escape is the way out: it blurs the
+    // field first, handing the keyboard back to the game, and swallows this press.
+    if (editingText()) {
+      if (e.key === 'Escape') (document.activeElement as HTMLElement).blur();
+      return;
+    }
     // Keyboard movement must work even before the browser grants audio permission.
     // Audio can still be enabled with the HUD buttons or any pointer/touch input.
     const key = e.key.toLowerCase();
@@ -195,6 +210,17 @@ export function createInput(deps: GameInputDeps): GameInput {
       if (key === 'escape' || key === ' ') { deps.closeTrade(); e.preventDefault(); e.stopPropagation(); }
       return;
     }
+    if (ui.activeOverlay === 'portal') {
+      // Escape or Space shuts the travel/teleporter list — the round trip on one
+      // key — but the respawn prompt has no way out but a pick, so it swallows
+      // them instead of closing. Either way, no other key reaches the mine.
+      if (key === 'escape' || key === ' ') {
+        if (ui.portal?.mode !== 'respawn') deps.closePortal();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
     const dir = movementKeys[key];
     if (key === 'shift') {
       keys.add(key);
@@ -221,6 +247,8 @@ export function createInput(deps: GameInputDeps): GameInput {
   }
 
   function handleKeyUp(e: KeyboardEvent): void {
+    // A focused text field owns its keystrokes; leave its releases to it.
+    if (editingText()) return;
     keys.delete(e.key.toLowerCase());
     if (e.key === ' ') { e.preventDefault(); e.stopPropagation(); }
   }
@@ -244,6 +272,9 @@ export function createInput(deps: GameInputDeps): GameInput {
   /** Tap/click anywhere outside the dialogs to deploy a replacement ship. */
   function handleRestartPointer(e: Event): void {
     if (!isPlaying() || !state.gameOver) return;
+    // An overlay owns its own presses — above all the no-close respawn prompt,
+    // where a tap anywhere must not bypass the redeploy choice into a home restart.
+    if (uiStore.getState().activeOverlay !== null) return;
     const target = e.target as Element;
     if (target.closest && target.closest('#info-screen')) return;
     deps.tryAutoAudio(e);
