@@ -55,8 +55,8 @@ export type DecorId = 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel';
 /** One decoration's stack key, e.g. `decor:lampPanel`. */
 export type DecorKind = `decor:${DecorId}`;
 
-/** The two placeable stations, carried as bay items until they are set down. */
-export type DeviceKind = 'device:manufacturer' | 'device:extractor';
+/** The placeable stations, carried as bay items until they are set down. */
+export type DeviceKind = 'device:manufacturer' | 'device:extractor' | 'device:portal';
 
 /** The durable Construction Toolkit that lifts empty stations and containers back aboard. */
 export type ToolkitKind = 'toolkit';

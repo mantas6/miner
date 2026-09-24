@@ -20,7 +20,6 @@ export function resetPlayerData(state: GameState): void {
   state.particles = fresh.particles;
   state.stats = fresh.stats;
   state.teleportEffect = fresh.teleportEffect;
-  state.teleportReturnPosition = fresh.teleportReturnPosition;
   state.exploredTiles = fresh.exploredTiles;
   state.scannerDevices = fresh.scannerDevices;
   state.placedDynamite = fresh.placedDynamite;

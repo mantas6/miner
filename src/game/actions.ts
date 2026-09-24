@@ -9,20 +9,10 @@
 // Each one is a small transaction — validate, mutate, toast, play a sound — so
 // they are grouped here rather than scattered through the loop code.
 
-import { TILE, WORLD_W } from '../../shared/constants';
 import { HULL } from '../core/balance';
 import { countItem, removeItem } from '../core/inventory';
 import { ITEM_CATALOG } from '../core/items';
-import {
-  MIN_TELEPORT_DEPTH_METERS,
-  canTeleport,
-  createTeleportEffect,
-  teleportPlayerToHome,
-  teleportPlayerToReturn,
-  teleportersCarried
-} from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
-import { viewport } from './viewport';
 
 export interface GameActions {
   useTeleporter(): void;
@@ -42,36 +32,13 @@ export interface GameActionsDeps {
 }
 
 export function createActions(deps: GameActionsDeps): GameActions {
-  const {state, audio, toast, saveProgress, atSurface} = deps;
+  const {state, audio, toast, saveProgress} = deps;
 
   function useTeleporter(): void {
-    const p = state.player;
     if (state.gameOver) return;
-    const surf = atSurface();
-    if (surf && !state.teleportReturnPosition) return toast('No underground teleport return point.');
-    if (!surf && teleportersCarried(p) <= 0) { audio.alarm(); return toast('No teleporter aboard. Craft one at the Manufacturing Station.'); }
-    if (!surf && !canTeleport(p)) { audio.alarm(); return toast(`Teleport requires a depth of at least ${MIN_TELEPORT_DEPTH_METERS} m.`); }
-    const camX = Math.max(0, Math.min(WORLD_W - viewport.tilesX, state.camX));
-    const camY = Math.max(0, state.camY);
-    const originScreenX = (p.drawX - camX + .5) * TILE;
-    const originScreenY = (p.drawY - camY + .5) * TILE;
-    if (surf) {
-      if (!teleportPlayerToReturn(p, state.teleportReturnPosition)) return;
-      state.teleportReturnPosition = null;
-    } else {
-      const returnPosition = teleportPlayerToHome(p);
-      if (!returnPosition) return;
-      state.teleportReturnPosition = returnPosition;
-    }
-    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    state.teleportEffect = createTeleportEffect(originScreenX, originScreenY, p.x, p.y, reducedMotion);
-    state.input.keyImpulse = null;
-    state.camX = Math.max(0, p.x - Math.floor(viewport.tilesX / 2));
-    state.camY = Math.max(0, p.y - Math.floor(viewport.tilesY / 2));
-    saveProgress();
-    toast(surf
-      ? 'Returned to the underground teleport point.'
-      : 'Teleported safely home. Press T to return underground.');
+    // TODO(portals phase 3): a carried teleporter opens the portal travel list and
+    // is spent on the jump. Until the portal sim lands, this is an inert stub.
+    toast('Teleporter travel is being rebuilt around portals.');
   }
 
   function useRepairKit(): void {

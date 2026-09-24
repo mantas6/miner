@@ -25,8 +25,12 @@ export function isAtHome(player: Pick<Player, 'x' | 'y'>): boolean {
   return isHomeCavern(player.x, player.y);
 }
 
-export function respawnPlayer(player: Player): void {
-  placeAtHome(player);
+export function respawnPlayer(player: Player, at?: {x: number; y: number}): void {
+  if (at) {
+    Object.assign(player, {x: at.x, y: at.y, drawX: at.x, drawY: at.y});
+  } else {
+    placeAtHome(player);
+  }
   // Fitted upgrades do not survive the wreck: unfitting every slot is the wipe,
   // and re-deriving the maxima against the empty loadout drops them back to base
   // before the replacement ship deploys with a full tank and hull.
@@ -68,7 +72,6 @@ export function createInitialState(): GameState {
     enemyIdCounter: 1,
     stats: createDefaultStats(),
     teleportEffect: null,
-    teleportReturnPosition: null,
     reducedMotion: false,
     exploredTiles: new Set<number>(),
     scannerDevices: [],

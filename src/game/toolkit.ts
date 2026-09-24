@@ -96,7 +96,9 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
   function liftStation(station: PlacedStation): boolean {
     const holdsStock = station.kind === 'manufacturer'
       ? totalItems(station.inventory) > 0
-      : station.coal > 0 || station.fuel > 0;
+      : station.kind === 'extractor'
+        ? station.coal > 0 || station.fuel > 0
+        : false; // A portal is always empty, so it is always liftable.
     if (holdsStock) {
       audio.alarm();
       toast('Empty it first — the station still holds stock.');

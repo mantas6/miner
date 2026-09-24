@@ -16,7 +16,7 @@ import {
 /** Every non-ore kind the game can hold, built the same way the catalog is keyed. */
 const NON_ORE_KINDS: NonOreKind[] = [
   'dynamite', 'scanner', 'teleporter', 'container', 'repairKit',
-  'device:manufacturer', 'device:extractor', 'toolkit',
+  'device:manufacturer', 'device:extractor', 'device:portal', 'toolkit',
   'decor:steelPlate', 'decor:stoneBlock', 'decor:copperTrim', 'decor:lampPanel',
   'upgrade:tank:1', 'upgrade:tank:2', 'upgrade:tank:3',
   'upgrade:cargo:1', 'upgrade:cargo:2', 'upgrade:cargo:3',

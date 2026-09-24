@@ -1,135 +1,77 @@
 import { describe, expect, it } from 'vitest';
-import { HOME_ROW, HOME_X, ORES, START_Y } from '../../shared/constants';
-import { addItem, addOre, countOres, createInventory } from './inventory';
+import { START_Y } from '../../shared/constants';
+import { addItem } from './inventory';
 import { createInitialState } from './state';
+import { createPortal, type PlacedStation } from './stations';
 import {
-  MIN_TELEPORT_HOME_DISTANCE,
   REDUCED_TELEPORT_EFFECT_FRAMES,
   TELEPORTER_ITEM,
   TELEPORT_EFFECT_FRAMES,
   advanceTeleportEffect,
-  canTeleport,
-  canUseTeleporter,
+  canUsePortableTeleporter,
   createTeleportEffect,
-  teleportPlayerToHome,
-  teleportPlayerToReturn,
+  movePlayerTo,
   teleportersCarried
 } from './teleporter';
 import type { Player } from './types';
 
-/** Load the bay with `count` teleporters, the only place a charge lives now. */
+/** Load the bay with `count` teleporters, the only place a charge lives. */
 function carrying(player: Player, count: number): void {
   player.inventory = addItem(player.inventory, TELEPORTER_ITEM, count) ?? player.inventory;
 }
 
-describe('home teleporter', () => {
-  it('rejects a jump within 10 tiles of home and allows it at exactly 10', () => {
+describe('teleporters carried', () => {
+  it('counts the charges riding in the bay', () => {
     const player = createInitialState().player;
-    carrying(player, 2);
+    expect(teleportersCarried(player)).toBe(0);
+    carrying(player, 3);
+    expect(teleportersCarried(player)).toBe(3);
+  });
+});
 
-    Object.assign(player, {x: HOME_X, y: HOME_ROW + MIN_TELEPORT_HOME_DISTANCE - 1, drawX: HOME_X});
-    expect(canTeleport(player)).toBe(false);
-    expect(canUseTeleporter(player, null)).toBe(false);
-    expect(teleportPlayerToHome(player)).toBeNull();
-    expect(player.y).toBe(HOME_ROW + 9);
-    expect(teleportersCarried(player)).toBe(2);
+describe('canUsePortableTeleporter', () => {
+  const away = createPortal(20, START_Y + 60, 'Depot');
+  const stations: PlacedStation[] = [createPortal(45, START_Y, 'Home'), away];
 
-    Object.assign(player, {x: HOME_X, y: HOME_ROW + MIN_TELEPORT_HOME_DISTANCE});
-    expect(canTeleport(player)).toBe(true);
-    expect(canUseTeleporter(player, null)).toBe(true);
-    expect(teleportPlayerToHome(player)).toEqual({x: HOME_X, y: HOME_ROW + 10});
-    expect(teleportersCarried(player)).toBe(1);
+  it('needs a charge aboard and a portal beyond arm’s reach', () => {
+    const player = createInitialState().player;
+    Object.assign(player, {x: 8, y: START_Y + 5});
+
+    // No charge: refused even with portals in the world.
+    expect(canUsePortableTeleporter(player, stations)).toBe(false);
+
+    carrying(player, 1);
+    expect(canUsePortableTeleporter(player, stations)).toBe(true);
   });
 
-  it('spends one teleporter out of the bay and moves home without free services', () => {
-    const state = createInitialState();
-    const player = state.player;
-    state.cash = 90;
-    Object.assign(player, {
-      x: 4, y: 120, drawX: 4, drawY: 120, fuel: 17, hull: 42,
-      inventory: addOre(createInventory(), ORES[3], 10)!
-    });
-    carrying(player, 2);
+  it('is refused when every portal is already within reach', () => {
+    const player = createInitialState().player;
+    carrying(player, 1);
+    // Standing on the only portal beside the reachable one: nothing left to jump to.
+    Object.assign(player, {x: away.x, y: away.y});
+    expect(canUsePortableTeleporter(player, [away])).toBe(false);
+  });
+});
 
-    expect(teleportPlayerToHome(player)).toEqual({x: 4, y: 120});
+describe('movePlayerTo', () => {
+  it('snaps the logical and render position and settles the animation', () => {
+    const player = createInitialState().player;
+    Object.assign(player, {bob: 4, drillAnim: 9});
+
+    movePlayerTo(player, 12, START_Y + 40);
+
     expect(player).toMatchObject({
-      x: HOME_X,
-      y: HOME_ROW,
-      drawX: HOME_X,
-      drawY: HOME_ROW,
-      fuel: 17,
-      hull: 42
+      x: 12,
+      y: START_Y + 40,
+      drawX: 12,
+      drawY: START_Y + 40,
+      bob: 0,
+      drillAnim: 0
     });
-    expect(teleportersCarried(player)).toBe(1);
-    // The trip carries the ore home with the ship; only the charge is spent.
-    expect(countOres(player.inventory)).toBe(1);
-    expect(state.cash).toBe(90);
   });
+});
 
-  it('does nothing at home or with an empty bay', () => {
-    const player = createInitialState().player;
-    carrying(player, 1);
-    // A fresh ship parks at home, well within the teleport threshold.
-    expect(teleportPlayerToHome(player)).toBeNull();
-    expect(teleportersCarried(player)).toBe(1);
-
-    Object.assign(player, {x: 20, y: 120});
-    player.inventory = createInventory();
-    expect(teleportPlayerToHome(player)).toBeNull();
-    expect(player.y).toBe(120);
-  });
-
-  it('frees the slot once the last teleporter is spent', () => {
-    const player = createInitialState().player;
-    Object.assign(player, {x: 7, y: 143, drawX: 7, drawY: 143});
-    carrying(player, 1);
-
-    expect(teleportPlayerToHome(player)).toEqual({x: 7, y: 143});
-
-    expect(teleportersCarried(player)).toBe(0);
-    expect(player.inventory.every(slot => slot === null)).toBe(true);
-  });
-
-  it('returns to the exact departure point without consuming another charge and supports another round trip', () => {
-    const player = createInitialState().player;
-    Object.assign(player, {x: 7, y: 143, drawX: 7, drawY: 143});
-    carrying(player, 2);
-
-    const firstReturn = teleportPlayerToHome(player);
-    expect(firstReturn).toEqual({x: 7, y: 143});
-    expect(teleportPlayerToReturn(player, firstReturn)).toBe(true);
-    expect(player).toMatchObject({x: 7, y: 143, drawX: 7, drawY: 143});
-    expect(teleportersCarried(player)).toBe(1);
-
-    player.x = 11;
-    player.y = 176;
-    const secondReturn = teleportPlayerToHome(player);
-    expect(secondReturn).toEqual({x: 11, y: 176});
-    expect(teleportPlayerToReturn(player, secondReturn)).toBe(true);
-    expect(player).toMatchObject({x: 11, y: 176});
-    expect(teleportersCarried(player)).toBe(0);
-  });
-
-  it('keeps a pending home return enabled at base without another charge', () => {
-    const player = createInitialState().player;
-    const returnPosition = {x: 7, y: START_Y + 10};
-
-    expect(teleportersCarried(player)).toBe(0);
-    expect(canUseTeleporter(player, returnPosition)).toBe(true);
-    expect(teleportPlayerToReturn(player, returnPosition)).toBe(true);
-    expect(player).toMatchObject(returnPosition);
-    expect(teleportersCarried(player)).toBe(0);
-  });
-
-  it('does not return without a pending point or from away from home', () => {
-    const player = createInitialState().player;
-
-    expect(teleportPlayerToReturn(player, null)).toBe(false);
-    Object.assign(player, {x: 20, y: 120});
-    expect(teleportPlayerToReturn(player, {x: 4, y: 120})).toBe(false);
-    expect(player.y).toBe(120);
-  });
-
+describe('the teleport effect', () => {
   it('captures both visible endpoints and expires without a timer', () => {
     let effect = createTeleportEffect(320, 240, 45, START_Y);
 

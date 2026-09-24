@@ -41,7 +41,6 @@ describe('player-data reset', () => {
     state.camY = 60;
     state.particles.push({x:1,y:1,vx:1,vy:1,life:1,color:'#fff',size:1});
     state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4};
-    state.teleportReturnPosition = {x: 8, y: 80};
     state.exploredTiles.add(1234);
     state.tradeLedger = {'40,120': [0, 1]};
 
@@ -54,7 +53,7 @@ describe('player-data reset', () => {
     expect(state).toMatchObject({
       cash: fresh.cash, tick: 0, gameOver: false, camX: 0, camY: 0,
       particles: [], stats: fresh.stats,
-      teleportEffect: null, teleportReturnPosition: null, input: fresh.input
+      teleportEffect: null, input: fresh.input
     });
     expect(state.exploredTiles.size).toBe(0);
     expect(storage.removeItem).toHaveBeenCalledWith(SAVE_KEY);
@@ -62,7 +61,8 @@ describe('player-data reset', () => {
       cash: fresh.cash, bay: [], equipment: [null, null],
       stations: [
         {kind: 'manufacturer', items: []},
-        {kind: 'extractor', coal: 0, fuel: 0, progress: 0}
+        {kind: 'extractor', coal: 0, fuel: 0, progress: 0},
+        {kind: 'portal', name: 'Home'}
       ],
       explored: '', stats: fresh.stats
     });

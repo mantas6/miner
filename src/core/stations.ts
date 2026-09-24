@@ -28,8 +28,8 @@ import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
 import { tradingPostAt } from '../world/world';
 
-/** Which of the two kinds of station this is. */
-export type StationKind = 'manufacturer' | 'extractor';
+/** Which kind of station this is. */
+export type StationKind = 'manufacturer' | 'extractor' | 'portal';
 
 /** A crafting station standing in the mine, with its own stock. */
 export interface ManufacturerStation {
@@ -57,19 +57,37 @@ export interface ExtractorStation {
   progress: number;
 }
 
+/**
+ * A portal standing in the mine: a fixed travel point. It holds no stock — a
+ * portal is always "empty", so the Construction Toolkit can always lift it — and
+ * carries only a player-facing `name`, capped at `MAX_PORTAL_NAME_LENGTH`.
+ */
+export interface PortalStation {
+  kind: 'portal';
+  x: number;
+  y: number;
+  /** Player-facing label, e.g. `Home`. Sanitized to `MAX_PORTAL_NAME_LENGTH`. */
+  name: string;
+}
+
 /** One station standing in the mine. */
-export type PlacedStation = ManufacturerStation | ExtractorStation;
+export type PlacedStation = ManufacturerStation | ExtractorStation | PortalStation;
 
 /** The extractor's buffer fields alone, for the pure `tickExtractor`. */
 export type ExtractorBuffer = Pick<ExtractorStation, 'coal' | 'fuel' | 'progress'>;
 
-/** The stackable items the two stations are carried as; defined once in `items.ts`. */
+/** The stackable items the stations are carried as; defined once in `items.ts`. */
 export const MANUFACTURER_ITEM = ITEM_CATALOG['device:manufacturer'];
 export const EXTRACTOR_ITEM = ITEM_CATALOG['device:extractor'];
+export const PORTAL_ITEM = ITEM_CATALOG['device:portal'];
 
 /** The item one station of `kind` is carried as. */
-export function stationDeviceItemKind(kind: StationKind): 'device:manufacturer' | 'device:extractor' {
-  return kind === 'manufacturer' ? 'device:manufacturer' : 'device:extractor';
+export function stationDeviceItemKind(
+  kind: StationKind
+): 'device:manufacturer' | 'device:extractor' | 'device:portal' {
+  if (kind === 'manufacturer') return 'device:manufacturer';
+  if (kind === 'extractor') return 'device:extractor';
+  return 'device:portal';
 }
 
 /**
@@ -87,7 +105,9 @@ export const STATION_REACH = 1;
 /** Per-kind placement limits, mirroring the cargo container's soft cap. */
 export const STATION_DEVICE = Object.freeze({
   manufacturer: {maxPlaced: 4, reach: STATION_REACH},
-  extractor: {maxPlaced: 4, reach: STATION_REACH}
+  extractor: {maxPlaced: 4, reach: STATION_REACH},
+  // The base's `Home` portal counts toward this cap.
+  portal: {maxPlaced: 6, reach: STATION_REACH}
 });
 
 export function createManufacturer(x: number, y: number): ManufacturerStation {
@@ -98,11 +118,19 @@ export function createExtractor(x: number, y: number): ExtractorStation {
   return {kind: 'extractor', x, y, coal: 0, fuel: 0, progress: 0};
 }
 
-/** The two default stations, seeded on the home-cavern floor at the old positions. */
+export function createPortal(x: number, y: number, name: string): PortalStation {
+  return {kind: 'portal', x, y, name};
+}
+
+/**
+ * The default stations, seeded on the home-cavern floor: the manufacturer and
+ * extractor at their old positions, plus the base's `Home` portal.
+ */
 export function createInitialStations(): PlacedStation[] {
   return [
     createManufacturer(STATIONS.manufacturer.x, STATIONS.manufacturer.y),
-    createExtractor(STATIONS.extractor.x, STATIONS.extractor.y)
+    createExtractor(STATIONS.extractor.x, STATIONS.extractor.y),
+    createPortal(STATIONS.portal.x, STATIONS.portal.y, 'Home')
   ];
 }
 
@@ -148,6 +176,11 @@ export function nearestStation(
 /** The first manufacturer among the stations, or `null` when there is none. */
 export function firstManufacturer(stations: readonly PlacedStation[]): ManufacturerStation | null {
   return stations.find((s): s is ManufacturerStation => s.kind === 'manufacturer') ?? null;
+}
+
+/** Every portal standing in the mine, in placement order. */
+export function portals(stations: readonly PlacedStation[]): PortalStation[] {
+  return stations.filter((s): s is PortalStation => s.kind === 'portal');
 }
 
 /**
@@ -236,7 +269,7 @@ export function tickExtractor(extractor: ExtractorBuffer): ExtractorBuffer {
 
 /** How a station device words each of the shared placement refusals. */
 function stationPlacementCopy(kind: StationKind): PlacementCopy {
-  const label = kind === 'manufacturer' ? 'Manufacturing Station' : 'Oil Extractor';
+  const label = kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Oil Extractor' : 'Portal';
   return {
     full: `Only ${STATION_DEVICE[kind].maxPlaced} ${label}s can stand in the mine at once.`,
     offMine: `A ${label} is set down underground, inside the mine.`,

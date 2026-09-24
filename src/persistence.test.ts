@@ -225,7 +225,9 @@ describe('station persistence', () => {
       version: SAVE_VERSION,
       stations: [
         {kind: 'manufacturer', items: [{kind: 'ore:Coal', count: 20}, {kind: 'repairKit', count: 2}]},
-        {kind: 'extractor', coal: 9, fuel: 40, progress: 120}
+        {kind: 'extractor', coal: 9, fuel: 40, progress: 120},
+        // TODO(portals phase 2): the seeded Home portal round-trips once parsing lands.
+        {kind: 'portal', name: 'Home'}
       ]
     });
 
@@ -263,13 +265,14 @@ describe('station persistence', () => {
     expect(extractor(state)).toMatchObject({coal: 3, fuel: 20, progress: 0});
   });
 
-  it('keeps the two seeded stations when a save records none', () => {
+  it('keeps the seeded stations when a save records none', () => {
     stubStorage({version: SAVE_VERSION, cash: 100});
     const state = createInitialState();
 
     load(state);
 
-    expect(state.stations).toHaveLength(2);
+    // Manufacturer, extractor, and the seeded Home portal.
+    expect(state.stations).toHaveLength(3);
     expect(manufacturer(state)!.inventory).toHaveLength(0);
     expect(extractor(state)).toMatchObject({coal: 0, fuel: 0, progress: 0});
   });

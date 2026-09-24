@@ -102,7 +102,8 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
   function show(station: PlacedStation): boolean {
     open = station;
     if (station.kind === 'manufacturer') deps.setStationUi(station.inventory);
-    else deps.setExtractorUi(extractorView(station));
+    else if (station.kind === 'extractor') deps.setExtractorUi(extractorView(station));
+    // TODO(portals phase 3): a portal opens the travel list, not a station screen.
     return true;
   }
 
@@ -115,14 +116,14 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     const was = open;
     open = null;
     if (was.kind === 'manufacturer') deps.setStationUi(null);
-    else deps.setExtractorUi(null);
+    else if (was.kind === 'extractor') deps.setExtractorUi(null);
   }
 
   /** Re-publish the open screen's data after a change. */
   function repaint(): void {
     if (!open) return;
     if (open.kind === 'manufacturer') deps.setStationUi(open.inventory);
-    else deps.setExtractorUi(extractorView(open));
+    else if (open.kind === 'extractor') deps.setExtractorUi(extractorView(open));
   }
 
   /** The open manufacturer, or `null` when the screen up is something else. */

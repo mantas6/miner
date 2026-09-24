@@ -68,7 +68,6 @@ export function createRun(deps: GameRunDeps): GameRun {
 
   function resetPlayer(full = true): void {
     state.teleportEffect = null;
-    state.teleportReturnPosition = null;
     if (full) {
       state.cash = STARTING.cash;
       Object.assign(state.player, {

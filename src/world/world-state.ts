@@ -30,7 +30,6 @@ export function resetWorldTerrain(state: GameState): void {
   state.cargoContainers = [];
   state.particles = [];
   state.teleportEffect = null;
-  state.teleportReturnPosition = null;
   state.gameOver = false;
   placeAtHome(state.player);
   state.camX = Math.max(0, state.player.x - 7);

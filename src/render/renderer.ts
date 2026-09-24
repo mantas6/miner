@@ -423,9 +423,10 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     for (const station of state.stations ?? []) {
       if (station.kind === 'manufacturer') {
         drawStation(station.x, station.y, camX, camY, drawManufacturerBody, false, 'Manufacturer');
-      } else {
+      } else if (station.kind === 'extractor') {
         drawStation(station.x, station.y, camX, camY, drawExtractorBody, station.coal > 0, 'Oil Extractor');
       }
+      // TODO(portals phase 4): draw the portal ring and its name label.
     }
   }
   function drawStation(

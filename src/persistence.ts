@@ -314,14 +314,20 @@ function serializeStation(station: PlacedStation): Record<string, unknown> {
   if (station.kind === 'manufacturer') {
     return {kind: 'manufacturer', x: station.x, y: station.y, items: serializeStacks(station.inventory)};
   }
-  return {
-    kind: 'extractor',
-    x: station.x,
-    y: station.y,
-    coal: Math.floor(station.coal),
-    fuel: Math.floor(station.fuel),
-    progress: Math.floor(station.progress)
-  };
+  if (station.kind === 'extractor') {
+    return {
+      kind: 'extractor',
+      x: station.x,
+      y: station.y,
+      coal: Math.floor(station.coal),
+      fuel: Math.floor(station.fuel),
+      progress: Math.floor(station.progress)
+    };
+  }
+  // TODO(portals phase 2): parse this back in `parseStations` (with `sanitizePortalName`
+  // and the portal cap) and bump `SAVE_VERSION`; for now the record is written but
+  // dropped on load, so a reloaded save falls back to the seeded `Home` portal.
+  return {kind: 'portal', x: station.x, y: station.y, name: station.name};
 }
 
 /**

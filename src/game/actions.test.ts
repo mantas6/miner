@@ -1,5 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { HOME_X, START_Y } from '../../shared/constants';
+import { describe, expect, it, vi } from 'vitest';
 import { HULL } from '../core/balance';
 import { addItem, countItem, createInventory } from '../core/inventory';
 import { ITEM_CATALOG } from '../core/items';
@@ -79,71 +78,25 @@ describe('using a repair kit', () => {
   });
 });
 
-describe('using the teleporter', () => {
-  // The jump asks the browser about reduced motion, and this suite has no DOM.
-  afterEach(() => vi.unstubAllGlobals());
-
-  /** A ship well past the 100 m threshold, with `count` teleporters in the bay. */
-  function deepWithTeleporters(h: Harness, count: number): void {
-    vi.stubGlobal('window', {});
-    const y = START_Y + 40;
-    Object.assign(h.state.player, {x: 20, y, drawX: 20, drawY: y});
-    h.state.player.inventory = addItem(createInventory(), TELEPORTER_ITEM, count)!;
-    h.flags.atSurface = false;
-  }
-
-  it('spends one teleporter on the trip up and nothing on the trip back', () => {
+describe('using the teleporter (portals phase 1 stub)', () => {
+  // TODO(portals phase 3): replace with the portal-travel behaviour — a carried
+  // teleporter opens the portal list and is spent on the jump.
+  it('is an inert no-op that keeps the charge and toasts while travel is rebuilt', () => {
     const h = harness();
-    deepWithTeleporters(h, 2);
+    h.state.player.inventory = addItem(createInventory(), TELEPORTER_ITEM, 1);
 
     h.actions.useTeleporter();
 
     expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
-    expect(h.state.player.y).toBe(START_Y);
-    expect(h.state.teleportReturnPosition).toEqual({x: 20, y: START_Y + 40});
-    expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.toasts.saw('Teleported safely home')).toBe(true);
-
-    h.flags.atSurface = true;
-    h.actions.useTeleporter();
-
-    // The return point is the receipt for the charge already spent.
-    expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
-    expect(h.state.player.y).toBe(START_Y + 40);
-    expect(h.state.teleportReturnPosition).toBeNull();
+    expect(h.toasts.saw('being rebuilt')).toBe(true);
   });
 
-  it('frees the slot once the last teleporter is spent', () => {
+  it('does nothing once the ship is lost', () => {
     const h = harness();
-    deepWithTeleporters(h, 1);
+    h.state.gameOver = true;
 
     h.actions.useTeleporter();
 
-    expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(0);
-    expect(h.state.player.inventory.every(slot => slot === null)).toBe(true);
-  });
-
-  it('refuses the jump with nothing in the bay', () => {
-    const h = harness();
-    deepWithTeleporters(h, 0);
-
-    h.actions.useTeleporter();
-
-    expect(h.state.player.y).toBe(START_Y + 40);
-    expect(h.state.teleportReturnPosition).toBeNull();
-    expect(h.toasts.saw('No teleporter aboard')).toBe(true);
-    expect(h.audio.played).toContain('alarm');
-  });
-
-  it('keeps the teleporter when the ship is too close to home to use it', () => {
-    const h = harness();
-    deepWithTeleporters(h, 1);
-    Object.assign(h.state.player, {x: HOME_X, y: START_Y + 1, drawX: HOME_X, drawY: START_Y + 1});
-
-    h.actions.useTeleporter();
-
-    expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
-    expect(h.toasts.saw('depth of at least')).toBe(true);
-    expect(h.audio.played).toContain('alarm');
+    expect(h.toasts.messages).toHaveLength(0);
   });
 });

@@ -12,7 +12,9 @@ import {
   isStationTile,
   manufacturerStock,
   nearestStation,
+  portals,
   stationAt,
+  stationDeviceItemKind,
   stationPlacementRefusal,
   stowAll,
   stowStack,
@@ -41,11 +43,24 @@ function inventory(...stacks: [string, number][]): Inventory {
 }
 
 describe('the seeded stations', () => {
-  it('places one manufacturer and one extractor at the old fixed positions', () => {
+  it('places a manufacturer, an extractor, and the Home portal at the fixed positions', () => {
     const stations = createInitialStations();
-    expect(stations).toHaveLength(2);
+    expect(stations).toHaveLength(3);
     expect(stationAt(stations, STATIONS.manufacturer.x, STATIONS.manufacturer.y)?.kind).toBe('manufacturer');
     expect(stationAt(stations, STATIONS.extractor.x, STATIONS.extractor.y)?.kind).toBe('extractor');
+    const portal = stationAt(stations, STATIONS.portal.x, STATIONS.portal.y);
+    expect(portal?.kind).toBe('portal');
+    expect(portal?.kind === 'portal' && portal.name).toBe('Home');
+  });
+
+  it('lists the seeded portals and names the portal device item', () => {
+    const seeded = portals(createInitialStations());
+    expect(seeded.map(p => p.name)).toEqual(['Home']);
+    expect(stationDeviceItemKind('portal')).toBe('device:portal');
+  });
+
+  it('caps portals at six, the base Home portal included', () => {
+    expect(STATION_DEVICE.portal.maxPlaced).toBe(6);
   });
 });
 
@@ -70,8 +85,8 @@ describe('locating the stations', () => {
     expect(nearestStation(stations, {x: STATIONS.extractor.x + 1, y: HOME_ROW})?.kind).toBe('extractor');
     // The spawn tile midway between the two is in reach of both; the manufacturer breaks the tie.
     expect(nearestStation(stations, {x: (STATIONS.manufacturer.x + STATIONS.extractor.x) / 2, y: HOME_ROW})?.kind).toBe('manufacturer');
-    // Two tiles past the extractor is out of reach of both.
-    expect(nearestStation(stations, {x: STATIONS.extractor.x + 2, y: HOME_ROW})).toBeNull();
+    // Three tiles left of the manufacturer is out of reach of every seeded station.
+    expect(nearestStation(stations, {x: STATIONS.manufacturer.x - 3, y: HOME_ROW})).toBeNull();
   });
 
   it('breaks a tie for the manufacturer even when it comes later in the array', () => {
@@ -157,6 +172,8 @@ describe('placing a station device', () => {
     expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupied: true, count: 0})).toMatch(/already stands/);
     expect(stationPlacementRefusal(40, 100, 'manufacturer', {explored, open: true, occupied: false, count: STATION_DEVICE.manufacturer.maxPlaced}))
       .toMatch(/Manufacturing Stations/);
+    expect(stationPlacementRefusal(40, 100, 'portal', {explored, open: true, occupied: false, count: STATION_DEVICE.portal.maxPlaced}))
+      .toMatch(/Portals/);
   });
 
   it('refuses a tile a trading post already stands on', () => {

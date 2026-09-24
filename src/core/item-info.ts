@@ -37,7 +37,6 @@ import { formatDepthBandLabel } from './prospecting';
 import { SCANNER_DEVICE } from './scanner-device';
 import { UPGRADE_EFFECTS } from './ship-upgrades';
 import { STATION_DEVICE } from './stations';
-import { MIN_TELEPORT_DEPTH_METERS } from './teleporter';
 
 /** A title and a few detail lines for one item kind. Never empty. */
 export interface ItemInfo {
@@ -110,8 +109,8 @@ function describeConsumable(kind: ConsumableKind): ItemInfo {
       return {
         title,
         lines: [
-          'Returns you to the surface, or back down to where you left.',
-          `Usable from ${MIN_TELEPORT_DEPTH_METERS} m deep or more.`
+          'Opens the portal list; travelling spends the teleporter.',
+          'Travel is free between built portals; the charge is the fare for the jump.'
         ]
       };
     case 'container':
@@ -132,8 +131,18 @@ function describeConsumable(kind: ConsumableKind): ItemInfo {
   }
 }
 
-/** The two placeable stations, set down in the mine and lifted back with the toolkit. */
+/** The placeable stations, set down in the mine and lifted back with the toolkit. */
 function describeStationDevice(kind: DeviceKind): ItemInfo {
+  if (kind === 'device:portal') {
+    return {
+      title: itemForKind(kind).label,
+      lines: [
+        'Placeable Portal: travel between built portals for free.',
+        `Set it down on a cleared, explored tile; up to ${STATION_DEVICE.portal.maxPlaced} portals can stand in the mine.`,
+        'It is also a respawn point, and lifts back into the bay with the Construction Toolkit.'
+      ]
+    };
+  }
   const manufacturer = kind === 'device:manufacturer';
   const key = manufacturer ? 'manufacturer' : 'extractor';
   return {

@@ -100,7 +100,7 @@ function placementSiteFor(
   // The two placeable stations share the container's shape, but any placed entity
   // — station, crate, scanner, or dynamite — counts the tile as taken.
   if (isDeviceKind(kind)) {
-    const key = kind === 'device:manufacturer' ? 'manufacturer' : 'extractor';
+    const key = kind === 'device:manufacturer' ? 'manufacturer' : kind === 'device:extractor' ? 'extractor' : 'portal';
     return {
       explored: world.explored,
       open,

@@ -1,4 +1,3 @@
-import { MIN_TELEPORT_DEPTH_METERS } from '../core/teleporter';
 import { uiCommands } from './commands';
 import { useUiStore } from './store';
 import styles from './ActionBar.module.css';
@@ -16,14 +15,11 @@ export function ActionBar() {
   const gameOver = useUiStore(state => state.hud.gameOver);
   const teleporters = useUiStore(state => state.hud.teleporters);
   const teleportReturn = useUiStore(state => state.hud.teleportReturn);
-  const teleportDepthReached = useUiStore(state => state.hud.teleportDepthReached);
   const teleportUsable = useUiStore(state => state.hud.teleportUsable);
 
-  const teleportLabel = atSurface
-    ? 'Return (T)'
-    : teleportDepthReached
-      ? `Teleport (T) · x${teleporters}`
-      : `Teleport at ${MIN_TELEPORT_DEPTH_METERS} m (T) · x${teleporters}`;
+  // TODO(portals phase 4): the teleporter opens the portal list; there is no depth
+  // gate, so the label no longer carries a "usable from N m" branch.
+  const teleportLabel = atSurface ? 'Return (T)' : `Teleport (T) · x${teleporters}`;
 
   return (
     <div className={styles.actionBar}>

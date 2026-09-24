@@ -28,10 +28,11 @@ export const HOME_ROW = 20;
 export const BEDROCK_ROWS = 8;
 /** The carved cavern: `halfWidth` tiles either side of `HOME_X`, `height` rows tall (floor included). */
 export const HOME_CAVERN = Object.freeze({ halfWidth: 6, height: 3 });
-/** The cavern-floor tiles the two default stations are seeded on (`createInitialStations`). */
+/** The cavern-floor tiles the default stations are seeded on (`createInitialStations`). */
 export const STATIONS = Object.freeze({
   manufacturer: { x: HOME_X - 1, y: HOME_ROW },
-  extractor: { x: HOME_X + 1, y: HOME_ROW }
+  extractor: { x: HOME_X + 1, y: HOME_ROW },
+  portal: { x: HOME_X + 3, y: HOME_ROW }
 });
 /** Reference row for depth measurement and world-generation offsets. */
 export const START_Y = HOME_ROW;

@@ -1,44 +1,41 @@
-// The emergency round trip: up to the home base on a carried teleporter, and back
-// down to the tile it was used on.
+// The portable teleporter: a single-use charge that opens the portal list and is
+// spent on the jump.
 //
-// The teleporter is a single-use item, not a fitting: it is crafted at the
+// The teleporter is a consumable, not a fitting: it is crafted at the
 // Manufacturing Station, it rides in the cargo bay like a stick of dynamite, and
-// the trip up spends it. The trip *back* is free — the return point is the receipt
-// for the item already spent — so only the outbound jump touches the bay.
+// travelling to a portal spends it. This module owns the pure pieces around that —
+// how many are aboard, whether one could actually be used, the visual jump effect,
+// and the instant move that lands a ship on a portal tile. The portal list itself
+// lives in `portal.ts`; the sim that wires it up is a later phase.
 
-import { HOME_ROW, HOME_X } from '../../shared/constants';
-import { countItem, removeItem } from './inventory';
+import { countItem } from './inventory';
 import { ITEM_CATALOG } from './items';
-import { isAtHome, placeAtHome } from './state';
-import type { Player, TeleportEffect, TeleportReturnPosition } from './types';
+import { portalDestinations } from './portal';
+import type { PlacedStation } from './stations';
+import type { Player, TeleportEffect } from './types';
 
 export const TELEPORT_EFFECT_FRAMES = 36;
 export const REDUCED_TELEPORT_EFFECT_FRAMES = 12;
-/** How far from home, in tiles, the ship must be before a teleporter can fire. */
-export const MIN_TELEPORT_HOME_DISTANCE = 10;
-/** Legacy label the action bar shows for the outbound jump (100 m ≈ 10 tiles). */
-export const MIN_TELEPORT_DEPTH_METERS = 100;
-
-/** Straight-line distance from the home cavern's centre, in tiles. */
-export function homeDistance(x: number, y: number): number {
-  return Math.hypot(x - HOME_X, y - HOME_ROW);
-}
 
 /** The stackable item the cargo bay carries; defined once in `items.ts`. */
 export const TELEPORTER_ITEM = ITEM_CATALOG.teleporter;
 
-export function canTeleport(player: Pick<Player, 'x' | 'y'>): boolean {
-  return homeDistance(player.x, player.y) >= MIN_TELEPORT_HOME_DISTANCE;
-}
-
-/** Teleporters aboard; the whole "have I got a way home?" question. */
+/** Teleporters aboard; the whole "have I got a way across?" question. */
 export function teleportersCarried(player: Pick<Player, 'inventory'>): number {
   return countItem(player.inventory, TELEPORTER_ITEM.kind);
 }
 
-export function canUseTeleporter(player: Player, returnPosition: TeleportReturnPosition | null): boolean {
-  if (isAtHome(player)) return returnPosition !== null;
-  return teleportersCarried(player) > 0 && canTeleport(player);
+/**
+ * Whether a carried teleporter could actually be spent right now: a charge is
+ * aboard, and there is at least one portal to travel to that is not already within
+ * arm's reach (a portal at the ship's side needs no teleporter).
+ */
+export function canUsePortableTeleporter(
+  player: Pick<Player, 'inventory' | 'x' | 'y'>,
+  stations: readonly PlacedStation[]
+): boolean {
+  if (teleportersCarried(player) <= 0) return false;
+  return portalDestinations(stations, {x: player.x, y: player.y}, {excludeReachable: true}).length > 0;
 }
 
 export function createTeleportEffect(
@@ -64,30 +61,18 @@ export function advanceTeleportEffect(effect: TeleportEffect | null): TeleportEf
   return {...effect, frame: effect.frame + 1};
 }
 
-export function teleportPlayerToHome(player: Player): TeleportReturnPosition | null {
-  if (!canTeleport(player) || teleportersCarried(player) <= 0) return null;
-
-  const returnPosition = {x: player.x, y: player.y};
-  // The teleporter is spent on the way home; the return trip rides on the point
-  // it left behind.
-  player.inventory = removeItem(player.inventory, TELEPORTER_ITEM.kind);
-  placeAtHome(player);
+/**
+ * Drop a ship onto a tile as an instant jump: snap both the logical and the render
+ * position, and reset the bob and drill animation so it arrives at rest rather
+ * than mid-stride. Used by portal travel and respawn.
+ */
+export function movePlayerTo(player: Player, x: number, y: number): void {
   Object.assign(player, {
+    x,
+    y,
+    drawX: x,
+    drawY: y,
     bob: 0,
     drillAnim: 0
   });
-  return returnPosition;
-}
-
-export function teleportPlayerToReturn(player: Player, returnPosition: TeleportReturnPosition | null): boolean {
-  if (!isAtHome(player) || !returnPosition) return false;
-
-  Object.assign(player, {
-    ...returnPosition,
-    drawX: returnPosition.x,
-    drawY: returnPosition.y,
-    bob: 0,
-    drillAnim: 0
-  });
-  return true;
 }

@@ -49,7 +49,7 @@ import { resetUiCommands, setUiCommands } from '../ui/commands';
 import { resetAgentBridge, setAgentBridge } from '../agent/bridge';
 import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot } from '../ui/store';
 
-import { TELEPORTER_ITEM, advanceTeleportEffect, canTeleport, canUseTeleporter } from '../core/teleporter';
+import { TELEPORTER_ITEM, advanceTeleportEffect, canUsePortableTeleporter } from '../core/teleporter';
 import type { AudioController } from '../core/types';
 import { revealFootprint } from '../../shared/exploration-codec';
 import { confirmPlayerDataReset, resetPlayerData } from '../core/player-data-reset';
@@ -532,9 +532,11 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
         ? 'Space: Oil Extractor'
         : '';
     hudScratch.teleporters = countItem(p.inventory, TELEPORTER_ITEM.kind);
-    hudScratch.teleportReturn = state.teleportReturnPosition !== null;
-    hudScratch.teleportDepthReached = canTeleport(p);
-    hudScratch.teleportUsable = canUseTeleporter(p, state.teleportReturnPosition);
+    // TODO(portals phase 3/4): the teleporter opens the portal list — there is no
+    // return point and no depth gate, so those two flags collapse to constants.
+    hudScratch.teleportReturn = false;
+    hudScratch.teleportDepthReached = true;
+    hudScratch.teleportUsable = canUsePortableTeleporter(p, state.stations);
     // The canvas, spoken: the one HUD field that exists for the live region rather
     // than the layout. Thresholds only, so it changes when the ship crosses one and
     // is byte-identical (and therefore silent) on every frame in between.
