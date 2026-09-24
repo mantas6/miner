@@ -242,7 +242,7 @@ describe('crafting at the station', () => {
   });
 });
 
-describe('the oil extractor transfers', () => {
+describe('the fuel extractor transfers', () => {
   it('loads every coal aboard into the extractor', () => {
     const h = harness();
     park(h.state, 'extractor');

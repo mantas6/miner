@@ -49,7 +49,7 @@ export function getFuelReserveForecast({ fuel, playerY, startY, atSurface = fals
 export function formatFuelReserveForecast(input: FuelReserveInput): string {
   const forecast = getFuelReserveForecast(input);
   if (input.gameOver) return 'Fuel reserve: URGENT — ship disabled; restart at home base.';
-  if (input.atSurface) return 'Fuel reserve: SAFE — at home base; refuel at the Oil Extractor before the next descent.';
+  if (input.atSurface) return 'Fuel reserve: SAFE — at home base; refuel at the Fuel Extractor before the next descent.';
 
   const reserve = Math.ceil(forecast.reserve);
   const remaining = Math.floor(forecast.fuelAfterReturn);

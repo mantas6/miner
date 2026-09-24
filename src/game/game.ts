@@ -548,7 +548,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     hudScratch.stationHint = near?.kind === 'manufacturer'
       ? 'Space: Manufacturing Station'
       : near?.kind === 'extractor'
-        ? 'Space: Oil Extractor'
+        ? 'Space: Fuel Extractor'
         : near?.kind === 'portal'
           ? `Space: Portal "${near.name}"`
           : '';

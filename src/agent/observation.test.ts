@@ -148,7 +148,7 @@ describe('buildObservation', () => {
     const obs = buildObservation({state, ui: ui(), get: tileSource({})});
 
     expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Manufacturer')).toBe(true);
-    expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Oil Extractor')).toBe(true);
+    expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Fuel Extractor')).toBe(true);
     // Ship at (45,20) → row 5; manufacturer at col 6, extractor at col 8.
     expect(obs.view.rows[5][44 - 38]).toBe('M');
     expect(obs.view.rows[5][46 - 38]).toBe('X');

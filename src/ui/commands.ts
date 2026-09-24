@@ -28,7 +28,7 @@ export interface UiCommands {
   toggleContainerPlacement(): void;
   /** Arm a carried Manufacturing Station for placement, or stand it down. */
   toggleManufacturerPlacement(): void;
-  /** Arm a carried Oil Extractor for placement, or stand it down. */
+  /** Arm a carried Fuel Extractor for placement, or stand it down. */
   toggleExtractorPlacement(): void;
   /** Arm a carried Portal for placement, or stand it down. */
   togglePortalPlacement(): void;
@@ -78,7 +78,7 @@ export interface UiCommands {
   useRepairKit(): void;
   /** Shut the manufacturing station screen; also what its dialog's close reports. */
   closeStation(): void;
-  /** Shut the oil extractor screen; also what its dialog's close reports. */
+  /** Shut the fuel extractor screen; also what its dialog's close reports. */
   closeExtractor(): void;
   /** Move everything that fits from the bay into the station stock. */
   stowAll(): void;
@@ -100,7 +100,7 @@ export interface UiCommands {
   playSolo(event?: Event): void;
   /** Grant a bundle of every ore into the bay and the station stock. */
   grantDeveloperOres(): void;
-  /** Queue coal and fill the oil extractor's stored fuel. */
+  /** Queue coal and fill the fuel extractor's stored fuel. */
   fillExtractor(): void;
   resetPlayerData(): void;
   resetWorldState(): void;

@@ -6,7 +6,7 @@ or build with `npm run build`.
 
 A small browser-based Motherload-style mining game. The ship lives in an
 underground home cavern; mine ore, haul it back to the home base, craft ship
-upgrades and gear at the Manufacturing Station, brew fuel from coal at the Oil
+upgrades and gear at the Manufacturing Station, brew fuel from coal at the Fuel
 Extractor, and survive deeper hazards/enemies as the mine keeps going down.
 
 The client is React + TypeScript around a canvas: React paints the chrome from a
@@ -36,7 +36,7 @@ equipment, the item counters became one `bay` of stacks, and the stations became
 placed entities carrying their own state). A returning player from an older build
 starts fresh. What the save keeps: the parked tile, cash, the tile diff, explored
 tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the placed
-stations (each Manufacturing Station's stock, each Oil Extractor's coal/fuel, and
+stations (each Manufacturing Station's stock, each Fuel Extractor's coal/fuel, and
 each Portal's name),
 the drawn-down trading-post stock (`tradeLedger`), and the hardware left standing
 in the mine (scanners, dynamite, crates and wrecks with their contents). Ore
@@ -130,9 +130,9 @@ miner/
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Oil Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Oil Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -259,7 +259,7 @@ zooming the camera with the wheel or a trackpad.
 | Move / fly / dig | `WASD` or arrow keys | — |
 | Sprint through open space (needs a fitted Booster) | Hold `Shift` + direction | — |
 | Zoom the camera (0.5x–2x, remembered) | — | Wheel scroll or trackpad pinch over the mine |
-| Open a station in reach (Manufacturing Station / Oil Extractor) | `Space` | Press the station tile on the mine |
+| Open a station in reach (Manufacturing Station / Fuel Extractor) | `Space` | Press the station tile on the mine |
 | Open a trading post in reach | `Space` | Press the post tile on the mine |
 | Open a portal in reach (its travel list of the other portals) | `Space` | Press the portal tile on the mine |
 | Ship equipment (fit/unfit upgrades) | — | Ship button |
@@ -267,7 +267,7 @@ zooming the camera with the wheel or a trackpad.
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
 | Deploy a scanner | — | Scanner inventory slot, then a mine tile |
 | Set a cargo container down | — | Container inventory slot, then a mine tile |
-| Set a crafted station down (Manufacturing Station / Oil Extractor) | — | Its inventory slot, then a mine tile |
+| Set a crafted station down (Manufacturing Station / Fuel Extractor) | — | Its inventory slot, then a mine tile |
 | Lift an empty station or container back aboard | — | Construction Toolkit inventory slot, then press the station/crate |
 | Set a decoration down | — | Decoration inventory slot, then a mine tile |
  | Open a placed cargo container — or wreck — (on it or beside it) | `C` | Press the crate or wreck on the mine |
@@ -303,7 +303,7 @@ zooming the camera with the wheel or a trackpad.
   situation — at home base, in the mine, holds full, hull critical, ship lost. It is
   driven by thresholds, so the 60 Hz HUD sync never makes it talk.
 - **Native dialogs.** The intro prompt is a `<button>`; the ship, info,
-  Manufacturing Station, Oil Extractor, cargo-container/wreck and trading-post
+  Manufacturing Station, Fuel Extractor, cargo-container/wreck and trading-post
   overlays are modal `<dialog>`s, so the browser contains Tab, makes the rest of the
   page inert, and each close returns focus to the control that opened it.
 - **`prefers-reduced-motion`.** The looping start-prompt, low-fuel and HUD-alert
@@ -332,7 +332,7 @@ zooming the camera with the wheel or a trackpad.
 The ship lives in a small deterministic cavern carved into the top of the mine;
 solid bedrock caps the world above it, so there is no surface and the depth meter
 reads 0 m at home. Three stations are seeded on the cavern floor — the Manufacturing
-Station, the Oil Extractor, and a Portal named `Home` — fly onto or beside one and
+Station, the Fuel Extractor, and a Portal named `Home` — fly onto or beside one and
 press `Space` (or click its tile) to open it. They are placed entities, not
 fixed world objects, so they can be crafted, carried and set down elsewhere too
 (see "Crafting & ship equipment").
@@ -350,7 +350,7 @@ fixed world objects, so they can be crafted, carried and set down elsewhere too
   | Container | 6 Iron |
   | Teleporter | 3 Silver + 2 Gold |
   | Manufacturing Station | 8 Iron + 4 Copper + 2 Silver |
-  | Oil Extractor | 6 Iron + 4 Copper + 2 Coal |
+  | Fuel Extractor | 6 Iron + 4 Copper + 2 Coal |
   | Portal | 3 Silver + 3 Gold + 2 Iron |
   | Construction Toolkit | 4 Iron + 2 Copper |
   | Fuel Tank / Cargo Hold / Drill / Hull Plating **Mk I** | 4 Iron + 2 Copper |
@@ -362,7 +362,7 @@ fixed world objects, so they can be crafted, carried and set down elsewhere too
   | Copper Trim (decor) | 2 Copper |
   | Lamp Panel (decor) | 1 Copper + 1 Coal |
 
-- **Oil Extractor.** Fuel comes from coal now, not a pump. Load coal here and it
+- **Fuel Extractor.** Fuel comes from coal now, not a pump. Load coal here and it
   converts on the simulation's own clock — 1 coal → 20 fuel every 180 ticks (~3 s),
   banked up to a 500-fuel store (`EXTRACTOR` in `src/core/balance.ts`). The
   conversion runs whether or not you are watching; parking on the extractor tile
@@ -440,7 +440,7 @@ open it.
   Anything taken back out still counts against the ship's cargo capacity, so a
   crate buys storage, never carrying capacity. Six may stand in the mine at once.
 - **Placeable stations** (`src/core/stations.ts`). The Manufacturing Station and
-  the Oil Extractor are entities like a crate, not fixed world objects: two are
+  the Fuel Extractor are entities like a crate, not fixed world objects: two are
   seeded on the home-cavern floor, and more can be crafted, carried, and set down
   on explored, cleared ground from their own inventory slots. Each manufacturer
   keeps its own stock; each extractor runs its own coal→fuel conversion. Up to four
@@ -450,7 +450,7 @@ open it.
   and refuses when the bay has no room). The toolkit is never used up.
 - **Portals** (`src/core/portal.ts`, `src/game/portals.ts`) are placeable stations
   too: crafted, carried, and set down from the portal inventory slot exactly like a
-  Manufacturing Station or Oil Extractor. The base is seeded with one named `Home`,
+  Manufacturing Station or Fuel Extractor. The base is seeded with one named `Home`,
   and up to six portals may stand in the mine at once — the `Home` portal counts
   toward that cap. A portal holds no stock, so it is always "empty" and the
   Construction Toolkit can always lift it back aboard. Each carries a player-facing
@@ -681,7 +681,7 @@ slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBt
 panels), the ship screen (`data-ship-equip`,
 `data-ship-unequip`, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
 with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
-`data-craft`, `stationCloseBtn`), the oil extractor (`loadCoalBtn`, `refuelBtn`,
+`data-craft`, `stationCloseBtn`), the fuel extractor (`loadCoalBtn`, `refuelBtn`,
 `extractorCloseBtn`), the cargo container (`data-cargo` with values
 `store`/`store-one`/`take`/`take-one` and a `data-cargo-kind`, `cargoCloseBtn`), the
 wreck salvage menu (`data-cargo` with values `take`/`take-one` and a `data-cargo-kind`,
@@ -716,7 +716,7 @@ The `view.rows` legend (`VIEW_LEGEND`):
 
 ```text
 . air   # dirt   R rock   o ore   ! hazard   E enemy   D decor
-M manufacturer   X oil extractor   P portal   T trading post   C container   W wreck   S scanner
+M manufacturer   X fuel extractor   P portal   T trading post   C container   W wreck   S scanner
 * dynamite   @ ship   ? fogged
 ```
 

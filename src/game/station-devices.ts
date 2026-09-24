@@ -57,7 +57,7 @@ export interface StationDeviceDeps {
 
 /** The player-facing name of a station kind, for the placement toasts. */
 function stationLabel(kind: StationKind): string {
-  return kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Oil Extractor' : 'Portal';
+  return kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Fuel Extractor' : 'Portal';
 }
 
 /** Build a station of `kind` at a tile: a portal draws a fresh unused name. */

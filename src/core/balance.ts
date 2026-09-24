@@ -87,7 +87,7 @@ export const ENEMY = Object.freeze({
 });
 
 /**
- * The oil extractor's timed coal → fuel conversion. Phase 4 stores coal and fuel
+ * The fuel extractor's timed coal → fuel conversion. Phase 4 stores coal and fuel
  * and wires the load/refuel transfers; Phase 5 uses `ticksPerCoal`/`fuelPerCoal`
  * to burn queued coal into stored fuel over time. `fuelCap` bounds the buffer.
  */

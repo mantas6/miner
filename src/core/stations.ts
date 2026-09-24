@@ -1,4 +1,4 @@
-// The mine's stations: the Manufacturing Station and the Oil Extractor, now as
+// The mine's stations: the Manufacturing Station and the Fuel Extractor, now as
 // placed entities rather than fixed world objects.
 //
 // A station is a thing standing on a tile, like a cargo container: it has a
@@ -40,7 +40,7 @@ export interface ManufacturerStation {
   inventory: Inventory;
 }
 
-/** An oil extractor standing in the mine, with its coal/fuel conversion buffer. */
+/** An fuel extractor standing in the mine, with its coal/fuel conversion buffer. */
 export interface ExtractorStation {
   kind: 'extractor';
   x: number;
@@ -247,7 +247,7 @@ export function takeFromStation(
 }
 
 /**
- * One fixed 60 Hz step of an oil extractor: pure, and it runs regardless of where
+ * One fixed 60 Hz step of an fuel extractor: pure, and it runs regardless of where
  * the ship is. Every `EXTRACTOR.ticksPerCoal` ticks it burns one queued coal into
  * `EXTRACTOR.fuelPerCoal` stored fuel, clamped at `EXTRACTOR.fuelCap`.
  *
@@ -269,7 +269,7 @@ export function tickExtractor(extractor: ExtractorBuffer): ExtractorBuffer {
 
 /** How a station device words each of the shared placement refusals. */
 function stationPlacementCopy(kind: StationKind): PlacementCopy {
-  const label = kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Oil Extractor' : 'Portal';
+  const label = kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Fuel Extractor' : 'Portal';
   return {
     full: `Only ${STATION_DEVICE[kind].maxPlaced} ${label}s can stand in the mine at once.`,
     offMine: `A ${label} is set down underground, inside the mine.`,

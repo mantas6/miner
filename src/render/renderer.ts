@@ -424,7 +424,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       if (station.kind === 'manufacturer') {
         drawStation(station.x, station.y, camX, camY, drawManufacturerBody, false, 'Manufacturer');
       } else if (station.kind === 'extractor') {
-        drawStation(station.x, station.y, camX, camY, drawExtractorBody, station.coal > 0, 'Oil Extractor');
+        drawStation(station.x, station.y, camX, camY, drawExtractorBody, station.coal > 0, 'Fuel Extractor');
       } else if (station.kind === 'portal') {
         // Unlike the fixed stations, a portal wears its own name, so the label comes
         // off the station rather than a hard-coded string.
@@ -477,7 +477,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.shadowColor = '#ffc857'; ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.arc(TILE*.24, -TILE*.20, TILE*.06, 0, Math.PI*2); ctx.fill();
   }
-  /** Oil extractor: a nodding pump-jack; its beam rocks while coal is queued. */
+  /** Fuel extractor: a nodding pump-jack; its beam rocks while coal is queued. */
   function drawExtractorBody(active: boolean) {
     const nod = active && !state.reducedMotion ? Math.sin(state.tick * .12) : 0;
     // Base and derrick sitting on the tile floor.

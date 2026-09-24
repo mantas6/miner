@@ -188,7 +188,7 @@ export interface TradeOfferView {
   stock: number;
 }
 
-/** The oil extractor's buffers, as the extractor screen paints them, plus its tick progress. */
+/** The fuel extractor's buffers, as the extractor screen paints them, plus its tick progress. */
 export interface ExtractorView {
   coal: number;
   fuel: number;
@@ -247,7 +247,7 @@ export interface UiState {
    * or craft, so the screen never reaches into the simulation.
    */
   stationSlots: InventorySlotView[];
-  /** The oil extractor's buffers, written while its screen is up. */
+  /** The fuel extractor's buffers, written while its screen is up. */
   extractor: ExtractorView;
   /**
    * The open trading post's buy offers, written while the trade screen is up: the

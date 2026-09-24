@@ -145,7 +145,7 @@ describe('booting the game', () => {
       press('a');
       renderFrame();
     }
-    expect(text('stationHint')).toMatch(/^Space: (Manufacturing Station|Oil Extractor)$/);
+    expect(text('stationHint')).toMatch(/^Space: (Manufacturing Station|Fuel Extractor)$/);
   });
 
   it('runs the whole input → move → terrain → HUD chain on a keypress', () => {

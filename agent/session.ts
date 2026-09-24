@@ -125,7 +125,7 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'shipCloseBtn',
   // Station screen.
   'stowAllBtn', 'stationCloseBtn',
-  // Oil extractor screen.
+  // Fuel extractor screen.
   'loadCoalBtn', 'refuelBtn', 'extractorCloseBtn',
   // Cargo container screen.
   'cargoCloseBtn',

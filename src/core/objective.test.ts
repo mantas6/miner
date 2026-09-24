@@ -53,7 +53,7 @@ describe('expedition objective helper', () => {
       atSurface: false,
       bay: empty,
       station: empty
-    })).toBe('Objective: return home and refuel at the Oil Extractor.');
+    })).toBe('Objective: return home and refuel at the Fuel Extractor.');
   });
 
   it('sends a full bay home to stow', () => {

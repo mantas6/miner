@@ -1,5 +1,5 @@
 // The cheat-menu grants. Two of them now: a bundle of every ore, and a stocked
-// oil extractor, so a tester can reach crafting and refueling without a dig.
+// fuel extractor, so a tester can reach crafting and refueling without a dig.
 //
 // Both are pure mutations of `GameState`, so they are testable without the game
 // loop and dispatched from `game.ts` behind the developer panel's buttons.

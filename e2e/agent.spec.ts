@@ -418,7 +418,7 @@ test('the construction toolkit lifts a placed extractor, and it can be set back 
     // and its tile is inside the spawn's reveal footprint, so it paints as `X`.
     let obs = await s.observe();
     expect(obs.view.rows.join('')).toContain('X');
-    expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Oil Extractor')).toBe(true);
+    expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Fuel Extractor')).toBe(true);
 
     // Arm the toolkit from its slot and lift the empty extractor into the bay.
     await s.click('toolkitSlotBtn');

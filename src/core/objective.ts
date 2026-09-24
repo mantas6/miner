@@ -51,7 +51,7 @@ export function formatExpeditionObjective({
   const lowFuel = player.fuel <= player.fuelMax * FUEL.lowFuelFraction;
 
   if (!atSurface && lowFuel) {
-    return 'Objective: return home and refuel at the Oil Extractor.';
+    return 'Objective: return home and refuel at the Fuel Extractor.';
   }
 
   if (cargoCount >= player.cargoMax) {

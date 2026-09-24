@@ -11,7 +11,7 @@ import styles from './DeveloperPanel.module.css';
 export function DeveloperPanel() {
   return (
     <div id="cheat-menu" className={styles.section} role="group" aria-labelledby="settings-cheats-title">
-      <p className={styles.warning}><strong>Cheats:</strong> grant materials or stock the oil extractor for exactly $0. These controls work above or below the surface.</p>
+      <p className={styles.warning}><strong>Cheats:</strong> grant materials or stock the fuel extractor for exactly $0. These controls work above or below the surface.</p>
       <div id="developerUpgrades" className={styles.upgrades} aria-label="Free developer controls">
         <div className={styles.upgrade}>
           <div>

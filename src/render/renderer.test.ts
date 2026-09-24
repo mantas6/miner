@@ -490,14 +490,14 @@ describe('terrain cache lifecycle', () => {
     const labelled = (name: string) => mocks.mainContext.fillText.mock.calls.some(call => call[0] === name);
 
     renderer.draw();
-    expect(labelled('Oil Extractor')).toBe(true);
+    expect(labelled('Fuel Extractor')).toBe(true);
     expect(labelled('Manufacturer')).toBe(true);
 
     // Fog the tiles again and neither name should be painted.
     vi.clearAllMocks();
     state.exploredTiles = new Set<number>();
     renderer.draw();
-    expect(labelled('Oil Extractor')).toBe(false);
+    expect(labelled('Fuel Extractor')).toBe(false);
     expect(labelled('Manufacturer')).toBe(false);
   });
 

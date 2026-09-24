@@ -56,7 +56,7 @@ export const VIEW_LEGEND: Readonly<Record<string, string>> = Object.freeze({
   E: 'enemy',
   D: 'decor',
   M: 'manufacturer',
-  X: 'oil extractor',
+  X: 'fuel extractor',
   P: 'portal',
   T: 'trading post',
   C: 'container',
@@ -391,7 +391,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       }
       if (station?.kind === 'extractor') {
         row += 'X';
-        notable.push({x, y, what: 'station', detail: 'Oil Extractor'});
+        notable.push({x, y, what: 'station', detail: 'Fuel Extractor'});
         continue;
       }
       if (station?.kind === 'portal') {

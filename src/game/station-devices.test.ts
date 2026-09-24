@@ -110,7 +110,7 @@ describe('arming a station device', () => {
     h.devices.toggleArmed('extractor');
 
     expect(h.devices.armed).toBeNull();
-    expect(h.toasts.saw(`${STATION_DEVICE.extractor.maxPlaced} Oil Extractors`)).toBe(true);
+    expect(h.toasts.saw(`${STATION_DEVICE.extractor.maxPlaced} Fuel Extractors`)).toBe(true);
   });
 });
 
@@ -126,7 +126,7 @@ describe('setting a station down', () => {
     expect(countItem(h.state.player.inventory, 'device:extractor')).toBe(1);
     expect(h.devices.armed).toBeNull();
     expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.toasts.saw('Oil Extractor set down')).toBe(true);
+    expect(h.toasts.saw('Fuel Extractor set down')).toBe(true);
   });
 
   it('ignores a press on the mine when nothing is armed', () => {

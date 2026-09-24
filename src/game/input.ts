@@ -80,7 +80,7 @@ export interface GameInputDeps {
   openNearest(): void;
   /** Escape/Space while the manufacturing station screen is up. */
   closeStation(): void;
-  /** Escape/Space while the oil extractor screen is up. */
+  /** Escape/Space while the fuel extractor screen is up. */
   closeExtractor(): void;
   /** Escape/Space while the trading-post screen is up. */
   closeTrade(): void;

@@ -84,7 +84,7 @@ describe('lifting a station', () => {
     // Durable: the toolkit is still aboard.
     expect(countItem(h.state.player.inventory, TOOLKIT_ITEM.kind)).toBe(1);
     expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.toasts.saw('Oil Extractor packed')).toBe(true);
+    expect(h.toasts.saw('Fuel Extractor packed')).toBe(true);
   });
 
   it('packs an empty portal into the bay — a portal is always liftable', () => {

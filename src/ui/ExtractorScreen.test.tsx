@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 //
-// The oil extractor screen as a component: does it paint the queued coal, the
+// The fuel extractor screen as a component: does it paint the queued coal, the
 // stored fuel against its cap, and the countdown from the store, and do the two
 // transfer buttons name their amounts, disable at zero, and reach the right
 // command? What a load/refuel or a conversion actually does — and the auto-refuel
@@ -50,7 +50,7 @@ afterEach(() => {
   setUiCommands(pristineCommands);
 });
 
-describe('oil extractor dialog', () => {
+describe('fuel extractor dialog', () => {
   it('opens as a modal, painting the queued coal and the stored fuel against its cap', () => {
     const dialog = open({extractor: {coal: 4, fuel: 40}});
 

@@ -1,4 +1,4 @@
-// The oil extractor screen.
+// The fuel extractor screen.
 //
 // It shows the two buffers — coal queued for conversion and fuel already stored,
 // read as `n / cap` — and, while a coal is burning, how long until the next unit
@@ -78,12 +78,12 @@ function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null
   return (
     <div id="extractor-card" className={styles.card}>
       <div className={styles.header}>
-        <h2 id="extractor-title">Oil Extractor</h2>
+        <h2 id="extractor-title">Fuel Extractor</h2>
         <button
           id="extractorCloseBtn"
           ref={closeRef}
           className={styles.closeBtn}
-          aria-label="Close oil extractor"
+          aria-label="Close fuel extractor"
           onClick={event => { event.stopPropagation(); uiCommands.closeExtractor(); }}
         >×</button>
       </div>

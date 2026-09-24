@@ -42,7 +42,7 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
   },
   'device:extractor': {
     buttonId: 'extractorSlotBtn',
-    idle: 'Set an Oil Extractor down in the mine',
+    idle: 'Set an Fuel Extractor down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleExtractorPlacement()
   },
