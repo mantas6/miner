@@ -1,7 +1,7 @@
 # Stalinload
 
 **Status:** public repo. The `main` build is deployed to GitHub Pages at
-<https://mantas6.github.io/miner-mp/>; run it locally with Vite (`npm run dev`)
+<https://mantas6.github.io/miner/>; run it locally with Vite (`npm run dev`)
 or build with `npm run build`.
 
 A small browser-based Motherload-style mining game. The ship lives in an
@@ -54,7 +54,7 @@ native `<dialog>`s, `:focus-visible`, the boot flow — is covered by the Playwr
 suite in `e2e/`.
 
 ```text
-miner-mp/
+miner/
 ├── README.md
 ├── AGENTS.md
 ├── index.html
@@ -883,4 +883,4 @@ Two GitHub Actions workflows cover the client.
   Pages when triggered manually.
 
 `vite.config.ts` sets a relative `base`, so the same build works at a domain
-root and under the `/miner-mp/` Pages project subpath.
+root and under the `/miner/` Pages project subpath.
