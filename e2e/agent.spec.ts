@@ -66,12 +66,76 @@ function seedTradingPost(): void {
 /**
  * Seed the ship at the home base with a Drill Mk I fitted to its hull. Ore is never
  * persisted, so the fitted upgrade is the deterministic thing a reset will strip
- * into a wreck — exactly the loot the salvage path has to hand back.
+ * into a wreck — exactly the loot the salvage path has to hand back. Only the two
+ * workbench stations are seeded (no portal), so the reset falls back to the home
+ * cavern: the replacement ship redeploys on the very tile the wreck was left on.
  */
 function seedFittedUpgrade(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
     version: 18,
-    equipment: ['upgrade:drill:1', null]
+    equipment: ['upgrade:drill:1', null],
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20}
+    ]
+  }));
+}
+
+/**
+ * Seed the ship parked one tile from the base `Home` portal (48, 20), with a second
+ * `Deep` portal four rows below it at (48, 24) — depth 40 m, close enough that after
+ * a jump to it the Home portal is still in view (so `P` paints again). The ship at
+ * (49, 20) has the portal as its only station in reach, so Space opens the travel
+ * list rather than a workbench.
+ */
+function seedPortalTravel(): void {
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 18,
+    x: 49, y: 20,
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20},
+      {kind: 'portal', x: 48, y: 20, name: 'Home'},
+      {kind: 'portal', x: 48, y: 24, name: 'Deep'}
+    ]
+  }));
+}
+
+/**
+ * Seed the ship at the home spawn (45, 20) with two teleporter charges aboard and
+ * two portals, both out of arm's reach — so `t` opens the teleporter list and a
+ * pick spends one charge.
+ */
+function seedPortalTeleporter(): void {
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 18,
+    bay: [{kind: 'teleporter', count: 2}],
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20},
+      {kind: 'portal', x: 48, y: 20, name: 'Home'},
+      {kind: 'portal', x: 48, y: 24, name: 'Deep'}
+    ]
+  }));
+}
+
+/**
+ * Seed the ship one tile from the `Home` portal with a Drill Mk I fitted, so a hand
+ * reset drops a wreck on the death tile, and two portals so the reset raises the
+ * no-close respawn prompt. The death tile (47, 20) is adjacent to the Home portal,
+ * so redeploying there keeps the wreck inside the reveal footprint.
+ */
+function seedPortalRespawn(): void {
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 18,
+    x: 47, y: 20,
+    equipment: ['upgrade:drill:1', null],
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20},
+      {kind: 'portal', x: 48, y: 20, name: 'Home'},
+      {kind: 'portal', x: 48, y: 24, name: 'Deep'}
+    ]
   }));
 }
 
@@ -227,6 +291,120 @@ test('a hand reset leaves a wreck whose fitted upgrade can be salvaged back aboa
     // is gone — its overlay closed with it.
     expect(countKind(obs.bay, 'upgrade:drill:1')).toBe(1);
     expect(obs.activeOverlay).toBeNull();
+  } finally {
+    await s.close();
+  }
+});
+
+test('Space at a portal opens the travel list and a pick jumps the ship there', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedPortalTravel});
+  try {
+    await s.startRun();
+    let obs = await s.observe();
+    expect(obs.ship.x).toBe(49);
+    expect(obs.ship.y).toBe(20);
+
+    // The Home portal is the ship's only station in reach: Space opens travel.
+    obs = await s.press(' ');
+    expect(obs.activeOverlay).toBe('portal');
+    expect(obs.overlay?.kind).toBe('portal');
+    if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
+    expect(obs.overlay.mode).toBe('travel');
+    const deep = obs.overlay.destinations.find(destination => destination.name === 'Deep');
+    if (!deep) throw new Error('the Deep portal should be listed as a destination');
+    expect(deep.depth).toBe(40);
+
+    // Jump to the Deep portal: the overlay closes and the ship lands on its tile.
+    obs = await s.click({target: 'data-portal', value: `${deep.x},${deep.y}`});
+    expect(obs.activeOverlay).toBeNull();
+    expect(obs.ship.x).toBe(deep.x);
+    expect(obs.ship.y).toBe(deep.y);
+    // The Home portal, four rows up and still explored, paints as `P`.
+    expect(obs.view.rows.join('')).toContain('P');
+  } finally {
+    await s.close();
+  }
+});
+
+test('a portal can be renamed from the travel overlay', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedPortalTravel});
+  try {
+    await s.startRun();
+    let obs = await s.press(' ');
+    expect(obs.overlay?.kind).toBe('portal');
+
+    // Focus the name field, clear it, type a new name, and save.
+    await s.click('portalNameInput');
+    await s.press('Control+A');
+    await s.type('Depot');
+    obs = await s.click('portalNameSaveBtn');
+
+    expect(obs.overlay?.kind).toBe('portal');
+    if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
+    expect(obs.overlay.name).toBe('Depot');
+    // The renamed portal, one tile from the ship, carries the new name in notable.
+    expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Portal "Depot"')).toBe(true);
+  } finally {
+    await s.close();
+  }
+});
+
+test('a carried teleporter opens the portal list and a pick spends one charge', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedPortalTeleporter});
+  try {
+    await s.startRun();
+    let obs = await s.observe();
+    expect(obs.hud.teleport.count).toBe(2);
+    const before = obs.hud.teleport.count;
+
+    // Away from every portal, `t` opens the teleporter list of portals out of reach.
+    obs = await s.press('t');
+    expect(obs.overlay?.kind).toBe('portal');
+    if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
+    expect(obs.overlay.mode).toBe('teleporter');
+    const target = obs.overlay.destinations[0];
+    if (!target) throw new Error('a portal out of reach should be listed');
+
+    // Picking one moves the ship there and consumes a single charge.
+    obs = await s.click({target: 'data-portal', value: `${target.x},${target.y}`});
+    expect(obs.ship.x).toBe(target.x);
+    expect(obs.ship.y).toBe(target.y);
+    expect(obs.hud.teleport.count).toBe(before - 1);
+  } finally {
+    await s.close();
+  }
+});
+
+test('a hand reset with two portals raises the no-close respawn prompt', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedPortalRespawn});
+  try {
+    await s.startRun();
+    let obs = await s.observe();
+    expect(obs.ship.x).toBe(47);
+    expect(obs.ship.y).toBe(20);
+
+    // Two presses within the confirm window scrap the ship; with two portals built,
+    // the reset raises the respawn prompt rather than redeploying at once.
+    await s.press('r');
+    obs = await s.press('r');
+    expect(obs.overlay?.kind).toBe('portal');
+    if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
+    expect(obs.overlay.mode).toBe('respawn');
+
+    // The respawn prompt has no way out: Escape leaves it up.
+    obs = await s.press('Escape');
+    expect(obs.overlay?.kind).toBe('portal');
+    if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
+    expect(obs.overlay.mode).toBe('respawn');
+
+    // Pick the nearest portal: the ship redeploys there, alive, and the scrapped
+    // ship's wreck stands on the tile it died on.
+    const target = obs.overlay.destinations[0];
+    obs = await s.click({target: 'data-portal', value: `${target.x},${target.y}`});
+    expect(obs.gameOver).toBe(false);
+    expect(obs.ship.x).toBe(target.x);
+    expect(obs.ship.y).toBe(target.y);
+    expect(obs.view.rows.join('')).toContain('W');
   } finally {
     await s.close();
   }

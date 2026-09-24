@@ -87,6 +87,8 @@ export interface GameSession {
   startRun(): Promise<AgentObservation>;
   /** One trusted key press on the focused canvas. */
   press(key: string): Promise<AgentObservation>;
+  /** Type text into the focused input (e.g. after clicking `portalNameInput`). */
+  type(text: string): Promise<AgentObservation>;
   /** Hold a key for `ms` of wall-clock time, optionally with Shift for sprint. */
   hold(key: string, ms: number, options?: HoldOptions): Promise<AgentObservation>;
   /** Click one allowlisted control; rejects anything else with the allowed list. */
@@ -131,6 +133,8 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'lootAllBtn',
   // Trading-post screen.
   'tradeCloseBtn',
+  // Portal screen.
+  'portalSlotBtn', 'portalCloseBtn', 'portalNameInput', 'portalNameSaveBtn',
   // Info / cargo screen.
   'infoCloseBtn',
   // Intro.
@@ -139,7 +143,7 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
 
 /** Attribute controls, each needing a value (some need a value and a kind). */
 const ATTR_TARGETS: ReadonlySet<string> = new Set([
-  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-info-section', 'data-cargo', 'data-station', 'data-trade'
+  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-info-section', 'data-cargo', 'data-station', 'data-trade', 'data-portal'
 ]);
 
 /**
@@ -282,6 +286,7 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         await page.locator('#intro').waitFor({state: 'detached'});
       }),
       press: key => act(() => page.keyboard.press(key)),
+      type: text => act(() => page.keyboard.type(text)),
       hold: (key, ms, holdOptions) => act(async () => {
         if (holdOptions?.shift) await page.keyboard.down('Shift');
         await page.keyboard.down(key);

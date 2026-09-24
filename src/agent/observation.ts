@@ -57,6 +57,7 @@ export const VIEW_LEGEND: Readonly<Record<string, string>> = Object.freeze({
   D: 'decor',
   M: 'manufacturer',
   X: 'oil extractor',
+  P: 'portal',
   T: 'trading post',
   C: 'container',
   W: 'wreck',
@@ -138,6 +139,15 @@ export type AgentOverlay =
       cash: number;
       sell: {kind: InventoryItemKind; label: string; count: number; price: number; info: string[]}[];
       buy: {kind: InventoryItemKind; label: string; price: number; stock: number; info: string[]}[];
+    }
+  | {
+      kind: 'portal';
+      mode: 'travel' | 'teleporter' | 'respawn';
+      /** The portal the ship stands at (travel mode only). */
+      source?: {x: number; y: number; name: string};
+      /** The source portal's current name, echoed in travel mode for rename feedback. */
+      name?: string;
+      destinations: {x: number; y: number; name: string; depth: number; distance: number}[];
     }
   | {kind: 'info'; tab: InfoTab};
 
@@ -280,6 +290,23 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
           .map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, price: sellPrice(slot.kind), info: describeItem(slot.kind).lines})),
         buy: ui.tradeBuy.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock, info: describeItem(offer.kind).lines}))
       };
+    case 'portal': {
+      const portal = ui.portal;
+      if (!portal) return null;
+      return {
+        kind: 'portal',
+        mode: portal.mode,
+        source: portal.source,
+        name: portal.source?.name,
+        destinations: portal.destinations.map(destination => ({
+          x: destination.x,
+          y: destination.y,
+          name: destination.name,
+          depth: destination.depthMeters,
+          distance: destination.distance
+        }))
+      };
+    }
     case 'info':
       return {kind: 'info', tab: ui.infoTab};
     default:
@@ -365,6 +392,11 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       if (station?.kind === 'extractor') {
         row += 'X';
         notable.push({x, y, what: 'station', detail: 'Oil Extractor'});
+        continue;
+      }
+      if (station?.kind === 'portal') {
+        row += 'P';
+        notable.push({x, y, what: 'station', detail: `Portal "${station.name}"`});
         continue;
       }
       if (tradingPostAt(x, y)) {

@@ -57,19 +57,31 @@ function instructions(): string {
     '  Shift (hold with a direction, `hold key ms shift:true`) — sprint/boost. Inert',
     '    unless a Booster is fitted to the ship.',
     '  Space — open the station-like thing the ship is parked beside: a home station',
-    '    (Manufacturer or Oil Extractor) or a Trading Post; press Space or Escape',
-    '    again to close it.',
+    '    (Manufacturer or Oil Extractor), a Trading Post, or a Portal; a Portal opens',
+    '    the travel list of every other built portal (`overlay.kind === "portal"`,',
+    '    `mode "travel"`) — click a `data-portal` row (value "x,y") to jump there for',
+    '    free. Press Space or Escape again to close it.',
     '  e — arm/disarm a stick of dynamite, then `press_tile` the target to plant it.',
-    '  t — use a teleporter (returns you to the surface, or back down).',
+    '  t — open the portal list with a teleporter aboard (`mode "teleporter"`, the',
+    '    portals out of reach); picking a destination spends one teleporter and moves',
+    '    the ship there. `hud.teleport` reports how many charges are aboard and',
+    '    whether pressing t would open the list right now.',
     '  c — open/close the cargo container — or the wreck — under or beside the ship,',
     '    whichever is nearest. A wreck opens a take-only salvage menu; click lootAllBtn',
     '    to haul everything that fits aboard.',
     '  Construction gear is placed and lifted from inventory slots (click controls,',
-    '    then a tile press): manufacturerSlotBtn / extractorSlotBtn arm a crafted',
-    '    Manufacturing Station / Oil Extractor to set down; toolkitSlotBtn arms the',
-    '    Construction Toolkit, whose press packs an empty station or container back',
-    '    into the bay. Placed stations show as M / X in the view and notable.',
-    '  r — reset the run (press twice within ~3.5s mid-run to confirm).',
+    '    then a tile press): manufacturerSlotBtn / extractorSlotBtn / portalSlotBtn arm',
+    '    a crafted Manufacturing Station / Oil Extractor / Portal to set down;',
+    '    toolkitSlotBtn arms the Construction Toolkit, whose press packs an empty',
+    '    station, container or portal back into the bay. Placed stations show as',
+    '    M / X / P in the view and notable.',
+    '  Naming a portal: in the travel overlay, `click` portalNameInput to focus it,',
+    '    `type` the new name (max 16 chars), then `click` portalNameSaveBtn (Enter also',
+    '    saves). The new name echoes back in `overlay.name` and the portal notable.',
+    '  r — reset the run (press twice within ~3.5s mid-run to confirm). With two or',
+    '    more portals built, a lost or reset ship raises a portal overlay in `mode',
+    '    "respawn"` that cannot be dismissed (Escape/Space are ignored) — pick a',
+    '    `data-portal` row to redeploy the ship at that portal.',
     '  Escape — cancel an armed placement, or close the ship/info/container overlay.',
     '  Enter — start the run from the title splash (use the `start_run` tool).',
     '  Click a tile with `press_tile` to move/drill toward it, plant an armed device,',
@@ -190,6 +202,15 @@ server.registerTool(
 );
 
 server.registerTool(
+  'type',
+  {
+    description: 'Type text into the focused input, e.g. after clicking portalNameInput.',
+    inputSchema: {text: z.string().describe('The text to type into the focused input.')}
+  },
+  ({text}) => withSession(game => game.type(text))
+);
+
+server.registerTool(
   'hold',
   {
     description: 'Hold a key for `ms` of wall-clock time (the sim runs during the hold). Set `shift` to sprint/boost (needs a Booster fitted).',
@@ -213,7 +234,8 @@ server.registerTool(
       '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal"), the cargo container ' +
       '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"), ' +
       'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +
-      '"ore:Iron" to sell or "repairKit" to buy). A wrong target is refused with the full allowed list.',
+      '"ore:Iron" to sell or "repairKit" to buy). A portal travel/respawn row is target ' +
+      '"data-portal", value the destination "x,y" (e.g. "48,20"). A wrong target is refused with the full allowed list.',
     inputSchema: {
       target: z.string().describe('The control id or attribute name.'),
       value: z.string().optional().describe('The attribute value (for data-station/data-cargo it is the transfer action).'),

@@ -154,6 +154,91 @@ describe('buildObservation', () => {
     expect(obs.view.rows[5][46 - 38]).toBe('X');
   });
 
+  it('names the seeded Home portal in view and notable', () => {
+    const state = createInitialState();
+    revealRect(state, 38, 15, 52, 25);
+    const obs = buildObservation({state, ui: ui(), get: tileSource({})});
+
+    // The Home portal is seeded at (48,20); ship at (45,20) → row 5, col 10.
+    expect(obs.view.rows[5][48 - 38]).toBe('P');
+    expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Portal "Home"')).toBe(true);
+    expect(VIEW_LEGEND.P).toBe('portal');
+  });
+
+  it('mirrors the portal travel overlay: source name, the name echo, and destinations', () => {
+    const state = createInitialState();
+
+    // Not open: nothing is mirrored.
+    expect(buildObservation({state, ui: ui({activeOverlay: null}), get: tileSource({})}).overlay).toBeNull();
+
+    const overlay = buildObservation({
+      state,
+      ui: ui({
+        activeOverlay: 'portal',
+        portal: {
+          mode: 'travel',
+          source: {x: 48, y: 20, name: 'Home'},
+          destinations: [{x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}]
+        }
+      }),
+      get: tileSource({})
+    }).overlay;
+
+    expect(overlay?.kind).toBe('portal');
+    if (overlay?.kind !== 'portal') throw new Error('expected portal overlay');
+    expect(overlay.mode).toBe('travel');
+    expect(overlay.source).toEqual({x: 48, y: 20, name: 'Home'});
+    // Travel mode echoes the source name for rename feedback, and maps depth.
+    expect(overlay.name).toBe('Home');
+    expect(overlay.destinations).toEqual([{x: 20, y: 200, name: 'Depot', depth: 180, distance: 208}]);
+  });
+
+  it('mirrors the portal overlay in teleporter and respawn modes', () => {
+    const state = createInitialState();
+
+    const teleporter = buildObservation({
+      state,
+      ui: ui({
+        activeOverlay: 'portal',
+        portal: {mode: 'teleporter', destinations: [{x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}]}
+      }),
+      get: tileSource({})
+    }).overlay;
+    expect(teleporter?.kind).toBe('portal');
+    if (teleporter?.kind !== 'portal') throw new Error('expected portal overlay');
+    expect(teleporter.mode).toBe('teleporter');
+    // No source, so no name echo, outside travel mode.
+    expect(teleporter.source).toBeUndefined();
+    expect(teleporter.name).toBeUndefined();
+
+    const respawn = buildObservation({
+      state,
+      ui: ui({
+        activeOverlay: 'portal',
+        portal: {mode: 'respawn', destinations: [
+          {x: 48, y: 20, name: 'Home', depthMeters: 0, distance: 0},
+          {x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}
+        ]}
+      }),
+      get: tileSource({})
+    }).overlay;
+    expect(respawn?.kind).toBe('portal');
+    if (respawn?.kind !== 'portal') throw new Error('expected portal overlay');
+    expect(respawn.mode).toBe('respawn');
+    expect(respawn.destinations).toHaveLength(2);
+  });
+
+  it('carries the carried-teleporter HUD state in hud.teleport', () => {
+    const state = createInitialState();
+    const base = uiStore.getState();
+    const obs = buildObservation({
+      state,
+      ui: ui({hud: {...base.hud, teleport: {count: 2, usable: true}}}),
+      get: tileSource({})
+    });
+    expect(obs.hud.teleport).toEqual({count: 2, usable: true});
+  });
+
   it('mirrors the station overlay only while it is open, with recipe affordances', () => {
     const state = createInitialState();
 
