@@ -549,7 +549,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       ? 'Space: Manufacturing Station'
       : near?.kind === 'extractor'
         ? 'Space: Oil Extractor'
-        : '';
+        : near?.kind === 'portal'
+          ? `Space: Portal "${near.name}"`
+          : '';
     // The teleporter is a carried charge that opens the portal list: the whole HUD
     // state is how many are aboard and whether a jump is available right now.
     hudScratch.teleport.count = countItem(p.inventory, TELEPORTER_ITEM.kind);

@@ -131,6 +131,23 @@ describe('booting the game', () => {
     blur.mockRestore();
   });
 
+  it('names the seeded portal in the station hint when the ship flies alongside it', () => {
+    // Home base row: Manufacturer 44, ship 45, Extractor 46, Portal "Home" 48.
+    const portalHint = 'Space: Portal "Home"';
+    for (let step = 0; step < 3; step++) {
+      press('d');
+      renderFrame();
+    }
+    expect(text('stationHint')).toBe(portalHint);
+
+    // Fly back so the dive below starts from the ship's usual berth.
+    for (let step = 0; step < 3; step++) {
+      press('a');
+      renderFrame();
+    }
+    expect(text('stationHint')).toMatch(/^Space: (Manufacturing Station|Oil Extractor)$/);
+  });
+
   it('runs the whole input → move → terrain → HUD chain on a keypress', () => {
     // The spoken status starts where the ship does, at home base.
     expect(text('game-status')).toBe('At home base.');
