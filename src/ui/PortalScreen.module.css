@@ -1,0 +1,172 @@
+/* The portal overlay shares the station/extractor modal shell; see
+   InfoScreen.module.css for why the `<dialog>` is fixed at inset 14px. */
+.screen {
+  position: fixed;
+  inset: 14px;
+  z-index: 16;
+  margin: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  color: inherit;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(4, 7, 12, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+  overflow: visible;
+}
+.screen:not([open]) {
+  display: none;
+}
+.screen::backdrop {
+  background: transparent;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 94vw);
+  max-height: min(520px, 88vh);
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background: linear-gradient(145deg, rgba(12, 18, 29, 0.96), rgba(30, 40, 58, 0.94));
+  border: 1px solid var(--hairline-3);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 var(--hairline-2);
+}
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 12px;
+}
+.header h2 {
+  margin: 0;
+  color: #9fe6ff;
+  font-size: var(--fs-lg);
+}
+.body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 20px 20px;
+  display: grid;
+  gap: 12px;
+}
+.closeBtn {
+  composes: closeBtn from "./common.module.css";
+}
+
+.rename {
+  display: flex;
+  gap: 8px;
+}
+.nameInput {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  color: #eef4ff;
+  font: inherit;
+  font-weight: 700;
+}
+.nameInput:focus-visible {
+  outline: 2px solid #72d9ff;
+  outline-offset: 1px;
+}
+
+.slots {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.slots li {
+  display: grid;
+}
+.empty {
+  padding: 9px 10px;
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+}
+.emptyLabel {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  color: #eef4ff;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.slot:hover {
+  background: rgba(114, 217, 255, 0.14);
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  flex: none;
+  color: #9fc6df;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.action {
+  flex: none;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  color: #eef4ff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.action:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+@media (max-width: 760px) {
+  .screen {
+    padding: 10px;
+  }
+  .header {
+    padding: 14px 14px 10px;
+  }
+  .body {
+    padding: 0 14px 14px;
+  }
+}

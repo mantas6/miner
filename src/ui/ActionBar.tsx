@@ -15,9 +15,13 @@ export function ActionBar() {
   const teleportCount = useUiStore(state => state.hud.teleport.count);
   const teleportUsable = useUiStore(state => state.hud.teleport.usable);
 
-  // TODO(portals phase 4): the teleporter opens the portal list; there is no depth
-  // gate and no return point, so the button is simply the charges aboard.
+  // The teleporter opens the portal list; there is no depth gate and no return
+  // point, so the label is simply the charges aboard, and the tooltip says what the
+  // press does — or, while it is dead, why it cannot.
   const teleportLabel = `Teleport (T) · x${teleportCount}`;
+  const teleportTitle = teleportUsable
+    ? 'Teleporter — open the portal list'
+    : 'Teleporter — every portal is already within reach';
 
   return (
     <div className={styles.actionBar}>
@@ -37,6 +41,7 @@ export function ActionBar() {
         id="teleporterBtn"
         hidden={teleportCount <= 0}
         disabled={gameOver || !teleportUsable}
+        title={teleportTitle}
         onClick={() => uiCommands.useTeleporter()}
       >{teleportLabel}</button>
       <button id="infoBtn" onClick={event => { event.stopPropagation(); uiCommands.openInfo(); }}>Info / Cargo</button>

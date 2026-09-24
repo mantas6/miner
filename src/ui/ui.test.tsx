@@ -11,6 +11,7 @@ import { ORES } from '../../shared/constants';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { addItem, addOre, createInventory } from '../core/inventory';
 import { SCANNER_ITEM } from '../core/scanner-device';
+import { PORTAL_ITEM } from '../core/stations';
 import { setUiCommands, uiCommands } from './commands';
 import common from './common.module.css';
 import { buildInventorySlots, uiStore, type HudSnapshot } from './store';
@@ -665,6 +666,21 @@ describe('inventory panel', () => {
     act(() => { uiStore.getState().setArmedPlacement(DYNAMITE_ITEM.kind); });
     expect(document.getElementById('dynamiteSlotBtn')?.getAttribute('aria-pressed')).toBe('true');
     expect(document.getElementById('scannerSlotBtn')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('arms a carried portal from its inventory slot', () => {
+    const togglePortalPlacement = vi.fn();
+    setUiCommands({togglePortalPlacement});
+    render(<MinerApp />);
+
+    act(() => {
+      uiStore.getState().setInventorySlots(buildInventorySlots(addItem(createInventory(), PORTAL_ITEM, 1)!));
+    });
+
+    const portal = document.getElementById('portalSlotBtn')!;
+    expect(portal.textContent).toBe('Portal×1');
+    act(() => { fireEvent.click(portal); });
+    expect(togglePortalPlacement).toHaveBeenCalledOnce();
   });
 });
 

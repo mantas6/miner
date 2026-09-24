@@ -46,6 +46,12 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleExtractorPlacement()
   },
+  'device:portal': {
+    buttonId: 'portalSlotBtn',
+    idle: 'Set a Portal down in the mine',
+    armed: 'Click a mapped tile to set it down · Esc cancels',
+    toggle: () => uiCommands.togglePortalPlacement()
+  },
   toolkit: {
     buttonId: 'toolkitSlotBtn',
     idle: 'Pick up an empty station or container',

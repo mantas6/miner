@@ -26,6 +26,7 @@ import { FuelWarning } from './FuelWarning';
 import { Hud } from './Hud';
 import { InfoScreen } from './InfoScreen';
 import { Intro } from './Intro';
+import { PortalScreen } from './PortalScreen';
 import { ShipScreen } from './ShipScreen';
 import { StationHint } from './StationHint';
 import { StationScreen } from './StationScreen';
@@ -85,7 +86,7 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <StationScreen />
         <ExtractorScreen />
         <TradeScreen />
-        {/* TODO(portals phase 4): mount <PortalScreen /> for the travel/teleporter/respawn overlay. */}
+        <PortalScreen />
         <FuelWarning />
         <StationHint />
         <Toast />

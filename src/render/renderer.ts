@@ -425,8 +425,11 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
         drawStation(station.x, station.y, camX, camY, drawManufacturerBody, false, 'Manufacturer');
       } else if (station.kind === 'extractor') {
         drawStation(station.x, station.y, camX, camY, drawExtractorBody, station.coal > 0, 'Oil Extractor');
+      } else if (station.kind === 'portal') {
+        // Unlike the fixed stations, a portal wears its own name, so the label comes
+        // off the station rather than a hard-coded string.
+        drawStation(station.x, station.y, camX, camY, drawPortalBody, false, station.name);
       }
-      // TODO(portals phase 4): draw the portal ring and its name label.
     }
   }
   function drawStation(
@@ -498,6 +501,23 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillStyle = active ? '#8fe6ff' : '#2a333c';
     if (active) { ctx.shadowColor = '#5cc8ff'; ctx.shadowBlur = 10; }
     ctx.beginPath(); ctx.arc(-TILE*.22, TILE*.06, TILE*.05, 0, Math.PI*2); ctx.fill();
+  }
+  /** Portal: a glowing ring you step through to travel between built portals. */
+  function drawPortalBody(_active: boolean) {
+    // Footing the ring stands on.
+    ctx.fillStyle = '#1c3a48';
+    ctx.fillRect(-TILE*.26, TILE*.20, TILE*.52, TILE*.10);
+    // Outer ring, glowing in the portal blue.
+    ctx.strokeStyle = '#72d9ff'; ctx.shadowColor = '#72d9ff'; ctx.shadowBlur = 12;
+    ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, -TILE*.02, TILE*.26, 0, Math.PI*2); ctx.stroke();
+    // Inner ring, a lighter second stroke for depth.
+    ctx.strokeStyle = '#b7f3ff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, -TILE*.02, TILE*.17, 0, Math.PI*2); ctx.stroke();
+    // Subtle inner glow filling the mouth.
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(114,217,255,.18)';
+    ctx.beginPath(); ctx.arc(0, -TILE*.02, TILE*.15, 0, Math.PI*2); ctx.fill();
   }
   /**
    * Trading posts, as a lit kiosk with a coin sign. Derived from the tile
