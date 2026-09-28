@@ -160,6 +160,7 @@ miner/
 | `agent/` | The Node-side programmatic-play harness (no React, no test runner): `chromium.ts` resolves the Chromium to drive (shared with `playwright.config.ts`), `session.ts` (`openGameSession`) starts/reuses a Vite server, launches a headed Chromium, and drives the game with real key/mouse events plus the pause model, and `mcp-server.ts` is the stdio MCP server that exposes it to an LLM agent. See "Agent play". |
 | `e2e/` | The Playwright suite — boot flow, keyboard mining, the modal dialogs and focus restoration, the `:focus-visible` ring, the runtime-failure notice, and the agent-harness smoke test — plus `support/game.ts`, the shared page fixtures. |
 | `opencode.json` | Registers the `miner` MCP server (`npx tsx agent/mcp-server.ts`) so an opencode agent can drive the game. See "Agent play". |
+| `.mcp.json` | The same `miner` MCP server registration at Claude Code's project scope. See "Agent play". |
 | `.oxlintrc.json` | Lint rules for `src/`, `shared/` and `e2e/` (oxlint), with the reason behind every disabled rule. |
 | `.oxfmtrc.json` | oxfmt configuration; `npm run fmt` formats every stylesheet under `src/`. |
 | `init.sh` | Installs dependencies and starts a background Vite dev server for smoke testing. |
@@ -663,6 +664,26 @@ automatically:
   }
 }
 ```
+
+For Claude Code the committed project-scope `.mcp.json` registers the same
+server:
+
+```json
+{
+  "mcpServers": {
+    "miner": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "agent/mcp-server.ts"]
+    }
+  }
+}
+```
+
+Claude Code asks for approval the first time it loads a project-scope server.
+Start it from the repo root: the relative script path and Vite's `createServer`
+(`agent/session.ts`) both resolve against the working directory. `claude mcp list`
+confirms `miner` is registered.
 
 The server owns **one game session at a time**: `game_start` errors if one is
 already open, and every action tool returns the fresh observation as JSON. It logs

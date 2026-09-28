@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "miner": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "agent/mcp-server.ts"]
+    }
+  }
+}
