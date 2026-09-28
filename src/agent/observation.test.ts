@@ -289,15 +289,124 @@ describe('buildObservation', () => {
     const get = tileSource({});
 
     const plain = buildObservation({state, ui: ui({activeOverlay: 'info', infoTab: 'info-settings', saveExport: null}), get}).overlay;
-    expect(plain).toEqual({kind: 'info', tab: 'info-settings'});
+    expect(plain).toMatchObject({kind: 'info', tab: 'info-settings'});
     expect(plain && 'saveExport' in plain).toBe(false);
 
     const json = '{"version":18,"cash":5}';
     const exported = buildObservation({state, ui: ui({activeOverlay: 'info', infoTab: 'info-settings', saveExport: json}), get}).overlay;
-    expect(exported).toEqual({kind: 'info', tab: 'info-settings', saveExport: json});
+    expect(exported).toMatchObject({kind: 'info', tab: 'info-settings', saveExport: json});
 
     // A closed info screen mirrors nothing, export or not.
     expect(buildObservation({state, ui: ui({activeOverlay: null, saveExport: json}), get}).overlay).toBeNull();
+  });
+
+  it('mirrors every info tab: the tablist, and only the visible tab\'s contents', () => {
+    const state = createInitialState();
+    const get = tileSource({});
+    const info = (overrides: Partial<UiState>) => {
+      const overlay = buildObservation({state, ui: ui({activeOverlay: 'info', ...overrides}), get}).overlay;
+      if (overlay?.kind !== 'info') throw new Error('expected the info overlay');
+      return overlay;
+    };
+
+    const objective = info({
+      infoTab: 'info-objective',
+      cargoRows: [{name: 'Iron', color: '#fff', count: 3, value: 45}],
+      hud: {...uiStore.getState().hud, objective: 'Dig deeper'}
+    });
+    expect(objective.sections.map(section => section.id)).toEqual([
+      'info-objective', 'info-stats', 'info-prospecting', 'info-hazards', 'info-controls', 'info-settings'
+    ]);
+    expect(objective.sections[0].label).toBe('Objective & Cargo');
+    expect(objective.objective).toEqual({status: 'Dig deeper', cargo: [{name: 'Iron', count: 3, value: 45}]});
+    // Only the visible tab is mirrored.
+    expect(objective.stats).toBeUndefined();
+    expect(objective.settings).toBeUndefined();
+
+    const stats = info({infoTab: 'info-stats', statRows: [{label: 'Max depth', value: '120 m', detail: 'Deepest descent saved'}]});
+    expect(stats.stats).toEqual([{label: 'Max depth', value: '120 m', detail: 'Deepest descent saved'}]);
+    expect(stats.objective).toBeUndefined();
+
+    const prospecting = info({infoTab: 'info-prospecting'});
+    expect(prospecting.prospecting?.tip.length).toBeGreaterThan(0);
+    expect(prospecting.prospecting?.ores.some(ore => ore.name === 'Coal')).toBe(true);
+
+    const hazards = info({infoTab: 'info-hazards'});
+    expect(hazards.hazards?.rows.length).toBeGreaterThan(0);
+
+    const controls = info({infoTab: 'info-controls'});
+    expect(controls.controls).toContainEqual({keys: 'WASD / Arrows', action: 'Move, fly, and dig'});
+    expect(controls.controls?.some(row => row.keys.startsWith('+ / -'))).toBe(true);
+
+    const settings = info({infoTab: 'info-settings', cheatsOpen: true, confirmingReset: true, confirmingImport: false});
+    expect(settings.settings).toEqual({cheatsOpen: true, confirmingReset: true, confirmingImport: false});
+  });
+
+  it('reports audio, the runtime, the zoom and the folded inventory panel', () => {
+    const state = createInitialState();
+    const obs = buildObservation({
+      state,
+      ui: ui({musicOn: true, musicLabel: 'Mute music', sfxOn: false, sfxLabel: 'Enable sound effects', inventoryCollapsed: true, runtimeStatus: 'ready', runtimeError: null}),
+      get: tileSource({}),
+      zoom: 1.5
+    });
+    expect(obs.audio).toEqual({music: true, sfx: false, musicLabel: 'Mute music', sfxLabel: 'Enable sound effects'});
+    expect(obs.runtime).toEqual({status: 'ready', error: null});
+    expect(obs.view.zoom).toEqual({level: 1.5, min: 0.5, max: 2});
+    expect(obs.hud.inventoryCollapsed).toBe(true);
+
+    const failed = buildObservation({state, ui: ui({runtimeStatus: 'failed', runtimeError: 'No 2D context'}), get: tileSource({})});
+    expect(failed.runtime).toEqual({status: 'failed', error: 'No 2D context'});
+    // Without a zoom from the runtime, the view reads as the unzoomed baseline.
+    expect(failed.view.zoom.level).toBe(1);
+  });
+
+  it('describes the tile under the ship, which the @ glyph hides', () => {
+    const state = createInitialState();
+    state.player.x = 45;
+    state.player.y = 100;
+    const bare = buildObservation({state, ui: ui(), get: tileSource({'45,100': {type: 'air'}})});
+    expect(bare.ship.on).toEqual({tile: 'air'});
+
+    state.wrecks.push(createWreck(45, 100, addItem(createInventory(), oreItem({name: 'Iron', color: '#fff', value: 1, min: 0, max: 1, chance: 1}), 2)));
+    const onWreck = buildObservation({state, ui: ui(), get: tileSource({'45,100': {type: 'air'}})});
+    expect(onWreck.ship.on).toEqual({tile: 'air', what: 'wreck', detail: '2 items'});
+    // The ship's own cell stays `@` in the view, and out of notable.
+    expect(onWreck.view.rows[5][7]).toBe('@');
+    expect(onWreck.notable.some(n => n.x === 45 && n.y === 100)).toBe(false);
+  });
+
+  it('mirrors the placement grid while a device is armed: valid sites, and the targeted tile', () => {
+    const state = createInitialState();
+    state.player.x = 45;
+    state.player.y = 100;
+    revealRect(state, 43, 100, 47, 100);
+    // (46,100) and (47,100) are open and explored; (48,100) is open but fogged;
+    // (44,100) is explored dirt.
+    const get = tileSource({'45,100': {type: 'air'}, '46,100': {type: 'air'}, '47,100': {type: 'air'}, '48,100': {type: 'air'}});
+
+    expect(buildObservation({state, ui: ui(), get}).placement).toBeNull();
+
+    state.armedPlacement = 'dynamite';
+    const armed = buildObservation({state, ui: ui({armedPlacement: 'dynamite'}), get}).placement;
+    if (!armed) throw new Error('expected a placement preview');
+    expect(armed.kind).toBe('dynamite');
+    expect(armed.sites).toContainEqual({x: 46, y: 100});
+    expect(armed.sites).toContainEqual({x: 47, y: 100});
+    expect(armed.sites).not.toContainEqual({x: 48, y: 100});
+    expect(armed.sites).not.toContainEqual({x: 44, y: 100});
+    // No tile targeted yet.
+    expect(armed.target).toBeNull();
+    expect(armed.valid).toBeNull();
+
+    state.hoverTile = {x: 44, y: 100};
+    expect(buildObservation({state, ui: ui(), get}).placement).toMatchObject({target: {x: 44, y: 100}, valid: false});
+    state.hoverTile = {x: 47, y: 100};
+    expect(buildObservation({state, ui: ui(), get}).placement).toMatchObject({target: {x: 47, y: 100}, valid: true});
+
+    // The toolkit is armed but never placed, so it has no grid.
+    state.armedPlacement = 'toolkit';
+    expect(buildObservation({state, ui: ui(), get}).placement).toBeNull();
   });
 
   it('names the home stations in view and notable', () => {

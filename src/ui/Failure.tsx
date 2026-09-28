@@ -25,7 +25,9 @@ function FailureNotice({id, title, message, detail}: FailureNoticeProps) {
       <h2>{title}</h2>
       <p>{message}</p>
       {detail && <p className={styles.detail}>{detail}</p>}
-      <button type="button" onClick={() => location.reload()}>Reload</button>
+      {/* One id for both notices: they never stand at once (the boundary's
+          fallback replaces the tree the runtime notice lives in). */}
+      <button id="failureReloadBtn" type="button" onClick={() => location.reload()}>Reload</button>
     </div>
   );
 }

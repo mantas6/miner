@@ -139,6 +139,24 @@ const seedGrave = seedSaveScript({x: 22, y: 33, stations: WORKBENCHES});
  */
 const seedSaveOnce = seedSaveScript({cash: 250, stations: WORKBENCHES}, {once: true});
 
+/**
+ * The home workbenches, the manufacturer stocked for a Fuel Tank Mk I (4 Iron,
+ * 2 Copper) with coal to spare, and the extractor holding fuel — so one run can
+ * craft, take, fit, load coal and refuel without a dig.
+ */
+const seedWorkshop = seedSaveScript({
+  stations: [
+    {...WORKBENCHES[0], items: [{kind: 'ore:Iron', count: 4}, {kind: 'ore:Copper', count: 2}, {kind: 'ore:Coal', count: 3}]},
+    {...WORKBENCHES[1], fuel: 40}
+  ]
+});
+
+/** A cargo container and three sticks of dynamite aboard, at the home base. */
+const seedDeployables = seedSaveScript({
+  bay: [{kind: 'container', count: 1}, {kind: 'dynamite', count: 3}],
+  stations: WORKBENCHES
+});
+
 /** Units of `kind` in a slot list, or 0 when none. */
 function countKind(slots: {kind: string; count: number}[], kind: string): number {
   return slots.find(slot => slot.kind === kind)?.count ?? 0;
@@ -243,9 +261,8 @@ test.describe.serial('agent harness', () => {
     // Shut the station Space opened, so the key drives the mine again.
     const closed = await session.press(' ');
     expect(closed.activeOverlay).toBeNull();
-    // Closing the modal dropped focus to the body; put it back on the mine so the
-    // held key reaches the ship rather than nothing.
-    await session.page.locator('#game').focus();
+    // No hand-refocusing of the mine: the harness routes every key press to the
+    // game itself, whatever button or blurred body focus was left on.
 
     const before = await session.observe();
     const after = await session.hold('ArrowDown', 1200);
@@ -257,7 +274,218 @@ test.describe.serial('agent harness', () => {
     // window — origin fixed to the ship — has scrolled down with it.
     expect(after.ship.y).toBeGreaterThan(before.ship.y);
     expect(after.view.origin.y).toBeGreaterThan(before.view.origin.y);
+    // The tile the `@` hides is spelled out: the ship stands in the hole it dug.
+    expect(after.ship.on.tile).toBe('air');
   });
+
+  test('every info tab switches with data-info-section and mirrors its contents', async () => {
+    let obs = await session.click('infoBtn');
+    if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+    expect(obs.overlay.tab).toBe('info-objective');
+    const sections = obs.overlay.sections;
+    expect(sections.map(section => section.id)).toEqual([
+      'info-objective', 'info-stats', 'info-prospecting', 'info-hazards', 'info-controls', 'info-settings'
+    ]);
+
+    // Walk the tablist backwards, so every click is a real switch.
+    const field = {
+      'info-objective': 'objective', 'info-stats': 'stats', 'info-prospecting': 'prospecting',
+      'info-hazards': 'hazards', 'info-controls': 'controls', 'info-settings': 'settings'
+    } as const;
+    for (let index = sections.length - 1; index >= 0; index--) {
+      const section = sections[index];
+      obs = await session.click({target: 'data-info-section', value: section.id});
+      if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+      expect(obs.overlay.tab).toBe(section.id);
+      // Exactly the visible tab's contents are mirrored.
+      for (const [tab, key] of Object.entries(field)) {
+        expect(obs.overlay[key] === undefined, `${key} on ${section.id}`).toBe(tab !== section.id);
+      }
+    }
+    if (obs.overlay?.kind !== 'info' || !obs.overlay.objective) throw new Error('the objective tab expected last');
+    expect(obs.overlay.objective.status.length).toBeGreaterThan(0);
+  });
+
+  test('Settings flags, the cheat grants and the reset confirm show in the observation', async () => {
+    let obs = await session.click({target: 'data-info-section', value: 'info-settings'});
+    if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+    expect(obs.overlay.settings).toEqual({cheatsOpen: false, confirmingReset: false, confirmingImport: false});
+
+    // The cheat disclosure, then a valueless attribute control inside it.
+    obs = await session.click('cheatsToggleBtn');
+    if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+    expect(obs.overlay.settings?.cheatsOpen).toBe(true);
+    const cargoBefore = obs.ship.cargo;
+    obs = await session.click('data-developer-grant-ores');
+    expect(obs.ship.cargo).toBeGreaterThan(cargoBefore);
+    expect(obs.bay.some(slot => slot.kind === 'ore:Iron')).toBe(true);
+
+    // Reset asks first, and Cancel stands it down — nothing reloads.
+    obs = await session.click('resetGameBtn');
+    if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+    expect(obs.overlay.settings?.confirmingReset).toBe(true);
+    obs = await session.click('resetGameCancelBtn');
+    if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+    expect(obs.overlay.settings?.confirmingReset).toBe(false);
+
+    // The audio switches read back at the top level. Unlocking audio is async, so
+    // the readback is polled rather than taken from the click's own observation.
+    const sfxBefore = obs.audio.sfx;
+    await session.click('settingsSfxBtn');
+    await expect.poll(async () => (await session.observe()).audio.sfx).toBe(!sfxBefore);
+    await session.click('settingsSfxBtn');
+    await expect.poll(async () => (await session.observe()).audio.sfx).toBe(sfxBefore);
+    obs = await session.observe();
+    expect(obs.audio.sfxLabel.length).toBeGreaterThan(0);
+
+    // Leaving the tab drops the disclosure.
+    obs = await session.click({target: 'data-info-section', value: 'info-stats'});
+    obs = await session.click({target: 'data-info-section', value: 'info-settings'});
+    if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+    expect(obs.overlay.settings?.cheatsOpen).toBe(false);
+
+    obs = await session.press('Escape');
+    expect(obs.activeOverlay).toBeNull();
+    expect(obs.runtime).toEqual({status: 'ready', error: null});
+  });
+
+  test('+ and - step the camera zoom, and the inventory panel folds', async () => {
+    let obs = await session.observe();
+    const start = obs.view.zoom.level;
+    expect(obs.view.zoom).toMatchObject({min: 0.5, max: 2});
+    obs = await session.press('+');
+    expect(obs.view.zoom.level).toBeGreaterThan(start);
+    obs = await session.press('-');
+    expect(obs.view.zoom.level).toBe(start);
+
+    expect(obs.hud.inventoryCollapsed).toBe(false);
+    obs = await session.click('inventoryToggleBtn');
+    expect(obs.hud.inventoryCollapsed).toBe(true);
+    obs = await session.click('inventoryToggleBtn');
+    expect(obs.hud.inventoryCollapsed).toBe(false);
+    // The click left focus on the toggle; a key press still reaches the mine.
+    obs = await session.press('+');
+    expect(obs.view.zoom.level).toBeGreaterThan(start);
+    obs = await session.press('-');
+    expect(obs.view.zoom.level).toBe(start);
+  });
+});
+
+test('a crafted upgrade is taken from the station, fitted, unfitted, and the extractor loads coal and refuels', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedWorkshop});
+  try {
+    await s.startRun();
+
+    // Craft a Fuel Tank Mk I at the manufacturer and take it aboard, with the coal.
+    let obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(obs.overlay.recipes.find(recipe => recipe.output === 'upgrade:tank:1')?.craftable).toBe(true);
+    obs = await s.click({target: 'data-craft', value: 'upgrade:tank:1'});
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(obs.overlay.stock, 'upgrade:tank:1')).toBe(1);
+    obs = await s.click({target: 'data-station', value: 'take', kind: 'upgrade:tank:1'});
+    obs = await s.click({target: 'data-station', value: 'take', kind: 'ore:Coal'});
+    expect(countKind(obs.bay, 'upgrade:tank:1')).toBe(1);
+    expect(countKind(obs.bay, 'ore:Coal')).toBe(3);
+    obs = await s.press('Escape');
+    expect(obs.activeOverlay).toBeNull();
+
+    // Fit it from the Ship screen: the tank grows, and the fuel does not.
+    const fuelMaxBefore = obs.ship.fuelMax;
+    obs = await s.click('shipBtn');
+    if (obs.overlay?.kind !== 'ship') throw new Error('ship overlay expected');
+    expect(obs.overlay.fittable.map(slot => slot.kind)).toContain('upgrade:tank:1');
+    obs = await s.click({target: 'data-ship-equip', value: 'upgrade:tank:1'});
+    if (obs.overlay?.kind !== 'ship') throw new Error('ship overlay expected');
+    const fitted = obs.overlay.slots.find(slot => slot.kind === 'upgrade:tank:1');
+    if (!fitted) throw new Error('the tank should be fitted');
+    expect(obs.ship.equipment[fitted.index]).toBe('upgrade:tank:1');
+    expect(obs.ship.fuelMax).toBeGreaterThan(fuelMaxBefore);
+
+    // Unfit it by slot index, then fit it again.
+    obs = await s.click({target: 'data-ship-unequip', value: String(fitted.index)});
+    expect(obs.ship.equipment).not.toContain('upgrade:tank:1');
+    expect(countKind(obs.bay, 'upgrade:tank:1')).toBe(1);
+    obs = await s.click({target: 'data-ship-equip', value: 'upgrade:tank:1'});
+    expect(obs.ship.equipment).toContain('upgrade:tank:1');
+    obs = await s.click('shipCloseBtn');
+    expect(obs.activeOverlay).toBeNull();
+    expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
+
+    // The extractor: load the coal aboard, then refuel from its stored fuel.
+    obs = await s.pressTile(STATIONS.extractor.x, STATIONS.extractor.y);
+    if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
+    const coalBefore = obs.overlay.coal;
+    obs = await s.click('loadCoalBtn');
+    if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
+    expect(obs.overlay.coal).toBe(coalBefore + 3);
+    expect(countKind(obs.bay, 'ore:Coal')).toBe(0);
+    expect(obs.overlay.refuelAmount).toBeGreaterThan(0);
+    const fuelBefore = obs.ship.fuel;
+    const refuel = obs.overlay.refuelAmount;
+    obs = await s.click('refuelBtn');
+    expect(Math.round(obs.ship.fuel)).toBe(Math.round(fuelBefore + refuel));
+  } finally {
+    await s.close();
+  }
+});
+
+test('a container stores and returns a stack, and armed dynamite plants on a valid site by tile press', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedDeployables});
+  try {
+    let obs = await s.startRun();
+    const {x, y} = obs.ship;
+    expect(obs.placement).toBeNull();
+
+    // Arm the container: the observation lists where it may go.
+    obs = await s.click('containerSlotBtn');
+    expect(obs.armedPlacement).toBe('container');
+    if (!obs.placement) throw new Error('a placement preview expected');
+    expect(obs.placement.kind).toBe('container');
+    // Set it down beside the ship, clear of the two workbenches.
+    const stations = new Set(WORKBENCHES.map(station => `${station.x},${station.y}`));
+    const site = obs.placement.sites.find(spot => Math.abs(spot.x - x) <= 1 && Math.abs(spot.y - y) <= 1 && !stations.has(`${spot.x},${spot.y}`));
+    if (!site) throw new Error('a container site beside the ship expected');
+    obs = await s.pressTile(site.x, site.y);
+    expect(obs.armedPlacement).toBeNull();
+    expect(obs.placement).toBeNull();
+    expect(obs.notable).toContainEqual({x: site.x, y: site.y, what: 'container', detail: 'empty'});
+
+    // `c` opens it; store a whole stack, then take one back.
+    obs = await s.press('c');
+    if (obs.overlay?.kind !== 'container') throw new Error('container overlay expected');
+    obs = await s.click({target: 'data-cargo', value: 'store', kind: 'dynamite'});
+    if (obs.overlay?.kind !== 'container') throw new Error('container overlay expected');
+    expect(countKind(obs.overlay.container, 'dynamite')).toBe(3);
+    expect(countKind(obs.bay, 'dynamite')).toBe(0);
+    obs = await s.click({target: 'data-cargo', value: 'take-one', kind: 'dynamite'});
+    if (obs.overlay?.kind !== 'container') throw new Error('container overlay expected');
+    expect(countKind(obs.overlay.container, 'dynamite')).toBe(2);
+    expect(countKind(obs.bay, 'dynamite')).toBe(1);
+    obs = await s.press('c');
+    expect(obs.activeOverlay).toBeNull();
+
+    // `e` arms the stick. A press on the solid floor under the ship is refused:
+    // it stays armed, and the preview reports the targeted tile as invalid.
+    obs = await s.press('e');
+    expect(obs.armedPlacement).toBe('dynamite');
+    if (!obs.placement) throw new Error('a placement preview expected');
+    expect(obs.placement.sites).not.toContainEqual({x, y: y + 1});
+    obs = await s.pressTile(x, y + 1);
+    expect(obs.armedPlacement).toBe('dynamite');
+    expect(obs.placement).toMatchObject({target: {x, y: y + 1}, valid: false});
+
+    // A press on a listed site plants it: a burning fuse in notable, the bay a stick lighter.
+    // Off the ship's own tile (which notable never lists) and off the crate's.
+    const target = obs.placement!.sites.find(spot => !(spot.x === site.x && spot.y === site.y) && !(spot.x === x && spot.y === y));
+    if (!target) throw new Error('a dynamite site expected');
+    obs = await s.pressTile(target.x, target.y);
+    expect(obs.armedPlacement).toBeNull();
+    expect(countKind(obs.bay, 'dynamite')).toBe(0);
+    expect(obs.notable.some(n => n.what === 'dynamite' && n.x === target.x && n.y === target.y)).toBe(true);
+  } finally {
+    await s.close();
+  }
 });
 
 test('a trading post buys ore for cash and sells its stock into the bay', async () => {
@@ -342,7 +570,6 @@ test('a buried chest opens with c or a tile press, and loot-all hauls it aboard 
     expect(obs.overlay?.kind).toBe('chest');
     obs = await s.press('c');
     expect(obs.activeOverlay).toBeNull();
-    await s.page.locator('#game').focus();
 
     // A press on its tile opens the take-only menu with the rolled loot.
     obs = await s.pressTile(41, 44);
@@ -396,14 +623,12 @@ test('a grave reads with Space or a tile press, and OK, Enter or Escape put it a
     obs = await s.click('graveOkBtn');
     expect(obs.overlay).toBeNull();
     expect(obs.activeOverlay).toBeNull();
-    await s.page.locator('#game').focus();
 
     // A press on its tile raises it again, and Enter puts it away.
     obs = await s.pressTile(21, 33);
     expect(obs.overlay?.kind).toBe('grave');
     obs = await s.press('Enter');
     expect(obs.activeOverlay).toBeNull();
-    await s.page.locator('#game').focus();
 
     // And Escape does too; the ship never moved through any of it.
     obs = await s.press(' ');
@@ -565,7 +790,8 @@ test('Settings exports the save into the observation and imports an edited one a
     // Info → Settings, then Export: the save text lands in the info overlay.
     await s.click('infoBtn');
     obs = await s.click({target: 'data-info-section', value: 'info-settings'});
-    expect(obs.overlay).toEqual({kind: 'info', tab: 'info-settings'});
+    expect(obs.overlay).toMatchObject({kind: 'info', tab: 'info-settings'});
+    expect(obs.overlay && 'saveExport' in obs.overlay).toBe(false);
     obs = await s.click('exportSaveBtn');
     if (obs.overlay?.kind !== 'info' || !obs.overlay.saveExport) throw new Error('an exported save expected');
     expect(obs.overlay.saveExport).toContain(`"version":${SAVE_VERSION}`);
@@ -575,7 +801,9 @@ test('Settings exports the save into the observation and imports an edited one a
     // An older version is refused with a toast, and nothing reloads.
     await s.click('importSaveText');
     await s.type('{"version":17,"cash":9000}');
-    await s.click('importSaveBtn');
+    obs = await s.click('importSaveBtn');
+    // The inline confirm is up, and the observation says so.
+    expect(obs.overlay?.kind === 'info' && obs.overlay.settings?.confirmingImport).toBe(true);
     obs = await s.click('importSaveConfirmBtn');
     expect(obs.toasts.at(-1)?.message).toContain('version 17');
     expect(obs.phase).toBe('playing');

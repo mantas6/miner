@@ -11,6 +11,9 @@ function depthLabel(row: number, startY = START_Y): string {
   return `≈${Math.max(0, row - startY) * 10} m`;
 }
 
+/** The one-line lead-in the Hazards guide opens with. */
+export const DANGER_TIP = 'Plan a return route before the mine gets hostile: deep rewards bring rock, magma, and tunnel fiends.';
+
 /**
  * Player-facing survival guidance derived exclusively from the world and
  * balance configuration, so the overlay remains accurate as tuning changes.

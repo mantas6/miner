@@ -1,11 +1,12 @@
 import clsx from 'clsx';
-import { useState } from 'react';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
 import type { DecorKind, InventoryItemKind } from '../core/inventory';
+import { itemForKind } from '../core/items';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { uiCommands } from './commands';
-import { useUiStore, type InventorySlotView } from './store';
+import { DECOR_KINDS, SLOT_BUTTON_IDS, decorSlotButtonId } from './inventory-slot-ids';
+import { uiStore, useUiStore, type InventorySlotView } from './store';
 import { useItemTooltip } from './Tooltip';
 import styles from './InventoryPanel.module.css';
 
@@ -17,69 +18,64 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
   toggle(): void;
 }>> = {
   [SCANNER_ITEM.kind]: {
-    buttonId: 'scannerSlotBtn',
+    buttonId: SLOT_BUTTON_IDS.scanner,
     idle: 'Deploy a scanner in the mine',
     armed: 'Click a mapped tile to deploy · Esc cancels',
     toggle: () => uiCommands.toggleScannerPlacement()
   },
   [DYNAMITE_ITEM.kind]: {
-    buttonId: 'dynamiteSlotBtn',
+    buttonId: SLOT_BUTTON_IDS.dynamite,
     idle: 'Plant dynamite in the mine (E)',
     armed: `Click a mapped tile to plant · ${DYNAMITE.fuseSeconds} s fuse · Esc cancels`,
     toggle: () => uiCommands.toggleDynamitePlacement()
   },
   [CARGO_CONTAINER_ITEM.kind]: {
-    buttonId: 'containerSlotBtn',
+    buttonId: SLOT_BUTTON_IDS.container,
     idle: 'Set a cargo container down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleContainerPlacement()
   },
   'device:manufacturer': {
-    buttonId: 'manufacturerSlotBtn',
+    buttonId: SLOT_BUTTON_IDS['device:manufacturer'],
     idle: 'Set a Manufacturing Station down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleManufacturerPlacement()
   },
   'device:extractor': {
-    buttonId: 'extractorSlotBtn',
+    buttonId: SLOT_BUTTON_IDS['device:extractor'],
     idle: 'Set an Fuel Extractor down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleExtractorPlacement()
   },
   'device:portal': {
-    buttonId: 'portalSlotBtn',
+    buttonId: SLOT_BUTTON_IDS['device:portal'],
     idle: 'Set a Portal down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.togglePortalPlacement()
   },
   toolkit: {
-    buttonId: 'toolkitSlotBtn',
+    buttonId: SLOT_BUTTON_IDS.toolkit,
     idle: 'Pick up an empty station or container',
     armed: 'Click an empty station or container to pack it up · Esc cancels',
     toggle: () => uiCommands.toggleToolkit()
   },
-  ...decorPlaceable('decor:steelPlate', 'Steel Plate'),
-  ...decorPlaceable('decor:stoneBlock', 'Stone Block'),
-  ...decorPlaceable('decor:copperTrim', 'Copper Trim'),
-  ...decorPlaceable('decor:lampPanel', 'Lamp Panel')
+  ...Object.fromEntries(DECOR_KINDS.map(kind => [kind, decorPlaceable(kind)]))
 };
 
 /** One decoration's placeable slot: armed, it writes the panel onto the next tile pressed. */
-function decorPlaceable(kind: DecorKind, label: string) {
+function decorPlaceable(kind: DecorKind) {
   return {
-    [kind]: {
-      buttonId: `${kind}SlotBtn`,
-      idle: `Set ${label} down in the mine`,
-      armed: 'Click a mapped tile to set it down · Esc cancels',
-      toggle: () => uiCommands.toggleDecorPlacement(kind)
-    }
+    buttonId: decorSlotButtonId(kind),
+    idle: `Set ${itemForKind(kind).label} down in the mine`,
+    armed: 'Click a mapped tile to set it down · Esc cancels',
+    toggle: () => uiCommands.toggleDecorPlacement(kind)
   };
 }
 
 /** The kinds spent from their slot with a single press, and how that press acts. */
 const USABLE: Partial<Record<InventoryItemKind, {buttonId: string; title: string; use(): void}>> = {
   repairKit: {
-    buttonId: 'repairKitSlotBtn',
+    buttonId: SLOT_BUTTON_IDS.repairKit,
     title: 'Use a repair kit to patch the hull',
     use: () => uiCommands.useRepairKit()
   }
@@ -98,16 +94,17 @@ const USABLE: Partial<Record<InventoryItemKind, {buttonId: string; title: string
  * the whole gesture inside the panel that already shows the item, rather than
  * adding a button to the action bar for something used a handful of times a run.
  *
- * Collapsing is local state on purpose. It is a preference about this glance,
- * not about the save: nothing here is worth a storage key, and a panel that
- * remembered being shut would hide itself from the next run without explanation.
+ * Collapsing is a store flag (so the agent's observation can see the list is
+ * shut) but never persisted. It is a preference about this glance, not about the
+ * save: nothing here is worth a storage key, and a panel that remembered being
+ * shut would hide itself from the next page load without explanation.
  */
 export function InventoryPanel() {
   const slots = useUiStore(state => state.inventorySlots);
   const capacity = useUiStore(state => state.hud.cargoMax);
   const gameOver = useUiStore(state => state.hud.gameOver);
   const armedPlacement = useUiStore(state => state.armedPlacement);
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useUiStore(state => state.inventoryCollapsed);
   const used = slots.reduce((count, slot) => count + slot.count, 0);
 
   return (
@@ -119,7 +116,7 @@ export function InventoryPanel() {
         aria-expanded={!collapsed}
         // Only points at the list while there is one to point at.
         aria-controls={collapsed ? undefined : 'inventorySlots'}
-        onClick={() => setCollapsed(value => !value)}
+        onClick={() => uiStore.getState().setInventoryCollapsed(!collapsed)}
       >
         <span className={styles.title}>Inventory</span>
         <span className={styles.used}>{used}/{capacity}</span>

@@ -1,4 +1,4 @@
-// Keyboard, wheel-zoom, and restart-pointer handling.
+// Keyboard (zoom keys included), wheel-zoom, and restart-pointer handling.
 //
 // Owns the held-key set (input state, deliberately not part of the DOM layer),
 // the impulse/auto-repeat rules that turn key presses into moves, and the
@@ -15,7 +15,7 @@ import { activeSprintDirection, keyboardMovementRepeatMs } from '../core/movemen
 import type { Direction, GameState } from '../core/types';
 import { uiStore, type OverlayId } from '../ui/store';
 import { requestViewportZoom, viewport } from './viewport';
-import { zoomAfterWheel } from './zoom';
+import { zoomAfterKey, zoomAfterWheel } from './zoom';
 import type { GameActions } from './actions';
 
 /**
@@ -42,6 +42,9 @@ const movementKeys: Record<string, Direction> = {
   arrowup: [0, -1], w: [0, -1],
   arrowdown: [0, 1], s: [0, 1]
 };
+
+/** The zoom keys and the way each steps: `+`/`=` in, `-` out. */
+const ZOOM_KEYS: Record<string, 1 | -1> = {'+': 1, '=': 1, '-': -1};
 
 /** Held-key priority when several directions are down at once. */
 const HELD_DIRECTIONS: {keys: string[]; direction: Direction}[] = [
@@ -268,7 +271,16 @@ export function createInput(deps: GameInputDeps): GameInput {
     if (key === 'e') { if (!e.repeat) deps.toggleDynamitePlacement(); e.preventDefault(); e.stopPropagation(); return; }
     if (key === 't') { if (!e.repeat) actions.useTeleporter(); e.preventDefault(); e.stopPropagation(); return; }
     if (key === 'c') { if (!e.repeat) deps.toggleContainer(); e.preventDefault(); e.stopPropagation(); return; }
-    if (key === 'r') { if (!e.repeat) requestReset(); e.preventDefault(); e.stopPropagation(); }
+    if (key === 'r') { if (!e.repeat) requestReset(); e.preventDefault(); e.stopPropagation(); return; }
+    // `+` (or the unshifted `=` on its key) and `-` step the camera zoom, the
+    // keyboard's twin of the wheel. With a modifier held the press is the browser's
+    // own page zoom, which is left alone.
+    const zoomDirection = ZOOM_KEYS[key];
+    if (zoomDirection && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      requestViewportZoom(zoomAfterKey(viewport.targetZoom, zoomDirection));
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }
 
   function handleKeyUp(e: KeyboardEvent): void {

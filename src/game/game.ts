@@ -1213,7 +1213,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       getTile: (x, y) => grid.get(x, y),
       setPaused,
       isPaused: () => paused,
-      screenPointForTile
+      screenPointForTile,
+      getZoom: () => viewport.targetZoom
     });
     run.resume();
     scope.interval(saveIfDirty, 60000);

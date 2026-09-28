@@ -163,7 +163,7 @@ miner/
 | `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), chest loot and reach (`chest.ts`), grave epitaphs and reach (`grave.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts, chests and graves in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
 | `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `chests.ts` (opening and looting buried chests), `graves.ts` (reading a grave's stone), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations), `intro-showcase.ts` (the title screen's drifting mine backdrop: a fresh game state drawn by the game's renderer with fog and ship off) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
-| `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
+| `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection); `allowlist.test.ts` fails on any interactive `src/ui` control the harness allowlist cannot reach. |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
 | `src/audio/tracks.ts` | Track registry for playback: the `TrackId` union, `TRACKS` (title plus mp3/ogg URLs), `DEFAULT_TRACK_ID`. |
@@ -181,7 +181,7 @@ miner/
 | `tsconfig.test.json` | The test half of `npm run typecheck`: the same strict options plus `vitest/globals`, which `tsconfig.json` withholds from production source. |
 | `tsconfig.e2e.json` | The third `npm run typecheck` pass: `e2e/` and `playwright.config.ts`, which run in Node and so need those globals rather than Vitest's. |
 | `playwright.config.ts` | End-to-end config: one Chromium project, the Vite dev server started as a `webServer`, and the local/CI browser resolution described under "End-to-end tests". |
-| `agent/` | The Node-side programmatic-play harness (no React, no test runner): `chromium.ts` resolves the Chromium to drive (shared with `playwright.config.ts`), `session.ts` (`openGameSession`) starts/reuses a Vite server, launches a headed Chromium, and drives the game with real key/mouse events plus the pause model, and `mcp-server.ts` is the stdio MCP server that exposes it to an LLM agent. See "Agent play". |
+| `agent/` | The Node-side programmatic-play harness (no React, no test runner): `chromium.ts` resolves the Chromium to drive (shared with `playwright.config.ts`), `session.ts` (`openGameSession`) starts/reuses a Vite server, launches a headed Chromium, and drives the game with real key/mouse events plus the pause model, `targets.ts` is its click allowlist (plain data, so the Vitest guard can import it), and `mcp-server.ts` is the stdio MCP server that exposes it to an LLM agent. See "Agent play". |
 | `e2e/` | The Playwright suite — boot flow, keyboard mining, the modal dialogs and focus restoration, the `:focus-visible` ring, the runtime-failure notice, and the agent-harness smoke test — plus `support/game.ts`, the shared page fixtures. |
 | `opencode.json` | Registers the `miner` MCP server (`npx tsx agent/mcp-server.ts`) so an opencode agent can drive the game. See "Agent play". |
 | `.mcp.json` | The same `miner` MCP server registration at Claude Code's project scope. See "Agent play". |
@@ -282,14 +282,14 @@ condition, and settings.
 
 Ship movement is keyboard-only. Pointer/touch input is used for UI
 only (menus, buttons, modals, starting the run, restarting, audio unlock) plus
-zooming the camera with the wheel or a trackpad.
+zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 
 | Action | Keyboard | UI (click/tap) |
 |---|---|---|
 | Start a run | `Enter` or `Space` | Click/tap intro screen |
 | Move / fly / dig | `WASD` or arrow keys | — |
 | Sprint through open space (needs a fitted Booster) | Hold `Shift` + direction | — |
-| Zoom the camera (0.5x–2x, remembered) | — | Wheel scroll or trackpad pinch over the mine |
+| Zoom the camera (0.5x–2x, remembered) | `+` / `=` in, `-` out (0.25 steps) | Wheel scroll or trackpad pinch over the mine |
 | Open a station in reach (Manufacturing Station / Fuel Extractor) | `Space` | Press the station tile on the mine |
 | Open a trading post in reach | `Space` | Press the post tile on the mine |
 | Open a portal in reach (its travel list of the other portals) | `Space` | Press the portal tile on the mine |
@@ -764,7 +764,7 @@ leaves the sim paused (the re-pause, and a `hold`'s key release, run in a
 | `game_stop` | — | Close the session (browser, and any server this session started). |
 | `observe` | `radius?` (int, default 7, max 40) | Return the current observation without changing the world. |
 | `start_run` | — | Start the run from the title splash (presses Enter, waits for the HUD). |
-| `press` | `key` (string) | One key press, e.g. `ArrowDown`, `w`, `Space`, `e`, `t`, `c`, `Escape`. |
+| `press` | `key` (string) | One key press, e.g. `ArrowDown`, `w`, `Space`, `e`, `t`, `c`, `+`, `-`, `Escape`. Keys always reach the game: with no dialog open the mine canvas takes focus first, and inside a dialog Space/Enter drop focus off a button so they act as the overlay's keys. |
 | `type` | `text` (string) | Type text into the focused input (e.g. after clicking `portalNameInput`), then return the observation. |
 | `hold` | `key` (string), `ms` (int, max 60000), `shift?` (bool) | Hold a key for `ms` wall-clock (the sim runs during the hold); `shift` sprints if a Booster is fitted. |
 | `click` | `target` (string), `value?` (string), `kind?` (string) | Click one allowlisted UI control (below). |
@@ -784,8 +784,9 @@ fields directly. Allowlisted controls: the HUD/action bar (`shipBtn`,
 `teleporterBtn`, `infoBtn`, `musicBtn`, `sfxBtn`, `inventoryToggleBtn`), inventory
 slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBtn`,
 `manufacturerSlotBtn`, `extractorSlotBtn`, `portalSlotBtn`, `toolkitSlotBtn`, the `decor:*SlotBtn`
-panels), the ship screen (`data-ship-equip`,
-`data-ship-unequip`, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
+panels — derived from `src/ui/inventory-slot-ids.ts`, the table the panel renders
+from), the ship screen (`data-ship-equip` with an upgrade kind,
+`data-ship-unequip` with the 0-based fitting-slot index, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
 with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
 `data-craft`, `stationCloseBtn`), the fuel extractor (`loadCoalBtn`, `refuelBtn`,
 `extractorCloseBtn`), the cargo container (`data-cargo` with values
@@ -798,10 +799,14 @@ portal travel/teleporter/respawn screen (`data-portal` with the destination `"x,
 as its value, `portalNameInput`, `portalNameSaveBtn`, `portalCloseBtn`), the
 info tabs (`data-info-section`, `infoCloseBtn`), the Settings tab
 (`data-info-section=info-settings`: `settingsMusicBtn`, `settingsSfxBtn`,
-`cheatsToggleBtn`, `resetPlayerDataBtn`, `resetWorldStateBtn`, `exportSaveBtn`,
+`cheatsToggleBtn`, the valueless cheat grants `data-developer-grant-ores` and
+`data-developer-fill-extractor`, `resetPlayerDataBtn`, `resetWorldStateBtn`, `exportSaveBtn`,
 `importSaveText`, `importSaveBtn`, `importSaveConfirmBtn`, `importSaveCancelBtn`,
-`resetGameBtn`, `resetGameCancelBtn`, `resetGameConfirmBtn`), and the intro
-(`introStartBtn`). Importing a save is `click importSaveText`, `type` the JSON,
+`resetGameBtn`, `resetGameCancelBtn`, `resetGameConfirmBtn`), the intro
+(`introStartBtn`), and the failure notice (`failureReloadBtn`). The allowlist lives
+in `agent/targets.ts` (no Playwright imports), and `src/agent/allowlist.test.ts`
+scans every `src/ui/**/*.tsx` for interactive elements and fails on one the
+allowlist cannot reach unless it is excluded there with a reason. Importing a save is `click importSaveText`, `type` the JSON,
 then `importSaveBtn` and `importSaveConfirmBtn`. A click that reloads the page
 (`importSaveConfirmBtn`, `resetGameConfirmBtn`) returns once the game is back on
 the title splash, and the session answers the cheat resets' native `confirm()`
@@ -813,13 +818,15 @@ Every tool returns an `AgentObservation` (`src/agent/observation.ts`) — exactl
 what a sighted player sees, as JSON. The top-level shape:
 
 - `tick`, `phase`, `activeOverlay`, `gameOver`
-- `ship`: `{x, y, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface}` (vitals read from the live sim, not the UI snapshot)
+- `ship`: `{x, y, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface, on}` (vitals read from the live sim, not the UI snapshot; `on` is `{tile, what?, detail?}` — the tile the `@` hides and anything notable standing on it)
 - `cash`, `stats`
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
-- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, alerts{fuel, hull, cargo}, announcement}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now
-- `view`: `{origin:{x, y}, rows:[…], legend}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship
+- `placement`: while a placeable device is armed, `{kind, target, valid, sites[]}` — the valid `sites` the canvas grid tints green around the ship, and the hovered/last-pressed `target` tile with whether the device fits there (`null` with no target); `null` when nothing placeable is armed (the toolkit included)
+- `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the labels their buttons carry; `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail
+- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now
+- `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a grave has none)
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (tab, plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores}`, `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
@@ -864,7 +871,8 @@ than fought.
 Per `AGENTS.md`: a gameplay feature is not done until the agent can use it too.
 Any new player action needs a harness path — a key handled in
 `src/game/input.ts` (reachable via `press`/`hold`), an allowlisted control in
-`agent/session.ts` (reachable via `click`), or a tile press (`press_tile`) — and
+`agent/targets.ts` (reachable via `click`; `src/agent/allowlist.test.ts` fails on a
+control that has none), or a tile press (`press_tile`) — and
 any new player-visible state needs to be surfaced in `buildObservation`
 (`src/agent/observation.ts`), with coverage in `src/agent/` and/or
 `e2e/agent.spec.ts`.
@@ -930,7 +938,7 @@ the boot flow gets from the splash to a live run without the browser complaining
 | `e2e/dialogs.spec.ts` | Ship, station and info dialogs opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the ship and info overlays handing the screen over rather than stacking. |
 | `e2e/focus-visible.spec.ts` | The ring drawn for `Tab` (3px, and inset on the canvas) and gone for a click that moves focus, including the focus a clicked-shut dialog restores. |
 | `e2e/failure.spec.ts` | A refused 2D context — stubbed with an init script — surfacing as the "Mine offline" notice with its detail line, its `role="alert"` and a working Reload, while the crash boundary stays out of it. |
-| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; plus the trading, wreck, chest, grave, portal, toolkit and save export/import flows. |
+| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; then every info tab by `data-info-section`, the Settings flags and cheat grant, the `+`/`-` zoom and the inventory fold; plus the craft → take → fit/unfit, extractor load-coal/refuel, container store/take, dynamite arm-and-plant, trading, wreck, chest, grave, portal, toolkit and save export/import flows. |
 
 Two notes on how the suite is wired:
 

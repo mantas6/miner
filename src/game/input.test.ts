@@ -603,6 +603,43 @@ describe('wheel zoom', () => {
     expect(viewport.targetZoom).toBeGreaterThan(1);
     expect(h.move).not.toHaveBeenCalled();
   });
+
+  it('steps the zoom on + / = and -, holding at the ends of the range', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+
+    press('+');
+    expect(viewport.targetZoom).toBe(1.25);
+    press('=');
+    expect(viewport.targetZoom).toBe(1.5);
+    press('-');
+    press('-');
+    press('-');
+    expect(viewport.targetZoom).toBe(0.75);
+    for (let i = 0; i < 5; i++) press('-');
+    expect(viewport.targetZoom).toBe(MIN_ZOOM);
+    for (let i = 0; i < 10; i++) press('+');
+    expect(viewport.targetZoom).toBe(MAX_ZOOM);
+    expect(h.move).not.toHaveBeenCalled();
+  });
+
+  it('leaves the zoom keys alone on the splash, under an overlay, and with a modifier held', () => {
+    harness();
+    press('+');
+    expect(viewport.targetZoom).toBe(1);
+
+    uiStore.getState().setPhase('playing');
+    uiStore.getState().setActiveOverlay('info');
+    press('+');
+    expect(viewport.targetZoom).toBe(1);
+
+    uiStore.getState().setActiveOverlay(null);
+    // Ctrl + `=` is the browser's own page zoom.
+    const browserZoom = new KeyboardEvent('keydown', {key: '=', ctrlKey: true, bubbles: true, cancelable: true});
+    window.dispatchEvent(browserZoom);
+    expect(viewport.targetZoom).toBe(1);
+    expect(browserZoom.defaultPrevented).toBe(false);
+  });
 });
 
 describe('held keys', () => {

@@ -24,6 +24,8 @@ import { openGameSession, type ClickTarget, type GameSession } from './session';
 import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
 import { RECIPES } from '../src/core/crafting';
 import { itemForKind } from '../src/core/items';
+import { MAX_ZOOM, MIN_ZOOM } from '../src/game/zoom';
+import { INFO_NAVIGATION_SECTIONS } from '../src/ui/info-navigation';
 
 /** The single live session, or `null` when none is open. One at a time. */
 let session: GameSession | null = null;
@@ -50,6 +52,11 @@ function recipesText(): string {
   }).join('\n');
 }
 
+/** The Info tabs as `"info-objective" (Objective & Cargo), …`, straight from the tablist. */
+function infoSectionsText(): string {
+  return INFO_NAVIGATION_SECTIONS.map(section => `"${section.id}" (${section.label})`).join(', ');
+}
+
 /** The server-level guide the client shows before any tool call. */
 function instructions(): string {
   return [
@@ -72,6 +79,9 @@ function instructions(): string {
     '    (`overlay.kind === "grave"`: name, born, died, cause); dismiss it with',
     '    graveOkBtn, Enter, Space or Escape.',
     '  e — arm/disarm a stick of dynamite, then `press_tile` the target to plant it.',
+    '    While any placeable device is armed, `placement` lists the valid `sites`',
+    '    around the ship (the green grid) and, after a press, the `target` tile and',
+    '    whether it was `valid` (a refused press leaves the device armed).',
     '  t — open the portal list with a teleporter aboard (`mode "teleporter"`, the',
     '    portals out of reach); picking a destination spends one teleporter and moves',
     '    the ship there. `hud.teleport` reports how many charges are aboard and',
@@ -89,6 +99,24 @@ function instructions(): string {
     '  Naming a portal: in the travel overlay, `click` portalNameInput to focus it,',
     '    `type` the new name (max 16 chars), then `click` portalNameSaveBtn (Enter also',
     '    saves). The new name echoes back in `overlay.name` and the portal notable.',
+    '  + (or =) / - — step the camera zoom in / out in 0.25 steps, between',
+    `    ${MIN_ZOOM}x and ${MAX_ZOOM}x (remembered). \`view.zoom\` reports the level. The ASCII`,
+    '    window does not change with it, but zooming in leaves fewer tiles on screen,',
+    '    and `press_tile` refuses one that is off-screen.',
+    '  Info screen: click infoBtn, then a tab with data-info-section, value one of',
+    `    ${infoSectionsText()}.`,
+    '    `overlay.sections` lists them; only the visible tab\'s contents are mirrored',
+    '    (`overlay.objective` / `stats` / `prospecting` / `hazards` / `controls` /',
+    '    `settings`). Settings: settingsMusicBtn / settingsSfxBtn (state in `audio`),',
+    '    cheatsToggleBtn expands the cheat menu (`settings.cheatsOpen`), whose grants are',
+    '    the valueless targets data-developer-grant-ores and data-developer-fill-extractor',
+    '    (click with no value); resetGameBtn asks inline (`settings.confirmingReset`),',
+    '    resetGameCancelBtn backs out, resetGameConfirmBtn wipes everything and reloads.',
+    '  Ship screen: shipBtn opens it. data-ship-equip value an upgrade kind (e.g.',
+    '    "upgrade:tank:1") fits it from the bay into the first empty slot (swapping into',
+    '    slot 0 when all are full). data-ship-unequip value is the 0-based slot index —',
+    '    the `index` in `overlay.slots` and the position in `ship.equipment` — and',
+    '    moves that slot\'s upgrade back to the bay; an empty slot\'s button is disabled.',
     '  Save export/import: click infoBtn, then data-info-section value "info-settings".',
     '    exportSaveBtn puts the save JSON in `overlay.saveExport` (and downloads it).',
     '    To import, click importSaveText, `type` the JSON, click importSaveBtn, then',
@@ -100,14 +128,25 @@ function instructions(): string {
     '    more portals built, a lost or reset ship raises a portal overlay in `mode',
     '    "respawn"` that cannot be dismissed (Escape/Space are ignored) — pick a',
     '    `data-portal` row to redeploy the ship at that portal.',
+    '  Game over (`gameOver: true`, the ship is lost): press r to deploy a new ship at',
+    '    once (no confirm), or `press_tile` any mine tile — a click anywhere outside the',
+    '    dialogs restarts, like the "Tap anywhere to restart" banner says. With two or',
+    '    more portals the respawn prompt above comes up instead.',
     '  Escape — cancel an armed placement, or close the ship/info/container/wreck/chest/grave overlay.',
     '  Enter — start the run from the title splash (use the `start_run` tool).',
     '  Click a tile with `press_tile` to move/drill toward it, plant an armed device,',
     '    or open a station, trading post, wreck, chest, or grave. Click named UI controls with `click`.',
+    '  Keys always reach the game: `press`/`hold` hand focus back to the mine first when',
+    '    no dialog is open, and inside a dialog Space/Enter drop focus off a button so',
+    '    they act as the overlay keys (use `click` to press a button).',
+    '  inventoryToggleBtn folds the HUD inventory list (`hud.inventoryCollapsed`); the',
+    '    slot buttons are only there while it is unfolded.',
     '',
     'VIEW LEGEND (the `view.rows` ASCII grid, ~15x11 around the ship @):',
     `  ${legendText()}`,
     '  Fogged tiles you have not yet explored are ? and never appear in `notable`.',
+    '  The `@` hides the ship\'s own tile; `ship.on` names it (`tile`) and anything',
+    '    notable standing there (`what`/`detail`, e.g. a portal or trading post).',
     '',
     'CRAFTING RECIPES (at the Manufacturer; consume from and produce into station stock):',
     recipesText(),
@@ -136,6 +175,8 @@ function instructions(): string {
     '  - Every item row inside an open overlay carries `info: string[]` — the hover',
     '    tooltip lines describing that item; a recipe\'s `info` also lists each input\'s',
     '    have/need count. The top-level `bay` stays lean and omits it.',
+    '  - `runtime` reports whether the simulation is up (`status` "ready"); a failed',
+    '    boot shows a notice whose failureReloadBtn reloads the page.',
     '  - Pause model: by default the sim is FROZEN between tool calls and only runs',
     '    at wall-clock speed during `hold` and `wait`. Use `set_realtime enabled:false`',
     '    to let it run continuously between calls instead.'
@@ -249,7 +290,7 @@ server.registerTool(
 server.registerTool(
   'press',
   {
-    description: 'Press one key once. See the controls in the server instructions for key names (e.g. ArrowDown, w, Space, e, t, c, Escape).',
+    description: 'Press one key once. See the controls in the server instructions for key names (e.g. ArrowDown, w, Space, e, t, c, +, -, Escape).',
     inputSchema: {key: z.string().describe('The key to press, e.g. "ArrowDown", "w", "Space", "e".')}
   },
   ({key}) => withSession(game => game.press(key))
@@ -291,7 +332,9 @@ server.registerTool(
       'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +
       '"ore:Iron" to sell or "repairKit" to buy). A portal travel/respawn row is target ' +
       '"data-portal", value the destination "x,y" (e.g. "48,20"). An info tab is target ' +
-      '"data-info-section", value e.g. "info-settings". A click that reloads the page ' +
+      '"data-info-section", value e.g. "info-settings". data-ship-unequip takes the ' +
+      '0-based fitting-slot index (e.g. "0"). The cheat grants data-developer-grant-ores ' +
+      'and data-developer-fill-extractor take no value. A click that reloads the page ' +
       '(importSaveConfirmBtn, resetGameConfirmBtn) returns once the game is back. ' +
       'A wrong target is refused with the full allowed list.',
     inputSchema: {

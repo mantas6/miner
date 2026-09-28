@@ -5,6 +5,8 @@ import {
   MIN_ZOOM,
   recenteredCamera,
   wheelPixels,
+  ZOOM_KEY_LEVELS,
+  zoomAfterKey,
   zoomAfterWheel
 } from './zoom';
 
@@ -62,6 +64,27 @@ describe('zoomAfterWheel', () => {
 
   it('clamps a level that somehow drifted out of range before applying the notch', () => {
     expect(zoomAfterWheel(12, {deltaY: 0})).toBe(MAX_ZOOM);
+  });
+});
+
+describe('zoomAfterKey', () => {
+  it('steps through the quarter levels in both directions', () => {
+    expect(zoomAfterKey(1, 1)).toBe(1.25);
+    expect(zoomAfterKey(1.25, 1)).toBe(1.5);
+    expect(zoomAfterKey(1, -1)).toBe(0.75);
+    expect(zoomAfterKey(0.75, -1)).toBe(0.5);
+  });
+
+  it('holds at either end of the range', () => {
+    expect(zoomAfterKey(MAX_ZOOM, 1)).toBe(MAX_ZOOM);
+    expect(zoomAfterKey(MIN_ZOOM, -1)).toBe(MIN_ZOOM);
+  });
+
+  it('moves a level the wheel left between two steps to the neighbouring step', () => {
+    expect(zoomAfterKey(1.1, 1)).toBe(1.25);
+    expect(zoomAfterKey(1.1, -1)).toBe(1);
+    expect(ZOOM_KEY_LEVELS[0]).toBe(MIN_ZOOM);
+    expect(ZOOM_KEY_LEVELS.at(-1)).toBe(MAX_ZOOM);
   });
 });
 

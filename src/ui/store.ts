@@ -283,6 +283,18 @@ export interface UiState {
    * switching tab drops it, so a stale export is never mistaken for the run.
    */
   saveExport: string | null;
+  /**
+   * The Settings tab's disclosure and its two inline confirms: the cheat menu
+   * expanded, "Reset game…" asking, "Import save…" asking. Store flags rather than
+   * component state so the observation can report what the panel shows; they
+   * still live only as long as the tab does — opening Info or switching tab drops
+   * all three, so leaving Settings always cancels a pending confirm.
+   */
+  cheatsOpen: boolean;
+  confirmingReset: boolean;
+  confirmingImport: boolean;
+  /** The HUD inventory panel folded shut to its header. Never persisted. */
+  inventoryCollapsed: boolean;
   phase: UiPhase;
   runtimeStatus: RuntimeStatus;
   /** Why the runtime failed, when it did. Shown verbatim in the failure notice. */
@@ -328,6 +340,10 @@ export interface UiState {
   closeOverlay(overlay: OverlayId): void;
   setInfoTab(tab: InfoTab): void;
   setSaveExport(json: string | null): void;
+  setCheatsOpen(open: boolean): void;
+  setConfirmingReset(confirming: boolean): void;
+  setConfirmingImport(confirming: boolean): void;
+  setInventoryCollapsed(collapsed: boolean): void;
   setPhase(phase: UiPhase): void;
   setRuntimeStatus(status: RuntimeStatus, error?: string | null): void;
   setMusic(on: boolean, label: string): void;
@@ -435,6 +451,9 @@ function sameStatRows(a: ExpeditionStatRow[], b: ExpeditionStatRow[]): boolean {
   });
 }
 
+/** The Settings tab's transient flags as a fresh visit finds them. */
+const CLOSED_SETTINGS = {cheatsOpen: false, confirmingReset: false, confirmingImport: false} as const;
+
 let nextToastId = 1;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -456,6 +475,8 @@ export const uiStore = createStore<UiState>((set, get) => ({
   activeOverlay: null,
   infoTab: DEFAULT_INFO_TAB,
   saveExport: null,
+  ...CLOSED_SETTINGS,
+  inventoryCollapsed: false,
   phase: 'intro',
   runtimeStatus: 'booting',
   runtimeError: null,
@@ -543,7 +564,9 @@ export const uiStore = createStore<UiState>((set, get) => ({
   setActiveOverlay(overlay) {
     if (get().activeOverlay === overlay) return;
     // Info always opens on its first tab, as the imperative version did.
-    set(overlay === 'info' ? {activeOverlay: 'info', infoTab: DEFAULT_INFO_TAB, saveExport: null} : {activeOverlay: overlay});
+    set(overlay === 'info'
+      ? {activeOverlay: 'info', infoTab: DEFAULT_INFO_TAB, saveExport: null, ...CLOSED_SETTINGS}
+      : {activeOverlay: overlay});
   },
 
   /**
@@ -557,11 +580,27 @@ export const uiStore = createStore<UiState>((set, get) => ({
   },
 
   setInfoTab(tab) {
-    if (get().infoTab !== tab) set({infoTab: tab, saveExport: null});
+    if (get().infoTab !== tab) set({infoTab: tab, saveExport: null, ...CLOSED_SETTINGS});
   },
 
   setSaveExport(json) {
     set({saveExport: json});
+  },
+
+  setCheatsOpen(open) {
+    if (get().cheatsOpen !== open) set({cheatsOpen: open});
+  },
+
+  setConfirmingReset(confirming) {
+    if (get().confirmingReset !== confirming) set({confirmingReset: confirming});
+  },
+
+  setConfirmingImport(confirming) {
+    if (get().confirmingImport !== confirming) set({confirmingImport: confirming});
+  },
+
+  setInventoryCollapsed(collapsed) {
+    if (get().inventoryCollapsed !== collapsed) set({inventoryCollapsed: collapsed});
   },
 
   setPhase(phase) {

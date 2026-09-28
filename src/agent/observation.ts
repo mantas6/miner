@@ -36,11 +36,17 @@ import {
   type InventoryItemKind,
   type UpgradeKind
 } from '../core/inventory';
+import { DANGER_TIP, buildDangerGuideRows, type DangerGuideRow } from '../core/danger';
 import type { DepthMilestoneKind } from '../core/depth-milestone';
 import type { FuelReserveStatus } from '../core/fuel-reserve';
+import { isPlaceableKind, isPlacementValid, placementOverlayCells, type PlacementOverlayWorld } from '../core/placement-overlay';
+import { PROSPECTING_TIP, buildProspectingGuideRows } from '../core/prospecting';
+import type { ExpeditionStatRow } from '../core/stats';
 import type { GameState, GameStats, Tile } from '../core/types';
-import type { InfoTab } from '../ui/info-navigation';
-import type { ActiveOverlay, InventorySlotView, UiPhase, UiState } from '../ui/store';
+import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from '../game/zoom';
+import { CONTROL_ROWS, controlKeysText } from '../ui/info-controls';
+import { getInfoNavigationSections, type InfoTab } from '../ui/info-navigation';
+import type { ActiveOverlay, InventorySlotView, RuntimeStatus, UiPhase, UiState } from '../ui/store';
 
 /** Horizontal radius of the default view window; 2·r+1 = 15 tiles across. */
 export const DEFAULT_VIEW_RADIUS = 7;
@@ -159,8 +165,60 @@ export type AgentOverlay =
       name?: string;
       destinations: {x: number; y: number; name: string; depth: number; distance: number}[];
     }
-  /** The info screen and its tab; `saveExport` is the save text Export just produced (Settings only). */
-  | {kind: 'info'; tab: InfoTab; saveExport?: string};
+  | AgentInfoOverlay;
+
+/**
+ * The Info screen: its tabs, which one is up, and the contents of that one tab —
+ * exactly one of the per-tab fields is present, the one matching `tab`, because
+ * only the selected panel is on screen.
+ */
+export interface AgentInfoOverlay {
+  kind: 'info';
+  tab: InfoTab;
+  /** Every tab, in tablist order; click one with `data-info-section` = its `id`. */
+  sections: {id: InfoTab; label: string}[];
+  /** Objective & Cargo: the objective line and the ore aboard, priced at trading-post value. */
+  objective?: {status: string; cargo: {name: string; count: number; value: number}[]};
+  /** Stats: the saved career rows. */
+  stats?: ExpeditionStatRow[];
+  /** Prospecting: the tip and every ore's value and depth band. */
+  prospecting?: {tip: string; ores: {name: string; value: string; depth: string}[]};
+  /** Hazards: the tip and the survival guide. */
+  hazards?: {tip: string; rows: DangerGuideRow[]};
+  /** Controls: every row of the controls list, keys as plain text. */
+  controls?: {keys: string; action: string}[];
+  /**
+   * Settings: whether the cheat menu is expanded (its grants are then clickable),
+   * and whether Reset game or Import save is waiting on its inline confirm. The
+   * audio switches are the top-level `audio`.
+   */
+  settings?: {cheatsOpen: boolean; confirmingReset: boolean; confirmingImport: boolean};
+  /** The save text Export just produced (Settings only, once there is one). */
+  saveExport?: string;
+}
+
+/** What the tile under the ship is, and anything notable standing on it. */
+export interface AgentShipTile {
+  tile: Tile['type'];
+  /** The notable thing on the ship's own tile (a portal, a trading post, a wreck…), if any. */
+  what?: NotableKind;
+  detail?: string;
+}
+
+/**
+ * The armed device's placement preview, as the canvas grid paints it: the kind
+ * armed, the valid sites the grid tints green around the ship, and the tile the
+ * pointer last targeted with whether the device would go there.
+ */
+export interface AgentPlacement {
+  kind: InventoryItemKind;
+  /** The hovered/last-pressed tile, or `null` when the pointer targets none. */
+  target: {x: number; y: number} | null;
+  /** Whether the device fits on `target`; `null` with no target. */
+  valid: boolean | null;
+  /** Every explored tile in the grid around the ship where the device would go. */
+  sites: {x: number; y: number}[];
+}
 
 export interface AgentObservation {
   tick: number;
@@ -181,11 +239,19 @@ export interface AgentObservation {
     boost: boolean;
     equipment: (UpgradeKind | null)[];
     atSurface: boolean;
+    /** The tile the ship stands on (the `@` cell), and what is on it. */
+    on: AgentShipTile;
   };
   cash: number;
   stats: GameStats;
   bay: AgentSlot[];
   armedPlacement: InventoryItemKind | null;
+  /** The placement grid while a placeable device is armed; `null` otherwise (toolkit included). */
+  placement: AgentPlacement | null;
+  /** The two audio switches (HUD and Settings), each with the label its button carries. */
+  audio: {music: boolean; sfx: boolean; musicLabel: string; sfxLabel: string};
+  /** Whether the simulation runtime is up (`ready`), and why it failed when it did. */
+  runtime: {status: RuntimeStatus; error: string | null};
   hud: {
     cash: number;
     objective: string;
@@ -196,11 +262,18 @@ export interface AgentObservation {
     teleport: {count: number; usable: boolean};
     alerts: {fuel: boolean; hull: boolean; cargo: boolean};
     announcement: string;
+    /** The HUD inventory panel is folded shut (inventoryToggleBtn opens it again). */
+    inventoryCollapsed: boolean;
   };
   view: {
     origin: {x: number; y: number};
     rows: string[];
     legend: Readonly<Record<string, string>>;
+    /**
+     * The camera zoom: the level the view is at (or gliding to), and the range.
+     * `+`/`-` step it by a quarter; the ASCII window above does not change with it.
+     */
+    zoom: {level: number; min: number; max: number};
   };
   notable: NotableTile[];
   overlay: AgentOverlay | null;
@@ -215,6 +288,8 @@ export interface BuildObservationOptions {
   radius?: number;
   /** The bridge's toast ring buffer; the last few lines the player saw. */
   toasts?: readonly AgentToast[];
+  /** The camera zoom level (`viewport.targetZoom`); the baseline when absent. */
+  zoom?: number;
 }
 
 /** Append a toast to a capped ring buffer, dropping the oldest past the cap. */
@@ -326,15 +401,78 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       return {kind: 'grave', name: grave.name, born: grave.born, died: grave.died, cause: grave.cause};
     }
     case 'info':
-      return ui.saveExport === null
-        ? {kind: 'info', tab: ui.infoTab}
-        : {kind: 'info', tab: ui.infoTab, saveExport: ui.saveExport};
+      return buildInfoOverlay(ui);
     default:
       return null;
   }
 }
 
-export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, toasts = []}: BuildObservationOptions): AgentObservation {
+/** The Info screen's mirror: its tabs, and the one visible tab's contents. */
+function buildInfoOverlay(ui: UiState): AgentInfoOverlay {
+  const overlay: AgentInfoOverlay = {
+    kind: 'info',
+    tab: ui.infoTab,
+    sections: getInfoNavigationSections().map(section => ({id: section.id, label: section.label}))
+  };
+  switch (ui.infoTab) {
+    case 'info-objective':
+      overlay.objective = {
+        status: ui.hud.objective,
+        cargo: ui.cargoRows.map(row => ({name: row.name, count: row.count, value: row.value}))
+      };
+      break;
+    case 'info-stats':
+      overlay.stats = ui.statRows.map(row => ({...row}));
+      break;
+    case 'info-prospecting':
+      overlay.prospecting = {
+        tip: PROSPECTING_TIP,
+        ores: buildProspectingGuideRows().map(row => ({name: row.name, value: row.valueLabel, depth: row.depthLabel}))
+      };
+      break;
+    case 'info-hazards':
+      overlay.hazards = {tip: DANGER_TIP, rows: buildDangerGuideRows()};
+      break;
+    case 'info-controls':
+      overlay.controls = CONTROL_ROWS.map(row => ({keys: controlKeysText(row), action: row.action}));
+      break;
+    case 'info-settings':
+      overlay.settings = {cheatsOpen: ui.cheatsOpen, confirmingReset: ui.confirmingReset, confirmingImport: ui.confirmingImport};
+      if (ui.saveExport !== null) overlay.saveExport = ui.saveExport;
+      break;
+  }
+  return overlay;
+}
+
+/** The placement preview while a placeable device is armed, or `null`. */
+function buildPlacement(state: GameState, get: (x: number, y: number) => Tile): AgentPlacement | null {
+  const kind = state.armedPlacement;
+  // The toolkit is armed but never placed: it paints no grid, so there is none here.
+  if (kind === null || !isPlaceableKind(kind)) return null;
+  // The same world snapshot the renderer's grid reads, so the two cannot disagree.
+  const world: PlacementOverlayWorld = {
+    explored: state.exploredTiles,
+    scannerDevices: state.scannerDevices,
+    placedDynamite: state.placedDynamite,
+    cargoContainers: state.cargoContainers,
+    wrecks: state.wrecks,
+    stations: state.stations,
+    chestLedger: state.chestLedger,
+    player: state.player,
+    world: state.world,
+    isOpen: (x, y) => get(x, y).type === 'air'
+  };
+  const cells = placementOverlayCells(kind, state.player.x, state.player.y, world);
+  const target = state.hoverTile ? {x: state.hoverTile.x, y: state.hoverTile.y} : null;
+  return {
+    kind,
+    target,
+    valid: target ? isPlacementValid(kind, target.x, target.y, world) : null,
+    sites: cells.filter(cell => cell.valid).map(cell => ({x: cell.x, y: cell.y}))
+  };
+}
+
+export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, toasts = [], zoom = DEFAULT_ZOOM}: BuildObservationOptions): AgentObservation {
   const player = state.player;
   // Clamped both ways: a huge (or non-finite) radius must not build a giant grid.
   const radiusX = Number.isFinite(radius) ? Math.min(MAX_VIEW_RADIUS, Math.max(1, Math.floor(radius))) : DEFAULT_VIEW_RADIUS;
@@ -358,6 +496,51 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
   const wreckAt = new Map<string, GameState['wrecks'][number]>();
   for (const wreck of state.wrecks) wreckAt.set(key(wreck.x, wreck.y), wreck);
 
+  /**
+   * One explored, in-world tile: its glyph, and what makes it notable if anything
+   * does. Entities stand over the terrain in a fixed order — the same order the
+   * glyphs have always been drawn in — so the first match wins.
+   */
+  function classify(x: number, y: number): {glyph: string; tile: Tile['type']; what?: NotableKind; detail?: string} {
+    const tile = get(x, y);
+    const on = (glyph: string, what: NotableKind, detail?: string) =>
+      detail === undefined ? {glyph, tile: tile.type, what} : {glyph, tile: tile.type, what, detail};
+    const at = key(x, y);
+    const enemy = enemyAt.get(at);
+    if (enemy) return on('E', 'enemy', getEnemyType(enemy.kind).name);
+    const stick = dynamiteAt.get(at);
+    if (stick) return on('*', 'dynamite', `${Math.ceil(stick.fuse / 60)}s`);
+    const device = scannerAt.get(at);
+    if (device) return on('S', 'scanner', isScannerDone(device, state.exploredTiles) ? 'spent' : 'active');
+    const container = containerAt.get(at);
+    if (container) return on('C', 'container', totalItems(container.inventory) > 0 ? 'loaded' : 'empty');
+    const wreck = wreckAt.get(at);
+    if (wreck) {
+      const items = totalItems(wreck.inventory);
+      return on('W', 'wreck', `${items} item${items === 1 ? '' : 's'}`);
+    }
+    const station = stationAt(state.stations, x, y);
+    if (station?.kind === 'manufacturer') return on('M', 'station', 'Manufacturer');
+    if (station?.kind === 'extractor') return on('X', 'station', 'Fuel Extractor');
+    if (station?.kind === 'portal') return on('P', 'station', `Portal "${station.name}"`);
+    if (tradingPostAt(x, y)) return on('T', 'tradingPost');
+    // A chest looted bare is gone; before its first open it holds its rolled loot.
+    if (chestAt(x, y) && !isChestLooted(state.chestLedger, x, y)) {
+      const items = totalItems(chestContents(state.chestLedger, x, y));
+      return on('H', 'chest', `${items} item${items === 1 ? '' : 's'}`);
+    }
+    if (graveAt(x, y)) return on('+', 'grave');
+    switch (tile.type) {
+      case 'air': return {glyph: '.', tile: tile.type};
+      case 'dirt': return {glyph: '#', tile: tile.type};
+      case 'rock': return {glyph: 'R', tile: tile.type};
+      case 'decor': return {glyph: 'D', tile: tile.type};
+      case 'ore': return on('o', 'ore', tile.ore.name);
+      case 'hazard': return on('!', 'hazard');
+      case 'enemy': return on('E', 'enemy', getEnemyType(tile.kind).name);
+    }
+  }
+
   const rows: string[] = [];
   const notable: NotableTile[] = [];
 
@@ -379,101 +562,19 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
         row += '?';
         continue;
       }
-      const at = key(x, y);
-      const enemy = enemyAt.get(at);
-      if (enemy) {
-        row += 'E';
-        notable.push({x, y, what: 'enemy', detail: getEnemyType(enemy.kind).name});
-        continue;
-      }
-      const stick = dynamiteAt.get(at);
-      if (stick) {
-        row += '*';
-        notable.push({x, y, what: 'dynamite', detail: `${Math.ceil(stick.fuse / 60)}s`});
-        continue;
-      }
-      const device = scannerAt.get(at);
-      if (device) {
-        row += 'S';
-        notable.push({x, y, what: 'scanner', detail: isScannerDone(device, state.exploredTiles) ? 'spent' : 'active'});
-        continue;
-      }
-      const container = containerAt.get(at);
-      if (container) {
-        row += 'C';
-        notable.push({x, y, what: 'container', detail: totalItems(container.inventory) > 0 ? 'loaded' : 'empty'});
-        continue;
-      }
-      const wreck = wreckAt.get(at);
-      if (wreck) {
-        row += 'W';
-        const items = totalItems(wreck.inventory);
-        notable.push({x, y, what: 'wreck', detail: `${items} item${items === 1 ? '' : 's'}`});
-        continue;
-      }
-      const station = stationAt(state.stations, x, y);
-      if (station?.kind === 'manufacturer') {
-        row += 'M';
-        notable.push({x, y, what: 'station', detail: 'Manufacturer'});
-        continue;
-      }
-      if (station?.kind === 'extractor') {
-        row += 'X';
-        notable.push({x, y, what: 'station', detail: 'Fuel Extractor'});
-        continue;
-      }
-      if (station?.kind === 'portal') {
-        row += 'P';
-        notable.push({x, y, what: 'station', detail: `Portal "${station.name}"`});
-        continue;
-      }
-      if (tradingPostAt(x, y)) {
-        row += 'T';
-        notable.push({x, y, what: 'tradingPost'});
-        continue;
-      }
-      // A chest looted bare is gone; before its first open it holds its rolled loot.
-      if (chestAt(x, y) && !isChestLooted(state.chestLedger, x, y)) {
-        row += 'H';
-        const items = totalItems(chestContents(state.chestLedger, x, y));
-        notable.push({x, y, what: 'chest', detail: `${items} item${items === 1 ? '' : 's'}`});
-        continue;
-      }
-      if (graveAt(x, y)) {
-        row += '+';
-        notable.push({x, y, what: 'grave'});
-        continue;
-      }
-      const tile = get(x, y);
-      switch (tile.type) {
-        case 'air':
-          row += '.';
-          break;
-        case 'dirt':
-          row += '#';
-          break;
-        case 'rock':
-          row += 'R';
-          break;
-        case 'ore':
-          row += 'o';
-          notable.push({x, y, what: 'ore', detail: tile.ore.name});
-          break;
-        case 'hazard':
-          row += '!';
-          notable.push({x, y, what: 'hazard'});
-          break;
-        case 'decor':
-          row += 'D';
-          break;
-        case 'enemy':
-          row += 'E';
-          notable.push({x, y, what: 'enemy', detail: getEnemyType(tile.kind).name});
-          break;
-      }
+      const cell = classify(x, y);
+      row += cell.glyph;
+      if (cell.what) notable.push(cell.detail === undefined ? {x, y, what: cell.what} : {x, y, what: cell.what, detail: cell.detail});
     }
     rows.push(row);
   }
+
+  // The `@` hides whatever the ship stands on, so it is spelled out instead. The
+  // ship's own tile is always in the world and always explored.
+  const under = classify(player.x, player.y);
+  const shipOn: AgentShipTile = {tile: under.tile};
+  if (under.what) shipOn.what = under.what;
+  if (under.detail !== undefined) shipOn.detail = under.detail;
 
   const hud = ui.hud;
   return {
@@ -498,12 +599,16 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       drill: player.drill,
       boost: player.boost,
       equipment: [...player.equipment],
-      atSurface: hud.atSurface
+      atSurface: hud.atSurface,
+      on: shipOn
     },
     cash: hud.cash,
     stats: {...state.stats},
     bay: toSlots(ui.inventorySlots),
     armedPlacement: ui.armedPlacement,
+    placement: buildPlacement(state, get),
+    audio: {music: ui.musicOn, sfx: ui.sfxOn, musicLabel: ui.musicLabel, sfxLabel: ui.sfxLabel},
+    runtime: {status: ui.runtimeStatus, error: ui.runtimeError},
     hud: {
       cash: hud.cash,
       objective: hud.objective,
@@ -513,9 +618,15 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       stationHint: hud.stationHint,
       teleport: {count: hud.teleport.count, usable: hud.teleport.usable},
       alerts: {fuel: hud.fuelAlert, hull: hud.hullAlert, cargo: hud.cargoAlert},
-      announcement: hud.announcement
+      announcement: hud.announcement,
+      inventoryCollapsed: ui.inventoryCollapsed
     },
-    view: {origin: {x: originX, y: originY}, rows, legend: VIEW_LEGEND},
+    view: {
+      origin: {x: originX, y: originY},
+      rows,
+      legend: VIEW_LEGEND,
+      zoom: {level: zoom, min: MIN_ZOOM, max: MAX_ZOOM}
+    },
     notable,
     overlay: buildOverlay(state, ui),
     toasts: [...toasts]

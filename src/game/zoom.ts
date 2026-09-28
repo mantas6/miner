@@ -54,6 +54,27 @@ export function zoomAfterWheel(zoom: number, event: WheelZoomEvent): number {
 }
 
 /**
+ * The levels the `+`/`-` keys step through: quarter steps across the whole range,
+ * so a key press lands on a level worth naming rather than wherever the wheel's
+ * curve would have put it.
+ */
+export const ZOOM_KEY_LEVELS: readonly number[] = Object.freeze([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
+
+/**
+ * The zoom one `+` (`direction` 1) or `-` (`direction` -1) press leads to: the next
+ * key level past the current one in that direction, or the current level clamped
+ * when it is already at that end. A level the wheel left between two steps goes to
+ * the neighbouring step, so the first press never overshoots one.
+ */
+export function zoomAfterKey(zoom: number, direction: 1 | -1): number {
+  const current = clampZoom(zoom);
+  const epsilon = 1e-6;
+  if (direction > 0) return ZOOM_KEY_LEVELS.find(level => level > current + epsilon) ?? current;
+  const lower = ZOOM_KEY_LEVELS.filter(level => level < current - epsilon);
+  return lower.length > 0 ? lower[lower.length - 1] : current;
+}
+
+/**
  * Camera position that holds the current view centre still while the visible
  * span changes, so zooming grows and shrinks around the ship instead of pulling
  * the world toward the top-left corner.

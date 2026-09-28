@@ -50,8 +50,14 @@ export type UpgradeTier = 1 | 2 | 3;
  */
 export type UpgradeKind = `upgrade:${Exclude<UpgradeId, 'booster'>}:${UpgradeTier}` | 'upgrade:booster:1';
 
-/** Placeable cosmetic tiles the player can craft, carry, and set down. */
-export type DecorId = 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel';
+/**
+ * Placeable cosmetic tiles the player can craft, carry, and set down — every one,
+ * in catalogue order. The one list the inventory slots and the agent harness's
+ * click allowlist both derive their decoration controls from.
+ */
+export const DECOR_IDS = ['steelPlate', 'stoneBlock', 'copperTrim', 'lampPanel'] as const;
+/** One placeable cosmetic tile. */
+export type DecorId = (typeof DECOR_IDS)[number];
 /** One decoration's stack key, e.g. `decor:lampPanel`. */
 export type DecorKind = `decor:${DecorId}`;
 

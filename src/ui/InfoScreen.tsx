@@ -10,13 +10,11 @@
 // re-render a tab nobody is looking at.
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { CARGO_CONTAINER } from '../core/cargo-container';
-import { buildDangerGuideRows } from '../core/danger';
-import { DYNAMITE } from '../core/dynamite';
+import { DANGER_TIP, buildDangerGuideRows } from '../core/danger';
 import { PROSPECTING_TIP, buildProspectingGuideRows } from '../core/prospecting';
-import { SCANNER_DEVICE } from '../core/scanner-device';
 import { GAME_RESET_CONFIRMATION } from '../persistence-reset';
 import { DeveloperPanel } from './DeveloperPanel';
+import { CONTROL_ROWS } from './info-controls';
 import { getInfoNavigationSections, getInfoTabFocusTarget, type InfoTab } from './info-navigation';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
@@ -178,7 +176,7 @@ function HazardsPanel() {
   return (
     <section id="info-hazards" role="tabpanel" aria-labelledby="info-tab-hazards" tabIndex={-1}>
       <h3 id="danger-guide-title">Hazard / Fiend Survival</h3>
-      <p className={styles.dangerTip}>Plan a return route before the mine gets hostile: deep rewards bring rock, magma, and tunnel fiends.</p>
+      <p className={styles.dangerTip}>{DANGER_TIP}</p>
       <ul id="dangerGuide" className={styles.dangerGuide} aria-label="Hazard and tunnel fiend survival guide">
         {dangerRows.map(row => (
           <li key={row.title}>
@@ -201,16 +199,19 @@ function ControlsPanel() {
           words between them become grid items of their own, and whichever badge
           landed in the flexible column was stretched across it. */}
       <ul className={styles.controlList}>
-        <li><span className={styles.controlKeys}><kbd>WASD</kbd> / <kbd>Arrows</kbd></span><span>Move, fly, and dig</span></li>
-        <li><span className={styles.controlKeys}><strong>Fog map</strong></span><span>Movement permanently reveals a 3x3 footprint around the ship. Co-op miners share explored tiles.</span></li>
-        <li><span className={styles.controlKeys}><kbd>Shift</kbd> + movement</span><span>Boost through open space at increased fuel cost (requires a Booster fitted). Open-space descent is free and drilling stays normal. Slamming a boosted ship into rock, a ceiling, or a wall buckles the hull.</span></li>
-        <li><span className={styles.controlKeys}><kbd>Space</kbd></span><span>Use the nearby home station: the Manufacturing Station to stow cargo and craft, the Fuel Extractor to refuel</span></li>
-        <li><span className={styles.controlKeys}><kbd>E</kbd> / <strong>Dynamite slot</strong> then a mine tile</span><span>Plant one carried stick on explored, cleared ground. It blows a {DYNAMITE.radius}-tile radius after a {DYNAMITE.fuseSeconds}-second fuse: blasts yield no cargo, and a ship still inside the radius takes hull damage. Escape cancels.</span></li>
-        <li><span className={styles.controlKeys}><kbd>T</kbd> / <kbd>Teleport</kbd></span><span>With a teleporter in the cargo bay, open the portal list (the portals out of reach) and pick one to jump straight there; the trip spends one teleporter. Travel between built portals is otherwise free.</span></li>
-        <li><span className={styles.controlKeys}><strong>Scanner slot</strong> then a mine tile</span><span>Deploy one carried scanner onto explored, cleared ground; it maps its {SCANNER_DEVICE.size}×{SCANNER_DEVICE.size} surroundings, one fogged tile every {SCANNER_DEVICE.intervalSeconds} seconds, then goes inert. Escape cancels.</span></li>
-        <li><span className={styles.controlKeys}><strong>Container slot</strong> then a mine tile</span><span>Set one carried cargo container down on explored, cleared ground. Escape cancels.</span></li>
-        <li><span className={styles.controlKeys}><kbd>C</kbd> / press the crate</span><span>Open a placed container the ship is standing on or beside. Press a stack in either column to move it across; the crate holds up to {CARGO_CONTAINER.capacity} items and keeps them through death and reload, and anything taken back aboard still obeys the cargo-bay limit.</span></li>
-        <li><span className={styles.controlKeys}><kbd>R</kbd> then <kbd>R</kbd></span><span>Confirm reset while alive</span></li>
+        {CONTROL_ROWS.map(row => (
+          <li key={row.action}>
+            <span className={styles.controlKeys}>
+              {/* A row's parts are a fixed sequence that never reorders, and the
+                  same key can appear twice in it (R then R), so position is the key. */}
+              {row.keys.map((part, index) => part.kind === 'text'
+                ? part.text
+                // oxlint-disable-next-line react/no-array-index-key
+                : part.kind === 'key' ? <kbd key={index}>{part.text}</kbd> : <strong key={index}>{part.text}</strong>)}
+            </span>
+            <span>{row.action}</span>
+          </li>
+        ))}
       </ul>
     </section>
   );
@@ -230,8 +231,9 @@ function ControlsPanel() {
  *
  * Reset asks first, and it asks inline rather than through `window.confirm()`.
  * The panel is inside a modal `<dialog>`, so a native prompt would be a second
- * modal stacked on the first. The confirm state is local and the panel unmounts
- * with the tab, so leaving Settings always cancels it.
+ * modal stacked on the first. The confirm (and the cheat disclosure) are store
+ * flags, so the agent's observation can read them, and the store drops them
+ * whenever the tab changes or Info reopens, so leaving Settings always cancels it.
  *
  * Cancel takes the trigger's place and the keyboard, and the button that goes
  * through with it is elsewhere in the row: the second half of a double-click, or
@@ -243,8 +245,9 @@ function SettingsPanel() {
   const musicLabel = useUiStore(state => state.musicLabel);
   const sfxOn = useUiStore(state => state.sfxOn);
   const sfxLabel = useUiStore(state => state.sfxLabel);
-  const [cheatsOpen, setCheatsOpen] = useState(false);
-  const [confirmingReset, setConfirmingReset] = useState(false);
+  const cheatsOpen = useUiStore(state => state.cheatsOpen);
+  const confirmingReset = useUiStore(state => state.confirmingReset);
+  const {setCheatsOpen, setConfirmingReset} = uiStore.getState();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -284,7 +287,7 @@ function SettingsPanel() {
         className={styles.cheatsToggle}
         aria-expanded={cheatsOpen}
         aria-controls={cheatsOpen ? 'cheat-menu' : undefined}
-        onClick={() => setCheatsOpen(open => !open)}
+        onClick={() => setCheatsOpen(!cheatsOpen)}
       >{cheatsOpen ? 'Hide cheat menu' : 'Show cheat menu'}</button>
       {cheatsOpen && <DeveloperPanel />}
 
@@ -320,13 +323,14 @@ function SettingsPanel() {
  * that only appears once there is something in it. Import takes a file or a paste
  * into one box, and asks inline before replacing the run, the same way Reset does
  * and for the same reasons: Cancel takes the trigger's place and the focus, and
- * the local confirm state unmounts with the tab. The save itself is only checked
+ * the confirm flag is dropped with the tab. The save itself is only checked
  * by the command, so a bad paste is refused in one place with one message.
  */
 function SaveDataSection() {
   const saveExport = useUiStore(state => state.saveExport);
   const [importText, setImportText] = useState('');
-  const [confirmingImport, setConfirmingImport] = useState(false);
+  const confirmingImport = useUiStore(state => state.confirmingImport);
+  const {setConfirmingImport} = uiStore.getState();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {

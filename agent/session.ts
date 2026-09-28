@@ -32,6 +32,14 @@ import { chromium, type Browser, type BrowserContext, type Page, type Request } 
 import { createServer, type ViteDevServer } from 'vite';
 import { resolveChromiumExecutable } from './chromium';
 import type { AgentObservation } from '../src/agent/observation';
+import {
+  allowedTargetsDescription,
+  ATTR_TARGETS,
+  FLAG_ATTR_TARGETS,
+  ID_TARGETS,
+  KIND_TARGETS,
+  kindTargetAttrs
+} from './targets';
 
 /** The default port the session serves the game on when none is given. */
 export const DEFAULT_PORT = 5180;
@@ -87,6 +95,9 @@ export interface OpenGameSessionOptions {
  *           `value` supplies the attribute value it needs, and `kind` is the
  *           second value used only by the transfer controls (`data-cargo-kind`
  *           and `data-station-kind`).
+ *
+ * A valueless attribute control (the cheat menu's `data-developer-grant-ores` and
+ * `data-developer-fill-extractor`) is named bare, with no `=value`.
  */
 export type ClickTarget = string | {target: string; value?: string; kind?: string};
 
@@ -131,70 +142,6 @@ export interface GameSession {
   close(): Promise<void>;
 }
 
-/** Ids clickable on their own, with no attribute value. Ids with a `:` and all. */
-const ID_TARGETS: ReadonlySet<string> = new Set([
-  // HUD / action bar.
-  'shipBtn', 'teleporterBtn', 'infoBtn', 'musicBtn', 'sfxBtn', 'inventoryToggleBtn',
-  // Inventory slots.
-  'scannerSlotBtn', 'dynamiteSlotBtn', 'containerSlotBtn', 'repairKitSlotBtn',
-  'manufacturerSlotBtn', 'extractorSlotBtn', 'toolkitSlotBtn',
-  'decor:steelPlateSlotBtn', 'decor:stoneBlockSlotBtn', 'decor:copperTrimSlotBtn', 'decor:lampPanelSlotBtn',
-  // Ship screen.
-  'shipCloseBtn',
-  // Station screen.
-  'stowAllBtn', 'stationCloseBtn',
-  // Fuel extractor screen.
-  'loadCoalBtn', 'refuelBtn', 'extractorCloseBtn',
-  // Cargo container screen.
-  'cargoCloseBtn',
-  // Wreck salvage screen.
-  'lootAllBtn',
-  // Trading-post screen.
-  'tradeCloseBtn',
-  // Grave stone.
-  'graveOkBtn',
-  // Portal screen.
-  'portalSlotBtn', 'portalCloseBtn', 'portalNameInput', 'portalNameSaveBtn',
-  // Info / cargo screen.
-  'infoCloseBtn',
-  // Info → Settings tab (reach it with data-info-section=info-settings). The two
-  // reset confirms and the import confirm reload the page; `click` waits it out.
-  'settingsMusicBtn', 'settingsSfxBtn', 'cheatsToggleBtn', 'resetPlayerDataBtn', 'resetWorldStateBtn',
-  'exportSaveBtn', 'importSaveText', 'importSaveBtn', 'importSaveConfirmBtn', 'importSaveCancelBtn',
-  'resetGameBtn', 'resetGameCancelBtn', 'resetGameConfirmBtn',
-  // Intro.
-  'introStartBtn'
-]);
-
-/** Attribute controls, each needing a value (some need a value and a kind). */
-const ATTR_TARGETS: ReadonlySet<string> = new Set([
-  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-info-section', 'data-cargo', 'data-station', 'data-trade', 'data-portal'
-]);
-
-/**
- * The transfer controls that carry two attributes: an action `value` and a stack
- * `kind`. `data-cargo` → `data-cargo-action`/`data-cargo-kind`, `data-station` →
- * `data-station`/`data-station-kind`. Their `value,kind` string form joins the two
- * with a comma.
- */
-const KIND_TARGETS: ReadonlySet<string> = new Set(['data-cargo', 'data-station', 'data-trade']);
-
-/** The two attribute names a two-value transfer control resolves to. */
-function kindTargetAttrs(name: string): {action: string; kind: string} {
-  // `data-cargo` addresses its action through `data-cargo-action`; `data-station`
-  // and `data-trade` through their bare attribute. All three name the kind with `-kind`.
-  return {action: name === 'data-cargo' ? 'data-cargo-action' : name, kind: `${name}-kind`};
-}
-
-/** A human-readable roster of everything `click` accepts, for the refusal message. */
-function allowedTargetsDescription(): string {
-  return [
-    `ids: ${[...ID_TARGETS].join(' ')}`,
-    `attributes (need a value): ${[...ATTR_TARGETS].filter(a => !KIND_TARGETS.has(a)).join(' ')}`,
-    'transfers (need value=action and kind): data-cargo (e.g. data-cargo=take,ore:Iron), data-station (e.g. data-station=stow-one,ore:Coal), data-trade (e.g. data-trade=sell,ore:Iron or data-trade=buy,repairKit)'
-  ].join('; ');
-}
-
 function parseTarget(target: ClickTarget): {target: string; value?: string; kind?: string} {
   if (typeof target !== 'string') return target;
   const eq = target.indexOf('=');
@@ -217,6 +164,10 @@ function selectorForTarget(target: ClickTarget): string {
     // Ids that carry a `:` (the decor slots) are illegal in a `#id` selector, so
     // address them by the attribute form instead.
     return name.includes(':') ? `[id="${name}"]` : `#${name}`;
+  }
+  if (FLAG_ATTR_TARGETS.has(name)) {
+    if (value !== undefined) throw new Error(`Control "${name}" takes no value.`);
+    return `[${name}]`;
   }
   if (ATTR_TARGETS.has(name)) {
     if (KIND_TARGETS.has(name)) {
@@ -386,7 +337,10 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         await page.locator('#hud').waitFor({state: 'visible'});
         await page.locator('#intro').waitFor({state: 'detached'});
       }),
-      press: key => act(() => page.keyboard.press(key)),
+      press: key => act(async () => {
+        await routeKeysToGame(page, key);
+        await page.keyboard.press(key);
+      }),
       type: async text => {
         assertAlive();
         // Without a focused field the keystrokes would drive the mine instead.
@@ -406,6 +360,7 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         // through every later action.
         let shiftDown = false;
         let keyDown = false;
+        await routeKeysToGame(page, key);
         await withCleanup(async () => {
           if (holdOptions?.shift) { await page.keyboard.down('Shift'); shiftDown = true; }
           await page.keyboard.down(key);
@@ -539,6 +494,37 @@ async function clickableControl(page: Page, selector: string, name: string) {
     await sleep(50);
   }
   throw new Error(`Control "${name}" is covered by open overlay ${cover}; close that first.`);
+}
+
+/**
+ * Make sure a key press reaches the game, not whichever button last took focus —
+ * what a player's own click back on the mine does. A click on a HUD control leaves
+ * focus on it, and a closing dialog hands focus back to its opener, so a later
+ * Space or Enter would activate that button (`input.ts` leaves a focused control's
+ * own activation keys alone) instead of opening the station beside the ship.
+ *
+ *   no dialog open   focus the `#game` canvas, the mine's keyboard target
+ *   a dialog open    leave focus where it is, except that Space/Enter on a focused
+ *                    button, tab or link inside it drops that focus first, so the
+ *                    key does what the overlay's keys do (Space shuts a station
+ *                    screen) rather than pressing a control — `click` is for those
+ *
+ * A focused text field is always left alone (typing is `type`'s job, and Escape
+ * there is the way out), and so is the title splash, which owns its own keys.
+ */
+async function routeKeysToGame(page: Page, key: string): Promise<void> {
+  await page.evaluate(pressed => {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    if (document.getElementById('intro')) return;
+    if (!document.querySelector('dialog[open]')) {
+      const canvas = document.getElementById('game');
+      if (canvas && active !== canvas) canvas.focus({preventScroll: true});
+      return;
+    }
+    const activation = pressed === ' ' || pressed === 'Space' || pressed === 'Enter';
+    if (activation && active instanceof HTMLElement && active.closest('button, [role=tab], a')) active.blur();
+  }, key);
 }
 
 /**

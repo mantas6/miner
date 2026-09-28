@@ -26,7 +26,7 @@ export interface ScreenPoint {
 
 /**
  * What a running game hands the bridge: the accessors the observation is built
- * from, and the three live controls the harness drives (pause, its readback, and
+ * from (the camera zoom among them), and the three live controls the harness drives (pause, its readback, and
  * the tile→screen projection for canvas clicks).
  */
 export interface AgentRuntimeHooks {
@@ -36,6 +36,8 @@ export interface AgentRuntimeHooks {
   setPaused(paused: boolean): void;
   isPaused(): boolean;
   screenPointForTile(x: number, y: number): ScreenPoint | null;
+  /** The camera zoom level the view is at or gliding to (`viewport.targetZoom`). */
+  getZoom(): number;
 }
 
 export interface AgentBridge {
@@ -71,7 +73,8 @@ export const agentBridge: AgentBridge = {
       ui: runtime.getUi(),
       get: runtime.getTile,
       radius,
-      toasts: toastRing
+      toasts: toastRing,
+      zoom: runtime.getZoom()
     });
   },
   setPaused(paused) {
