@@ -264,6 +264,36 @@ test.describe.serial('agent harness', () => {
     expect(countKind(stowed.overlay.bay, 'ore:Coal')).toBe(0);
   });
 
+  test('a click or tile press that cannot land rejects fast and leaves the sim paused', async () => {
+    // The station holds only coal, so the Repair Kit (3 Iron) craft button is disabled.
+    const before = await session.observe();
+    if (before.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(before.overlay.recipes.find(recipe => recipe.output === 'repairKit')?.craftable).toBe(false);
+
+    const started = Date.now();
+    await expect(session.click({target: 'data-craft', value: 'repairKit'})).rejects.toThrow(/disabled/);
+    expect(Date.now() - started).toBeLessThan(1500);
+
+    // The modal station screen sits over the HUD and the mine: a HUD button and a
+    // tile press are both refused as covered, not left to time out.
+    await expect(session.click('shipBtn')).rejects.toThrow(/covered by open overlay/);
+    await expect(session.pressTile(before.ship.x, before.ship.y)).rejects.toThrow(/covered by the HUD\/overlay/);
+
+    // Refused before the sim was ever unpaused, and still frozen afterwards.
+    const after = await session.observe();
+    expect(after.tick).toBe(before.tick);
+    await new Promise(resolve => setTimeout(resolve, 200));
+    expect((await session.observe()).tick).toBe(before.tick);
+  });
+
+  test('type rejects without a focused text field', async () => {
+    // Blur whatever the station screen focused, so nothing editable has focus.
+    await session.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const before = await session.observe();
+    await expect(session.type('hello')).rejects.toThrow(/focused text field/);
+    expect((await session.observe()).tick).toBe(before.tick);
+  });
+
   test('holding ArrowDown burns fuel and moves the view down', async () => {
     // Shut the station Space opened, so the key drives the mine again.
     const closed = await session.press(' ');

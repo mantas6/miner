@@ -126,7 +126,7 @@ export interface InputState {
   sprintMomentum: Direction | null;
   lastKeyboardMove: number;
   keyboardRepeatMs: number;
-  /** Deadline (performance clock) until which a second R press confirms a reset. */
+  /** Deadline (sim tick) until which a second R press confirms a reset. */
   resetConfirmUntil: number;
 }
 

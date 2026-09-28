@@ -16,6 +16,7 @@
 // observation carries across calls, so it is passed in rather than kept here; the
 // bridge (`src/agent/bridge.ts`) owns it and feeds it from `uiStore.subscribe`.
 
+import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { isTileExplored } from '../../shared/exploration-codec';
 import { canCraft, missingInputs, RECIPES } from '../core/crafting';
 import { getEnemyType } from '../core/enemy-types';
@@ -43,6 +44,9 @@ import type { ActiveOverlay, InventorySlotView, UiPhase, UiState } from '../ui/s
 
 /** Horizontal radius of the default view window; 2·r+1 = 15 tiles across. */
 export const DEFAULT_VIEW_RADIUS = 7;
+
+/** The widest view an observation will build (81 tiles across), however much is asked. */
+export const MAX_VIEW_RADIUS = 40;
 
 /** Cap on the toast ring buffer carried in an observation. */
 export const TOAST_RING_CAP = 10;
@@ -332,7 +336,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
 
 export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, toasts = []}: BuildObservationOptions): AgentObservation {
   const player = state.player;
-  const radiusX = Math.max(1, Math.floor(radius));
+  // Clamped both ways: a huge (or non-finite) radius must not build a giant grid.
+  const radiusX = Number.isFinite(radius) ? Math.min(MAX_VIEW_RADIUS, Math.max(1, Math.floor(radius))) : DEFAULT_VIEW_RADIUS;
   // The window is wider than it is tall to match the canvas; keep the ~11:15 ratio.
   const radiusY = Math.max(1, Math.round(radiusX * 11 / 15));
   const originX = player.x - radiusX;
@@ -361,6 +366,13 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
     for (let x = originX; x < originX + radiusX * 2 + 1; x++) {
       if (x === player.x && y === player.y) {
         row += '@';
+        continue;
+      }
+      // Past the world's edges is solid wall, drawn as rock. It must be caught
+      // before the fog lookup: the exploration index is `y·WORLD_W + x`, so an
+      // off-world column would alias a real tile on the neighbouring row.
+      if (x < 0 || x >= WORLD_W || y < 0 || y > MAX_WORLD_ROW) {
+        row += 'R';
         continue;
       }
       if (!isTileExplored(state.exploredTiles, x, y)) {

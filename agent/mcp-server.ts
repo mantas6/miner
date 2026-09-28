@@ -13,8 +13,9 @@
 // the pause model and the fog-respecting observation.
 //
 // Discipline that keeps stdio clean: the MCP transport owns stdout, so nothing
-// here ever writes to it — every log goes to stderr via `console.error`. SIGINT
-// and SIGTERM close the session before the process exits.
+// here ever writes to it — every log goes to stderr via `console.error`. SIGINT,
+// SIGTERM and SIGHUP, stdin ending, and the transport closing all close the
+// session before the process exits, so a vanished client never strands a browser.
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -26,6 +27,13 @@ import { itemForKind } from '../src/core/items';
 
 /** The single live session, or `null` when none is open. One at a time. */
 let session: GameSession | null = null;
+
+/**
+ * A `game_start` still launching its browser. Held so a second concurrent start
+ * is refused rather than racing it into two sessions, and so a shutdown mid-start
+ * still closes what the start produces.
+ */
+let starting: Promise<GameSession> | null = null;
 
 /** The legend, as `@=ship .=air …`, straight from the observation's own table. */
 function legendText(): string {
@@ -87,7 +95,8 @@ function instructions(): string {
     '    importSaveConfirmBtn (importSaveCancelBtn backs out); only the current save',
     '    version is accepted. The page reloads to the title splash with the imported',
     '    run loaded; call `start_run` again.',
-    '  r — reset the run (press twice within ~3.5s mid-run to confirm). With two or',
+    '  r — reset the run (press twice within ~3.5s of sim time, 210 ticks, mid-run to',
+    '    confirm; a paused sim holds the window open). With two or',
     '    more portals built, a lost or reset ship raises a portal overlay in `mode',
     '    "respawn"` that cannot be dismissed (Escape/Space are ignored) — pick a',
     '    `data-portal` row to redeploy the ship at that portal.',
@@ -146,10 +155,32 @@ function noSessionResult() {
   };
 }
 
-/** Run an action against the live session, or report that none is open. */
-async function withSession(run: (game: GameSession) => Promise<AgentObservation>) {
+/** A plain error result. */
+function errorResult(text: string) {
+  return {content: [{type: 'text' as const, text}], isError: true};
+}
+
+/**
+ * The live session, or an error result: none open, or one whose browser has gone
+ * away underneath it (closed window, crash). A dead one is dropped — and closed,
+ * to release any server it started — so the next `game_start` can proceed.
+ */
+async function liveSession(): Promise<GameSession | ReturnType<typeof errorResult>> {
   if (!session) return noSessionResult();
-  return observationResult(await run(session));
+  if (session.isDead()) {
+    const dead = session;
+    session = null;
+    await dead.close().catch(error => console.error('Error while closing a dead game session:', error));
+    return errorResult('The game browser closed; call game_start to open a new session.');
+  }
+  return session;
+}
+
+/** Run an action against the live session, or report why there is none. */
+async function withSession(run: (game: GameSession) => Promise<AgentObservation>) {
+  const game = await liveSession();
+  if ('content' in game) return game;
+  return observationResult(await run(game));
 }
 
 const server = new McpServer(
@@ -171,13 +202,15 @@ server.registerTool(
     }
   },
   async ({headless, freshSave, port}) => {
-    if (session) {
-      return {
-        content: [{type: 'text' as const, text: 'A game session is already open. Call game_stop before starting another.'}],
-        isError: true
-      };
+    if (starting) return errorResult('A game session is already starting. Wait for it, then use it or call game_stop.');
+    if (session?.isDead()) await liveSession(); // drop the dead one, then start afresh
+    if (session) return errorResult('A game session is already open. Call game_stop before starting another.');
+    starting = openGameSession({headless: headless ?? false, freshSave: freshSave ?? false, port});
+    try {
+      session = await starting;
+    } finally {
+      starting = null;
     }
-    session = await openGameSession({headless: headless ?? false, freshSave: freshSave ?? false, port});
     return observationResult(await session.observe());
   }
 );
@@ -187,8 +220,13 @@ server.registerTool(
   {description: 'Close the game session (shuts the browser and any server this session started).'},
   async () => {
     if (!session) return noSessionResult();
-    await session.close();
-    session = null;
+    const closing = session;
+    try {
+      await closing.close();
+    } finally {
+      // Cleared even when the close throws, so the next game_start is never blocked.
+      session = null;
+    }
     return {content: [{type: 'text' as const, text: 'Session closed.'}]};
   }
 );
@@ -197,7 +235,7 @@ server.registerTool(
   'observe',
   {
     description: 'Return the current observation without changing the world.',
-    inputSchema: {radius: z.number().int().positive().optional().describe('Horizontal view radius; 2·r+1 tiles across. Default 7.')}
+    inputSchema: {radius: z.number().int().positive().max(40).optional().describe('Horizontal view radius; 2·r+1 tiles across. Default 7, max 40.')}
   },
   ({radius}) => withSession(game => game.observe(radius))
 );
@@ -232,7 +270,7 @@ server.registerTool(
     description: 'Hold a key for `ms` of wall-clock time (the sim runs during the hold). Set `shift` to sprint/boost (needs a Booster fitted).',
     inputSchema: {
       key: z.string().describe('The key to hold, e.g. "ArrowDown" or "d".'),
-      ms: z.number().int().nonnegative().describe('How long to hold the key, in milliseconds.'),
+      ms: z.number().int().nonnegative().max(60000).describe('How long to hold the key, in milliseconds (max 60000).'),
       shift: z.boolean().optional().describe('Hold Shift too, for a sprint. Default false.')
     }
   },
@@ -284,7 +322,7 @@ server.registerTool(
   'wait',
   {
     description: 'Let the sim run for `ms` of wall-clock time, then return the observation.',
-    inputSchema: {ms: z.number().int().nonnegative().describe('How long to let the sim run, in milliseconds.')}
+    inputSchema: {ms: z.number().int().nonnegative().max(60000).describe('How long to let the sim run, in milliseconds (max 60000).')}
   },
   ({ms}) => withSession(game => game.wait(ms))
 );
@@ -293,8 +331,9 @@ server.registerTool(
   'screenshot',
   {description: 'Return a PNG screenshot of the game window as image content.'},
   async () => {
-    if (!session) return noSessionResult();
-    const png = await session.screenshot();
+    const game = await liveSession();
+    if ('content' in game) return game;
+    const png = await game.screenshot();
     return {content: [{type: 'image' as const, data: png.toString('base64'), mimeType: 'image/png'}]};
   }
 );
@@ -311,8 +350,12 @@ server.registerTool(
   ({enabled}) => withSession(game => game.setRealtime(enabled))
 );
 
-/** Close the session, if any, swallowing errors — we are on the way out. */
+/**
+ * Close the session, if any — including one a `game_start` is still launching —
+ * swallowing errors, since we are on the way out.
+ */
 async function shutdown(): Promise<void> {
+  const pending = starting;
   try {
     await session?.close();
   } catch (error) {
@@ -320,17 +363,35 @@ async function shutdown(): Promise<void> {
   } finally {
     session = null;
   }
+  if (pending) {
+    try {
+      await (await pending).close();
+    } catch (error) {
+      console.error('Error while closing a starting game session on shutdown:', error);
+    }
+  }
 }
 
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => {
-    console.error(`Received ${signal}; closing the game session.`);
-    void shutdown().then(() => process.exit(0));
-  });
+/** Shut down once, whichever of the exit triggers fires first, then exit. */
+let exiting = false;
+function exitAfterShutdown(reason: string): void {
+  if (exiting) return;
+  exiting = true;
+  console.error(`${reason}; closing the game session.`);
+  void shutdown().then(() => process.exit(0));
 }
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+  process.on(signal, () => exitAfterShutdown(`Received ${signal}`));
+}
+// The client going away closes our stdin; without these the browser would outlive it.
+process.stdin.on('end', () => exitAfterShutdown('stdin ended'));
+process.stdin.on('close', () => exitAfterShutdown('stdin closed'));
 
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
+  // Set before `connect`, which chains its own handler after this one.
+  transport.onclose = () => exitAfterShutdown('MCP transport closed');
   await server.connect(transport);
   console.error('miner MCP server ready on stdio.');
 }

@@ -13,7 +13,7 @@ import { createInitialState } from '../core/state';
 import type { GameState } from '../core/types';
 import { uiStore } from '../ui/store';
 import type { GameActions } from './actions';
-import { createInput, type GameInput } from './input';
+import { createInput, RESET_CONFIRM_TICKS, type GameInput } from './input';
 import { setViewportZoom, viewport } from './viewport';
 import { MAX_ZOOM, MIN_ZOOM } from './zoom';
 
@@ -411,6 +411,32 @@ describe('restarting after a death', () => {
 
     h.state.gameOver = true;
     h.input.reset();
+    press('r');
+    expect(h.restartGame).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets the R confirm window lapse on sim ticks, not wall-clock time', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+
+    // A paused sim: a minute of wall clock passes but no ticks, so it still confirms.
+    press('r');
+    const now = performance.now();
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(now + 60_000);
+    press('r');
+    clock.mockRestore();
+    expect(h.restartGame).toHaveBeenCalledOnce();
+    h.input.reset(); // what the real restart does
+
+    // Run the sim through the whole window: the second press only asks again.
+    press('r');
+    for (let i = 0; i < RESET_CONFIRM_TICKS; i++) h.input.tick();
+    press('r');
+    expect(h.restartGame).toHaveBeenCalledOnce();
+    expect(h.toast).toHaveBeenCalledTimes(3);
+
+    // One tick short of that fresh deadline, a press still confirms.
+    for (let i = 0; i < RESET_CONFIRM_TICKS - 1; i++) h.input.tick();
     press('r');
     expect(h.restartGame).toHaveBeenCalledTimes(2);
   });

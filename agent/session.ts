@@ -27,6 +27,7 @@
 // Everything here is pure Node: no React, no test runner. The MCP server
 // (`agent/mcp-server.ts`) is the only intended caller besides `e2e/agent.spec.ts`.
 
+import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { resolveChromiumExecutable } from './chromium';
@@ -37,6 +38,15 @@ export const DEFAULT_PORT = 5180;
 
 /** Held in a variable so it is treated as a runtime URL, not a module to resolve. */
 const BRIDGE_SPECIFIER = '/src/agent/bridge.ts';
+
+/** The repo root, from this file's own location, so the server works from any cwd. */
+const PROJECT_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+/** How long a `click` may wait on Playwright's own actionability checks. */
+const CLICK_TIMEOUT_MS = 2000;
+
+/** Cap on the page errors kept for the bridge-timeout diagnosis. */
+const PAGE_ERROR_CAP = 10;
 
 /** The shape of the bridge singleton as seen from inside `page.evaluate`. */
 interface BridgeModule {
@@ -107,6 +117,11 @@ export interface GameSession {
   setRealtime(realtime: boolean): Promise<AgentObservation>;
   /** Whether the sim runs between decisions (`false`) or is frozen (`true`). */
   isRealtime(): boolean;
+  /**
+   * Whether the session can no longer act: the browser disconnected, the page
+   * closed, or `close()` ran. Every action on a dead session rejects at once.
+   */
+  isDead(): boolean;
   /** The URL the game is served from. */
   readonly url: string;
   /** The Playwright page, for callers that need it (the e2e spec asserts on it). */
@@ -214,19 +229,39 @@ function selectorForTarget(target: ClickTarget): string {
   throw new Error(`"${name}" is not a clickable control. Allowed — ${allowedTargetsDescription()}`);
 }
 
+/**
+ * Run `body`, then `cleanup` whatever happens — a `try/finally` whose cleanup
+ * failure surfaces only when the body succeeded, so it never masks the body's
+ * own error.
+ */
+async function withCleanup(body: () => Promise<void>, cleanup: () => Promise<void>): Promise<void> {
+  try {
+    await body();
+  } catch (error) {
+    await cleanup().catch(() => {});
+    throw error;
+  }
+  await cleanup();
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, Math.max(0, ms)));
 }
 
-/** Whether a dev server is already answering on this port; if so, we reuse it. */
-async function serverIsListening(url: string): Promise<boolean> {
+/**
+ * What is answering on this port: this game's dev server (reuse it), something
+ * else (refuse — we cannot drive it, and our own server could not bind), or
+ * nothing at all (start our own). The probe asks for the bridge module itself,
+ * which only this project's dev server serves.
+ */
+async function probeServer(url: string): Promise<'game' | 'other' | 'free'> {
   try {
-    const response = await fetch(url, {signal: AbortSignal.timeout(1000)});
-    // Any HTTP answer means something is serving here; only a refused connection
-    // (which throws) means the port is free.
-    return response.status < 500;
-  } catch {
-    return false;
+    const response = await fetch(new URL(BRIDGE_SPECIFIER, url), {signal: AbortSignal.timeout(5000)});
+    if (!response.ok) return 'other';
+    return (await response.text()).includes('agentBridge') ? 'game' : 'other';
+  } catch (error) {
+    // A refused connection means the port is free; a hung one is still taken.
+    return error instanceof Error && error.name === 'TimeoutError' ? 'other' : 'free';
   }
 }
 
@@ -239,14 +274,18 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
   const {headless = false, port = DEFAULT_PORT, freshSave = false, initScript} = options;
   const url = `http://127.0.0.1:${port}/`;
 
-  // Reuse a server already on the port (a running dev server, or the Playwright
-  // suite's own webServer); otherwise start our own and own its shutdown.
+  // Reuse this game's dev server if one is already on the port (a running
+  // `npm run dev`, or the Playwright suite's own webServer); refuse a port some
+  // other server holds; otherwise start our own and own its shutdown.
   let ownedServer: ViteDevServer | null = null;
   let baseUrl = url;
-  if (await serverIsListening(url)) {
-    baseUrl = url;
-  } else {
+  const probe = await probeServer(url);
+  if (probe === 'other') {
+    throw new Error(`Port ${port} is already serving something that is not this game (no ${BRIDGE_SPECIFIER} there); pass a different port.`);
+  }
+  if (probe === 'free') {
     ownedServer = await createServer({
+      root: PROJECT_ROOT,
       server: {host: '127.0.0.1', port, strictPort: true},
       logLevel: 'error'
     });
@@ -260,6 +299,23 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
     browser = await chromium.launch({headless, executablePath: resolveChromiumExecutable()});
     context = await browser.newContext({viewport: {width: 1280, height: 800}});
     const page = await context.newPage();
+
+    // Once the browser or the page is gone every further action would hang or
+    // throw a cryptic Playwright error; record why, and fail fast with it instead.
+    let deadReason: string | null = null;
+    browser.on('disconnected', () => { deadReason ??= 'The game browser closed'; });
+    page.on('close', () => { deadReason ??= 'The game page closed'; });
+    function assertAlive(): void {
+      if (deadReason) throw new Error(`${deadReason}; call game_start to open a new session.`);
+    }
+
+    // Uncaught page errors, kept for the bridge-timeout diagnosis.
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => {
+      pageErrors.push(error.message);
+      if (pageErrors.length > PAGE_ERROR_CAP) pageErrors.shift();
+    });
+
     if (freshSave) {
       // The save lives in `localStorage` (`src/persistence.ts`); clearing before
       // any app script runs guarantees the game boots with pristine defaults.
@@ -276,43 +332,52 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
     // other way to answer one, and the click that raised it is the intent, so yes.
     page.on('dialog', dialog => { void dialog.accept(); });
     await page.goto(baseUrl);
-    await waitForBridge(page);
+    await waitForBridge(page, pageErrors);
 
     let realtime = true;
     await setPaused(page, true);
 
     // Unpause (if realtime), run the action, settle two frames, pause again, then
     // read back the fresh observation — the whole action contract in one place.
-    // An action that reloads the page (a save import, a full reset) is waited out:
-    // the new document boots, its bridge registers, and the pause model is
-    // reapplied to it before the readback.
+    // The re-pause sits in a `finally`, so an action that throws still leaves the
+    // sim frozen as promised. An action that reloads the page (a save import, a
+    // full reset) is waited out: the new document boots, its bridge registers, and
+    // the pause model is reapplied to it before the readback.
     async function act(run: () => Promise<void>): Promise<AgentObservation> {
+      assertAlive();
       let navigated = false;
       const onRequest = (request: Request) => {
         if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigated = true;
       };
       page.on('request', onRequest);
-      try {
+      await withCleanup(async () => {
         if (realtime) await setPaused(page, false);
         await run();
         // A reload tears the old document down mid-settle; that is not a failure.
         try { await settleFrames(page); } catch (error) { if (!navigated) throw error; }
-      } finally {
+        if (navigated) {
+          await page.waitForLoadState('load');
+          await waitForBridge(page, pageErrors);
+        }
+      }, async () => {
         page.off('request', onRequest);
-      }
-      if (navigated) {
-        await page.waitForLoadState('load');
-        await waitForBridge(page);
-      }
-      if (realtime) await setPaused(page, true);
+        await repause();
+      });
       return readObservation(page);
     }
 
+    /** Freeze the sim again under the realtime model, unless the page is gone. */
+    async function repause(): Promise<void> {
+      if (realtime && !deadReason) await setPaused(page, true);
+    }
+
+    let closed = false;
     const bindings = {browser, context, ownedServer};
     return {
       url: baseUrl,
       page,
       isRealtime: () => realtime,
+      isDead: () => deadReason !== null,
       startRun: () => act(async () => {
         // Enter starts the run from the splash wherever focus is (the intro's own
         // capture-phase handler); wait until the HUD is up and the mine has focus.
@@ -321,66 +386,169 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         await page.locator('#intro').waitFor({state: 'detached'});
       }),
       press: key => act(() => page.keyboard.press(key)),
-      type: text => act(() => page.keyboard.type(text)),
-      hold: (key, ms, holdOptions) => act(async () => {
-        if (holdOptions?.shift) await page.keyboard.down('Shift');
-        await page.keyboard.down(key);
-        await sleep(ms);
-        await page.keyboard.up(key);
-        if (holdOptions?.shift) await page.keyboard.up('Shift');
-      }),
-      click: target => {
-        const selector = selectorForTarget(target);
-        return act(() => page.click(selector));
+      type: async text => {
+        assertAlive();
+        // Without a focused field the keystrokes would drive the mine instead.
+        const focused = await page.evaluate(() => {
+          const active = document.activeElement;
+          if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return null;
+          if (!active) return 'nothing';
+          return `${active.tagName.toLowerCase()}${active.id ? `#${active.id}` : ''}`;
+        });
+        if (focused !== null) {
+          throw new Error(`type needs a focused text field, but focus is on ${focused}; click portalNameInput or importSaveText first.`);
+        }
+        return act(() => page.keyboard.type(text));
       },
-      pressTile: (x, y) => act(async () => {
+      hold: (key, ms, holdOptions) => act(async () => {
+        // Release in a `finally`: a key left down would keep driving the ship
+        // through every later action.
+        let shiftDown = false;
+        let keyDown = false;
+        await withCleanup(async () => {
+          if (holdOptions?.shift) { await page.keyboard.down('Shift'); shiftDown = true; }
+          await page.keyboard.down(key);
+          keyDown = true;
+          await sleep(ms);
+        }, async () => {
+          try {
+            if (keyDown) await page.keyboard.up(key);
+          } finally {
+            if (shiftDown) await page.keyboard.up('Shift');
+          }
+        });
+      }),
+      click: async target => {
+        assertAlive();
+        const selector = selectorForTarget(target);
+        const {target: name} = parseTarget(target);
+        // Refuse a click that cannot land before the sim is unpaused, with the
+        // reason, rather than let Playwright sit out its actionability timeout.
+        const control = await clickableControl(page, selector, name);
+        return act(() => control.click({timeout: CLICK_TIMEOUT_MS}));
+      },
+      pressTile: async (x, y) => {
+        assertAlive();
         const point = await screenPointForTile(page, x, y);
         if (!point) throw new Error(`Tile (${x}, ${y}) is off-screen; no canvas point to press.`);
-        await page.mouse.click(point.x, point.y);
-      }),
+        // The HUD cards and any open dialog sit above the canvas and take presses
+        // there, so a click at a covered point would hit them, not the mine.
+        const cover = await page.evaluate(({px, py}) => {
+          const hit = document.elementFromPoint(px, py);
+          if (hit instanceof HTMLCanvasElement && hit.id === 'game') return null;
+          if (!hit) return 'nothing';
+          const host = hit.closest('dialog, [id]') ?? hit;
+          return `${host.tagName.toLowerCase()}${host.id ? `#${host.id}` : ''}`;
+        }, {px: point.x, py: point.y});
+        if (cover !== null) {
+          throw new Error(`Tile (${x}, ${y}) is covered by the HUD/overlay (${cover}) at its screen point, not the #game canvas; close the overlay or press a tile clear of the HUD.`);
+        }
+        return act(() => page.mouse.click(point.x, point.y));
+      },
       wait: async ms => {
+        assertAlive();
         // A wait always lets the sim run for `ms`, whatever the model; only the
         // between-decisions state differs, so re-pause afterwards under realtime.
-        await setPaused(page, false);
-        await sleep(ms);
-        if (realtime) await setPaused(page, true);
+        await withCleanup(async () => {
+          await setPaused(page, false);
+          await sleep(ms);
+        }, repause);
         return readObservation(page);
       },
-      observe: radius => readObservation(page, radius),
-      screenshot: () => page.screenshot(),
+      observe: radius => {
+        assertAlive();
+        return readObservation(page, radius);
+      },
+      screenshot: () => {
+        assertAlive();
+        return page.screenshot();
+      },
       setRealtime: async value => {
+        assertAlive();
         realtime = value;
         // Match the sim to the new model at once: frozen between decisions when
         // realtime, free-running otherwise.
         await setPaused(page, value);
         return readObservation(page);
       },
-      close: () => closeSession(bindings)
+      close: async () => {
+        if (closed) return;
+        closed = true;
+        deadReason ??= 'The game session was closed';
+        await closeSession(bindings);
+      }
     };
   } catch (error) {
-    await context?.close();
-    await browser?.close();
-    await ownedServer?.close();
+    await closeSession({browser, context, ownedServer}).catch(() => {});
     throw error;
   }
 }
 
 interface SessionBindings {
-  browser: Browser;
-  context: BrowserContext;
+  browser: Browser | undefined;
+  context: BrowserContext | undefined;
   ownedServer: ViteDevServer | null;
 }
 
+/**
+ * Shut everything down, attempting every step even when an earlier one fails (a
+ * browser that already disconnected must not leave the owned server running),
+ * then report the first failure.
+ */
 async function closeSession({browser, context, ownedServer}: SessionBindings): Promise<void> {
-  await context.close();
-  await browser.close();
-  // Only shut the server this session started; a reused one belongs to someone else.
-  await ownedServer?.close();
+  const results = await Promise.allSettled([
+    context?.close(),
+    browser?.close(),
+    // Only shut the server this session started; a reused one belongs to someone else.
+    ownedServer?.close()
+  ]);
+  const failure = results.find(result => result.status === 'rejected');
+  if (failure) throw failure.reason;
 }
 
-/** Poll until the game has booted and registered its runtime with the bridge. */
-async function waitForBridge(page: Page): Promise<void> {
+/**
+ * The locator for an allowlisted control, once it is known a click can land:
+ * rendered, visible, enabled, and not under another surface (an open modal's
+ * backdrop, a HUD card). Throws the specific reason otherwise.
+ */
+async function clickableControl(page: Page, selector: string, name: string) {
+  const control = page.locator(selector).first();
+  if (await control.count() === 0) {
+    throw new Error(`Control "${name}" is not rendered right now (nothing matches ${selector}); is its screen open? Check activeOverlay.`);
+  }
+  if (!await control.isVisible()) {
+    throw new Error(`Control "${name}" is not rendered visibly right now (it exists but is hidden).`);
+  }
+  if (!await control.isEnabled()) {
+    throw new Error(`Control "${name}" is disabled right now; its action is not available (see the overlay's affordances).`);
+  }
+  await control.scrollIntoViewIfNeeded({timeout: CLICK_TIMEOUT_MS});
+  // A dialog may still be settling into place, so give the hit test a few frames.
+  let cover: string | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    cover = await control.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      if (!hit || hit === element || element.contains(hit)) return null;
+      if (hit instanceof HTMLLabelElement && hit.control === element) return null;
+      const host = hit.closest('dialog, [id]') ?? hit;
+      return `${host.tagName.toLowerCase()}${host.id ? `#${host.id}` : ''}`;
+    });
+    if (cover === null) return control;
+    await sleep(50);
+  }
+  throw new Error(`Control "${name}" is covered by open overlay ${cover}; close that first.`);
+}
+
+/**
+ * Poll until the game has booted and registered its runtime with the bridge. On a
+ * timeout the error carries what the page itself reported — the "Mine offline" /
+ * "Interface crashed" notice and any uncaught page errors — so a broken boot is
+ * diagnosable without opening a browser.
+ */
+async function waitForBridge(page: Page, pageErrors: readonly string[]): Promise<void> {
   for (let attempt = 0; attempt < 150; attempt++) {
+    if (page.isClosed()) throw new Error('The game page closed while waiting for the agent bridge.');
     const ready = await page.evaluate(async spec => {
       try {
         const module = (await import(spec)) as BridgeModule;
@@ -388,11 +556,16 @@ async function waitForBridge(page: Page): Promise<void> {
       } catch {
         return false;
       }
-    }, BRIDGE_SPECIFIER);
+    }, BRIDGE_SPECIFIER).catch(() => false); // a document mid-navigation is not ready yet
     if (ready) return;
     await sleep(100);
   }
-  throw new Error('The agent bridge did not register within 15s; is the game booting?');
+  const notice = await page.evaluate(() => document.getElementById('runtime-failure')?.textContent?.trim() || null).catch(() => null);
+  const details = [
+    notice ? `Runtime failure notice: ${notice}` : null,
+    pageErrors.length > 0 ? `Page errors:\n${pageErrors.map(message => `  - ${message}`).join('\n')}` : null
+  ].filter(line => line !== null);
+  throw new Error(['The agent bridge did not register within 15s; is the game booting?', ...details].join('\n'));
 }
 
 async function setPaused(page: Page, paused: boolean): Promise<void> {

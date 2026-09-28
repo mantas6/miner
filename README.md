@@ -679,8 +679,11 @@ used. A Playwright-downloaded Chromium does not run on NixOS, so there set
 ### Running the server
 
 ```bash
-npm run agent:mcp        # tsx agent/mcp-server.ts, a stdio MCP server
+npm run -s agent:mcp     # tsx agent/mcp-server.ts, a stdio MCP server
 ```
+
+Keep the `-s`: without it npm prints its `> miner@… agent:mcp` banner to stdout,
+which is the MCP transport, and the client chokes on it.
 
 The repo's `opencode.json` registers it so an opencode agent picks it up
 automatically:
@@ -713,13 +716,29 @@ server:
 ```
 
 Claude Code asks for approval the first time it loads a project-scope server.
-Start it from the repo root: the relative script path and Vite's `createServer`
-(`agent/session.ts`) both resolve against the working directory. `claude mcp list`
-confirms `miner` is registered.
+Start it from the repo root, since the registered script path is relative; the
+Vite server `agent/session.ts` starts resolves its root from its own location, so
+that part works from any directory. `claude mcp list` confirms `miner` is
+registered.
 
 The server owns **one game session at a time**: `game_start` errors if one is
-already open, and every action tool returns the fresh observation as JSON. It logs
-only to stderr (stdout is the MCP transport).
+already open (or still starting), and every action tool returns the fresh
+observation as JSON. It logs only to stderr (stdout is the MCP transport), and it
+closes the session and exits when the client goes away — stdin ending, the
+transport closing, or SIGINT/SIGTERM/SIGHUP.
+
+Actions fail fast with a reason rather than hanging, and a failed action still
+leaves the sim paused (the re-pause, and a `hold`'s key release, run in a
+`finally`):
+
+- `click` on a control that cannot take it: `… is not rendered right now` (its
+  screen is closed), `… is disabled right now`, or `… is covered by open overlay
+  dialog#…`. Anything else gets Playwright's click with a 2 s timeout.
+- `type` with no text field focused: `type needs a focused text field …`.
+- `press_tile` on a tile hidden under a HUD card or dialog: `… is covered by the
+  HUD/overlay …, not the #game canvas`.
+- Any tool after the Chromium window was closed or crashed: `The game browser
+  closed; call game_start to open a new session.`
 
 ### Tools
 
@@ -727,14 +746,14 @@ only to stderr (stdout is the MCP transport).
 |---|---|---|
 | `game_start` | `headless?` (bool, default false), `freshSave?` (bool, default false), `port?` (int, default 5180) | Start/reuse a dev server, launch Chromium, load the game, return the initial observation. |
 | `game_stop` | — | Close the session (browser, and any server this session started). |
-| `observe` | `radius?` (int, default 7) | Return the current observation without changing the world. |
+| `observe` | `radius?` (int, default 7, max 40) | Return the current observation without changing the world. |
 | `start_run` | — | Start the run from the title splash (presses Enter, waits for the HUD). |
 | `press` | `key` (string) | One key press, e.g. `ArrowDown`, `w`, `Space`, `e`, `t`, `c`, `Escape`. |
 | `type` | `text` (string) | Type text into the focused input (e.g. after clicking `portalNameInput`), then return the observation. |
-| `hold` | `key` (string), `ms` (int), `shift?` (bool) | Hold a key for `ms` wall-clock (the sim runs during the hold); `shift` sprints if a Booster is fitted. |
+| `hold` | `key` (string), `ms` (int, max 60000), `shift?` (bool) | Hold a key for `ms` wall-clock (the sim runs during the hold); `shift` sprints if a Booster is fitted. |
 | `click` | `target` (string), `value?` (string), `kind?` (string) | Click one allowlisted UI control (below). |
 | `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station, portal, trading post, wreck, chest or grave. |
-| `wait` | `ms` (int) | Let the sim run for `ms` wall-clock, then return the observation. |
+| `wait` | `ms` (int, max 60000) | Let the sim run for `ms` wall-clock, then return the observation. |
 | `screenshot` | — | A PNG of the window, as image content. |
 | `set_realtime` | `enabled` (bool) | Switch the pause model (below). |
 
@@ -836,17 +855,19 @@ any new player-visible state needs to be surfaced in `buildObservation`
 
 ### Troubleshooting
 
-- **Port already in use.** If something is already answering HTTP on the port, the
-  session reuses it instead of starting its own; if that is not this game, pass a
-  different `port` to `game_start`. If the port is held by a process that does not
-  answer HTTP, the session's own Vite server (started with `strictPort`) fails to
-  bind — again, choose another `port`.
+- **Port already in use.** If this game's dev server is already on the port (it
+  answers `GET /src/agent/bridge.ts`), the session reuses it instead of starting
+  its own; if something else answers there, `game_start` refuses with `Port … is
+  already serving something that is not this game` — pass a different `port`. If
+  the port is held by a process that does not answer HTTP, the session's own Vite
+  server (started with `strictPort`) fails to bind — again, choose another `port`.
 - **No Chromium found.** With no `PLAYWRIGHT_CHROMIUM_PATH` and none on `PATH`,
   Playwright falls back to its pinned download, which will not launch on NixOS. Set
   `PLAYWRIGHT_CHROMIUM_PATH` to a working Chromium (or install one on `PATH`).
 - **"The agent bridge did not register within 15s".** The page loaded but the game
-  did not boot (a build/import error). Open the same URL in a normal browser and
-  check the console.
+  did not boot (a build/import error). The error carries the page's "Mine offline"
+  / "Interface crashed" notice text and its uncaught page errors when there are
+  any; otherwise open the same URL in a normal browser and check the console.
 
 ## Development checklist
 

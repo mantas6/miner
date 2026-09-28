@@ -18,8 +18,13 @@ import { requestViewportZoom, viewport } from './viewport';
 import { zoomAfterWheel } from './zoom';
 import type { GameActions } from './actions';
 
-/** Grace window (ms) in which a second R press confirms resetting a live run. */
-const RESET_CONFIRM_MS = 3500;
+/**
+ * Grace window, in sim ticks (~3.5 s at 60 tps), in which a second R press
+ * confirms resetting a live run. Counted in ticks rather than wall-clock time so
+ * it runs on the sim's clock: a paused sim (the agent harness between decisions)
+ * holds the window open instead of letting it lapse unseen.
+ */
+export const RESET_CONFIRM_TICKS = 210;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
@@ -123,12 +128,11 @@ export function createInput(deps: GameInputDeps): GameInput {
   /** R resets a finished run outright, but asks for confirmation mid-run. */
   function requestReset(): void {
     if (state.gameOver) { deps.restartGame(); return; }
-    const now = performance.now();
-    if (now < state.input.resetConfirmUntil) {
+    if (state.tick < state.input.resetConfirmUntil) {
       deps.restartGame();
       return;
     }
-    state.input.resetConfirmUntil = now + RESET_CONFIRM_MS;
+    state.input.resetConfirmUntil = state.tick + RESET_CONFIRM_TICKS;
     deps.toast('Press R again to reset progress in this run.');
   }
 

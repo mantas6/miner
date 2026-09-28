@@ -16,7 +16,7 @@ import { uiStore, type InventorySlotView, type TradeOfferView, type UiState } fr
 import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
-import { appendToast, buildObservation, VIEW_LEGEND } from './observation';
+import { appendToast, buildObservation, MAX_VIEW_RADIUS, VIEW_LEGEND } from './observation';
 
 /** A tile grid backed by a map; anything unset reads as plain dirt. */
 function tileSource(overrides: Record<string, Tile>) {
@@ -80,6 +80,45 @@ describe('buildObservation', () => {
     expect(obs.view.rows[5][7]).toBe('@');
     expect(obs.view.legend).toBe(VIEW_LEGEND);
     expect(obs.view.legend['@']).toBe('ship');
+  });
+
+  it('clamps the view radius, however large or small the request', () => {
+    const state = createInitialState();
+    state.player.x = 45;
+    state.player.y = 100;
+
+    const huge = buildObservation({state, ui: ui(), get: tileSource({}), radius: 1_000_000});
+    expect(huge.view.rows[0]).toHaveLength(2 * MAX_VIEW_RADIUS + 1);
+    expect(huge.view.rows).toHaveLength(2 * Math.round(MAX_VIEW_RADIUS * 11 / 15) + 1);
+
+    expect(buildObservation({state, ui: ui(), get: tileSource({}), radius: 0}).view.rows[0]).toHaveLength(3);
+    expect(buildObservation({state, ui: ui(), get: tileSource({}), radius: Number.NaN}).view.rows[0]).toHaveLength(15);
+  });
+
+  it('draws the columns past the world edges as rock, never aliasing a real row', () => {
+    const state = createInitialState();
+    state.player.x = 2;
+    state.player.y = 100;
+    // Explore everything around the ship; ore sits on the last column of the row
+    // above, exactly where column -1 of the ship's row would alias in the fog index.
+    revealRect(state, 0, 95, WORLD_W - 1, 105);
+    const get = tileSource({[`${WORLD_W - 1},99`]: oreTile('Gold'), [`${WORLD_W - 1},100`]: oreTile('Gold')});
+
+    const obs = buildObservation({state, ui: ui(), get});
+    const shipRow = obs.view.rows[100 - obs.view.origin.y];
+    // origin.x is -5: columns -5..-1 are off-world wall, column 0 is the first real one.
+    expect(obs.view.origin.x).toBe(-5);
+    expect(shipRow.slice(0, 5)).toBe('RRRRR');
+    expect(shipRow[5]).toBe('#');
+    expect(obs.notable.every(n => n.x >= 0 && n.x < WORLD_W)).toBe(true);
+
+    // The far edge, too.
+    state.player.x = WORLD_W - 2;
+    const east = buildObservation({state, ui: ui(), get});
+    const eastRow = east.view.rows[100 - east.view.origin.y];
+    // Ship at column 88: columns 90..95 are wall, and 89 is the real ore.
+    expect(eastRow.slice(-7)).toBe('oRRRRRR');
+    expect(east.notable.filter(n => n.what === 'ore').every(n => n.x === WORLD_W - 1)).toBe(true);
   });
 
   it('collects ore, hazards, enemies and deployables into notable', () => {
