@@ -181,7 +181,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     manufacturer.inventory = station;
     repaint();
     saveProgress();
-    audio.blip(420, .06, 'triangle', .035);
+    audio.stow();
     toast('Stowed cargo at the station.');
   }
 
@@ -199,7 +199,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     manufacturer.inventory = station;
     repaint();
     saveProgress();
-    audio.blip(420, .06, 'triangle', .035);
+    audio.stow();
     toast(`Stowed ${moved} × ${itemForKind(kind).label} at the station.`);
   }
 
@@ -217,7 +217,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     manufacturer.inventory = station;
     repaint();
     saveProgress();
-    audio.blip(620, .05, 'triangle', .035);
+    audio.take();
     toast(`Took ${moved} × ${itemForKind(kind).label} aboard.`);
   }
 
@@ -236,7 +236,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     manufacturer.inventory = result;
     repaint();
     saveProgress();
-    audio.blip(700, .07, 'square', .04, 60);
+    audio.craft();
     toast(`Crafted ${recipe.count} × ${itemForKind(recipe.output).label}. Take it from the station.`);
   }
 
@@ -252,7 +252,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     state.player.inventory = removeItem(state.player.inventory, coal.kind, coal.count);
     repaint();
     saveProgress();
-    audio.blip(300, .08, 'sawtooth', .04);
+    audio.stow();
     toast(`Loaded ${coal.count} coal into the extractor.`);
   }
 
@@ -277,7 +277,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     deps.syncPlayer();
     repaint();
     saveProgress();
-    audio.blip(500, .08, 'triangle', .045, 40);
+    audio.refuel();
     toast(`Refueled +${Math.round(moved)} from the extractor.`);
   }
 
@@ -300,7 +300,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
         deps.syncPlayer();
         if (open === parked) repaint();
         saveProgress();
-        audio.blip(500, .08, 'triangle', .045, 40);
+        audio.refuel();
         toast(`Refueled +${Math.round(moved)} from the extractor.`);
       }
     }

@@ -21,7 +21,7 @@ import {
 } from '../core/depth-milestone';
 import { getFuelReserveForecast, type FuelReserveStatus } from '../core/fuel-reserve';
 import { formatTerrainScanner } from '../core/scanner';
-import type { Direction, GameState, Tile } from '../core/types';
+import type { AudioController, Direction, GameState, Tile } from '../core/types';
 import type { EnemySim } from './enemies';
 import type { WorldGrid } from './world-grid';
 
@@ -49,6 +49,7 @@ export interface HudReadoutDeps {
   state: GameState;
   grid: WorldGrid;
   enemies: EnemySim;
+  audio: AudioController;
   atSurface(): boolean;
   toast(message: string): void;
 }
@@ -57,7 +58,7 @@ function tileHp(tile: Tile): number {
   return 'hp' in tile ? tile.hp : 0;
 }
 
-export function createReadouts({state, grid, enemies, atSurface, toast}: HudReadoutDeps): HudReadouts {
+export function createReadouts({state, grid, enemies, audio, atSurface, toast}: HudReadoutDeps): HudReadouts {
   /** Reused, so scanning never allocates a direction tuple. */
   const scanDirection: Direction = [0, 1];
 
@@ -155,6 +156,7 @@ export function createReadouts({state, grid, enemies, atSurface, toast}: HudRead
     if (milestone.depthMeters < clearedDepth) return;   // climbing back up
     if (clearedDepth <= announcedDepth) return;         // already announced this run
     announcedDepth = clearedDepth;
+    audio.milestone();
     toast(clearedLine);
   }
 

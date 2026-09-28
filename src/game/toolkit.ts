@@ -79,6 +79,7 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
   function toggleArmed(): void {
     if (armed) {
       setArmed(false);
+      audio.disarm();
       return toast('Toolkit stowed.');
     }
     if (state.gameOver) return;
@@ -87,6 +88,7 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
       return toast('No Construction Toolkit aboard. Craft one at the Manufacturing Station.');
     }
     setArmed(true);
+    audio.arm();
     toast('Toolkit ready — press an empty station, a container or a hanging decoration to pack it up. Escape cancels.');
   }
 
@@ -117,7 +119,7 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
     const item = itemForKind(stationDeviceItemKind(station.kind));
     state.player.inventory = addItem(state.player.inventory, item);
     saveProgress();
-    audio.blip(440, .09, 'square', .045, 60);
+    audio.lift();
     toast(`${item.label} packed into the bay.`);
     return true;
   }
@@ -139,7 +141,7 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
     state.cargoContainers = state.cargoContainers.filter(entry => entry !== container);
     state.player.inventory = addItem(state.player.inventory, CARGO_CONTAINER_ITEM);
     saveProgress();
-    audio.blip(440, .09, 'square', .045, 60);
+    audio.lift();
     toast('Container packed into the bay.');
     return true;
   }
@@ -161,7 +163,7 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
     grid.set(x, y, {type: 'air'});
     state.player.inventory = addItem(state.player.inventory, item);
     saveProgress();
-    audio.blip(440, .09, 'square', .045, 60);
+    audio.lift();
     toast(`${item.label} packed into the bay.`);
     return true;
   }

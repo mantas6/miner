@@ -7,6 +7,7 @@ import {
   createAudioStub,
   createFakeGrid,
   createToastLog,
+  type AudioStub,
   type FakeGrid
 } from './test-support';
 
@@ -16,6 +17,7 @@ interface Harness {
   state: GameState;
   grid: FakeGrid;
   sim: EnemySim;
+  audio: AudioStub;
   addCash: ReturnType<typeof vi.fn>;
   saveProgress: ReturnType<typeof vi.fn>;
   toasts: ReturnType<typeof createToastLog>;
@@ -30,12 +32,13 @@ function harness(): Harness {
     addCash: vi.fn((amount: number) => { state.cash += amount; }),
     saveProgress: vi.fn(),
     toasts: createToastLog(),
+    audio: createAudioStub(),
     spawnExplosion: vi.fn()
   };
   const sim = createEnemySim({
     state,
     grid: context.grid,
-    audio: createAudioStub(),
+    audio: context.audio,
     toast: context.toasts.toast,
     addCash: context.addCash,
     saveProgress: context.saveProgress,
@@ -68,6 +71,7 @@ describe('killing a live enemy', () => {
     expect(h.state.stats.enemiesDestroyed).toBe(1);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.spawnExplosion).toHaveBeenCalledWith(10, 70);
+    expect(h.audio.played).toContain('bounty');
   });
 
   it('scales the bounty with depth', () => {
@@ -92,6 +96,7 @@ describe('killing a live enemy', () => {
     expect(enemy).toMatchObject({hp: 3, alive: true, flash: 1});
     expect(h.addCash).not.toHaveBeenCalled();
     expect(h.toasts.saw('3 HP left')).toBe(true);
+    expect(h.audio.played).not.toContain('bounty');
   });
 
   it('ignores a missing or already dead target', () => {
@@ -119,6 +124,7 @@ describe('dormant cocoons', () => {
     expect(h.grid.get(4, 80)).toEqual({type: 'air'});
     expect(h.addCash).toHaveBeenCalledWith(bountyAt(80));
     expect(h.toasts.saw('Dormant enemy drilled out')).toBe(true);
+    expect(h.audio.played).toContain('bounty');
   });
 
   it('reports a coordinate that holds no cocoon', () => {

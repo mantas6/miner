@@ -48,7 +48,7 @@ import { formatExpeditionStats } from '../core/stats';
 import { rand } from '../world/world';
 import { resetUiCommands, setUiCommands } from '../ui/commands';
 import { resetAgentBridge, setAgentBridge } from '../agent/bridge';
-import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type PlayerSnapshot, type PortalView } from '../ui/store';
+import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type OverlayId, type PlayerSnapshot, type PortalView } from '../ui/store';
 
 import { TELEPORTER_ITEM, advanceTeleportEffect, canUsePortableTeleporter } from '../core/teleporter';
 import type { AudioController } from '../core/types';
@@ -278,8 +278,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       refuelFromExtractor: () => homeStations.refuel(),
       openInfo: openInfoScreen,
       closeInfo: closeInfoScreen,
-      toggleMusic: () => { void audio.toggleMusic(); },
-      toggleSfx: () => { void audio.toggleSfx(); },
+      // The switches are the only pure-UI commands with no cue of their own; every
+      // other command here already sounds (open/close, arm/disarm, or its action).
+      toggleMusic: () => { audio.click(); void audio.toggleMusic(); },
+      toggleSfx: () => { audio.click(); void audio.toggleSfx(); },
       playSolo: event => playSolo(event),
       grantDeveloperOres: grantDeveloperOresCheat,
       fillExtractor: fillExtractorCheat,
@@ -336,6 +338,26 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const hadToolkit = toolkit.disarm();
     return containers.disarm() || hadToolkit || hadStation || hadDecor || hadDynamite || hadScanner;
   }
+  /**
+   * Raise an overlay, playing the open cue only on the transition: a repaint of a
+   * screen already up republishes through here too and must stay silent.
+   */
+  function raiseOverlay(overlay: OverlayId){
+    const store = uiStore.getState();
+    if (store.activeOverlay !== overlay) audio.open();
+    store.setActiveOverlay(overlay);
+  }
+  /**
+   * Take an overlay down, with the close cue only if it was actually up — the
+   * `<dialog>` echoes every close back as a second request. `quiet` is for an
+   * action that shut the screen and plays its own cue; a lost ship's explosion
+   * already covers the screens it tears down.
+   */
+  function dropOverlay(overlay: OverlayId, quiet = false){
+    const store = uiStore.getState();
+    if (store.activeOverlay === overlay && !quiet && !state.gameOver) audio.close();
+    store.closeOverlay(overlay);
+  }
   /** Push the current fitting slots to the store for the Ship screen to paint. */
   function syncShipUpgrades(){
     uiStore.getState().setShipEquipment(buildShipSlots(state.player.equipment));
@@ -346,10 +368,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     disarmPlacements();
     syncShipUpgrades();
     syncPlayerSnapshot();
-    uiStore.getState().setActiveOverlay('ship');
+    raiseOverlay('ship');
   }
   function closeShipScreen(){
-    uiStore.getState().closeOverlay('ship');
+    dropOverlay('ship');
   }
   /**
    * Publish the manufacturing station's stock to the store and raise its screen,
@@ -358,30 +380,30 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
    */
   function setStationUi(inventory: Inventory | null){
     const store = uiStore.getState();
-    if (!inventory) return store.closeOverlay('station');
+    if (!inventory) return dropOverlay('station');
     disarmPlacements();
     store.setStationSlots(buildInventorySlots(inventory));
     syncPlayerSnapshot();
-    store.setActiveOverlay('station');
+    raiseOverlay('station');
   }
   function setExtractorUi(view: {coal: number; fuel: number; progress: number} | null){
     const store = uiStore.getState();
-    if (!view) return store.closeOverlay('extractor');
+    if (!view) return dropOverlay('extractor');
     disarmPlacements();
     store.setExtractor(view);
     syncPlayerSnapshot();
-    store.setActiveOverlay('extractor');
+    raiseOverlay('extractor');
   }
   /**
    * Publish the portal overlay and raise it, or take it away with `null`. Like the
    * station screens it covers the mine, so opening it stands any placement down.
    */
-  function setPortalUi(view: PortalView | null){
+  function setPortalUi(view: PortalView | null, quiet = false){
     const store = uiStore.getState();
-    if (!view) return store.closeOverlay('portal');
+    if (!view) return dropOverlay('portal', quiet);
     disarmPlacements();
     store.setPortalUi(view);
-    store.setActiveOverlay('portal');
+    raiseOverlay('portal');
   }
   /** Space, or a click with no tile named: open the nearest station. */
   function openNearestStation(){
@@ -434,7 +456,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     saveProgress();
     syncShipUpgrades();
     syncPlayerSnapshot();
-    audio.blip(520, .05, 'triangle', .04);
+    audio.upgradeFit();
     toast('Upgrade fitted.');
   }
   function unequipUpgrade(slot: number){
@@ -443,17 +465,17 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     saveProgress();
     syncShipUpgrades();
     syncPlayerSnapshot();
-    audio.blip(360, .05, 'triangle', .04);
+    audio.upgradeRemove();
     toast('Upgrade returned to the cargo bay.');
   }
   function openInfoScreen(){
     disarmPlacements();
     syncPlayerSnapshot();
     syncInfoDetails();
-    uiStore.getState().setActiveOverlay('info');
+    raiseOverlay('info');
   }
   function closeInfoScreen(){
-    uiStore.getState().closeOverlay('info');
+    dropOverlay('info');
   }
   /**
    * Reused scratch snapshots. The loop fills them every frame and the store copies
@@ -713,6 +735,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     store.setPhase('playing');
     claimFocusForRun();
     tryAutoAudio(event);
+    // Heard when audio is already live; a gesture that is only now unlocking it
+    // gets the unlock chirp instead.
+    audio.respawn();
     toast('Drill ready. Mine ore, stow it at the home base, and watch your fuel.');
   }
 
@@ -783,7 +808,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       atSurface,
       portals
     });
-    readouts = createReadouts({state, grid, enemies, atSurface, toast});
+    readouts = createReadouts({state, grid, enemies, audio, atSurface, toast});
     scanners = createScannerDevices({
       state,
       grid,
@@ -813,9 +838,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       setArmedUi: value => paintArmedPlacement(value ? CARGO_CONTAINER_ITEM.kind : null),
       setOpenUi: contents => {
         const store = uiStore.getState();
-        if (!contents) return store.closeOverlay('container');
+        if (!contents) return dropOverlay('container');
         store.setContainerSlots(buildInventorySlots(contents));
-        store.setActiveOverlay('container');
+        raiseOverlay('container');
       }
     });
     wrecks = createWrecks({
@@ -823,11 +848,11 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       audio,
       toast,
       saveProgress,
-      setOpenUi: contents => {
+      setOpenUi: (contents, quiet) => {
         const store = uiStore.getState();
-        if (!contents) return store.closeOverlay('wreck');
+        if (!contents) return dropOverlay('wreck', quiet);
         store.setWreckSlots(buildInventorySlots(contents));
-        store.setActiveOverlay('wreck');
+        raiseOverlay('wreck');
       }
     });
     decor = createDecor({
@@ -856,10 +881,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       addCash,
       setOpenUi: offers => {
         const store = uiStore.getState();
-        if (!offers) return store.closeOverlay('trade');
+        if (!offers) return dropOverlay('trade');
         disarmPlacements();
         store.setTradeBuy(offers);
-        store.setActiveOverlay('trade');
+        raiseOverlay('trade');
       }
     });
     stationDevices = createStationDevices({
@@ -889,7 +914,12 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       restartGame: () => { run.restartGame(); syncShipUpgrades(); },
       closeShipScreen,
       closeInfoScreen,
-      cancelPlacement: disarmPlacements,
+      // Escape on an armed device: the same stand-down cue as the slot's own cancel.
+      cancelPlacement: () => {
+        const cancelled = disarmPlacements();
+        if (cancelled) audio.disarm();
+        return cancelled;
+      },
       toggleDynamitePlacement: () => { standDownExcept('dynamite'); dynamite.toggleArmed(); },
       // A crate's or wreck's menu covers the mine, so nothing may be left waiting
       // for a press on it — including the two deployables this module does not own.

@@ -113,6 +113,7 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
     addCash(amount);
     state.stats.enemiesDestroyed++;
     saveProgress();
+    audio.bounty();
     toast(message);
   }
 

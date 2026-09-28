@@ -22,6 +22,8 @@ interface Harness {
   toasts: ReturnType<typeof createToastLog>;
   /** Every contents push the UI received; `null` means the menu was taken away. */
   openUi: (Inventory | null)[];
+  /** The `quiet` flag of each push, in step with `openUi`. */
+  quiet: (boolean | undefined)[];
   saveProgress: ReturnType<typeof vi.fn>;
 }
 
@@ -34,15 +36,16 @@ function harness(ore = 6): Harness {
   const audio = createAudioStub();
   const toasts = createToastLog();
   const openUi: (Inventory | null)[] = [];
+  const quiet: (boolean | undefined)[] = [];
   const saveProgress = vi.fn();
   const wrecks = createWrecks({
     state,
     audio,
     toast: toasts.toast,
     saveProgress,
-    setOpenUi: contents => openUi.push(contents)
+    setOpenUi: (contents, silent) => { openUi.push(contents); quiet.push(silent); }
   });
-  return {state, wrecks, audio, toasts, openUi, saveProgress};
+  return {state, wrecks, audio, toasts, openUi, quiet, saveProgress};
 }
 
 describe('opening a wreck', () => {
@@ -82,6 +85,7 @@ describe('opening a wreck', () => {
     expect(h.wrecks.openNearest()).toBe(true);
     expect(h.wrecks.open).toBeNull();
     expect(h.openUi.at(-1)).toBeNull();
+    expect(h.quiet.at(-1)).toBe(false);
   });
 
   it('says nothing is in reach when the keyboard finds no wreck', () => {
@@ -125,6 +129,9 @@ describe('salvaging a wreck', () => {
     expect(h.openUi.at(-1)).toBeNull();
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Salvaged 6 × Copper')).toBe(true);
+    // The haul's own cue covers the menu closing behind it.
+    expect(h.quiet.at(-1)).toBe(true);
+    expect(h.audio.played).toEqual(['take']);
   });
 
   it('takes a single unit, leaving the rest in the wreck', () => {
@@ -148,6 +155,8 @@ describe('salvaging a wreck', () => {
     expect(h.state.wrecks).toEqual([]);
     expect(h.wrecks.open).toBeNull();
     expect(h.toasts.saw('Salvaged 6 items from the wreck')).toBe(true);
+    expect(h.quiet.at(-1)).toBe(true);
+    expect(h.audio.played).toEqual(['take']);
   });
 
   it('leaves the overflow behind when the bay fills mid-loot, keeping the wreck', () => {

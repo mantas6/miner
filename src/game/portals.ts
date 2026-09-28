@@ -58,8 +58,11 @@ export interface PortalsDeps {
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
-  /** Publish the portal overlay's contents, or take it away with `null`. */
-  setPortalUi(view: PortalView | null): void;
+  /**
+   * Publish the portal overlay's contents, or take it away with `null`. `quiet`
+   * skips the close cue when the jump that shut the list plays its own.
+   */
+  setPortalUi(view: PortalView | null, quiet?: boolean): void;
   /** Reveal the fog footprint around the ship after a jump. */
   revealAtPlayer(): void;
 }
@@ -134,12 +137,12 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     publish();
   }
 
-  function close(): void {
+  function close(quiet = false): void {
     if (!mode) return;
     // The respawn prompt has no close button: a lost ship must choose where to go.
     if (mode === 'respawn') return;
     reset();
-    deps.setPortalUi(null);
+    deps.setPortalUi(null, quiet);
   }
 
   function rename(name: string): void {
@@ -149,6 +152,7 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     saveProgress();
     // The list is the *other* portals, so it is unchanged; republish for the name.
     publish();
+    audio.click();
     toast(`Portal renamed "${source.name}".`);
   }
 
@@ -177,16 +181,17 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
       // so the jump effect is not run here — the respawn places the ship itself.
       const pick = onRespawn;
       reset();
-      deps.setPortalUi(null);
+      deps.setPortalUi(null, true);
       pick?.({x: target.x, y: target.y});
+      audio.respawn();
       return true;
     }
     if (mode === 'teleporter') {
       state.player.inventory = removeItem(state.player.inventory, TELEPORTER_ITEM.kind);
     }
     jumpTo(target.x, target.y);
-    audio.blip(500, .08, 'triangle', .045, 40);
-    close();
+    close(true);
+    audio.portal();
     toast(`Travelled to "${target.name}".`);
     return true;
   }

@@ -9,7 +9,7 @@ import { explorationIndex } from '../../shared/exploration-codec';
 import { createInitialState, isAtHome } from '../core/state';
 import type { Enemy, Tile } from '../core/types';
 import { createReadouts, type HudReadoutFields } from './readouts';
-import { createEnemySimStub, createFakeGrid, createToastLog } from './test-support';
+import { createAudioStub, createEnemySimStub, createFakeGrid, createToastLog } from './test-support';
 
 function blankReadouts(): HudReadoutFields {
   return {
@@ -28,16 +28,18 @@ function setup(fill: (x: number, y: number) => Tile = () => ({type: 'dirt', hp: 
   const grid = createFakeGrid(fill);
   const enemies = createEnemySimStub();
   const toasts = createToastLog();
+  const audio = createAudioStub();
   const hud = blankReadouts();
   const readouts = createReadouts({
     state,
     grid,
     enemies,
+    audio,
     atSurface: () => isAtHome(state.player),
     toast: toasts.toast
   });
   return {
-    state, grid, enemies, toasts, hud, readouts,
+    state, grid, enemies, toasts, audio, hud, readouts,
     sync() {
       readouts.sync(hud);
       return hud;
@@ -122,16 +124,19 @@ describe('depth landmark tracker', () => {
 
     expect(game.sync()).toMatchObject({depthTargetKind: 'starter', depthTargetRemaining: 30});
     expect(game.toasts.messages).toEqual([]);
+    expect(game.audio.played).toEqual([]);
 
     game.descend(3);
     expect(game.sync()).toMatchObject({depthTarget: 'Copper', depthTargetKind: 'ore', depthTargetRemaining: 30});
     expect(game.toasts.messages).toHaveLength(1);
     expect(game.toasts.last).toContain('Depth 30 m');
+    expect(game.audio.played).toEqual(['milestone']);
 
     game.sync();
     game.descend(3);
     game.sync();
     expect(game.toasts.messages).toHaveLength(1);
+    expect(game.audio.played).toEqual(['milestone']);
   });
 
   it('does not re-announce a seam after stowing at home and diving again', () => {

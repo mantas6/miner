@@ -297,6 +297,7 @@ describe('moving cargo across', () => {
     expect(h.openUi.at(-1)).toBe(h.state.cargoContainers[0].inventory);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Stored 6 × Copper')).toBe(true);
+    expect(h.audio.played).toContain('stow');
   });
 
   it('stores a single unit on the row\'s 1 button, leaving the rest aboard', () => {
@@ -329,6 +330,7 @@ describe('moving cargo across', () => {
     expect(countOres(h.state.player.inventory)).toBe(6);
     expect(countOres(h.state.cargoContainers[0].inventory)).toBe(0);
     expect(h.toasts.saw('Took 6 × Copper aboard')).toBe(true);
+    expect(h.audio.played.at(-1)).toBe('take');
   });
 
   it('refuses what the cargo-bay limit will not take, and keeps the rest stored', () => {

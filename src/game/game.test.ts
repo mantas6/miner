@@ -18,6 +18,23 @@ import { buildShipSlots, uiStore } from '../ui/store';
 import { MinerApp } from '../ui/ui';
 import type { GameRuntime } from './game';
 import type * as IntroShowcaseModule from './intro-showcase';
+import type { AudioStub } from './test-support';
+
+// A recording stand-in for the WebAudio controller, so the cues the wiring plays
+// at the overlay choke points can be heard without a sound card.
+const recorded = vi.hoisted(() => ({audio: null as AudioStub | null}));
+vi.mock('../audio/audio', async () => {
+  const {createAudioStub} = await import('./test-support');
+  return {createAudio: () => (recorded.audio = createAudioStub())};
+});
+
+/** Cues played while `run` runs. */
+function cuesDuring(run: () => void): string[] {
+  const played = recorded.audio!.played;
+  const before = played.length;
+  run();
+  return played.slice(before);
+}
 
 // The real showcase, with its `draw` counted, so the test can see which renderer
 // the loop paints with in each phase.
@@ -192,12 +209,18 @@ describe('booting the game', () => {
   });
 
   it('opens and closes the info dialog through the bound controls', () => {
-    click('infoBtn');
+    expect(cuesDuring(() => click('infoBtn'))).toEqual(['open']);
     expect(dialogOpen('info-screen')).toBe(true);
     expect(text('cargoList')).toContain('Cargo bay empty');
 
-    press('Escape');
+    // One close cue, even though the dialog echoes the close back as a second request.
+    expect(cuesDuring(() => press('Escape'))).toEqual(['close']);
     expect(dialogOpen('info-screen')).toBe(false);
+  });
+
+  it('ticks once on a sound switch, with no second cue from the command', () => {
+    expect(cuesDuring(() => click('sfxBtn')).filter(cue => cue !== 'toggleSfx')).toEqual(['click']);
+    click('sfxBtn');
   });
 
   it('opens and closes the ship equipment screen from anywhere', () => {

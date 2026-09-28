@@ -51,18 +51,21 @@ export interface WreckDeps {
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
-  /** Show the salvage menu for these contents, or take it away with `null`. */
-  setOpenUi(contents: Inventory | null): void;
+  /**
+   * Show the salvage menu for these contents, or take it away with `null`.
+   * `quiet` skips the close cue when the haul that emptied the wreck plays its own.
+   */
+  setOpenUi(contents: Inventory | null, quiet?: boolean): void;
 }
 
 export function createWrecks(deps: WreckDeps): WreckSim {
   const {state, audio, toast, saveProgress} = deps;
   let open: Wreck | null = null;
 
-  function close(): void {
+  function close(quiet = false): void {
     if (!open) return;
     open = null;
-    deps.setOpenUi(null);
+    deps.setOpenUi(null, quiet);
   }
 
   /** Re-publish the open wreck's contents after a transfer changed them. */
@@ -103,7 +106,7 @@ export function createWrecks(deps: WreckDeps): WreckSim {
   function retireIfEmpty(wreck: Wreck): void {
     if (totalItems(wreck.inventory) > 0) return;
     state.wrecks = state.wrecks.filter(entry => entry !== wreck);
-    close();
+    close(true);
   }
 
   function take(kind: InventoryItemKind, single = false): void {
@@ -121,7 +124,7 @@ export function createWrecks(deps: WreckDeps): WreckSim {
     wreck.inventory = result.wreck;
     repaint();
     saveProgress();
-    audio.blip(620, .05, 'triangle', .035);
+    audio.take();
     toast(`Salvaged ${result.moved} × ${result.label}.`);
     retireIfEmpty(wreck);
   }
@@ -139,7 +142,7 @@ export function createWrecks(deps: WreckDeps): WreckSim {
     wreck.inventory = result.wreck;
     repaint();
     saveProgress();
-    audio.blip(660, .06, 'triangle', .04);
+    audio.take();
     toast(`Salvaged ${result.moved} item${result.moved === 1 ? '' : 's'} from the wreck.`);
     retireIfEmpty(wreck);
   }

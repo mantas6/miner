@@ -127,6 +127,7 @@ describe('setting a station down', () => {
     expect(h.devices.armed).toBeNull();
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Fuel Extractor set down')).toBe(true);
+    expect(h.audio.played).toEqual(['arm', 'place']);
   });
 
   it('ignores a press on the mine when nothing is armed', () => {

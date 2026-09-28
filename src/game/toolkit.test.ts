@@ -90,6 +90,7 @@ describe('lifting a station', () => {
     expect(countItem(h.state.player.inventory, TOOLKIT_ITEM.kind)).toBe(1);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Fuel Extractor packed')).toBe(true);
+    expect(h.audio.played).toEqual(['arm', 'lift']);
   });
 
   it('packs an empty portal into the bay — a portal is always liftable', () => {

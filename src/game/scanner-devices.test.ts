@@ -68,6 +68,7 @@ describe('arming a scanner', () => {
     expect(h.scanners.armed).toBe(false);
     expect(h.armedUi).toEqual([true, false]);
     expect(h.toasts.saw('cancelled')).toBe(true);
+    expect(h.audio.played).toEqual(['arm', 'disarm']);
   });
 
   it('refuses to arm with an empty bay, and says where to craft one', () => {
@@ -97,6 +98,8 @@ describe('arming a scanner', () => {
     h.scanners.toggleArmed();
     expect(h.scanners.disarm()).toBe(true);
     expect(h.scanners.armed).toBe(false);
+    // The quiet stand-down leaves the cue to its caller (Escape plays it in game.ts).
+    expect(h.audio.played).toEqual(['arm']);
   });
 });
 
@@ -111,6 +114,7 @@ describe('deploying a scanner', () => {
     expect(h.scanners.armed).toBe(false);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Scanner deployed')).toBe(true);
+    expect(h.audio.played).toEqual(['arm', 'place']);
   });
 
   it('ignores a press on the mine when nothing is armed', () => {
@@ -190,6 +194,7 @@ describe('a deployed scanner at work', () => {
 
     expect(footprint.every(index => h.state.exploredTiles.has(index))).toBe(true);
     expect(h.toasts.messages.filter(message => message.includes('went inert'))).toHaveLength(1);
+    expect(h.audio.played.filter(cue => cue === 'surveyDone')).toHaveLength(1);
 
     // And it keeps its place in the mine without ever reporting again.
     const reveals = h.revealTiles.mock.calls.length;

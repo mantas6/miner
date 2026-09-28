@@ -76,6 +76,7 @@ export function createDynamiteSticks(deps: DynamiteDeps): DynamiteSim {
   function toggleArmed(): void {
     if (armed) {
       setArmed(false);
+      audio.disarm();
       return toast('Dynamite placement cancelled.');
     }
     if (state.gameOver) return;
@@ -88,6 +89,7 @@ export function createDynamiteSticks(deps: DynamiteDeps): DynamiteSim {
       return toast(`Only ${DYNAMITE.maxPlaced} sticks can burn at once.`);
     }
     setArmed(true);
+    audio.arm();
     toast('Dynamite ready — press a mapped tile in the mine. Escape cancels.');
   }
 
@@ -115,7 +117,7 @@ export function createDynamiteSticks(deps: DynamiteDeps): DynamiteSim {
     state.placedDynamite.push(createPlacedDynamite(x, y));
     setArmed(false);
     saveProgress();
-    audio.blip(220, .12, 'sawtooth', .045, 60);
+    audio.place();
     toast(`Fuse lit — ${DYNAMITE.fuseSeconds} s. Get clear of the blast.`);
     return true;
   }

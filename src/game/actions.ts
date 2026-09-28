@@ -71,7 +71,7 @@ export function createActions(deps: GameActionsDeps): GameActions {
     p.hull += restored;
     p.inventory = removeItem(p.inventory, ITEM_CATALOG.repairKit.kind);
     saveProgress();
-    audio.blip(540, .08, 'triangle', .05, 40);
+    audio.repair();
     toast(`Repair kit used — hull +${restored}.`);
   }
 

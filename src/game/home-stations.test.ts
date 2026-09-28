@@ -161,6 +161,7 @@ describe('moving cargo through the station', () => {
     expect(h.state.player.inventory).toHaveLength(0);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state).inventory);
+    expect(h.audio.played).toEqual(['stow']);
   });
 
   it('stows a single stack of one kind, leaving the rest of the bay aboard', () => {
@@ -204,6 +205,7 @@ describe('moving cargo through the station', () => {
 
     expect(countItem(h.state.player.inventory, oreKind('Gold'))).toBe(3);
     expect(countItem(manufacturer(h.state).inventory, oreKind('Gold'))).toBe(0);
+    expect(h.audio.played).toEqual(['take']);
   });
 
   it('does nothing outside the station screen', () => {
@@ -229,6 +231,7 @@ describe('crafting at the station', () => {
 
     expect(countItem(manufacturer(h.state).inventory, 'repairKit')).toBe(1);
     expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(0);
+    expect(h.audio.played).toEqual(['craft']);
   });
 
   it('refuses a recipe the station cannot afford', () => {
@@ -240,6 +243,7 @@ describe('crafting at the station', () => {
 
     expect(countItem(manufacturer(h.state).inventory, 'repairKit')).toBe(0);
     expect(h.toasts.saw('Not enough materials')).toBe(true);
+    expect(h.audio.played).toEqual(['alarm']);
   });
 });
 
@@ -269,6 +273,7 @@ describe('the fuel extractor transfers', () => {
 
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
     expect(extractor(h.state).fuel).toBe(20);
+    expect(h.audio.played).toEqual(['refuel']);
   });
 
   it('refuses with an empty extractor (`No fuel stored`)', () => {
@@ -297,6 +302,7 @@ describe('parking on the extractor to refuel', () => {
     expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
     expect(extractor(h.state).fuel).toBe(20);
     expect(h.toasts.saw('Refueled +30 from the extractor')).toBe(true);
+    expect(h.audio.played).toEqual(['refuel']);
   });
 
   it('does not pour again on a second tick while still parked', () => {
@@ -342,6 +348,7 @@ describe('parking on the extractor to refuel', () => {
 
     expect(extractor(h.state).fuel).toBe(50);
     expect(h.toasts.saw('Refueled')).toBe(false);
+    expect(h.audio.played).not.toContain('refuel');
   });
 
   it('stays silent when the store is empty', () => {

@@ -83,6 +83,7 @@ describe('placing a decoration', () => {
     expect(countItem(h.state.player.inventory, STEEL)).toBe(1);
     expect(h.decor.armed).toBeNull();
     expect(h.toasts.saw('Decoration placed')).toBe(true);
+    expect(h.audio.played).toEqual(['arm', 'place']);
   });
 
   it('never writes onto a station tile', () => {

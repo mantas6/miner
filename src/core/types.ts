@@ -223,6 +223,48 @@ export interface AudioController {
   enemyWake(): void;
   alarm(): void;
   lowFuel(): void;
+  // Named cues, one per kind of player action; each is silent while effects are off.
+  /** Rising three-step gurgle as fuel pours into the tank. */
+  refuel(): void;
+  /** Metallic double clank of the Manufacturer. */
+  craft(): void;
+  /** Ore sold at a trading post: the cash register. */
+  sell(value?: number): void;
+  buy(): void;
+  /** Cargo into a station, extractor or container. */
+  stow(): void;
+  /** Cargo out of a station, container or wreck. */
+  take(): void;
+  /** A device, station or decoration set down in the mine. */
+  place(): void;
+  /** The Construction Toolkit packing something back up. */
+  lift(): void;
+  /** Whoosh of a portal or teleporter jump. */
+  portal(): void;
+  upgradeFit(): void;
+  upgradeRemove(): void;
+  repair(): void;
+  /** An overlay coming up. */
+  open(): void;
+  /** An overlay going away. */
+  close(): void;
+  /** A device armed for a press on the mine. */
+  arm(): void;
+  /** An armed device stood down. */
+  disarm(): void;
+  /** A ship deployed: run start and a portal redeploy. */
+  respawn(): void;
+  /** An enemy bounty paid out. */
+  bounty(): void;
+  /** A depth landmark cleared. */
+  milestone(): void;
+  /** A scanner device finished its survey. */
+  surveyDone(): void;
+  /** The softest tick, for switches and small confirmations. */
+  click(): void;
+  chestOpen(): void;
+  /** Low bell for a grave. */
+  grave(): void;
   /** True when the shipped audio played; false when the synth fallback took over. */
   startMusic(): Promise<boolean>;
   startSynthMusic(): void;

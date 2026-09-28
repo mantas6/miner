@@ -117,6 +117,7 @@ describe('planting a stick', () => {
     expect(h.dynamite.armed).toBe(false);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Fuse lit')).toBe(true);
+    expect(h.audio.played).toEqual(['arm', 'place']);
   });
 
   it('ignores a press on the mine when nothing is armed', () => {

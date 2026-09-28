@@ -26,26 +26,30 @@ interface Harness {
   saveProgress: ReturnType<typeof vi.fn>;
   revealAtPlayer: ReturnType<typeof vi.fn>;
   views: (PortalView | null)[];
+  /** The `quiet` flag of each `setPortalUi` call, in step with `views`. */
+  quiet: (boolean | undefined)[];
   lastView(): PortalView | null;
 }
 
 function harness(): Harness {
   const state = createInitialState();
   const views: (PortalView | null)[] = [];
+  const quiet: (boolean | undefined)[] = [];
   const context = {
     state,
     audio: createAudioStub(),
     toasts: createToastLog(),
     saveProgress: vi.fn(),
     revealAtPlayer: vi.fn(),
-    views
+    views,
+    quiet
   };
   const sim = createPortalsSim({
     state,
     audio: context.audio,
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
-    setPortalUi: view => views.push(view),
+    setPortalUi: (view, silent) => { views.push(view); quiet.push(silent); },
     revealAtPlayer: context.revealAtPlayer
   });
   return {...context, sim, lastView: () => views.at(-1) ?? null};
@@ -75,9 +79,11 @@ describe('travelling between portals', () => {
     expect(h.revealAtPlayer).toHaveBeenCalled();
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Travelled to "Deep"')).toBe(true);
-    // The overlay closes itself once the jump lands.
+    // The overlay closes itself once the jump lands — quietly, under the whoosh.
     expect(h.sim.mode).toBeNull();
     expect(h.lastView()).toBeNull();
+    expect(h.quiet.at(-1)).toBe(true);
+    expect(h.audio.played).toEqual(['portal']);
   });
 
   it('refuses a target that is not on the current list, leaving the ship put', () => {
@@ -147,6 +153,7 @@ describe('renaming the source portal', () => {
     expect(home.name).toBe('My Base');
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.lastView()!.source?.name).toBe('My Base');
+    expect(h.audio.played).toEqual(['click']);
   });
 
   it('keeps the current name for an all-whitespace entry', () => {
@@ -184,6 +191,8 @@ describe('the portal tick', () => {
 
     expect(h.sim.mode).toBeNull();
     expect(h.lastView()).toBeNull();
+    // A plain close keeps its cue; only a jump silences it.
+    expect(h.quiet.at(-1)).toBe(false);
   });
 
   it('leaves the respawn prompt open even after a death set gameOver', () => {
@@ -221,5 +230,7 @@ describe('the lost-ship respawn prompt', () => {
     // move it itself.
     expect(h.state.player).toMatchObject({x: 12, y: 60});
     expect(h.sim.mode).toBeNull();
+    expect(h.quiet.at(-1)).toBe(true);
+    expect(h.audio.played).toEqual(['respawn']);
   });
 });

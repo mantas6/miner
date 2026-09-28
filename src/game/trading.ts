@@ -158,7 +158,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
     state.player.inventory = removeItem(state.player.inventory, kind, count);
     deps.addCash(takings);
     repaint();
-    audio.cash(takings);
+    audio.sell(takings);
     toast(`Sold ${count} × ${stack.item.label} for $${takings}.`);
   }
 
@@ -189,7 +189,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
     state.tradeLedger[tradePostKey(post.x, post.y)] = next;
     repaint();
     saveProgress();
-    audio.blip(620, .06, 'triangle', .04, 40);
+    audio.buy();
     toast(`Bought ${offer.label} for $${offer.price}.`);
   }
 

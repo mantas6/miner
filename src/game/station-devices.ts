@@ -91,6 +91,7 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
   function toggleArmed(kind: StationKind): void {
     if (armed === kind) {
       setArmed(null);
+      audio.disarm();
       return toast(`${stationLabel(kind)} placement cancelled.`);
     }
     if (state.gameOver) return;
@@ -103,6 +104,7 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
       return toast(`Only ${STATION_DEVICE[kind].maxPlaced} ${stationLabel(kind)}s can stand in the mine at once.`);
     }
     setArmed(kind);
+    audio.arm();
     toast(`${stationLabel(kind)} ready — press a mapped tile in the mine. Escape cancels.`);
   }
 
@@ -141,7 +143,7 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
     state.stations.push(createStation(kind, x, y, state.stations));
     setArmed(null);
     saveProgress();
-    audio.blip(320, .1, 'square', .045, -40);
+    audio.place();
     toast(`${stationLabel(kind)} set down. Stand beside it and press it to use it.`);
     return true;
   }

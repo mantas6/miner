@@ -61,6 +61,7 @@ export function createDecor(deps: DecorDeps): DecorSim {
   function toggleArmed(kind: DecorKind): void {
     if (armed === kind) {
       setArmed(null);
+      audio.disarm();
       return toast('Decoration placement cancelled.');
     }
     if (state.gameOver) return;
@@ -69,6 +70,7 @@ export function createDecor(deps: DecorDeps): DecorSim {
       return toast('None of that decoration aboard. Craft one at the station.');
     }
     setArmed(kind);
+    audio.arm();
     toast('Decoration ready — press a mapped tile in the mine. Escape cancels.');
   }
 
@@ -94,7 +96,7 @@ export function createDecor(deps: DecorDeps): DecorSim {
     state.player.inventory = removeItem(state.player.inventory, kind);
     setArmed(null);
     saveProgress();
-    audio.blip(360, .08, 'triangle', .04, 30);
+    audio.place();
     toast(isPassableDecor(decor)
       ? 'Decoration hung. The Construction Toolkit lifts it back aboard.'
       : 'Decoration placed. Drill it out to recover it.');

@@ -107,6 +107,7 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
   function toggleArmed(): void {
     if (armed) {
       setArmed(false);
+      audio.disarm();
       return toast('Container placement cancelled.');
     }
     if (state.gameOver) return;
@@ -122,6 +123,7 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
     // next press on the mine.
     close();
     setArmed(true);
+    audio.arm();
     toast('Container ready — press a mapped tile in the mine. Escape cancels.');
   }
 
@@ -150,7 +152,7 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
     state.cargoContainers.push(createPlacedContainer(x, y));
     setArmed(false);
     saveProgress();
-    audio.blip(320, .1, 'square', .045, -40);
+    audio.place();
     toast(`Container set down. Stand beside it and press it to move up to ${CARGO_CONTAINER.capacity} items of cargo in or out.`);
     return true;
   }
@@ -207,7 +209,8 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
     container.inventory = result.container;
     repaint();
     saveProgress();
-    audio.blip(direction === 'store' ? 420 : 620, .05, 'triangle', .035);
+    if (direction === 'store') audio.stow();
+    else audio.take();
     toast(direction === 'store'
       ? `Stored ${result.moved} × ${result.label}.`
       : `Took ${result.moved} × ${result.label} aboard.`);

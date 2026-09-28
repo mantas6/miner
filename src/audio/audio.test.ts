@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAudio } from './audio';
 import { shouldAttemptAutoAudio } from './audio-permission';
 import { AUDIO_SETTINGS_KEY, loadAudioSettings, saveAudioSettings } from './audio-settings';
+import type { AudioController } from '../core/types';
 import { uiStore } from '../ui/store';
 
 describe('audio startup permission helpers', () => {
@@ -70,6 +71,8 @@ describe('audio preferences', () => {
 // of the oscillators it started, which is how these tests hear an effect.
 
 let oscillators = 0;
+/** Noise bursts started, the other half of what a cue can be built from. */
+let noiseBursts = 0;
 
 function fakeParam() {
   return {value: 0, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn()};
@@ -90,7 +93,7 @@ class FakeAudioContext {
   resume = vi.fn(async () => { this.state = 'running'; });
   createGain = () => fakeNode();
   createBiquadFilter = () => fakeNode();
-  createBufferSource = () => fakeNode();
+  createBufferSource = () => { noiseBursts++; return fakeNode(); };
   createBuffer = (_channels: number, length: number) => ({getChannelData: () => new Float32Array(length)});
   createOscillator = () => { oscillators++; return fakeNode(); };
 }
@@ -111,10 +114,17 @@ class FakeMusicElement {
 
 /** Effects that actually reached the graph since the last check. */
 function heardEffects(run: () => void): number {
-  const before = oscillators;
+  const before = oscillators + noiseBursts;
   run();
-  return oscillators - before;
+  return oscillators + noiseBursts - before;
 }
+
+/** The per-action cues the game plays in place of a generic blip. */
+const NAMED_CUES = [
+  'refuel', 'craft', 'sell', 'buy', 'stow', 'take', 'place', 'lift', 'portal',
+  'upgradeFit', 'upgradeRemove', 'repair', 'open', 'close', 'arm', 'disarm',
+  'respawn', 'bounty', 'milestone', 'surveyDone', 'click', 'chestOpen', 'grave'
+] as const satisfies readonly (keyof AudioController)[];
 
 describe('music and sound effects mute independently', () => {
   const pristineStore = {...uiStore.getState()};
@@ -125,6 +135,7 @@ describe('music and sound effects mute independently', () => {
     uiStore.setState(pristineStore);
     uiStore.getState().clearToasts();
     oscillators = 0;
+    noiseBursts = 0;
     toasts = [];
     FakeMusicElement.last = null;
     vi.stubGlobal('AudioContext', FakeAudioContext);
@@ -223,6 +234,27 @@ describe('music and sound effects mute independently', () => {
 
     await audio.toggleSfx();
     expect(audio.wantsSound).toBe(false);
+  });
+
+  it('sounds every named cue while effects are on, and none of them muted', async () => {
+    const audio = makeAudio();
+    await audio.enable();
+
+    for (const cue of NAMED_CUES) {
+      expect(heardEffects(() => audio[cue]()), cue).toBeGreaterThan(0);
+    }
+
+    await audio.toggleSfx();
+    for (const cue of NAMED_CUES) {
+      expect(heardEffects(() => audio[cue]()), cue).toBe(0);
+    }
+  });
+
+  it('keeps every named cue silent before the context is unlocked', () => {
+    const audio = makeAudio();
+    for (const cue of NAMED_CUES) {
+      expect(heardEffects(() => audio[cue]()), cue).toBe(0);
+    }
   });
 
   it('turns a switch on from the button even though the context is still locked', async () => {

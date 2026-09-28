@@ -56,6 +56,7 @@ describe('using a repair kit', () => {
     expect(h.state.player.hull).toBe(20 + Math.round(h.state.player.hullMax * HULL.repairKitFraction));
     expect(countItem(h.state.player.inventory, ITEM_CATALOG.repairKit.kind)).toBe(1);
     expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.audio.played).toEqual(['repair']);
   });
 
   it('never overfills the hull', () => {

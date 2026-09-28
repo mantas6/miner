@@ -75,6 +75,7 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
   function toggleArmed(): void {
     if (armed) {
       setArmed(false);
+      audio.disarm();
       return toast('Scanner deployment cancelled.');
     }
     if (state.gameOver) return;
@@ -87,6 +88,7 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
       return toast(`Only ${SCANNER_DEVICE.maxPlaced} scanners can be deployed at once.`);
     }
     setArmed(true);
+    audio.arm();
     toast('Scanner ready — press a mapped tile in the mine. Escape cancels.');
   }
 
@@ -115,7 +117,7 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
     state.scannerDevices.push(createScannerDevice(x, y));
     setArmed(false);
     saveProgress();
-    audio.blip(880, .09, 'triangle', .05, 140);
+    audio.place();
     toast(`Scanner deployed. It maps ${SCANNER_DEVICE.size}×${SCANNER_DEVICE.size} tiles, one every ${SCANNER_DEVICE.intervalSeconds} s.`);
     return true;
   }
@@ -144,7 +146,10 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
     for (let announced = 0; announced < finished; announced++) {
       toast('Scanner finished its survey and went inert.');
     }
-    if (finished > 0) saveProgress();
+    if (finished > 0) {
+      audio.surveyDone();
+      saveProgress();
+    }
   }
 
   return {

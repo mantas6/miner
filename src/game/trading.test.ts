@@ -106,7 +106,7 @@ describe('selling ore', () => {
 
     expect(h.state.cash).toBe(4 * IRON.value);
     expect(bayOre(h.state.player.inventory)).toBe(0);
-    expect(h.audio.played).toContain('cash');
+    expect(h.audio.played).toEqual(['sell']);
     expect(h.toasts.saw(`Sold 4 × Iron for $${4 * IRON.value}`)).toBe(true);
   });
 
@@ -147,6 +147,7 @@ describe('buying gear', () => {
     const remaining = remainingStock(h.state.tradeLedger, h.post.x, h.post.y, offersForPost(h.post.x, h.post.y));
     expect(remaining[0]).toBe(offer.stock - 1);
     expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.audio.played).toEqual(['buy']);
     expect(h.toasts.saw(`Bought ${offer.label}`)).toBe(true);
   });
 
