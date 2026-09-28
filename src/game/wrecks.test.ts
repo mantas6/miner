@@ -159,6 +159,19 @@ describe('salvaging a wreck', () => {
     expect(h.audio.played).toEqual(['take']);
   });
 
+  it.each([
+    ['a stack take', (h: Harness) => h.wrecks.take(oreItem(COPPER).kind)],
+    ['a loot-all', (h: Harness) => h.wrecks.lootAll()]
+  ])('retires the emptied wreck before %s saves, so the save never keeps it', (_name, haul) => {
+    const h = opened();
+    const wrecksAtSave: number[] = [];
+    h.saveProgress.mockImplementation(() => { wrecksAtSave.push(h.state.wrecks.length); });
+
+    haul(h);
+
+    expect(wrecksAtSave).toEqual([0]);
+  });
+
   it('leaves the overflow behind when the bay fills mid-loot, keeping the wreck', () => {
     const h = opened(0);
     h.state.player.cargoMax = 2;

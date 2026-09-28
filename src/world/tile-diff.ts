@@ -17,7 +17,7 @@ import { tileKey } from '../../shared/tile-key';
 import { tileEntriesSchema, type Tile, type TileEntry } from '../../shared/world-schema';
 import { ensureWorldRow } from './world';
 
-/** Accumulated tile mutations keyed by coordinate, in first-write order. */
+/** Accumulated tile mutations keyed by coordinate, least recently written first. */
 export type TileDiff = Map<string, TileEntry>;
 
 /** A diff holding the given entries (last-writer-wins). */
@@ -29,14 +29,18 @@ export function createTileDiff(entries: readonly TileEntry[] = []): TileDiff {
 
 /**
  * Record a tile mutation, replacing whatever the coordinate held before.
- * Re-writing a coordinate keeps its original position, so the entry order stays
- * oldest-first and a capped save drops the mine's earliest work first.
+ * Re-writing a coordinate moves it to the end — a `Map` keeps a key's original
+ * slot on `set`, so it is deleted first — which keeps the order least-recently-
+ * written first, and a capped save forgets the tunnels nobody has touched longest
+ * rather than the shaft the ship is still working.
  */
 export function recordTileDiff(diff: TileDiff, entry: TileEntry): void {
-  diff.set(tileKey(entry.x, entry.y), {x: entry.x, y: entry.y, tile: entry.tile});
+  const key = tileKey(entry.x, entry.y);
+  diff.delete(key);
+  diff.set(key, {x: entry.x, y: entry.y, tile: entry.tile});
 }
 
-/** The diff as schema-shaped entries, oldest mutation first. */
+/** The diff as schema-shaped entries, least recently written first. */
 export function tileDiffEntries(diff: TileDiff): TileEntry[] {
   return [...diff.values()];
 }
@@ -51,11 +55,28 @@ export function parseTileEntries(value: unknown): TileEntry[] {
 }
 
 /**
- * The newest `max` entries. A save that outgrows its budget forgets its oldest
- * tunnels instead of failing to write, so recent digging always survives.
+ * At most `max` entries: every protected one, then the newest of the rest. A save
+ * that outgrows its budget forgets its oldest tunnels instead of failing to write,
+ * so recent digging always survives — but never a tile `isProtected` names (the
+ * ground under a station, a crate or a wreck, a placed decoration), whose loss
+ * would bury something the player owns back in the regenerated rock. Protected
+ * entries count toward `max`; only when they alone exceed it does the result run
+ * over. Order is preserved.
  */
-export function capTileEntries(entries: readonly TileEntry[], max = MAX_SAVED_TILE_ENTRIES): TileEntry[] {
-  return entries.length <= max ? [...entries] : entries.slice(entries.length - max);
+export function capTileEntries(
+  entries: readonly TileEntry[],
+  max = MAX_SAVED_TILE_ENTRIES,
+  isProtected: (entry: TileEntry) => boolean = () => false
+): TileEntry[] {
+  if (entries.length <= max) return [...entries];
+  const protectedFlags = entries.map(isProtected);
+  let budget = Math.max(0, max - protectedFlags.filter(Boolean).length);
+  const keep: boolean[] = Array.from({length: entries.length}, () => false);
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (protectedFlags[i]) keep[i] = true;
+    else if (budget > 0) { keep[i] = true; budget--; }
+  }
+  return entries.filter((_, i) => keep[i]);
 }
 
 /**

@@ -30,6 +30,7 @@ import { TELEPORTER_ITEM, createTeleportEffect, movePlayerTo } from '../core/tel
 import type { AudioController, GameState } from '../core/types';
 import type { PortalView } from '../ui/store';
 import { viewport } from './viewport';
+import { canLandOn } from './world-grid';
 
 /** The overlay's mode, or `null` when no portal overlay is open. */
 export type PortalMode = 'travel' | 'teleporter' | 'respawn';
@@ -69,6 +70,8 @@ export interface PortalsDeps {
 
 export function createPortalsSim(deps: PortalsDeps): PortalsSim {
   const {state, audio, toast, saveProgress} = deps;
+  /** A portal whose tile has gone solid is never offered: the ship would land in rock. */
+  const canLand = canLandOn(state);
   let mode: PortalMode | null = null;
   /** The portal the travel list hangs off, so a tick can spot it being lifted. */
   let source: PortalStation | null = null;
@@ -99,7 +102,7 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     mode = 'travel';
     source = portal;
     onRespawn = null;
-    destinations = portalDestinations(state.stations, {x: portal.x, y: portal.y});
+    destinations = portalDestinations(state.stations, {x: portal.x, y: portal.y}, {canLand});
     publish();
     return true;
   }
@@ -112,7 +115,7 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     destinations = portalDestinations(
       state.stations,
       {x: state.player.x, y: state.player.y},
-      {excludeReachable: true}
+      {excludeReachable: true, canLand}
     );
     publish();
     return true;
@@ -125,7 +128,7 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     // Distance is measured from the death tile the ship sits on when the prompt
     // opens (restartGame drops the wreck here before rebuilding the world).
     const from = {x: state.player.x, y: state.player.y};
-    destinations = respawnPortals(state.stations)
+    destinations = respawnPortals(state.stations, canLand)
       .map(portal => ({
         x: portal.x,
         y: portal.y,
@@ -185,6 +188,15 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
       pick?.({x: target.x, y: target.y});
       audio.respawn();
       return true;
+    }
+    // The list was drawn when it opened; the mine may have moved since. A tile
+    // that has gone solid is refused before any charge is spent.
+    if (!canLand(target.x, target.y)) {
+      audio.alarm();
+      toast(`"${target.name}" is buried in rock. Dig it out before travelling there.`);
+      destinations = destinations.filter(destination => destination !== target);
+      publish();
+      return false;
     }
     if (mode === 'teleporter') {
       state.player.inventory = removeItem(state.player.inventory, TELEPORTER_ITEM.kind);

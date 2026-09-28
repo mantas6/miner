@@ -17,6 +17,7 @@ import {
   createInputStub,
   createPortalsSimStub,
   createToastLog,
+  dugPortal,
   type AudioStub,
   type EnemySimStub,
   type PortalsSimStub
@@ -31,6 +32,7 @@ interface Harness {
   saveProgress: ReturnType<typeof vi.fn>;
   invalidateFog: ReturnType<typeof vi.fn>;
   invalidateTerrain: ReturnType<typeof vi.fn>;
+  revealAtPlayer: ReturnType<typeof vi.fn>;
   portals: PortalsSimStub;
   run: GameRun;
 }
@@ -66,6 +68,7 @@ function harness(): Harness {
     saveProgress: vi.fn(),
     invalidateFog: vi.fn(),
     invalidateTerrain: vi.fn(),
+    revealAtPlayer: vi.fn(),
     portals: createPortalsSimStub()
   };
   const run = createRun({
@@ -76,7 +79,7 @@ function harness(): Harness {
     portals: () => context.portals,
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
-    revealAtPlayer: vi.fn(),
+    revealAtPlayer: context.revealAtPlayer,
     spawnExplosion: vi.fn(),
     invalidateTerrain: context.invalidateTerrain,
     invalidateFog: context.invalidateFog
@@ -221,9 +224,8 @@ describe('redeploying at a portal after a restart', () => {
 
   it('redeploys at the sole portal without prompting', () => {
     const h = harness();
-    h.state.stations = [createPortal(30, 80, 'Home')];
     // The portal sits on a dug-out tile, carried back out by the diff.
-    h.state.soloTileDiff = createTileDiff([{x: 30, y: 80, tile: {type: 'air'}}]);
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Home')];
     h.run.gameOver();
 
     h.run.restartGame();
@@ -240,8 +242,7 @@ describe('redeploying at a portal after a restart', () => {
 
   it('raises the no-close prompt with two or more portals, and the pick rebuilds', () => {
     const h = harness();
-    h.state.stations = [createPortal(30, 80, 'Home'), createPortal(50, 100, 'Deep')];
-    h.state.soloTileDiff = createTileDiff([{x: 50, y: 100, tile: {type: 'air'}}]);
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
     h.run.gameOver();
 
     h.run.restartGame();
@@ -428,9 +429,64 @@ describe('a shared-world reset', () => {
     expect(countOres(h.state.player.inventory)).toBe(2);
     expect(h.state.enemyIdCounter).toBe(1);
     expect(h.state.soloTileDiff.size).toBe(0);
-    expect(h.enemies.clearExposure).toHaveBeenCalled();
+    // Reachable air is re-seeded from the ship's new home-base tile, and the fog
+    // around it uncovered, as on a fresh run's first frame.
+    expect(h.enemies.resetExposure).toHaveBeenCalled();
+    expect(h.revealAtPlayer).toHaveBeenCalled();
     expect(h.input.clearKeys).toHaveBeenCalled();
     expect(h.invalidateTerrain).toHaveBeenCalled();
     expect(h.invalidateFog).toHaveBeenCalled();
+  });
+
+  it('drops the wrecks and keeps a tunnel portal reachable by carving its tile', () => {
+    const h = harness();
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
+    h.state.wrecks = [{x: 12, y: 60, inventory: addOre(createInventory(), ORES[0], 3)!}];
+
+    h.run.clearWorldRuntime();
+
+    expect(h.state.wrecks).toEqual([]);
+    expect(h.state.stations).toHaveLength(2);
+    for (const {x, y} of h.state.stations) expect(h.state.world[y][x]).toEqual({type: 'air'});
+  });
+});
+
+describe('a portal whose tile has gone solid', () => {
+  it('is never a respawn candidate, so a lone buried portal redeploys at home', () => {
+    const h = harness();
+    // Placed on a tunnel whose dug-out tile the save lost: rock again.
+    h.state.stations = [createPortal(50, 100, 'Buried')];
+    expect(makeTile(50, 100).type).not.toBe('air');
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.portals.openRespawn).not.toHaveBeenCalled();
+    expect(h.state.player).toMatchObject({x: Math.floor(WORLD_W / 2), y: START_Y});
+  });
+
+  it('is left out of the respawn prompt, leaving one portal to redeploy at unprompted', () => {
+    const h = harness();
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Open'), createPortal(50, 100, 'Buried')];
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.portals.openRespawn).not.toHaveBeenCalled();
+    expect(h.state.player).toMatchObject({x: 30, y: 80});
+  });
+
+  it('sends a pick that went solid before the rebuild home instead', () => {
+    const h = harness();
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
+    h.run.gameOver();
+    h.run.restartGame();
+    const onPick = vi.mocked(h.portals.openRespawn).mock.calls[0][0] as (at: {x: number; y: number}) => void;
+    // The diff forgets the hole between the prompt and the pick.
+    h.state.soloTileDiff = createTileDiff();
+
+    onPick({x: 50, y: 100});
+
+    expect(h.state.player).toMatchObject({x: Math.floor(WORLD_W / 2), y: START_Y});
   });
 });

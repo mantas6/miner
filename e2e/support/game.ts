@@ -6,6 +6,53 @@
 // definition.
 
 import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test';
+import { HOME_ROW, HOME_X, WORLD_W } from '../../shared/constants';
+import { SAVE_KEY, SAVE_VERSION } from '../../src/persistence';
+import { TRADING_POST_MIN_ROW, tradingPostAt } from '../../src/world/world';
+
+export { SAVE_KEY, SAVE_VERSION };
+
+/** The fields of a save a spec seeds; `version` is always filled in as this build's. */
+export type SaveSeed = Record<string, unknown>;
+
+/**
+ * An init script (as source text) that writes `partial` into `localStorage` as a
+ * save from this build, before any app code runs. Text rather than a function so
+ * values computed here in Node — the key, the version, coordinates found by the
+ * world generator — travel into the page baked in; a function init script is
+ * serialized without its closure. Init scripts rerun on every navigation, so
+ * `once` guards a seed that must not clobber a save the game wrote itself (an
+ * import reloads into what it just stored).
+ */
+export function seedSaveScript(partial: SaveSeed = {}, options: {once?: boolean} = {}): string {
+  const write = `localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(JSON.stringify({version: SAVE_VERSION, ...partial}))});`;
+  if (!options.once) return write;
+  return `if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); ${write} }`;
+}
+
+/** Seed a save for `page` before it loads; call before `startSoloRun`. */
+export async function seedSave(page: Page, partial: SaveSeed = {}, options: {once?: boolean} = {}): Promise<void> {
+  await page.addInitScript(seedSaveScript(partial, options));
+}
+
+/** A plain 2-hp dirt tile directly under the spawn, replacing the cavern's stone floor. */
+export const DIRT_UNDER_HOME = {x: HOME_X, y: HOME_ROW + 1, tile: {type: 'dirt', hp: 2, maxHp: 2}} as const;
+
+/**
+ * The first trading post the generator places, scanning row by row from the
+ * shallowest row a post may stand on. Worldgen is deterministic, so this is the
+ * same post on every run — found rather than hard-coded, so a worldgen change
+ * moves the fixture with it.
+ */
+export function firstTradingPost(): {x: number; y: number} {
+  for (let y = TRADING_POST_MIN_ROW; y < TRADING_POST_MIN_ROW + 2000; y++) {
+    for (let x = 0; x < WORLD_W; x++) {
+      const post = tradingPostAt(x, y);
+      if (post) return post;
+    }
+  }
+  throw new Error('no trading post generated in the first 2000 rows');
+}
 
 /**
  * The page has no favicon, so Chromium requests `/favicon.ico` by itself and logs
@@ -62,16 +109,9 @@ export async function openIntro(page: Page): Promise<void> {
  * spawn with a plain 2-hp dirt tile, so a test can dig straight down without first
  * drilling through the ~5 s stone slab the generator now lays there. Call before
  * `startSoloRun`, since the save has to be in place before the page loads.
- *
- * The coordinate is the tile below the spawn: `HOME_X` (45), `HOME_ROW + 1` (21).
  */
 export async function seedDirtUnderHome(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    localStorage.setItem('moleload-progress-v1', JSON.stringify({
-      version: 19,
-      tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}]
-    }));
-  });
+  await seedSave(page, {tiles: [DIRT_UNDER_HOME]});
 }
 
 /**

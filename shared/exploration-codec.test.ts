@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WORLD_W } from './constants';
+import { MAX_EXPLORED_TILES, WORLD_W } from './constants';
 import { encodeExploration, explorationIndex, isTileExplored, mergeExploration, revealFootprint } from './exploration-codec';
 
 describe('persistent fog exploration', () => {
@@ -56,5 +56,25 @@ describe('persistent fog exploration', () => {
 
     expect(mergeExploration(restored, encoded)).toEqual([deep, deep + 1]);
     expect(restored).toEqual(new Set([deep, deep + 1]));
+  });
+
+  it.each([
+    ['a malformed range', '10-12,oops'],
+    ['a reversed range', '12-10'],
+    ['an index past the world', `0,${Number.MAX_SAFE_INTEGER}`],
+    ['a payload over the size cap', `0-${MAX_EXPLORED_TILES}`]
+  ])('merges nothing from %s, not even its well-formed prefix', (_name, encoded) => {
+    const explored = new Set<number>();
+    expect(mergeExploration(explored, encoded)).toEqual([]);
+    expect(explored.size).toBe(0);
+  });
+
+  it('never grows the set past the exploration cap across merges', () => {
+    const explored = new Set<number>();
+    mergeExploration(explored, `0-${MAX_EXPLORED_TILES - 3}`);
+    const added = mergeExploration(explored, `${MAX_EXPLORED_TILES}-${MAX_EXPLORED_TILES + 9}`);
+
+    expect(added).toHaveLength(2);
+    expect(explored.size).toBe(MAX_EXPLORED_TILES);
   });
 });

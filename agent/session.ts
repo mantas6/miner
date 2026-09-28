@@ -67,12 +67,13 @@ export interface OpenGameSessionOptions {
   freshSave?: boolean;
   /**
    * A script run in the page before any app code — after the `freshSave` wipe when
-   * both are given. It runs in the browser, so it must be self-contained (no
-   * closure over Node values); tests use it to seed a `localStorage` save. Like
-   * any init script it reruns on every navigation, reloads included, so a seed
-   * that must not clobber an imported save has to guard itself.
+   * both are given: a function, or its source text. It runs in the browser, so a
+   * function must be self-contained (no closure over Node values); text can carry
+   * values computed in Node baked in. Tests use it to seed a `localStorage` save.
+   * Like any init script it reruns on every navigation, reloads included, so a
+   * seed that must not clobber an imported save has to guard itself.
    */
-  initScript?: () => void;
+  initScript?: (() => void) | string;
 }
 
 /**

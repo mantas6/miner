@@ -23,6 +23,7 @@ import { formatExpeditionStats, type ExpeditionStatRow } from '../core/stats';
 import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { manufacturerStock } from '../core/stations';
+import { sellPrice } from '../core/trading';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
@@ -648,7 +649,8 @@ export function buildCargoRows(inventory: Inventory): CargoRow[] {
     name: stack.item.label,
     color: stack.item.color,
     count: stack.count,
-    value: stack.item.value * stack.count
+    // Priced like the trading post prices it, from the ore table.
+    value: sellPrice(stack.kind) * stack.count
   }));
 }
 

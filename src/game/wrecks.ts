@@ -123,10 +123,11 @@ export function createWrecks(deps: WreckDeps): WreckSim {
     state.player.inventory = result.ship;
     wreck.inventory = result.loot;
     repaint();
+    // Retire an emptied wreck before the save, or the file would keep its corpse.
+    retireIfEmpty(wreck);
     saveProgress();
     audio.take();
     toast(`Salvaged ${result.moved} × ${result.label}.`);
-    retireIfEmpty(wreck);
   }
 
   function lootEverything(): void {
@@ -141,10 +142,10 @@ export function createWrecks(deps: WreckDeps): WreckSim {
     state.player.inventory = result.ship;
     wreck.inventory = result.loot;
     repaint();
+    retireIfEmpty(wreck);
     saveProgress();
     audio.take();
     toast(`Salvaged ${result.moved} item${result.moved === 1 ? '' : 's'} from the wreck.`);
-    retireIfEmpty(wreck);
   }
 
   function tick(): void {

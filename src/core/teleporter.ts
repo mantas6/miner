@@ -10,7 +10,7 @@
 
 import { countItem } from './inventory';
 import { ITEM_CATALOG } from './items';
-import { portalDestinations } from './portal';
+import { portalDestinations, type LandingCheck } from './portal';
 import type { PlacedStation } from './stations';
 import type { Player, TeleportEffect } from './types';
 
@@ -28,14 +28,16 @@ export function teleportersCarried(player: Pick<Player, 'inventory'>): number {
 /**
  * Whether a carried teleporter could actually be spent right now: a charge is
  * aboard, and there is at least one portal to travel to that is not already within
- * arm's reach (a portal at the ship's side needs no teleporter).
+ * arm's reach (a portal at the ship's side needs no teleporter) and — with
+ * `canLand` given — whose tile the ship could land on.
  */
 export function canUsePortableTeleporter(
   player: Pick<Player, 'inventory' | 'x' | 'y'>,
-  stations: readonly PlacedStation[]
+  stations: readonly PlacedStation[],
+  canLand?: LandingCheck
 ): boolean {
   if (teleportersCarried(player) <= 0) return false;
-  return portalDestinations(stations, {x: player.x, y: player.y}, {excludeReachable: true}).length > 0;
+  return portalDestinations(stations, {x: player.x, y: player.y}, {excludeReachable: true, canLand}).length > 0;
 }
 
 export function createTeleportEffect(
@@ -64,7 +66,8 @@ export function advanceTeleportEffect(effect: TeleportEffect | null): TeleportEf
 /**
  * Drop a ship onto a tile as an instant jump: snap both the logical and the render
  * position, and reset the bob and drill animation so it arrives at rest rather
- * than mid-stride. Used by portal travel and respawn.
+ * than mid-stride. Used by portal travel and respawn. It does not look at the
+ * tile: the caller only offers destinations that pass a `LandingCheck`.
  */
 export function movePlayerTo(player: Player, x: number, y: number): void {
   Object.assign(player, {

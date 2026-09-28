@@ -15,7 +15,7 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { AUDIO_SETTINGS_KEY } from './audio/audio-settings';
 import { ZOOM_SETTINGS_KEY } from './game/zoom-settings';
 import { SAVE_KEY } from './persistence';
-import { GAME_RESET_CONFIRMATION, PERSISTED_STORAGE_KEYS, clearPersistedGameData } from './persistence-reset';
+import { GAME_RESET_CONFIRMATION, LEGACY_STORAGE_KEYS, PERSISTED_STORAGE_KEYS, clearPersistedGameData } from './persistence-reset';
 import { uiCommands } from './ui/commands';
 import { MinerApp } from './ui/ui';
 import type { GameRuntime } from './game/game';
@@ -37,8 +37,11 @@ describe('the stored keys a full reset owns', () => {
    */
   it('names the save file and every preference key, once each', () => {
     expect([...PERSISTED_STORAGE_KEYS]).toEqual([
-      SAVE_KEY, AUDIO_SETTINGS_KEY, ZOOM_SETTINGS_KEY
+      SAVE_KEY, AUDIO_SETTINGS_KEY, ZOOM_SETTINGS_KEY,
+      // The pre-rename keys a returning player's storage may still hold.
+      'moleload-progress-v1', 'moleload:audio-settings:v1', 'moleload:zoom-settings:v1'
     ]);
+    expect((LEGACY_STORAGE_KEYS as readonly string[]).includes(SAVE_KEY)).toBe(false);
     expect(new Set(PERSISTED_STORAGE_KEYS).size).toBe(PERSISTED_STORAGE_KEYS.length);
     expect(GAME_RESET_CONFIRMATION).toContain('permanently deletes');
   });
@@ -64,7 +67,7 @@ describe('the stored keys a full reset owns', () => {
     });
 
     expect(() => clearPersistedGameData()).not.toThrow();
-    expect(removed).toEqual([AUDIO_SETTINGS_KEY, ZOOM_SETTINGS_KEY]);
+    expect(removed).toEqual([AUDIO_SETTINGS_KEY, ZOOM_SETTINGS_KEY, ...LEGACY_STORAGE_KEYS]);
   });
 });
 

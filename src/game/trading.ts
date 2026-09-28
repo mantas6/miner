@@ -63,7 +63,7 @@ export interface TradingDeps {
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
-  /** Move the wallet (positive to earn, negative to spend); banks the change. */
+  /** Move the wallet (positive to earn, negative to spend); the caller saves. */
   addCash(amount: number): void;
   /** Show the buy offers, or take the screen away with `null`. */
   setOpenUi(offers: TradeOfferView[] | null): void;
@@ -158,6 +158,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
     state.player.inventory = removeItem(state.player.inventory, kind, count);
     deps.addCash(takings);
     repaint();
+    saveProgress();
     audio.sell(takings);
     toast(`Sold ${count} × ${stack.item.label} for $${takings}.`);
   }

@@ -15,11 +15,24 @@ import { AUDIO_SETTINGS_KEY } from './audio/audio-settings';
 import { ZOOM_SETTINGS_KEY } from './game/zoom-settings';
 import { SAVE_KEY } from './persistence';
 
-/** Every `localStorage` key the game writes. */
+/**
+ * The keys earlier builds wrote, before the game took its own name. Nothing reads
+ * or writes them any more — a save under the old key is simply never found, which
+ * is the same fresh start the version gate gives — but a returning player's
+ * storage may still hold them, and "Reset game" promises to leave nothing behind.
+ */
+export const LEGACY_STORAGE_KEYS = [
+  'moleload-progress-v1',
+  'moleload:audio-settings:v1',
+  'moleload:zoom-settings:v1'
+] as const;
+
+/** Every `localStorage` key the game writes, or ever wrote. */
 export const PERSISTED_STORAGE_KEYS = [
   SAVE_KEY,
   AUDIO_SETTINGS_KEY,
-  ZOOM_SETTINGS_KEY
+  ZOOM_SETTINGS_KEY,
+  ...LEGACY_STORAGE_KEYS
 ] as const;
 
 export const GAME_RESET_CONFIRMATION = 'Reset the game? This permanently deletes your saved run — cash, upgrades, equipment, stats, explored fog and dug terrain — along with your audio and zoom settings, then reloads the page.';

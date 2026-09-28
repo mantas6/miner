@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { SAVE_KEY, SAVE_VERSION, load, numeric, parseImportedSave, save, serializeProgress } from './persistence';
+import { SAVE_KEY, SAVE_VERSION, load, numeric, parseImportedSave, resetSavedTileBudget, save, savedTileBudget, serializeProgress } from './persistence';
 import { HOME_SPAWN_X, createInitialState } from './core/state';
 import { CARGO_CONTAINER, CARGO_CONTAINER_ITEM, createPlacedContainer } from './core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM, createPlacedDynamite } from './core/dynamite';
@@ -7,7 +7,7 @@ import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKin
 import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { WRECK, createWreck } from './core/wreck';
-import { STATION_DEVICE, type PortalStation } from './core/stations';
+import { STATION_DEVICE, createPortal, type PortalStation } from './core/stations';
 import { EXTRACTOR } from './core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
 import { TELEPORTER_ITEM } from './core/teleporter';
@@ -17,9 +17,13 @@ import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
 import { createTileDiff, tileDiffEntries } from './world/tile-diff';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  // A quota test halves the session's tile budget; the next test starts afresh.
+  resetSavedTileBudget();
+});
 
-/** One ore with a full price/colour record, for the stacks a crate has to keep. */
+/** One ore with its full record, matching the ore table's Gold. */
 const GOLD = {name: 'Gold', color: '#ffd65c', value: 70, min: 152, max: 602, chance: 0.04};
 
 /** Read back the JSON the last `save` wrote. */
@@ -53,8 +57,12 @@ describe('numeric clamp', () => {
 });
 
 describe('version gate', () => {
-  it('discards a save older than the current version, keeping pristine defaults', () => {
-    stubStorage({version: SAVE_VERSION - 1, cash: 9000, x: 12, y: 640, bay: [{kind: 'dynamite', count: 5}]});
+  it.each([
+    ['older', SAVE_VERSION - 1],
+    ['newer', SAVE_VERSION + 1],
+    ['string-typed', String(SAVE_VERSION)]
+  ])('discards a save with an %s version, keeping pristine defaults', (_name, version) => {
+    stubStorage({version, cash: 9000, x: 12, y: 640, bay: [{kind: 'dynamite', count: 5}]});
     const state = createInitialState();
     const fresh = createInitialState();
 
@@ -63,6 +71,39 @@ describe('version gate', () => {
     expect(state.cash).toBe(fresh.cash);
     expect(state.player.inventory).toHaveLength(0);
     expect(state.player).toMatchObject({x: fresh.player.x, y: fresh.player.y});
+  });
+
+  it.each([
+    ['null', null],
+    ['an array', [SAVE_VERSION]],
+    ['a number', SAVE_VERSION]
+  ])('ignores a save file that is %s rather than an object', (_name, value) => {
+    stubStorage(value);
+    const state = createInitialState();
+
+    expect(() => load(state)).not.toThrow();
+    expect(state.cash).toBe(createInitialState().cash);
+  });
+
+  it('leaves the state untouched when parsing fails partway through', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // The cash and bay parse fine; the station list then throws on its first entry.
+    const hostile = {get kind(): string { throw new Error('boom'); }};
+    const state = createInitialState();
+    const before = structuredClone({cash: state.cash, player: state.player, stations: state.stations});
+    vi.stubGlobal('localStorage', {
+      getItem: () => '{}',
+      setItem: () => {}
+    });
+    vi.spyOn(JSON, 'parse').mockReturnValueOnce({
+      version: SAVE_VERSION, cash: 9000, bay: [{kind: 'dynamite', count: 5}], stations: [hostile]
+    });
+
+    load(state);
+
+    expect({cash: state.cash, player: state.player, stations: state.stations}).toEqual(before);
+    expect(warn).toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 
   it('discards a save with no version at all', () => {
@@ -533,17 +574,16 @@ describe('cargo container persistence', () => {
 
     save(state);
 
+    // Just kind and count: the price and label come from the ore table on load.
     expect(readSave(stored)).toMatchObject({
       version: SAVE_VERSION,
       bay: [{kind: 'container', count: 2}],
       cargoContainers: [
-        {x: 12, y: 640, items: [
-          {kind: 'ore:Gold', count: 4, label: 'Gold', color: GOLD.color, value: GOLD.value},
-          {kind: 'dynamite', count: 3, label: 'Dynamite', color: DYNAMITE_ITEM.color, value: 0}
-        ]},
+        {x: 12, y: 640, items: [{kind: 'ore:Gold', count: 4}, {kind: 'dynamite', count: 3}]},
         {x: 44, y: 700, items: []}
       ]
     });
+    expect((readSave(stored).cargoContainers as {items: object[]}[])[0].items[0]).toEqual({kind: 'ore:Gold', count: 4});
 
     const restored = createInitialState();
     load(restored);
@@ -598,6 +638,32 @@ describe('cargo container persistence', () => {
 
     expect(state.cargoContainers).toHaveLength(CARGO_CONTAINER.maxPlaced);
   });
+
+  it('clamps a crate stuffed past its capacity', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      cargoContainers: [{x: 12, y: 640, items: [{kind: 'ore:Gold', count: CARGO_CONTAINER.capacity - 5}, {kind: 'dynamite', count: 40}]}]
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    const crate = state.cargoContainers[0].inventory;
+    expect(countOres(crate)).toBe(CARGO_CONTAINER.capacity - 5);
+    expect(countItem(crate, 'dynamite')).toBe(5);
+  });
+
+  it('prices restored ore from the ore table, ignoring a price the file claims', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      cargoContainers: [{x: 12, y: 640, items: [{kind: 'ore:Gold', count: 2, value: 99999, label: 'Fool', color: '#000'}]}]
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.cargoContainers[0].inventory[0].item).toEqual(oreItem(ORES.find(ore => ore.name === 'Gold')!));
+  });
 });
 
 describe('wreck persistence', () => {
@@ -606,24 +672,37 @@ describe('wreck persistence', () => {
     const state = createInitialState();
     const wreck = createWreck(20, 640);
     wreck.inventory = addItem(addItem(wreck.inventory, oreItem(GOLD), 4)!, ITEM_CATALOG['upgrade:tank:1'], 1)!;
+    // An emptied wreck is retired the moment it is emptied; one left over is not saved.
     state.wrecks = [wreck, createWreck(44, 700)];
 
     save(state);
 
-    expect(readSave(stored)).toMatchObject({
-      version: SAVE_VERSION,
-      wrecks: [
-        {x: 20, y: 640, items: [
-          {kind: 'ore:Gold', count: 4, label: 'Gold', color: GOLD.color, value: GOLD.value},
-          {kind: 'upgrade:tank:1', count: 1, label: 'Fuel Tank Mk I', color: ITEM_CATALOG['upgrade:tank:1'].color, value: 0}
-        ]},
-        {x: 44, y: 700, items: []}
-      ]
-    });
+    expect(readSave(stored)).toMatchObject({version: SAVE_VERSION});
+    expect(readSave(stored).wrecks).toEqual([
+      {x: 20, y: 640, items: [{kind: 'ore:Gold', count: 4}, {kind: 'upgrade:tank:1', count: 1}]}
+    ]);
 
     const restored = createInitialState();
     load(restored);
-    expect(restored.wrecks).toEqual(state.wrecks);
+    expect(restored.wrecks).toEqual([wreck]);
+  });
+
+  it('drops an empty wreck a save still records', () => {
+    stubStorage({version: SAVE_VERSION, wrecks: [{x: 20, y: 640, items: []}, {x: 21, y: 640}, {x: 22, y: 640, items: [{kind: 'bogus', count: 3}]}]});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.wrecks).toEqual([]);
+  });
+
+  it('clamps a wreck stuffed past anything a ship could have carried', () => {
+    stubStorage({version: SAVE_VERSION, wrecks: [{x: 20, y: 640, items: [{kind: 'ore:Gold', count: 9999}]}]});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(countOres(state.wrecks[0].inventory)).toBe(WRECK.capacity);
   });
 
   it('keeps a wreck through a reload that empties the bay, ore intact', () => {
@@ -660,7 +739,7 @@ describe('wreck persistence', () => {
   it('clamps a hand-edited save to the wreck cap', () => {
     stubStorage({
       version: SAVE_VERSION,
-      wrecks: Array.from({length: WRECK.maxPlaced + 4}, (_, index) => ({x: index, y: 400}))
+      wrecks: Array.from({length: WRECK.maxPlaced + 4}, (_, index) => ({x: index, y: 400, items: [{kind: 'ore:Iron', count: 1}]}))
     });
     const state = createInitialState();
 
@@ -710,9 +789,10 @@ describe('trading ledger persistence', () => {
         items: [
           {kind: '', count: 4},
           {kind: 'dynamite', count: 0},
-          {kind: 'ore:Gold', count: '2', label: 'Gold', color: GOLD.color, value: GOLD.value},
+          {kind: 'ore:Gold', count: '2'},
+          // An ore this build's table does not know is junk, not a grey stack.
+          {kind: 'ore:Unobtainium', count: 3},
           'not a stack',
-          // No label or colour: it still comes back, named after its own kind.
           {kind: 'scanner', count: 1}
         ]
       }]
@@ -890,16 +970,61 @@ describe('solo terrain persistence', () => {
     expect(state.soloTileDiff.size).toBe(0);
   });
 
-  it('drops the terrain rather than the wallet when storage is full', () => {
+  /** Storage that refuses any save carrying more than `limit` tile entries. */
+  function stubQuota(limit: number): Map<string, string> {
     const stored = new Map<string, string>();
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => stored.get(key) ?? null,
       setItem: (key: string, value: string) => {
-        if (value.includes('"tiles":[{')) throw new Error('QuotaExceededError');
+        if ((JSON.parse(value).tiles as unknown[]).length > limit) throw new Error('QuotaExceededError');
         stored.set(key, value);
       }
     });
+    return stored;
+  }
+  const column = (count: number, from = 0): TileEntry[] =>
+    Array.from({length: count}, (_, index) => ({x: 3, y: 100 + from + index, tile: {type: 'air'}}));
+
+  it('halves the tile budget until the save fits, keeping the newest tunnels and the wallet', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const stored = stubQuota(MAX_SAVED_TILE_ENTRIES / 4);
+    const state = createInitialState();
+    state.cash = 4200;
+    const entries = column(MAX_SAVED_TILE_ENTRIES);
+    state.soloTileDiff = createTileDiff(entries);
+
+    save(state);
+
+    const saved = readSave(stored);
+    expect(saved.cash).toBe(4200);
+    expect(saved.tiles).toEqual(entries.slice(-MAX_SAVED_TILE_ENTRIES / 4));
+    expect(savedTileBudget()).toBe(MAX_SAVED_TILE_ENTRIES / 4);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('remembers the halved budget, so the next save does not retry the full diff', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    stubQuota(MAX_SAVED_TILE_ENTRIES / 2);
+    const state = createInitialState();
+    state.soloTileDiff = createTileDiff(column(MAX_SAVED_TILE_ENTRIES));
+    save(state);
+    expect(savedTileBudget()).toBe(MAX_SAVED_TILE_ENTRIES / 2);
+
+    const attempts: number[] = [];
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: (_key: string, value: string) => { attempts.push((JSON.parse(value).tiles as unknown[]).length); }
+    });
+    save(state);
+
+    expect(attempts).toEqual([MAX_SAVED_TILE_ENTRIES / 2]);
+    vi.restoreAllMocks();
+  });
+
+  it('drops the terrain outright rather than the wallet when nothing else fits', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const stored = stubQuota(0);
     const state = createInitialState();
     state.cash = 4200;
     state.soloTileDiff = createTileDiff([dug]);
@@ -907,8 +1032,29 @@ describe('solo terrain persistence', () => {
     save(state);
 
     expect(readSave(stored)).toMatchObject({ cash: 4200, tiles: [] });
-    expect(warn).toHaveBeenCalled();
+    expect(savedTileBudget()).toBe(0);
     warn.mockRestore();
+  });
+
+  it('never trims the tiles under stations, crates and wrecks, or placed decor', () => {
+    stubStorage();
+    const state = createInitialState();
+    const portalTile: TileEntry = {x: 30, y: 90, tile: {type: 'air'}};
+    const crateTile: TileEntry = {x: 31, y: 90, tile: {type: 'air'}};
+    const wreckTile: TileEntry = {x: 32, y: 90, tile: {type: 'air'}};
+    const decor: TileEntry = {x: 33, y: 90, tile: {type: 'decor', decor: 'lampPanel', hp: DECOR_HP, maxHp: DECOR_HP}};
+    state.stations.push(createPortal(30, 90, 'Deep'));
+    state.cargoContainers = [createPlacedContainer(31, 90)];
+    state.wrecks = [createWreck(32, 90, addItem(createInventory(), DYNAMITE_ITEM))];
+    // The four oldest writes, then a budget's worth of newer digging.
+    const newer = column(MAX_SAVED_TILE_ENTRIES);
+    state.soloTileDiff = createTileDiff([portalTile, crateTile, wreckTile, decor, ...newer]);
+
+    const tiles = serializeProgress(state).tiles as TileEntry[];
+
+    expect(tiles).toHaveLength(MAX_SAVED_TILE_ENTRIES);
+    expect(tiles.slice(0, 4)).toEqual([portalTile, crateTile, wreckTile, decor]);
+    expect(tiles.at(-1)).toEqual(newer.at(-1));
   });
 
   it('forgets the oldest mutations once the save budget is spent', () => {

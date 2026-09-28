@@ -22,8 +22,13 @@ The mine is persistent. Terrain is never stored tile by tile — it regenerates
 from its coordinate seed — so the save keeps the *diff*: the list of
 `shared/world-schema.ts` tile entries the miner changed. Dying or refreshing
 rebuilds the terrain and lays that diff back over it, so tunnels, mined ore, and
-cracked blocks stay where you left them. The save keeps the newest 20,000
-mutations and forgets older ones rather than outgrowing `localStorage`.
+cracked blocks stay where you left them. The save keeps at most the 20,000 most
+recently changed tiles and forgets the ones untouched longest rather than
+outgrowing `localStorage` — re-digging a tile makes it new again — but never the
+tile under a station, a crate or a wreck, or a placed decoration. If the browser
+refuses a save for size anyway, the tile budget halves (and stays halved for the
+session) until the save fits; cash, equipment and the rest are never dropped to
+make room.
 
 The ship is part of that mine. The save records the tile it parked on, so a
 refresh resumes down the shaft instead of at the home base — with a full tank, a
@@ -31,14 +36,25 @@ whole hull and an empty cargo bay, since none of those are saved. Dying is the
 break: it costs you your position, the cargo aboard, and the upgrades fitted to
 the ship (the ones in the bay survive). If the restored mine turns out to be solid rock at that
 tile (a capped save), the ship starts at the home base rather than buried,
-because the drill cannot dig upward.
+because the drill cannot dig upward. The same rule guards every jump: a portal
+whose tile has gone solid is left out of the travel, teleporter and respawn lists,
+and a redeploy that would land in rock goes to the home base instead.
 
-The save is version 19 and a clean break: every save written by an older build is
-discarded on load rather than migrated, because the reworks changed the shape too
-much to convert honestly (the four ship stats became derived from fitted
-equipment, the item counters became one `bay` of stacks, and the stations became
-placed entities carrying their own state). A returning player from an older build
-starts fresh. What the save keeps: the parked tile, cash, the tile diff, explored
+Gameplay changes only *schedule* a save (one write per burst, half a second after
+the last change); the save is written on the spot when the run ends, the tab is
+hidden or closed, or the runtime is torn down, and the once-a-minute safety save
+is skipped while nothing has changed.
+
+The save is version 20, stored under `stalinload:progress:v1`, and a clean break:
+any save not written by exactly this version — older or newer — is discarded on
+load rather than migrated, because the reworks changed the shape too much to
+convert honestly (the four ship stats became derived from fitted equipment, the
+item counters became one `bay` of stacks, the stations became placed entities
+carrying their own state, and crate and wreck stacks stopped carrying their own
+prices — every sell price comes from the ore table). A returning player from an
+older build starts fresh; the old `moleload-*` keys are no longer read, but
+**Reset game** still removes them. A save is parsed in full before any of it is
+applied, and every stack in it is clamped to what its holder can hold. What the save keeps: the parked tile, cash, the tile diff, explored
 tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the placed
 stations (each Manufacturing Station's stock, each Fuel Extractor's coal/fuel, and
 each Portal's name),
@@ -49,7 +65,7 @@ wrecks with their contents). Ore aboard the ship is never saved — it is lost w
 the run.
 
 The save can be carried between browsers from **Info → Settings → Save data**.
-**Export save** downloads it as `moleload-save.json` and shows the same JSON in a
+**Export save** downloads it as `stalinload-save.json` and shows the same JSON in a
 read-only text box. **Import save…** takes a file from the picker or a paste into
 the import box, asks inline before replacing the run, then reloads the page into
 it. Import refuses anything that is not JSON, not an object, or not exactly the
@@ -539,7 +555,7 @@ eight around it, and only once it is explored.
   stock and stats, and costs you the cargo aboard, the upgrades fitted to the ship,
   and your position.
 - The camera zoom is remembered too, but as a preference rather than progress:
-  it is stored under `moleload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
+  it is stored under `stalinload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
   clamped back into the 0.5x–2x range on load, and survives a death, a fresh
   world, and a player-data reset.
 
@@ -640,7 +656,7 @@ restarts playback from that track's beginning if music was already running.
 - Browsers usually require a user gesture before audio can start.
 - The HUD exposes two toggles for explicit activation: `musicBtn` for the
   soundtrack and `sfxBtn` for the sound effects. Each one mutes only its own
-  side, and both preferences are stored under `moleload:audio-settings:v1`
+  side, and both preferences are stored under `stalinload:audio-settings:v1`
   (`src/audio/audio-settings.ts`).
 - `audio.enabled` means the shared `AudioContext` is unlocked; `musicEnabled` and
   `sfxEnabled` are the player's two switches. Pressing either button while the

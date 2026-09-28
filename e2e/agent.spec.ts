@@ -11,188 +11,133 @@
 // view moves; the tests run in order against it.
 
 import { expect, test } from '@playwright/test';
+import { HOME_ROW, STATIONS } from '../shared/constants';
 import { openGameSession, type GameSession } from '../agent/session';
+import { DIRT_UNDER_HOME, SAVE_VERSION, firstTradingPost, seedSaveScript } from './support/game';
 
 /** The port the Playwright config's webServer serves the game on. */
 const PORT = 5199;
 
-/**
- * Seed a solo save with a soft dirt tile directly under the spawn (45, 21), and a
- * few coal in the manufacturer's stock so the transfer controls have something to
- * move. The two default stations are seeded at their home-cavern positions.
- */
-function seedDirtUnderHome(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}],
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Coal', count: 3}]},
-      {kind: 'extractor', x: 46, y: 20}
-    ]
-  }));
-}
+/** The two workbench stations at their seeded home-cavern positions, both empty. */
+const WORKBENCHES = [
+  {kind: 'manufacturer', x: STATIONS.manufacturer.x, y: STATIONS.manufacturer.y, items: []},
+  {kind: 'extractor', x: STATIONS.extractor.x, y: STATIONS.extractor.y}
+];
+
+/** The base's `Home` portal at its seeded tile. */
+const HOME_PORTAL = {kind: 'portal', x: STATIONS.portal.x, y: STATIONS.portal.y, name: 'Home'};
 
 /**
- * Seed a solo save with a Construction Toolkit aboard and the two default stations
- * in place, so a test can lift the extractor and set it back down without first
- * crafting anything.
+ * A second portal four rows below `Home` — depth 40 m, close enough that after a
+ * jump to it the Home portal is still in view (so `P` paints again). A portal only
+ * ever stands in cleared space, so the save digs its tile out too.
  */
-function seedToolkitScenario(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    bay: [{kind: 'toolkit', count: 1}],
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20}
-    ]
-  }));
-}
+const DEEP_PORTAL = {kind: 'portal', x: STATIONS.portal.x, y: HOME_ROW + 4, name: 'Deep'};
+const DEEP_PORTAL_TILE = {x: DEEP_PORTAL.x, y: DEEP_PORTAL.y, tile: {type: 'air'}};
 
 /**
- * Seed the ship parked on a trading post. A post is generated deterministically at
- * (43, 67) with a cleared 3×3 air pocket (see `src/world/world.ts`), so parking the
- * ship there and putting a manufacturer holding iron one tile over gives the test
+ * A soft dirt tile directly under the spawn, and a few coal in the manufacturer's
+ * stock so the transfer controls have something to move.
+ */
+const seedDirtUnderHome = seedSaveScript({
+  tiles: [DIRT_UNDER_HOME],
+  stations: [
+    {...WORKBENCHES[0], items: [{kind: 'ore:Coal', count: 3}]},
+    WORKBENCHES[1]
+  ]
+});
+
+/**
+ * A Construction Toolkit aboard and the two default stations in place, so a test
+ * can lift the extractor and set it back down without first crafting anything.
+ */
+const seedToolkitScenario = seedSaveScript({bay: [{kind: 'toolkit', count: 1}], stations: WORKBENCHES});
+
+/**
+ * The ship parked on the first trading post the generator places (found in Node
+ * by `firstTradingPost`), which stands in a cleared 3×3 air pocket (see
+ * `src/world/world.ts`); a manufacturer holding iron one tile over gives the test
  * ore to sell without a dig, and cash to start the buy side.
  */
-function seedTradingPost(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    x: 43, y: 67,
-    cash: 100,
-    stations: [{kind: 'manufacturer', x: 44, y: 67, items: [{kind: 'ore:Iron', count: 10}]}]
-  }));
-}
+const POST = firstTradingPost();
+const seedTradingPost = seedSaveScript({
+  x: POST.x, y: POST.y,
+  cash: 100,
+  stations: [{kind: 'manufacturer', x: POST.x + 1, y: POST.y, items: [{kind: 'ore:Iron', count: 10}]}]
+});
 
 /**
- * Seed the ship at the home base with a Drill Mk I fitted to its hull. Ore is never
+ * The ship at the home base with a Drill Mk I fitted to its hull. Ore is never
  * persisted, so the fitted upgrade is the deterministic thing a reset will strip
  * into a wreck — exactly the loot the salvage path has to hand back. Only the two
  * workbench stations are seeded (no portal), so the reset falls back to the home
  * cavern: the replacement ship redeploys on the very tile the wreck was left on.
  */
-function seedFittedUpgrade(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    equipment: ['upgrade:drill:1', null],
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20}
-    ]
-  }));
-}
+const seedFittedUpgrade = seedSaveScript({equipment: ['upgrade:drill:1', null], stations: WORKBENCHES});
 
 /**
- * Seed the ship parked one tile from the base `Home` portal (48, 20), with a second
- * `Deep` portal four rows below it at (48, 24) — depth 40 m, close enough that after
- * a jump to it the Home portal is still in view (so `P` paints again). The ship at
- * (49, 20) has the portal as its only station in reach, so Space opens the travel
- * list rather than a workbench.
+ * The ship parked one tile east of the base `Home` portal, with the `Deep` portal
+ * below it. The portal is the ship's only station in reach, so Space opens the
+ * travel list rather than a workbench.
  */
-function seedPortalTravel(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    x: 49, y: 20,
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20},
-      {kind: 'portal', x: 48, y: 20, name: 'Home'},
-      {kind: 'portal', x: 48, y: 24, name: 'Deep'}
-    ]
-  }));
-}
+const seedPortalTravel = seedSaveScript({
+  x: HOME_PORTAL.x + 1, y: HOME_ROW,
+  tiles: [DEEP_PORTAL_TILE],
+  stations: [...WORKBENCHES, HOME_PORTAL, DEEP_PORTAL]
+});
 
 /**
- * Seed the ship at the home spawn (45, 20) with two teleporter charges aboard and
- * two portals, both out of arm's reach — so `t` opens the teleporter list and a
- * pick spends one charge.
+ * The ship at the home spawn with two teleporter charges aboard and two portals,
+ * both out of arm's reach — so `t` opens the teleporter list and a pick spends one
+ * charge.
  */
-function seedPortalTeleporter(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    bay: [{kind: 'teleporter', count: 2}],
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20},
-      {kind: 'portal', x: 48, y: 20, name: 'Home'},
-      {kind: 'portal', x: 48, y: 24, name: 'Deep'}
-    ]
-  }));
-}
+const seedPortalTeleporter = seedSaveScript({
+  bay: [{kind: 'teleporter', count: 2}],
+  tiles: [DEEP_PORTAL_TILE],
+  stations: [...WORKBENCHES, HOME_PORTAL, DEEP_PORTAL]
+});
 
 /**
- * Seed the ship one tile from the `Home` portal with a Drill Mk I fitted, so a hand
+ * The ship one tile west of the `Home` portal with a Drill Mk I fitted, so a hand
  * reset drops a wreck on the death tile, and two portals so the reset raises the
- * no-close respawn prompt. The death tile (47, 20) is adjacent to the Home portal,
- * so redeploying there keeps the wreck inside the reveal footprint.
+ * no-close respawn prompt. The death tile is adjacent to the Home portal, so
+ * redeploying there keeps the wreck inside the reveal footprint.
  */
-function seedPortalRespawn(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    x: 47, y: 20,
-    equipment: ['upgrade:drill:1', null],
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20},
-      {kind: 'portal', x: 48, y: 20, name: 'Home'},
-      {kind: 'portal', x: 48, y: 24, name: 'Deep'}
-    ]
-  }));
-}
+const seedPortalRespawn = seedSaveScript({
+  x: HOME_PORTAL.x - 1, y: HOME_ROW,
+  equipment: ['upgrade:drill:1', null],
+  tiles: [DEEP_PORTAL_TILE],
+  stations: [...WORKBENCHES, HOME_PORTAL, DEEP_PORTAL]
+});
 
 /**
- * Seed the ship one tile east of a buried chest. Worldgen is deterministic, so the
+ * The ship one tile east of a buried chest. Worldgen is deterministic, so the
  * first chest below the home cavern always lies at (41, 44) in its own one-tile air
  * pocket (see `chestAt` in `src/world/world.ts`) holding 1 Dynamite, 3 Coal and
  * 2 Iron (`chestLoot` in `src/core/chest.ts`). The tile diff digs out the ship's
  * own tile, (42, 44), with dirt beneath it so the ship sits still.
  */
-function seedChest(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    x: 42, y: 44,
-    tiles: [{x: 42, y: 44, tile: {type: 'air'}}],
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20}
-    ]
-  }));
-}
+const seedChest = seedSaveScript({
+  x: 42, y: 44,
+  tiles: [{x: 42, y: 44, tile: {type: 'air'}}],
+  stations: WORKBENCHES
+});
 
 /**
- * Seed the ship inside a grave's nook. Worldgen is deterministic, so the first
- * grave below the home cavern always lies at (21, 33), on the floor of its 3×2 air
- * nook (see `graveAt` in `src/world/world.ts`), with Praskovya Ivanova's epitaph
+ * The ship inside a grave's nook. Worldgen is deterministic, so the first grave
+ * below the home cavern always lies at (21, 33), on the floor of its 3×2 air nook
+ * (see `graveAt` in `src/world/world.ts`), with Praskovya Ivanova's epitaph
  * (`epitaphFor` in `src/core/grave.ts`). The ship parks one tile east of it, on the
  * nook floor, with solid ground beneath, so it sits still.
  */
-function seedGrave(): void {
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    x: 22, y: 33,
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20}
-    ]
-  }));
-}
+const seedGrave = seedSaveScript({x: 22, y: 33, stations: WORKBENCHES});
 
 /**
- * Seed a plain solo save with $250 in the wallet — once per tab. Init scripts
- * rerun on every navigation, and the import under test reloads the page into the
- * save it just wrote, so an unguarded seed would overwrite the import on the way in.
+ * A plain solo save with $250 in the wallet — once per tab. Init scripts rerun on
+ * every navigation, and the import under test reloads the page into the save it
+ * just wrote, so an unguarded seed would overwrite the import on the way in.
  */
-function seedSaveOnce(): void {
-  if (sessionStorage.getItem('seeded')) return;
-  sessionStorage.setItem('seeded', '1');
-  localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 19,
-    cash: 250,
-    stations: [
-      {kind: 'manufacturer', x: 44, y: 20, items: []},
-      {kind: 'extractor', x: 46, y: 20}
-    ]
-  }));
-}
+const seedSaveOnce = seedSaveScript({cash: 250, stations: WORKBENCHES}, {once: true});
 
 /** Units of `kind` in a slot list, or 0 when none. */
 function countKind(slots: {kind: string; count: number}[], kind: string): number {
@@ -320,18 +265,18 @@ test('a trading post buys ore for cash and sells its stock into the bay', async 
   try {
     await s.startRun();
     let obs = await s.observe();
-    expect(obs.ship.x).toBe(43);
-    expect(obs.ship.y).toBe(67);
+    expect(obs.ship.x).toBe(POST.x);
+    expect(obs.ship.y).toBe(POST.y);
 
     // The post sits under the ship; take iron aboard from the neighbouring station.
-    obs = await s.pressTile(44, 67);
+    obs = await s.pressTile(POST.x + 1, POST.y);
     expect(obs.overlay?.kind).toBe('station');
     obs = await s.click({target: 'data-station', value: 'take', kind: 'ore:Iron'});
     expect(countKind(obs.bay, 'ore:Iron')).toBe(10);
     await s.press('Escape');
 
     // Open the trading post and sell the iron: the wallet in hud.cash rises.
-    obs = await s.pressTile(43, 67);
+    obs = await s.pressTile(POST.x, POST.y);
     expect(obs.overlay?.kind).toBe('trade');
     const cashBefore = obs.hud.cash;
     obs = await s.click({target: 'data-trade', value: 'sell', kind: 'ore:Iron'});
@@ -477,7 +422,7 @@ test('Space at a portal opens the travel list and a pick jumps the ship there', 
   try {
     await s.startRun();
     let obs = await s.observe();
-    expect(obs.ship.x).toBe(49);
+    expect(obs.ship.x).toBe(HOME_PORTAL.x + 1);
     expect(obs.ship.y).toBe(20);
 
     // The Home portal is the ship's only station in reach: Space opens travel.
@@ -556,7 +501,7 @@ test('a hand reset with two portals raises the no-close respawn prompt', async (
   try {
     await s.startRun();
     let obs = await s.observe();
-    expect(obs.ship.x).toBe(47);
+    expect(obs.ship.x).toBe(HOME_PORTAL.x - 1);
     expect(obs.ship.y).toBe(20);
 
     // Two presses within the confirm window scrap the ship; with two portals built,
@@ -623,7 +568,7 @@ test('Settings exports the save into the observation and imports an edited one a
     expect(obs.overlay).toEqual({kind: 'info', tab: 'info-settings'});
     obs = await s.click('exportSaveBtn');
     if (obs.overlay?.kind !== 'info' || !obs.overlay.saveExport) throw new Error('an exported save expected');
-    expect(obs.overlay.saveExport).toContain('"version":19');
+    expect(obs.overlay.saveExport).toContain(`"version":${SAVE_VERSION}`);
     const exported = JSON.parse(obs.overlay.saveExport) as {cash: number};
     expect(exported.cash).toBe(250);
 

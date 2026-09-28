@@ -6,8 +6,20 @@
 // bookkeeping all happen in exactly one place.
 
 import { WORLD_W } from '../../shared/constants';
+import { isTraversableTile } from '../core/movement';
+import type { LandingCheck } from '../core/portal';
 import { ensureWorldRow } from '../world/world';
 import type { GameState, Tile } from '../core/types';
+
+/**
+ * The landing check a jump or a respawn asks before it drops the ship onto a
+ * tile: open space, read from the live `state.world` at the time of asking. A
+ * portal tile the mine has filled back in — a save that lost its dug-out hole,
+ * a regenerated world — answers no, so the ship is never set down inside rock.
+ */
+export function canLandOn(state: Pick<GameState, 'world'>): LandingCheck {
+  return (x, y) => x >= 0 && x < WORLD_W && isTraversableTile(ensureWorldRow(state.world, y)?.[x]);
+}
 
 /**
  * Reads outside the generated world answer with indestructible rock rather than

@@ -120,7 +120,7 @@ export interface UiCommands {
   resetGame(): void;
   /**
    * Hand the player the current save: into the store for the Settings text box,
-   * and down as `moleload-save.json`.
+   * and down as `stalinload-save.json`.
    */
   exportSave(): void;
   /**

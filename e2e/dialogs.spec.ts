@@ -3,10 +3,12 @@
 // a close request. None of that exists in a jsdom/happy-dom unit test.
 
 import { expect, test } from '@playwright/test';
+import { HOME_ROW, STATIONS } from '../shared/constants';
 import {
   activeElementId,
   collectPageFailures,
   openOverlayDirectly,
+  seedSave,
   startSoloRun
 } from './support/game';
 
@@ -47,12 +49,7 @@ test.describe('ship dialog', () => {
   test('Tab cannot walk out of the dialog into the HUD behind it', async ({page}) => {
     // Two upgrades in the bay give the screen more than its close button to
     // cycle, so the wrap is a real cycle rather than one control standing still.
-    await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 19,
-        bay: [{kind: 'upgrade:tank:1', count: 1}, {kind: 'upgrade:drill:1', count: 1}]
-      }));
-    });
+    await seedSave(page, {bay: [{kind: 'upgrade:tank:1', count: 1}, {kind: 'upgrade:drill:1', count: 1}]});
     await startSoloRun(page);
     await page.locator('#shipBtn').click();
     await expect(page.locator('#shipCloseBtn')).toBeFocused();
@@ -79,9 +76,7 @@ test.describe('ship dialog', () => {
 test.describe('station dialog', () => {
   test('Space opens it beside a station, focused inside, and Escape closes it', async ({page}) => {
     // Park the ship one tile from the manufacturing station so Space reaches it.
-    await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({version: 19, x: 43, y: 20}));
-    });
+    await seedSave(page, {x: STATIONS.manufacturer.x - 1, y: HOME_ROW});
     await startSoloRun(page);
 
     await page.keyboard.press(' ');
@@ -166,15 +161,12 @@ test.describe('overlay exclusivity', () => {
 test.describe('keyboard and hover inside an open dialog', () => {
   /** Park the ship beside the manufacturer, whose stock holds a few iron. */
   async function openStationWithIron(page: import('@playwright/test').Page): Promise<void> {
-    await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 19,
-        x: 43, y: 20,
-        stations: [
-          {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Iron', count: 3}]},
-          {kind: 'extractor', x: 46, y: 20}
-        ]
-      }));
+    await seedSave(page, {
+      x: STATIONS.manufacturer.x - 1, y: HOME_ROW,
+      stations: [
+        {kind: 'manufacturer', ...STATIONS.manufacturer, items: [{kind: 'ore:Iron', count: 3}]},
+        {kind: 'extractor', ...STATIONS.extractor}
+      ]
     });
     await startSoloRun(page);
     await page.keyboard.press(' ');
@@ -234,16 +226,15 @@ test.describe('keyboard and hover inside an open dialog', () => {
   test('Escape inside the portal name field leaves the field, not the dialog', async ({page}) => {
     // Beside the Home portal and out of the manufacturer's reach, so Space opens
     // the travel list.
-    await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 19,
-        x: 47, y: 20,
-        stations: [
-          {kind: 'manufacturer', x: 44, y: 20, items: []},
-          {kind: 'portal', x: 48, y: 20, name: 'Home'},
-          {kind: 'portal', x: 48, y: 24, name: 'Deep'}
-        ]
-      }));
+    await seedSave(page, {
+      x: STATIONS.portal.x - 1, y: HOME_ROW,
+      // A portal only stands in cleared space, so the deep one's tile is dug out.
+      tiles: [{x: STATIONS.portal.x, y: HOME_ROW + 4, tile: {type: 'air'}}],
+      stations: [
+        {kind: 'manufacturer', ...STATIONS.manufacturer, items: []},
+        {kind: 'portal', ...STATIONS.portal, name: 'Home'},
+        {kind: 'portal', x: STATIONS.portal.x, y: HOME_ROW + 4, name: 'Deep'}
+      ]
     });
     await startSoloRun(page);
     await page.keyboard.press(' ');

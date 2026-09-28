@@ -16,6 +16,7 @@ import {
   countItem,
   oreKind,
   removeItem,
+  totalItems,
   type Inventory,
   type InventoryItemKind
 } from './inventory';
@@ -98,12 +99,23 @@ export function missingInputs(inventory: Inventory, recipe: Recipe): RecipeInput
 }
 
 /**
+ * Whether the stock would still fit under `capacity` items once the recipe has
+ * run: its inputs leave and `recipe.count` outputs arrive, so only a recipe that
+ * yields more than it consumes (two Stone Blocks from one Coal) can overflow.
+ */
+export function fitsAfterCraft(inventory: Inventory, recipe: Recipe, capacity: number): boolean {
+  const consumed = recipe.inputs.reduce((sum, input) => sum + input.count, 0);
+  return totalItems(inventory) - consumed + recipe.count <= capacity;
+}
+
+/**
  * Consume a recipe's inputs from the station stock and add its output, returning
  * the station's new inventory. `null` — and no change — when the inputs are not
- * all present.
+ * all present, or when the result would overflow `capacity` (the station's
+ * `STATION_CAPACITY`; unbounded by default).
  */
-export function craft(inventory: Inventory, recipe: Recipe): Inventory | null {
-  if (!canCraft(inventory, recipe)) return null;
+export function craft(inventory: Inventory, recipe: Recipe, capacity = Infinity): Inventory | null {
+  if (!canCraft(inventory, recipe) || !fitsAfterCraft(inventory, recipe, capacity)) return null;
   let next = inventory;
   for (const input of recipe.inputs) next = removeItem(next, input.kind, input.count);
   return addItem(next, itemForKind(recipe.output), recipe.count);

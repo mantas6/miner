@@ -58,7 +58,7 @@ import { fillDeveloperExtractor, grantDeveloperOres } from '../core/developer';
 import { confirmWorldStateReset } from '../world/world-state';
 import { createFixedStepper } from '../core/fixed-step';
 import { recordTileDiff } from '../world/tile-diff';
-import { createWorldGrid, type WorldGrid } from './world-grid';
+import { canLandOn, createWorldGrid, type WorldGrid } from './world-grid';
 import { createEnemySim, type EnemySim } from './enemies';
 import { createActions, type GameActions } from './actions';
 import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
@@ -133,6 +133,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let decor: DecorSim;
 
   state.stats = createDefaultStats();
+  /** Whether the ship could land on a tile — what a teleporter's portal list is filtered by. */
+  const canLand = canLandOn(state);
 
   function loadProgress() { load(state); renderer?.invalidateFog(); }
 
@@ -143,7 +145,25 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
    */
   let persistenceCleared = false;
 
-  function saveProgress() { if (!persistenceCleared) save(state); }
+  /**
+   * Whether anything worth keeping changed since the last write. Set by every
+   * scheduled save and every committed tile; cleared by a write. The minute
+   * interval only writes a dirty run, so an idle tab stops rewriting the same
+   * (possibly megabytes of) JSON into `localStorage` every minute.
+   */
+  let dirty = false;
+
+  /**
+   * Write the run now. Reserved for the moments a debounce could lose it — game
+   * over, a hidden tab, an unload, a teardown — and the explicit resets; every
+   * gameplay change goes through `scheduleSave` instead.
+   */
+  function saveProgress() {
+    if (persistenceCleared) return;
+    progressSave.cancel();
+    save(state);
+    dirty = false;
+  }
 
   function persistZoom() { if (!persistenceCleared) saveZoomLevel(viewport.targetZoom); }
 
@@ -155,8 +175,14 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       cancel(){ clearTimeout(timer); }
     };
   }
-  /** Cheap progress the ship changes constantly: its tile and the fog it reveals. */
-  const progressSave = createDebouncedSave(saveProgress, 500);
+  /**
+   * The save every gameplay change asks for. Trailing-edge, so a burst of
+   * transfers, a long tunnel or a run of sales costs one write, not one each.
+   */
+  const progressSave = createDebouncedSave(() => saveProgress(), 500);
+  function scheduleSave() { dirty = true; progressSave.schedule(); }
+  /** The minute interval's save: only when something changed since the last write. */
+  function saveIfDirty() { if (dirty) saveProgress(); }
   /**
    * The camera framing, saved apart from the run. Debounced against the glide
    * rather than the wheel: one scroll is dozens of events and dozens of eased
@@ -174,7 +200,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const added = revealFootprint(state.exploredTiles, state.player.x, state.player.y, REVEAL_FOOTPRINT);
     if (!added.length) return;
     invalidateFogTiles(added);
-    progressSave.schedule();
+    scheduleSave();
   }
   /** Explore individual tiles — what a deployed scanner reports. */
   function revealTiles(indexes: number[]) {
@@ -186,13 +212,13 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     }
     if (!added.length) return;
     invalidateFogTiles(added);
-    progressSave.schedule();
+    scheduleSave();
   }
 
+  /** Credit (or debit) the wallet. Callers schedule the save with the rest of their change. */
   function addCash(amount: number) {
     state.cash += amount;
     if (amount > 0) state.stats.totalCashEarned += amount;
-    saveProgress();
   }
 
   /**
@@ -224,7 +250,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   // --- Cheat menu -----------------------------------------------------------
   function grantDeveloperOresCheat(){
     const granted = grantDeveloperOres(state);
-    saveProgress();
+    scheduleSave();
     syncPlayerSnapshot();
     // Repaint the station screen if it happens to be open, so the overflow shows.
     const open = homeStations.openStation;
@@ -233,7 +259,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   }
   function fillExtractorCheat(){
     fillDeveloperExtractor(state);
-    saveProgress();
+    scheduleSave();
     // Repaint the extractor screen if it is open, so the new buffers show at once.
     const open = homeStations.openStation;
     if (open?.kind === 'extractor') setExtractorUi({coal: open.coal, fuel: open.fuel, progress: open.progress});
@@ -516,7 +542,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   function equipUpgrade(kind: UpgradeKind, slot?: number){
     const result = equip(state.player, slot ?? firstFittingSlot(), kind);
     if (!result.ok) { audio.alarm(); return toast(result.reason); }
-    saveProgress();
+    scheduleSave();
     syncShipUpgrades();
     syncPlayerSnapshot();
     audio.upgradeFit();
@@ -525,7 +551,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   function unequipUpgrade(slot: number){
     const result = unequip(state.player, slot);
     if (!result.ok) { audio.alarm(); return toast(result.reason); }
-    saveProgress();
+    scheduleSave();
     syncShipUpgrades();
     syncPlayerSnapshot();
     audio.upgradeRemove();
@@ -643,7 +669,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // The teleporter is a carried charge that opens the portal list: the whole HUD
     // state is how many are aboard and whether a jump is available right now.
     hudScratch.teleport.count = countItem(p.inventory, TELEPORTER_ITEM.kind);
-    hudScratch.teleport.usable = canUsePortableTeleporter(p, state.stations);
+    hudScratch.teleport.usable = canUsePortableTeleporter(p, state.stations, canLand);
     // The canvas, spoken: the one HUD field that exists for the live region rather
     // than the layout. Thresholds only, so it changes when the ship crosses one and
     // is byte-identical (and therefore silent) on every frame in between.
@@ -817,7 +843,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       invalidateTerrain: (x, y) => renderer?.invalidateTerrain(x, y),
       // A world regenerates from its seed on every restart, so the diff is the
       // only record that a tunnel was ever dug.
-      onTileSet: (x, y, tile) => recordTileDiff(state.soloTileDiff, {x, y, tile})
+      onTileSet: (x, y, tile) => { recordTileDiff(state.soloTileDiff, {x, y, tile}); dirty = true; }
     });
     run = createRun({
       state,
@@ -838,7 +864,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       audio,
       toast,
       addCash,
-      saveProgress,
+      saveProgress: scheduleSave,
       damagePlayer: run.damage,
       spawnDust,
       spawnExplosion
@@ -849,8 +875,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       enemies,
       audio,
       toast,
-      saveProgress,
-      scheduleSave: () => progressSave.schedule(),
+      saveProgress: scheduleSave,
+      scheduleSave,
       revealAtPlayer,
       damage: run.damage,
       gameOver: run.gameOver,
@@ -861,7 +887,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setPortalUi,
       revealAtPlayer
     });
@@ -869,7 +895,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       atSurface,
       portals
     });
@@ -879,7 +905,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       grid,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       revealTiles,
       setArmedUi: value => paintArmedPlacement(value ? SCANNER_ITEM.kind : null)
     });
@@ -888,7 +914,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       grid,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       wakeEnemiesNear: (x, y) => enemies.wakeEnemiesNear(x, y),
       spawnExplosion,
       damagePlayer: run.damage,
@@ -899,7 +925,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       grid,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setArmedUi: value => paintArmedPlacement(value ? CARGO_CONTAINER_ITEM.kind : null),
       setOpenUi: contents => {
         const store = uiStore.getState();
@@ -912,7 +938,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setOpenUi: (contents, quiet) => {
         const store = uiStore.getState();
         if (!contents) return dropOverlay('wreck', quiet);
@@ -924,7 +950,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setOpenUi: (contents, quiet) => {
         const store = uiStore.getState();
         if (!contents) return dropOverlay('chest', quiet);
@@ -955,14 +981,14 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       grid,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setArmedUi: kind => paintArmedPlacement(kind)
     });
     homeStations = createHomeStations({
       state,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setStationUi,
       setExtractorUi,
       syncPlayer: syncPlayerSnapshot,
@@ -972,7 +998,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       addCash,
       setOpenUi: offers => {
         const store = uiStore.getState();
@@ -987,14 +1013,14 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       grid,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setArmedUi: kind => paintArmedPlacement(kind ? stationDeviceItemKind(kind) : null)
     });
     toolkit = createToolkit({
       state,
       audio,
       toast,
-      saveProgress,
+      saveProgress: scheduleSave,
       setArmedUi: value => paintArmedPlacement(value ? TOOLKIT_ITEM.kind : null)
     });
     gameInput = createInput({
@@ -1114,7 +1140,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     if (scope.disposed) return;
     // A teardown is indistinguishable from a tab close as far as the save is
     // concerned, so bank the run before anything is unwired.
-    progressSave.cancel();
     saveProgress();
     flushZoomSave();
     audio.stopMusic();
@@ -1176,7 +1201,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     scope.onDocument('visibilitychange', () => {
       // Mobile browsers routinely discard a hidden tab without ever firing
       // `beforeunload`, so hiding is the last reliable chance to keep the run.
-      if (document.hidden) { progressSave.cancel(); saveProgress(); flushZoomSave(); return; }
+      if (document.hidden) { saveProgress(); flushZoomSave(); return; }
       // Animation frames stop while hidden; discard the gap instead of fast-forwarding.
       stepper.reset();
       focusGame();
@@ -1192,7 +1217,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       screenPointForTile
     });
     run.resume();
-    scope.interval(saveProgress, 60000);
+    scope.interval(saveIfDirty, 60000);
     scope.onWindow('beforeunload', () => { saveProgress(); flushZoomSave(); });
     focusGame();
     scope.timeout(focusGame, 60);

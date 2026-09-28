@@ -17,7 +17,20 @@
 // constants move with it.
 
 import { expect, test } from '@playwright/test';
-import { collectPageFailures, drillDown, readDepth, readFuel, seedDirtUnderHome, startSoloRun } from './support/game';
+import { HOME_CAVERN_TOP, HOME_ROW, STATIONS, WORLD_W } from '../shared/constants';
+import { collectPageFailures, drillDown, readDepth, readFuel, seedDirtUnderHome, seedSave, startSoloRun, type SaveSeed } from './support/game';
+
+/**
+ * A save that hollows out and surveys rows `HOME_CAVERN_TOP`–45 of the whole
+ * mine, carrying `bay` aboard: open, explored ground anywhere on the canvas.
+ */
+function hollowMine(bay: SaveSeed['bay']): SaveSeed {
+  const tiles = [];
+  for (let y = HOME_CAVERN_TOP; y <= 45; y++) {
+    for (let x = 0; x < WORLD_W; x++) tiles.push({x, y, tile: {type: 'air'}});
+  }
+  return {bay, explored: `${HOME_CAVERN_TOP * WORLD_W}-${46 * WORLD_W - 1}`, tiles};
+}
 
 test.describe('gameplay', () => {
   test('one keypress is charged exactly once and clears exactly one tile', async ({page}) => {
@@ -92,16 +105,13 @@ test.describe('gameplay', () => {
    * from the manufacturing station (`STATIONS.manufacturer` at `HOME_X-1`).
    */
   test('a scanner crafted at the manufacturing station is taken aboard', async ({page}) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 19,
-        x: 43,
-        y: 20,
-        stations: [
-          {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Copper', count: 2}, {kind: 'ore:Silver', count: 1}]},
-          {kind: 'extractor', x: 46, y: 20}
-        ]
-      }));
+    await seedSave(page, {
+      x: STATIONS.manufacturer.x - 1,
+      y: HOME_ROW,
+      stations: [
+        {kind: 'manufacturer', ...STATIONS.manufacturer, items: [{kind: 'ore:Copper', count: 2}, {kind: 'ore:Silver', count: 1}]},
+        {kind: 'extractor', ...STATIONS.extractor}
+      ]
     });
     await startSoloRun(page);
 
@@ -146,20 +156,7 @@ test.describe('gameplay', () => {
    * about aiming.
    */
   test('a press on the mine deploys the armed scanner and spends it', async ({page}) => {
-    await page.addInitScript(() => {
-      const worldWidth = 90;
-      const cavernTop = 18;
-      const tiles = [];
-      for (let y = cavernTop; y <= 45; y++) {
-        for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
-      }
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 19,
-        bay: [{kind: 'scanner', count: 1}],
-        explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
-        tiles
-      }));
-    });
+    await seedSave(page, hollowMine([{kind: 'scanner', count: 1}]));
     await startSoloRun(page);
 
     const slot = page.locator('#scannerSlotBtn');
@@ -187,20 +184,7 @@ test.describe('gameplay', () => {
    * spawns at the cavern floor) so the blast is not the ship's own.
    */
   test('a planted stick leaves the bay, burns its fuse, and blows on its own', async ({page}) => {
-    await page.addInitScript(() => {
-      const worldWidth = 90;
-      const cavernTop = 18;
-      const tiles = [];
-      for (let y = cavernTop; y <= 45; y++) {
-        for (let x = 0; x < worldWidth; x++) tiles.push({x, y, tile: {type: 'air'}});
-      }
-      localStorage.setItem('moleload-progress-v1', JSON.stringify({
-        version: 19,
-        bay: [{kind: 'dynamite', count: 2}],
-        explored: `${cavernTop * worldWidth}-${46 * worldWidth - 1}`,
-        tiles
-      }));
-    });
+    await seedSave(page, hollowMine([{kind: 'dynamite', count: 2}]));
     await startSoloRun(page);
 
     // E is the shortcut for the slot, and Escape stands it down again.

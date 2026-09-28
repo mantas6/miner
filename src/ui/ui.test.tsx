@@ -840,7 +840,7 @@ describe('settings tab', () => {
     expect(input.type).toBe('file');
     expect(input.accept).toContain('.json');
 
-    const file = new File(['{"version":18,"cash":99}'], 'moleload-save.json', {type: 'application/json'});
+    const file = new File(['{"version":18,"cash":99}'], 'stalinload-save.json', {type: 'application/json'});
     Object.defineProperty(input, 'files', {value: [file], configurable: true});
     act(() => { fireEvent.change(input); });
     // The reader answers asynchronously; let it land inside `act`.

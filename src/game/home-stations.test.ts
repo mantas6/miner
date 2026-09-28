@@ -5,6 +5,7 @@ import { addItem, countItem, createInventory, oreKind } from '../core/inventory'
 import { itemForKind } from '../core/items';
 import { createInitialState } from '../core/state';
 import {
+  STATION_CAPACITY,
   firstManufacturer,
   type ExtractorStation,
   type ManufacturerStation
@@ -250,6 +251,21 @@ describe('crafting at the station', () => {
     expect(h.audio.played).toEqual(['craft']);
   });
 
+  it('refuses a batch that would overflow the station stock, saying so', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    // Stone Block ×2 ← 1 Coal grows a full stock by one.
+    manufacturer(h.state).inventory = addItem(createInventory(), itemForKind(oreKind('Coal')), STATION_CAPACITY);
+    h.sim.openNearest();
+
+    h.sim.craft('decor:stoneBlock');
+
+    expect(countItem(manufacturer(h.state).inventory, 'decor:stoneBlock')).toBe(0);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Coal'))).toBe(STATION_CAPACITY);
+    expect(h.toasts.saw('Station stock is full')).toBe(true);
+    expect(h.audio.played).toEqual(['alarm']);
+  });
+
   it('refuses a recipe the station cannot afford', () => {
     const h = harness();
     park(h.state, 'manufacturer');
@@ -276,6 +292,24 @@ describe('the fuel extractor transfers', () => {
     expect(extractor(h.state).coal).toBe(7);
     expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(0);
     expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0, progress: 0});
+  });
+
+  it('loads only what the hopper has room for, leaving the rest aboard', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    extractor(h.state).coal = STATION_CAPACITY - 3;
+    h.state.player.inventory = addItem(createInventory(), itemForKind(oreKind('Coal')), 7);
+    h.sim.openNearest();
+
+    h.sim.loadCoal();
+
+    expect(extractor(h.state).coal).toBe(STATION_CAPACITY);
+    expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(4);
+    expect(h.toasts.saw('Loaded 3 coal')).toBe(true);
+
+    h.sim.loadCoal();
+    expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(4);
+    expect(h.toasts.saw('hopper is full')).toBe(true);
   });
 
   it('tops the tank up via `refuel()` after `openNearest()`', () => {

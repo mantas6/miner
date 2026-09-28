@@ -10,18 +10,17 @@
 import { SHIP_UPGRADE_SLOTS, START_Y } from '../../shared/constants';
 import { STARTING } from '../core/balance';
 import { createInventory, removeOres } from '../core/inventory';
-import { isTraversableTile } from '../core/movement';
 import { respawnPortals } from '../core/portal';
 import { createDefaultStats, placeAtHome, respawnPlayer } from '../core/state';
 import { dropWreck } from '../core/wreck';
 import { applyTileEntries, tileDiffEntries } from '../world/tile-diff';
-import { ensureWorldRow } from '../world/world';
 import { resetWorldTerrain } from '../world/world-state';
 import type { AudioController, GameState } from '../core/types';
 import type { EnemySim } from './enemies';
 import type { GameInput } from './input';
 import type { PortalsSim } from './portals';
 import { viewport } from './viewport';
+import { canLandOn } from './world-grid';
 
 /** Where a fresh ship redeploys after a restart: a portal tile, or the home base. */
 type SpawnAt = {x: number; y: number} | undefined;
@@ -67,6 +66,7 @@ export interface GameRunDeps {
 
 export function createRun(deps: GameRunDeps): GameRun {
   const {state, audio, toast, saveProgress, spawnExplosion} = deps;
+  const canLand = canLandOn(state);
 
   /** Snap the camera onto the ship, so a run never opens mid-pan. */
   function centreCameraOnShip(): void {
@@ -119,9 +119,10 @@ export function createRun(deps: GameRunDeps): GameRun {
   function generate(at?: SpawnAt): void {
     buildSoloWorld();
     // A portal placed underground sits on a dug-out (air) tile, and the solo tile
-    // diff carries that hole back out of the reseeded terrain, so a ship redeployed
-    // onto a portal tile always lands in open space rather than inside rock.
-    resetPlayer(false, at);
+    // diff carries that hole back out of the reseeded terrain. A diff that lost it
+    // (a capped or quota-trimmed save) leaves the tile solid, and a ship set down
+    // there would be buried, so that redeploy falls back to the home base.
+    resetPlayer(false, at && canLand(at.x, at.y) ? at : undefined);
     deps.enemies().resetExposure();
   }
 
@@ -132,7 +133,7 @@ export function createRun(deps: GameRunDeps): GameRun {
     // can leave that coordinate solid again. Anything but open space (air, or a
     // decoration hanging in it) returns to the home base, because a ship buried in
     // dirt cannot drill its way back up.
-    if (!isTraversableTile(ensureWorldRow(state.world, p.y)?.[p.x])) placeAtHome(p);
+    if (!canLand(p.x, p.y)) placeAtHome(p);
     // Fuel, hull and cargo are never saved, so a resumed run is a fresh ship
     // parked where the last one left off — carrying the equipment the save
     // restored into its bay, and none of the ore.
@@ -146,15 +147,20 @@ export function createRun(deps: GameRunDeps): GameRun {
 
   function clearWorldRuntime(): void {
     resetWorldTerrain(state);
-    deps.enemies().clearExposure();
     state.enemyIdCounter = 1;
     deps.input().clearKeys();
     deps.invalidateTerrain();
     deps.invalidateFog();
+    // The ship is back at the home base in a fresh mine: re-seed reachable air
+    // from there (waking anything the fresh cavern already exposes) and uncover
+    // the fog around it, exactly as a new run's first frame would.
+    deps.enemies().resetExposure();
+    deps.revealAtPlayer();
+    centreCameraOnShip();
   }
 
   function restartGame(): void {
-    const spawns = respawnPortals(state.stations);
+    const spawns = respawnPortals(state.stations, canLand);
     // Two or more portals and the player has not chosen yet: raise the no-close
     // redeploy prompt and let the pick drive the rebuild. One portal redeploys
     // there without asking; none falls back to the home cavern.

@@ -16,6 +16,7 @@ import { portalDestinations } from '../core/portal';
 import { teleportersCarried } from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
 import type { PortalsSim } from './portals';
+import { canLandOn } from './world-grid';
 
 export interface GameActions {
   useTeleporter(): void;
@@ -50,7 +51,7 @@ export function createActions(deps: GameActionsDeps): GameActions {
     }
     // A charge is pointless when every portal is already at arm's reach — there is
     // nowhere it could take the ship that it could not already fly to.
-    if (portalDestinations(state.stations, {x: p.x, y: p.y}, {excludeReachable: true}).length === 0) {
+    if (portalDestinations(state.stations, {x: p.x, y: p.y}, {excludeReachable: true, canLand: canLandOn(state)}).length === 0) {
       return toast('No portal out of reach to teleport to.');
     }
     deps.portals.openTeleporter();

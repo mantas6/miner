@@ -8,7 +8,10 @@
 
 import { vi } from 'vitest';
 import { DEFAULT_TRACK_ID } from '../audio/tracks';
-import type { AudioController, Enemy, Tile } from '../core/types';
+import { createPortal, type PortalStation } from '../core/stations';
+import type { AudioController, Enemy, GameState, Tile } from '../core/types';
+import { recordTileDiff } from '../world/tile-diff';
+import { ensureWorldRow } from '../world/world';
 import type { EnemySim } from './enemies';
 import type { GameInput } from './input';
 import type { PortalMode, PortalsSim } from './portals';
@@ -180,4 +183,16 @@ export function createToastLog() {
       return messages[messages.length - 1];
     }
   };
+}
+
+/**
+ * Stand a portal on a dug-out tile, the way one set down in a tunnel does: the
+ * tile is open in the live world *and* in the diff a rebuild layers back on, so
+ * both a jump and a respawn find somewhere the ship can land.
+ */
+export function dugPortal(state: GameState, x: number, y: number, name: string): PortalStation {
+  const row = ensureWorldRow(state.world, y);
+  if (row) row[x] = {type: 'air'};
+  recordTileDiff(state.soloTileDiff, {x, y, tile: {type: 'air'}});
+  return createPortal(x, y, name);
 }

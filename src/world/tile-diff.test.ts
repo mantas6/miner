@@ -26,7 +26,7 @@ describe('accumulating a diff', () => {
     expect(diff.size).toBe(1);
   });
 
-  it('keeps entries oldest-first, even when a coordinate is re-dug', () => {
+  it('moves a re-written coordinate to the end, so entries stay least-recently-written first', () => {
     const diff = createTileDiff([
       {x: 1, y: 2, tile: air},
       {x: 3, y: 4, tile: air},
@@ -34,9 +34,17 @@ describe('accumulating a diff', () => {
     ]);
 
     expect(tileDiffEntries(diff)).toEqual([
-      {x: 1, y: 2, tile: {type: 'dirt', hp: 1, maxHp: 1}},
-      {x: 3, y: 4, tile: air}
+      {x: 3, y: 4, tile: air},
+      {x: 1, y: 2, tile: {type: 'dirt', hp: 1, maxHp: 1}}
     ]);
+  });
+
+  it('forgets the least recently touched tile first once capped', () => {
+    const diff = createTileDiff([{x: 1, y: 2, tile: air}, {x: 3, y: 4, tile: air}, {x: 5, y: 6, tile: air}]);
+    // Re-touching the oldest makes it the newest, so the next-oldest goes first.
+    recordTileDiff(diff, {x: 1, y: 2, tile: air});
+
+    expect(capTileEntries(tileDiffEntries(diff), 2)).toEqual([{x: 5, y: 6, tile: air}, {x: 1, y: 2, tile: air}]);
   });
 
   it('round-trips valuables and their removal through entries', () => {
@@ -86,6 +94,19 @@ describe('capping a save', () => {
 
   it('keeps the newest mutations and forgets the oldest', () => {
     expect(capTileEntries([entry(1), entry(2), entry(3)], 2)).toEqual([entry(2), entry(3)]);
+  });
+
+  it('never evicts a protected entry, and spends the rest of the budget on the newest', () => {
+    const entries = [entry(1), entry(2), entry(3), entry(4), entry(5)];
+    const isProtected = (candidate: TileEntry) => candidate === entries[0] || candidate === entries[2];
+
+    expect(capTileEntries(entries, 3, isProtected)).toEqual([entry(1), entry(3), entry(5)]);
+  });
+
+  it('keeps every protected entry even when they alone outgrow the budget', () => {
+    const entries = [entry(1), entry(2), entry(3)];
+
+    expect(capTileEntries(entries, 1, () => true)).toEqual(entries);
   });
 
   it('defaults to the shared save budget', () => {

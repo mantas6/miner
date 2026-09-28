@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { canCraft, craft, missingInputs, RECIPES, type Recipe } from './crafting';
-import { addItem, countItem, createInventory, oreKind, type Inventory } from './inventory';
+import { canCraft, craft, fitsAfterCraft, missingInputs, RECIPES, type Recipe } from './crafting';
+import { addItem, countItem, createInventory, oreKind, totalItems, type Inventory } from './inventory';
 import { isCatalogKind, itemForKind } from './items';
 
 /** A station stock built from ore `{name, count}` pairs. */
@@ -62,5 +62,17 @@ describe('crafting', () => {
     const before = ores(['Iron', 2]);
     expect(craft(before, repairKit)).toBeNull();
     expect(countItem(before, oreKind('Iron'))).toBe(2);
+  });
+
+  it('refuses a batch that would push the stock past its capacity', () => {
+    const stoneBlock = RECIPES.find(recipe => recipe.output === 'decor:stoneBlock')!;
+    // One Coal in, two blocks out: a full stock would grow by one.
+    const full = ores(['Coal', 10]);
+    expect(fitsAfterCraft(full, stoneBlock, 10)).toBe(false);
+    expect(craft(full, stoneBlock, 10)).toBeNull();
+    expect(craft(full, stoneBlock, 11)).not.toBeNull();
+    // A recipe that consumes more than it makes always fits, even at the cap.
+    const after = craft(ores(['Iron', 10]), repairKit, 10);
+    expect(after && totalItems(after)).toBe(8);
   });
 });

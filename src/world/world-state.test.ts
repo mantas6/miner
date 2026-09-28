@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HOME_ROW, HOME_X } from '../../shared/constants';
 import { createPlacedContainer } from '../core/cargo-container';
-import { addItem } from '../core/inventory';
+import { addItem, createInventory } from '../core/inventory';
+import { ITEM_CATALOG } from '../core/items';
+import { createPortal } from '../core/stations';
+import { createWreck } from '../core/wreck';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import { DYNAMITE_ITEM } from '../core/dynamite';
-import { createTileDiff } from './tile-diff';
+import { createTileDiff, tileDiffEntries } from './tile-diff';
+import { ensureWorldRow, makeTile } from './world';
 import { confirmWorldStateReset, resetWorldTerrain, WORLD_STATE_RESET_CONFIRMATION } from './world-state';
 
 describe('world state reset', () => {
@@ -13,7 +17,10 @@ describe('world state reset', () => {
     const confirm = vi.fn(() => false);
     expect(confirmWorldStateReset(confirm)).toBe(false);
     expect(confirm).toHaveBeenCalledWith(WORLD_STATE_RESET_CONFIRMATION);
-    expect(WORLD_STATE_RESET_CONFIRMATION).toContain('Player cash, upgrades, cargo bay, stats, settings, and ship condition are preserved');
+    expect(WORLD_STATE_RESET_CONFIRMATION).toContain('player cash, upgrades, cargo bay, stats, settings, and ship condition are preserved');
+    // It says what happens to the things standing in the mine, not just the rock.
+    expect(WORLD_STATE_RESET_CONFIRMATION).toContain('wrecks');
+    expect(WORLD_STATE_RESET_CONFIRMATION).toContain('Stations and portals stay where they stand');
   });
 
   it('regenerates terrain/entities/view state while preserving player progression and inventory', () => {
@@ -37,6 +44,8 @@ describe('world state reset', () => {
 
     resetWorldTerrain(state);
 
+    // The seeded stations stand in the home cavern, open space in the fresh mine
+    // too, so nothing needs carving and no row is generated ahead of time.
     expect(state.world).toEqual([]);
     // The dug-out blocks go with the terrain, or the next restart would put the
     // old tunnels back into the fresh mine.
@@ -50,5 +59,22 @@ describe('world state reset', () => {
     expect(state.chestLedger).toEqual({'41,44': []});
     expect(state.stats).toEqual(statsBefore);
     expect(state.player).toMatchObject({ ...playerBefore, x:HOME_X, y:HOME_ROW, drawX:HOME_X, drawY:HOME_ROW });
+  });
+
+  it('drops the wrecks, keeps every station, and carves the tile under one set down in rock', () => {
+    const state = createInitialState();
+    const seeded = state.stations.length;
+    // A portal in a tunnel: its tile is rock in the regenerated mine.
+    expect(makeTile(30, 200).type).not.toBe('air');
+    state.stations.push(createPortal(30, 200, 'Deep'));
+    state.wrecks = [createWreck(12, 300, addItem(createInventory(), ITEM_CATALOG['upgrade:tank:1']))];
+
+    resetWorldTerrain(state);
+
+    expect(state.wrecks).toEqual([]);
+    expect(state.stations).toHaveLength(seeded + 1);
+    expect(tileDiffEntries(state.soloTileDiff)).toEqual([{x: 30, y: 200, tile: {type: 'air'}}]);
+    // The carve is live at once, not only after the next restart rebuilds the world.
+    expect(ensureWorldRow(state.world, 200)?.[30]).toEqual({type: 'air'});
   });
 });

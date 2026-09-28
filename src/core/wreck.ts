@@ -27,9 +27,20 @@ import {
   type InventoryItemKind
 } from './inventory';
 import { itemForKind } from './items';
+import { STARTING } from './balance';
+import { SHIP_UPGRADE_SLOTS, UPGRADE_EFFECTS } from './ship-upgrades';
 import type { Player } from './types';
 
 export const WRECK = Object.freeze({
+  /**
+   * The most a wreck can ever hold: a bay at the largest `cargoMax` every slot
+   * fitted with the best Cargo Hold allows, plus one item per fitted upgrade. A
+   * wreck is built from a dying ship and only ever drained, so this is a bound on
+   * what the game can produce — the save clamps a hand-edited one to it.
+   */
+  capacity: STARTING.cargoMax
+    + SHIP_UPGRADE_SLOTS * Math.max(...UPGRADE_EFFECTS.cargo.bonuses)
+    + SHIP_UPGRADE_SLOTS,
   /**
    * How many wrecks may stand in the mine at once. A soft cap, like the crate's:
    * a run that dies again and again would otherwise litter the map with corpses,

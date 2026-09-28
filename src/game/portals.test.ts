@@ -16,7 +16,7 @@ import { TELEPORTER_ITEM } from '../core/teleporter';
 import type { GameState } from '../core/types';
 import type { PortalView } from '../ui/store';
 import { createPortalsSim, type PortalsSim } from './portals';
-import { createAudioStub, createToastLog, type AudioStub } from './test-support';
+import { createAudioStub, createToastLog, dugPortal, type AudioStub } from './test-support';
 
 interface Harness {
   state: GameState;
@@ -64,7 +64,7 @@ describe('travelling between portals', () => {
   it('moves the ship to the picked portal, reveals, saves, and toasts', () => {
     const h = harness();
     const home = homePortal(h.state);
-    h.state.stations.push(createPortal(50, 100, 'Deep'));
+    h.state.stations.push(dugPortal(h.state, 50, 100, 'Deep'));
 
     expect(h.sim.openTravel(home)).toBe(true);
     expect(h.sim.mode).toBe('travel');
@@ -101,7 +101,7 @@ describe('travelling between portals', () => {
   it('lists every other portal but never the source itself', () => {
     const h = harness();
     const home = homePortal(h.state);
-    h.state.stations.push(createPortal(50, 100, 'Deep'));
+    h.state.stations.push(dugPortal(h.state, 50, 100, 'Deep'));
 
     h.sim.openTravel(home);
 
@@ -116,7 +116,7 @@ describe('spending a carried teleporter', () => {
     const h = harness();
     h.state.player.inventory = addItem(createInventory(), TELEPORTER_ITEM, 2);
     Object.assign(h.state.player, {x: 5, y: 5});
-    h.state.stations = [createPortal(50, 100, 'Deep')];
+    h.state.stations = [dugPortal(h.state, 50, 100, 'Deep')];
 
     expect(h.sim.openTeleporter()).toBe(true);
     expect(h.sim.mode).toBe('teleporter');
@@ -132,13 +132,49 @@ describe('spending a carried teleporter', () => {
     const h = harness();
     Object.assign(h.state.player, {x: 5, y: 5});
     // One portal at the ship's side (reachable), one far away.
-    h.state.stations = [createPortal(6, 5, 'Near'), createPortal(50, 100, 'Far')];
+    h.state.stations = [dugPortal(h.state, 6, 5, 'Near'), dugPortal(h.state, 50, 100, 'Far')];
 
     h.sim.openTeleporter();
 
     const names = h.lastView()!.destinations.map(d => d.name);
     expect(names).toContain('Far');
     expect(names).not.toContain('Near');
+  });
+});
+
+describe('a portal whose tile has gone solid', () => {
+  it('is never offered as a destination, by a portal or a teleporter', () => {
+    const h = harness();
+    const home = homePortal(h.state);
+    h.state.player.inventory = addItem(createInventory(), TELEPORTER_ITEM, 1);
+    // A portal whose dug-out tile the save lost: it stands in rock again.
+    h.state.stations.push(createPortal(50, 100, 'Buried'), dugPortal(h.state, 60, 120, 'Open'));
+
+    h.sim.openTravel(home);
+    expect(h.lastView()!.destinations.map(d => d.name)).toEqual(['Open']);
+
+    h.sim.close();
+    Object.assign(h.state.player, {x: 5, y: 5});
+    h.sim.openTeleporter();
+    const names = h.lastView()!.destinations.map(d => d.name);
+    expect(names).toContain('Open');
+    expect(names).not.toContain('Buried');
+  });
+
+  it('refuses a listed jump whose tile filled in after the list opened, spending nothing', () => {
+    const h = harness();
+    h.state.player.inventory = addItem(createInventory(), TELEPORTER_ITEM, 1);
+    Object.assign(h.state.player, {x: 5, y: 5});
+    h.state.stations = [dugPortal(h.state, 50, 100, 'Deep')];
+    h.sim.openTeleporter();
+
+    h.state.world[100][50] = {type: 'dirt', hp: 2, maxHp: 2};
+
+    expect(h.sim.travelTo(50, 100)).toBe(false);
+    expect(h.state.player).toMatchObject({x: 5, y: 5});
+    expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
+    expect(h.toasts.saw('buried in rock')).toBe(true);
+    expect(h.lastView()!.destinations).toEqual([]);
   });
 });
 
@@ -170,7 +206,7 @@ describe('renaming the source portal', () => {
   it('does nothing outside travel mode', () => {
     const h = harness();
     Object.assign(h.state.player, {x: 5, y: 5});
-    h.state.stations = [createPortal(50, 100, 'Deep')];
+    h.state.stations = [dugPortal(h.state, 50, 100, 'Deep')];
     h.sim.openTeleporter();
 
     h.sim.rename('Nope');
@@ -197,7 +233,7 @@ describe('the portal tick', () => {
 
   it('leaves the respawn prompt open even after a death set gameOver', () => {
     const h = harness();
-    h.state.stations = [createPortal(48, 20, 'Home'), createPortal(50, 100, 'Deep')];
+    h.state.stations = [dugPortal(h.state, 48, 20, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
     h.state.gameOver = true;
     h.sim.openRespawn(vi.fn());
 
@@ -211,7 +247,7 @@ describe('the lost-ship respawn prompt', () => {
   it('cannot be closed and hands its pick to the callback', () => {
     const h = harness();
     const onPick = vi.fn();
-    h.state.stations = [createPortal(48, 20, 'Home'), createPortal(50, 100, 'Deep')];
+    h.state.stations = [dugPortal(h.state, 48, 20, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
     h.state.gameOver = true;
     Object.assign(h.state.player, {x: 12, y: 60});
 

@@ -1,4 +1,6 @@
-import { MAX_WORLD_ROW, SHIP_UPGRADE_SLOTS, START_Y, WORLD_W } from '../shared/constants';
+import { MAX_SAVED_TILE_ENTRIES, MAX_WORLD_ROW, ORES, SHIP_UPGRADE_SLOTS, START_Y, WORLD_W } from '../shared/constants';
+import { tileKey } from '../shared/tile-key';
+import type { TileEntry } from '../shared/world-schema';
 import {
   CARGO_CONTAINER,
   createPlacedContainer,
@@ -12,8 +14,8 @@ import {
   inventoryStacks,
   isOreKind,
   isUpgradeKind,
+  roomLeft,
   type Inventory,
-  type InventoryItem,
   type InventoryItemKind,
   type UpgradeKind
 } from './core/inventory';
@@ -25,6 +27,7 @@ import { chestAt } from './world/world';
 import { applyEquipment } from './core/ship-upgrades';
 import { createDefaultStats } from './core/state';
 import {
+  STATION_CAPACITY,
   STATION_DEVICE,
   createExtractor,
   createManufacturer,
@@ -34,7 +37,7 @@ import {
 } from './core/stations';
 import { defaultPortalName, sanitizePortalName } from './core/portal';
 import { encodeExploration, mergeExploration } from '../shared/exploration-codec';
-import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries } from './world/tile-diff';
+import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries, type TileDiff } from './world/tile-diff';
 import type { ChestLedger, GameState, GameStats } from './core/types';
 
 // Local save file for a solo miner: the wallet, the ship, the fog, and the mine
@@ -47,8 +50,13 @@ import type { ChestLedger, GameState, GameStats } from './core/types';
 //
 // Breaking changes always deprecate the save rather than migrating it: when the
 // on-disk shape changes incompatibly, bump `SAVE_VERSION`, and the version gate in
-// `load` discards any save an older build wrote so a returning player starts fresh
-// (see AGENTS.md). There is deliberately no migration path.
+// `load` discards any save whose version is not exactly this build's — older or
+// newer — so a returning player starts fresh (see AGENTS.md). There is
+// deliberately no migration path.
+//
+// `load` parses the whole file into a staging object before it touches the
+// state, so a save that throws halfway through leaves the pristine defaults
+// rather than a half-restored run.
 //
 // The current shape's fields:
 //   * `x`/`y`     — the tile the ship parked on.
@@ -66,7 +74,8 @@ import type { ChestLedger, GameState, GameStats } from './core/types';
 //     stored fuel, and tick progress. Two are seeded on the home-cavern floor.
 //   * `scannerDevices`/`dynamiteSticks`/`cargoContainers`/`wrecks` — the hardware
 //     and corpse loot left standing in the mine, crates and wrecks saved with their
-//     contents.
+//     contents as `{kind, count}` stacks (prices and labels come from the ore table
+//     and the catalog on load, never from the file). An emptied wreck is not saved.
 //   * `tradeLedger` — the drawn-down buy stock per trading post, keyed `"x,y"`.
 //   * `chestLedger` — what is left in each opened chest, keyed `"x,y"`, as
 //     `{kind, count}` stacks; `[]` is a chest looted bare. Optional: a save without
@@ -92,10 +101,10 @@ interface SavedProgress {
   stats?: Partial<Record<keyof GameStats, unknown>>;
 }
 
-export const SAVE_KEY = 'moleload-progress-v1';
-export const SAVE_VERSION = 19;
+export const SAVE_KEY = 'stalinload:progress:v1';
+export const SAVE_VERSION = 20;
 /** The file name an exported save downloads as. */
-export const SAVE_EXPORT_FILENAME = 'moleload-save.json';
+export const SAVE_EXPORT_FILENAME = 'stalinload-save.json';
 /** A stored stack is a count, not a licence to write an unbounded number. */
 const MAX_SAVED_STACK = 9999;
 
@@ -155,33 +164,9 @@ export function parsePlacedDynamite(value: unknown): PlacedDynamite[] {
 }
 
 /**
- * One stack out of a saved container. Unlike a bay or station stack, this one
- * carries its own label, colour and price: an ore stack has to come back sellable,
- * and the ore table a future build ships may not agree with the one the stack was
- * mined from.
- */
-function parseStoredStack(entry: unknown): {item: InventoryItem; count: number} | null {
-  if (!entry || typeof entry !== 'object') return null;
-  const saved = entry as {kind?: unknown; count?: unknown; label?: unknown; color?: unknown; value?: unknown};
-  if (typeof saved.kind !== 'string' || saved.kind === '') return null;
-  const count = Math.floor(numeric(saved.count, 0, 0, MAX_SAVED_STACK));
-  if (count <= 0) return null;
-  const kind = saved.kind as InventoryItemKind;
-  return {
-    item: {
-      kind,
-      label: typeof saved.label === 'string' && saved.label !== '' ? saved.label : kind,
-      color: typeof saved.color === 'string' && saved.color !== '' ? saved.color : '#8c9aa8',
-      value: numeric(saved.value, 0, 0)
-    },
-    count
-  };
-}
-
-/**
- * Rebuild the crates and what is in them. Contents go back through `addItem`
- * rather than being written into slots directly, so a hand-edited save cannot
- * produce a container the game's own stacking rules could never have built.
+ * Rebuild the crates and what is in them. Contents go back through
+ * `parseKindCountStacks`, so a hand-edited save cannot produce a container the
+ * game's own stacking rules — or its capacity — could never have built.
  */
 export function parseCargoContainers(value: unknown): PlacedContainer[] {
   if (!Array.isArray(value)) return [];
@@ -191,24 +176,18 @@ export function parseCargoContainers(value: unknown): PlacedContainer[] {
     const tile = parsePlacedTile(entry);
     if (!tile) continue;
     const container = createPlacedContainer(tile.x, tile.y);
-    const {items} = entry as {items?: unknown};
-    if (Array.isArray(items)) {
-      for (const rawStack of items) {
-        const stack = parseStoredStack(rawStack);
-        if (!stack) continue;
-        container.inventory = addItem(container.inventory, stack.item, stack.count) ?? container.inventory;
-      }
-    }
+    container.inventory = parseKindCountStacks((entry as {items?: unknown}).items, isSavedItemKind, CARGO_CONTAINER.capacity);
     containers.push(container);
   }
   return containers;
 }
 
 /**
- * Rebuild the wrecks and what they still hold. Like the crates, contents go back
- * through `addItem` so a hand-edited save cannot produce a wreck the game's own
- * stacking rules could never have built, and the count is capped the way the game
- * caps it so a save can never restore more than could have been dropped.
+ * Rebuild the wrecks and what they still hold. Like the crates, contents are
+ * clamped to what a wreck could ever hold, and the count is capped the way the
+ * game caps it so a save can never restore more than could have been dropped. A
+ * wreck with nothing left in it is dropped: the game retires one the moment it
+ * is emptied, so an empty one in a save is junk.
  */
 export function parseWrecks(value: unknown): Wreck[] {
   if (!Array.isArray(value)) return [];
@@ -217,16 +196,9 @@ export function parseWrecks(value: unknown): Wreck[] {
     if (wrecks.length >= WRECK.maxPlaced) break;
     const tile = parsePlacedTile(entry);
     if (!tile) continue;
-    const wreck = createWreck(tile.x, tile.y);
-    const {items} = entry as {items?: unknown};
-    if (Array.isArray(items)) {
-      for (const rawStack of items) {
-        const stack = parseStoredStack(rawStack);
-        if (!stack) continue;
-        wreck.inventory = addItem(wreck.inventory, stack.item, stack.count) ?? wreck.inventory;
-      }
-    }
-    wrecks.push(wreck);
+    const inventory = parseKindCountStacks((entry as {items?: unknown}).items, isSavedItemKind, WRECK.capacity);
+    if (inventory.length === 0) continue;
+    wrecks.push(createWreck(tile.x, tile.y, inventory));
   }
   return wrecks;
 }
@@ -235,26 +207,34 @@ export function parseWrecks(value: unknown): Wreck[] {
  * Rebuild an inventory from `{kind, count}` stacks, resolving each kind's item
  * through the catalog (or the ore table) so its label, colour and price never have
  * to be stored. Any stack whose kind `allow` rejects — junk, or ore where only
- * equipment belongs — is dropped, and stacking obeys the game's own rules because
- * every unit goes back in through `addItem`.
+ * equipment belongs — is dropped, stacking obeys the game's own rules because
+ * every unit goes back in through `addItem`, and nothing past `capacity` total
+ * items is restored.
  */
-function parseKindCountStacks(value: unknown, allow: (kind: string) => boolean): Inventory {
+function parseKindCountStacks(value: unknown, allow: (kind: string) => boolean, capacity = Infinity): Inventory {
   let inventory = createInventory();
   if (!Array.isArray(value)) return inventory;
   for (const entry of value) {
     if (!entry || typeof entry !== 'object') continue;
     const {kind, count} = entry as {kind?: unknown; count?: unknown};
     if (typeof kind !== 'string' || !allow(kind)) continue;
-    const n = Math.floor(numeric(count, 0, 0, MAX_SAVED_STACK));
+    const n = Math.min(Math.floor(numeric(count, 0, 0, MAX_SAVED_STACK)), roomLeft(inventory, capacity));
     if (n <= 0) continue;
     inventory = addItem(inventory, itemForKind(kind as InventoryItemKind), n);
   }
   return inventory;
 }
 
-/** A saved kind belongs at the manufacturing station if it is ore or a real item. */
-function isStationKind(kind: string): boolean {
-  return kind.startsWith('ore:') || isCatalogKind(kind);
+/**
+ * Whether a saved kind names something real: an item in the catalog, or an ore
+ * in this build's ore table. An ore the table does not know would come back as a
+ * worthless grey stack, so it is dropped with the rest of the junk.
+ */
+function isSavedItemKind(kind: string): boolean {
+  if (isCatalogKind(kind)) return true;
+  if (!isOreKind(kind as InventoryItemKind)) return false;
+  const name = kind.slice('ore:'.length);
+  return ORES.some(ore => ore.name === name);
 }
 
 /** The fitted upgrades, one slot each, dropping anything that is not a real upgrade. */
@@ -292,13 +272,14 @@ function parseStations(value: unknown): PlacedStation[] {
     if (!tile) continue;
     if (kind === 'manufacturer') {
       const station = createManufacturer(tile.x, tile.y);
-      station.inventory = parseKindCountStacks((entry as {items?: unknown}).items, isStationKind);
+      station.inventory = parseKindCountStacks((entry as {items?: unknown}).items, isSavedItemKind, STATION_CAPACITY);
       stations.push(station);
     } else if (kind === 'extractor') {
       const station = createExtractor(tile.x, tile.y);
       const {coal, fuel, progress} = entry as {coal?: unknown; fuel?: unknown; progress?: unknown};
-      station.coal = Math.floor(numeric(coal, 0, 0, MAX_SAVED_STACK));
-      station.fuel = Math.floor(numeric(fuel, 0, 0, MAX_SAVED_STACK));
+      // The hopper holds what a manufacturer's stock does, and the tank its cap.
+      station.coal = Math.floor(numeric(coal, 0, 0, STATION_CAPACITY));
+      station.fuel = Math.floor(numeric(fuel, 0, 0, EXTRACTOR.fuelCap));
       // A missing or corrupt progress value clamps to 0 rather than throwing.
       station.progress = Math.floor(numeric(progress, 0, 0, EXTRACTOR.ticksPerCoal));
       stations.push(station);
@@ -346,7 +327,7 @@ export function parseChestLedger(value: unknown): ChestLedger {
     if (!match || !Array.isArray(stacks)) continue;
     const x = Number(match[1]), y = Number(match[2]);
     if (!chestAt(x, y)) continue;
-    ledger[chestKey(x, y)] = ledgerStacks(parseKindCountStacks(stacks, isStationKind));
+    ledger[chestKey(x, y)] = ledgerStacks(parseKindCountStacks(stacks, isSavedItemKind));
   }
   return ledger;
 }
@@ -369,23 +350,9 @@ function serializeStation(station: PlacedStation): Record<string, unknown> {
   return {kind: 'portal', x: station.x, y: station.y, name: station.name};
 }
 
-/**
- * One placed inventory (a crate or a wreck), flattened: where it stands and one
- * entry per stack inside it, each ore stack carrying its own label/colour/price so
- * it comes back sellable regardless of a future ore table.
- */
+/** One placed inventory (a crate or a wreck), flattened: where it stands and its stacks. */
 function serializePlacedInventory(entity: {x: number; y: number; inventory: Inventory}) {
-  return {
-    x: entity.x,
-    y: entity.y,
-    items: inventoryStacks(entity.inventory).map(stack => ({
-      kind: stack.kind,
-      count: stack.count,
-      label: stack.item.label,
-      color: stack.item.color,
-      value: stack.item.value
-    }))
-  };
+  return {x: entity.x, y: entity.y, items: serializeStacks(entity.inventory)};
 }
 
 /** A bay or station stack, flattened to just the kind and how many. */
@@ -393,51 +360,142 @@ function serializeStacks(inventory: Inventory): {kind: InventoryItemKind; count:
   return inventoryStacks(inventory).map(stack => ({kind: stack.kind, count: stack.count}));
 }
 
-export function load(state: GameState): void {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return;
-    const save: SavedProgress = JSON.parse(raw);
-    // Deprecation gate: any save older than `SAVE_VERSION` is discarded, never
-    // migrated, so the state keeps the pristine defaults `createInitialState` gave it.
-    if (numeric(save.version, 0, 0) < SAVE_VERSION) return;
-    const p = state.player;
-    state.cash = numeric(save.cash, state.cash, 0);
-    // The four ship stats are derived from fitted equipment, not stored: restore
-    // the fitted slots, then `applyEquipment` recomputes `fuelMax`/`hullMax`/
-    // `cargoMax`/`drill` and `boost` from them (done once the bay is back, since it
-    // clamps fuel/hull to their derived maxima).
-    p.equipment = parseEquipment(save.equipment);
+/**
+ * Everything a save restores, parsed and validated but not yet applied. `load`
+ * builds one of these in full before it writes a single field of the state.
+ */
+interface StagedProgress {
+  cash: number;
+  equipment: (UpgradeKind | null)[];
+  bay: Inventory;
+  /** `undefined` keeps the seeded stations: the save recorded none. */
+  stations: PlacedStation[] | undefined;
+  scannerDevices: ScannerDevice[];
+  placedDynamite: PlacedDynamite[];
+  cargoContainers: PlacedContainer[];
+  wrecks: Wreck[];
+  tradeLedger: Record<string, number[]>;
+  chestLedger: ChestLedger;
+  x: number;
+  y: number;
+  explored: Set<number>;
+  tileDiff: TileDiff;
+  stats: GameStats;
+}
+
+/**
+ * Parse a raw save into a staged restore, or `null` when there is nothing this
+ * build should load: no save, not an object, or any version but exactly
+ * `SAVE_VERSION`. Reads `state` only for fallbacks and never writes it; may throw
+ * on a pathological file, which `load` turns into a fresh start.
+ */
+function parseProgress(raw: string | null, state: GameState): StagedProgress | null {
+  if (!raw) return null;
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const save = parsed as SavedProgress;
+  // Deprecation gate: any save not written by exactly this version — older, or
+  // from a newer build that may not mean what this one thinks — is discarded,
+  // never migrated, so the state keeps the pristine defaults it was created with.
+  if (save.version !== SAVE_VERSION) return null;
+  const p = state.player;
+  const explored = new Set<number>();
+  mergeExploration(explored, typeof save.explored === 'string' ? save.explored : '');
+  const defaultStats = createDefaultStats();
+  const savedStats = save.stats && typeof save.stats === 'object' ? save.stats : {};
+  const stats = createDefaultStats();
+  for (const key of Object.keys(defaultStats) as (keyof GameStats)[]) {
+    stats[key] = numeric(savedStats[key], defaultStats[key], 0);
+  }
+  return {
+    cash: numeric(save.cash, state.cash, 0),
+    equipment: parseEquipment(save.equipment),
     // The bay comes back one stack at a time; ore is never among it, so a fresh run
     // starts with only the equipment the last one carried.
-    p.inventory = parseKindCountStacks(save.bay, isCatalogKind);
-    applyEquipment(p);
-    // Absent leaves the two seeded stations `createInitialState` set up; a present
+    bay: parseKindCountStacks(save.bay, isCatalogKind),
+    // Absent leaves the seeded stations `createInitialState` set up; a present
     // (even empty) array is a save that recorded the mine's stations verbatim.
-    if (save.stations !== undefined) state.stations = parseStations(save.stations);
-    state.scannerDevices = parseScannerDevices(save.scannerDevices);
-    state.placedDynamite = parsePlacedDynamite(save.dynamiteSticks);
-    state.cargoContainers = parseCargoContainers(save.cargoContainers);
-    state.wrecks = parseWrecks(save.wrecks);
-    state.tradeLedger = parseTradeLedger(save.tradeLedger);
-    state.chestLedger = parseChestLedger(save.chestLedger);
-    // The ship resumes on the tile it parked on, render position included so it
-    // appears there instead of easing in from home. The clamps are the ones
-    // `movementDestination` enforces, so no save can park a miner in a wall.
-    const x = Math.floor(numeric(save.x, p.x, 1, WORLD_W - 2));
-    const y = Math.floor(numeric(save.y, p.y, START_Y, MAX_WORLD_ROW));
-    Object.assign(p, {x, y, drawX: x, drawY: y});
-    mergeExploration(state.exploredTiles, typeof save.explored === 'string' ? save.explored : '');
-    state.soloTileDiff = createTileDiff(parseTileEntries(save.tiles));
-    const defaultStats = createDefaultStats();
-    const savedStats = save.stats || {};
-    state.stats = defaultStats;
-    for (const key of Object.keys(defaultStats) as (keyof GameStats)[]) {
-      state.stats[key] = numeric(savedStats[key], defaultStats[key], 0);
-    }
+    stations: save.stations !== undefined ? parseStations(save.stations) : undefined,
+    scannerDevices: parseScannerDevices(save.scannerDevices),
+    placedDynamite: parsePlacedDynamite(save.dynamiteSticks),
+    cargoContainers: parseCargoContainers(save.cargoContainers),
+    wrecks: parseWrecks(save.wrecks),
+    tradeLedger: parseTradeLedger(save.tradeLedger),
+    chestLedger: parseChestLedger(save.chestLedger),
+    // The clamps are the ones `movementDestination` enforces, so no save can park
+    // a miner outside the walls; `run.resume` sends one parked in rock home.
+    x: Math.floor(numeric(save.x, p.x, 1, WORLD_W - 2)),
+    y: Math.floor(numeric(save.y, p.y, START_Y, MAX_WORLD_ROW)),
+    explored,
+    tileDiff: createTileDiff(parseTileEntries(save.tiles)),
+    stats
+  };
+}
+
+export function load(state: GameState): void {
+  let staged: StagedProgress | null;
+  try {
+    staged = parseProgress(localStorage.getItem(SAVE_KEY), state);
   } catch (err) {
     console.warn('Could not load saved Stalinload progress:', err);
+    return;
   }
+  if (!staged) return;
+  // Everything parsed: apply it in one go.
+  const p = state.player;
+  state.cash = staged.cash;
+  // The four ship stats are derived from fitted equipment, not stored: restore
+  // the fitted slots and the bay, then `applyEquipment` recomputes `fuelMax`/
+  // `hullMax`/`cargoMax`/`drill` and `boost` from them.
+  p.equipment = staged.equipment;
+  p.inventory = staged.bay;
+  applyEquipment(p);
+  if (staged.stations) state.stations = staged.stations;
+  state.scannerDevices = staged.scannerDevices;
+  state.placedDynamite = staged.placedDynamite;
+  state.cargoContainers = staged.cargoContainers;
+  state.wrecks = staged.wrecks;
+  state.tradeLedger = staged.tradeLedger;
+  state.chestLedger = staged.chestLedger;
+  // The ship resumes on the tile it parked on, render position included so it
+  // appears there instead of easing in from home.
+  Object.assign(p, {x: staged.x, y: staged.y, drawX: staged.x, drawY: staged.y});
+  for (const index of staged.explored) state.exploredTiles.add(index);
+  state.soloTileDiff = staged.tileDiff;
+  state.stats = staged.stats;
+}
+
+/**
+ * The saved tile budget. It starts at `MAX_SAVED_TILE_ENTRIES` and halves each
+ * time storage refuses a save for size, and it stays halved for the rest of the
+ * session: a quota that refused one save will refuse the next one the same size,
+ * and retrying the full diff every few seconds would just fail again.
+ */
+let savedTileCap = MAX_SAVED_TILE_ENTRIES;
+
+/** The current saved tile budget (see `savedTileCap`). */
+export function savedTileBudget(): number {
+  return savedTileCap;
+}
+
+/** Restore the full tile budget — a fresh session's; for tests. */
+export function resetSavedTileBudget(): void {
+  savedTileCap = MAX_SAVED_TILE_ENTRIES;
+}
+
+/**
+ * The tile diff as it is written, capped to `cap` entries. Tiles something the
+ * player owns stands on — a station, a crate, a wreck — and placed decorations
+ * are never the ones dropped: losing those would bury the thing back in rock.
+ */
+function savedTiles(state: GameState, cap: number): TileEntry[] {
+  const standing = new Set<string>();
+  for (const thing of [...state.stations, ...state.cargoContainers, ...state.wrecks]) standing.add(tileKey(thing.x, thing.y));
+  return capTileEntries(
+    tileDiffEntries(state.soloTileDiff),
+    cap,
+    entry => entry.tile.type === 'decor' || standing.has(tileKey(entry.x, entry.y))
+  );
 }
 
 /**
@@ -460,11 +518,12 @@ export function serializeProgress(state: GameState): SavedProgress & {version: n
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),
     cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializePlacedInventory),
-    wrecks: state.wrecks.slice(0, WRECK.maxPlaced).map(serializePlacedInventory),
+    // An emptied wreck is retired on the spot, so one here would only be junk.
+    wrecks: state.wrecks.filter(wreck => wreck.inventory.length > 0).slice(0, WRECK.maxPlaced).map(serializePlacedInventory),
     tradeLedger: state.tradeLedger,
     chestLedger: state.chestLedger,
     explored: encodeExploration(state.exploredTiles),
-    tiles: capTileEntries(tileDiffEntries(state.soloTileDiff)),
+    tiles: savedTiles(state, savedTileCap),
     stats: state.stats,
     savedAt: Date.now()
   };
@@ -505,17 +564,28 @@ export function parseImportedSave(text: string): ImportedSave {
 
 export function save(state: GameState): void {
   const progress = serializeProgress(state);
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
-  } catch (err) {
-    // The mine is the one part of the save that can grow without bound, and the
-    // only part the world can regenerate. Losing a player's cash and equipment to
-    // a full quota would be far worse, so drop the terrain and keep the rest.
+  for (;;) {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({...progress, tiles: []}));
-      console.warn('Saved Stalinload progress without the dug terrain:', err);
-    } catch (fallbackErr) {
-      console.warn('Could not save Stalinload progress:', fallbackErr);
+      localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
+      return;
+    } catch (err) {
+      // The mine is the one part of the save that can grow without bound, and the
+      // only part the world can regenerate. Losing a player's cash and equipment to
+      // a full quota would be far worse, so the tile budget halves — oldest tunnels
+      // first — and the save retries. With no budget left the last attempt drops
+      // the terrain outright; only if even that is refused is the save abandoned.
+      const tiles = progress.tiles as TileEntry[];
+      if (savedTileCap === 0 && tiles.length === 0) {
+        console.warn('Could not save Stalinload progress:', err);
+        return;
+      }
+      if (savedTileCap > 0) {
+        savedTileCap = Math.floor(savedTileCap / 2);
+        progress.tiles = savedTiles(state, savedTileCap);
+      } else {
+        progress.tiles = [];
+      }
+      console.warn(`Storage refused the save; retrying with at most ${savedTileCap} dug tiles:`, err);
     }
   }
 }

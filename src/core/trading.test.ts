@@ -39,6 +39,12 @@ describe('buy prices', () => {
     expect(buyPrice('repairKit')).toBe(54);
   });
 
+  it('prices one unit of a multi-output recipe, not the whole batch', () => {
+    // Stone Block ×2 ← 1 Coal: each block is half a Coal's value, marked up.
+    const coal = itemForKind(oreKind('Coal')).value;
+    expect(buyPrice('decor:stoneBlock')).toBe(Math.max(1, Math.round(coal / 2 * TRADING_MARKUP)));
+  });
+
   it('prices richer gear above cheaper gear', () => {
     expect(buyPrice('teleporter')).toBeGreaterThan(buyPrice('scanner'));
     expect(buyPrice('upgrade:tank:2')).toBeGreaterThan(buyPrice('upgrade:tank:1'));

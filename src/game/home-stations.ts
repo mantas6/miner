@@ -18,6 +18,7 @@
 // tidies up when the Construction Toolkit lifts one out from under an open screen.
 
 import {
+  canCraft,
   craft as craftRecipe,
   RECIPES,
   type Recipe
@@ -32,6 +33,7 @@ import {
 } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import {
+  STATION_CAPACITY,
   nearestStation,
   stationAt,
   isStationReachable,
@@ -228,10 +230,15 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
       ? RECIPES[reference]
       : RECIPES.find(entry => entry.output === reference);
     if (!recipe) return;
-    const result = craftRecipe(manufacturer.inventory, recipe);
-    if (!result) {
+    if (!canCraft(manufacturer.inventory, recipe)) {
       audio.alarm();
       return toast(`Not enough materials for ${itemForKind(recipe.output).label}.`);
+    }
+    // The only other refusal: the batch would push the stock past its capacity.
+    const result = craftRecipe(manufacturer.inventory, recipe, STATION_CAPACITY);
+    if (!result) {
+      audio.alarm();
+      return toast(`Station stock is full at ${STATION_CAPACITY} items. Take something out first.`);
     }
     manufacturer.inventory = result;
     repaint();
@@ -248,12 +255,18 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
       audio.alarm();
       return toast('No coal aboard to load.');
     }
-    extractor.coal += coal.count;
-    state.player.inventory = removeItem(state.player.inventory, coal.kind, coal.count);
+    // The hopper holds as much as a manufacturer's stock; the rest stays aboard.
+    const loaded = Math.min(coal.count, STATION_CAPACITY - extractor.coal);
+    if (loaded <= 0) {
+      audio.alarm();
+      return toast(`The extractor's hopper is full at ${STATION_CAPACITY} coal.`);
+    }
+    extractor.coal += loaded;
+    state.player.inventory = removeItem(state.player.inventory, coal.kind, loaded);
     repaint();
     saveProgress();
     audio.stow();
-    toast(`Loaded ${coal.count} coal into the extractor.`);
+    toast(`Loaded ${loaded} coal into the extractor.`);
   }
 
   /** Pour as much stored fuel into the tank as it will take. Returns the amount moved. */

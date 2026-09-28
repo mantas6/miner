@@ -78,12 +78,21 @@ function recipeOreValue(kind: InventoryItemKind): number {
   return recipe.inputs.reduce((sum, input) => sum + input.count * itemForKind(input.kind).value, 0);
 }
 
-/** A post's buy price for one item: its recipe's ore-value, marked up. */
+/**
+ * A post's buy price for one item: its recipe's ore-value per unit made, marked
+ * up. A recipe that yields several units (two Stone Blocks from one Coal) spreads
+ * its inputs across all of them, so one unit never costs the whole batch.
+ */
 export function buyPrice(kind: InventoryItemKind): number {
-  return Math.max(1, Math.round(recipeOreValue(kind) * TRADING_MARKUP));
+  const made = RECIPES.find(entry => entry.output === kind)?.count ?? 1;
+  return Math.max(1, Math.round(recipeOreValue(kind) / Math.max(1, made) * TRADING_MARKUP));
 }
 
-/** The unit price a post pays for one unit of an ore: the ore table's own value. */
+/**
+ * The unit price a post pays for one unit of an ore: the ore table's own value.
+ * The one sell price in the game — the trade screen, the cargo readout and the
+ * item tooltips all read it — so it is never taken from a stack's own record.
+ */
 export function sellPrice(kind: InventoryItemKind): number {
   return itemForKind(kind).value;
 }

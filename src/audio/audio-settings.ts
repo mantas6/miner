@@ -4,7 +4,7 @@
 // Both default to on, which matches the pre-toggle behaviour: audio is wanted,
 // the browser simply has not granted it until the first trusted gesture.
 
-export const AUDIO_SETTINGS_KEY = 'moleload:audio-settings:v1';
+export const AUDIO_SETTINGS_KEY = 'stalinload:audio-settings:v1';
 
 export interface AudioSettings {
   music: boolean;

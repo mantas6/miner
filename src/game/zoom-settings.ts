@@ -11,7 +11,7 @@
 
 import { clampZoom, DEFAULT_ZOOM } from './zoom';
 
-export const ZOOM_SETTINGS_KEY = 'moleload:zoom-settings:v1';
+export const ZOOM_SETTINGS_KEY = 'stalinload:zoom-settings:v1';
 
 /** The remembered level, clamped to the supported range; anything else reads as 1x. */
 export function loadZoomLevel(): number {

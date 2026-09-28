@@ -82,20 +82,30 @@ export interface PortalDestination {
 }
 
 /**
+ * Whether the ship may land on a tile: open space it can fly out of. The pure
+ * rules cannot see the mine, so the caller that can passes this in; a portal whose
+ * tile has gone solid (a save that lost its dug-out hole, a reset mine) is not a
+ * destination at all, since landing there would bury the ship in rock.
+ */
+export type LandingCheck = (x: number, y: number) => boolean;
+
+/**
  * Every portal a ship at `from` could travel to, nearest first. The portal
  * standing on `from` itself is always excluded; with `excludeReachable` set, any
  * portal already within station reach of `from` is dropped too (used by the
- * carried teleporter, which is pointless when a portal is already at arm's reach).
+ * carried teleporter, which is pointless when a portal is already at arm's reach);
+ * with `canLand` given, so is any portal whose tile the ship could not land on.
  */
 export function portalDestinations(
   stations: readonly PlacedStation[],
   from: {x: number; y: number},
-  options: {excludeReachable?: boolean} = {}
+  options: {excludeReachable?: boolean; canLand?: LandingCheck} = {}
 ): PortalDestination[] {
   const destinations: PortalDestination[] = [];
   for (const portal of portals(stations)) {
     if (portal.x === from.x && portal.y === from.y) continue;
     if (options.excludeReachable && isStationReachable(portal, from.x, from.y)) continue;
+    if (options.canLand && !options.canLand(portal.x, portal.y)) continue;
     destinations.push({
       x: portal.x,
       y: portal.y,
@@ -107,7 +117,12 @@ export function portalDestinations(
   return destinations.sort((a, b) => a.distance - b.distance);
 }
 
-/** The portals a lost ship may redeploy at: every portal is a candidate. */
-export function respawnPortals(stations: readonly PlacedStation[]): PortalStation[] {
-  return portals(stations);
+/**
+ * The portals a lost ship may redeploy at: every portal is a candidate, except —
+ * with `canLand` given — one whose tile the ship could not land on. With none
+ * left the ship redeploys at the home base.
+ */
+export function respawnPortals(stations: readonly PlacedStation[], canLand?: LandingCheck): PortalStation[] {
+  const candidates = portals(stations);
+  return canLand ? candidates.filter(portal => canLand(portal.x, portal.y)) : candidates;
 }

@@ -72,17 +72,24 @@ export function encodeExploration(explored: Iterable<number>): string {
   return ranges.join(',');
 }
 
+/**
+ * Add an encoded payload's tiles to `explored`, returning the indexes that were
+ * new. A payload that fails `isEncodedExploration` — malformed, out of bounds, or
+ * over the size cap — adds nothing at all, rather than a half-applied prefix; and
+ * the set itself never grows past `MAX_EXPLORED_TILES`, however many payloads are
+ * merged into it, so no sequence of well-formed ones can grow it without bound.
+ */
 export function mergeExploration(explored: Set<number>, encoded: unknown): number[] {
-  if (typeof encoded !== 'string' || !encoded) return [];
+  if (typeof encoded !== 'string' || !encoded || !isEncodedExploration(encoded)) return [];
   const added: number[] = [];
   for (const range of encoded.split(',')) {
     const match = RANGE.exec(range);
     if (!match) continue;
     const start = Number(match[1]);
     const end = Number(match[2] ?? match[1]);
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || end < start || start < MIN_INDEX || end > MAX_INDEX) continue;
     for (let index = start; index <= end; index++) {
       if (explored.has(index)) continue;
+      if (explored.size >= MAX_EXPLORED_TILES) return added;
       explored.add(index);
       added.push(index);
     }
