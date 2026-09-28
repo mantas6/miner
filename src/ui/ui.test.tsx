@@ -44,7 +44,7 @@ const INFO_TAB_CONTRACT = [
   {tabId: 'info-tab-stats', ids: ['expeditionStats']},
   {tabId: 'info-tab-prospecting', ids: ['prospectingGuide']},
   {tabId: 'info-tab-hazards', ids: ['dangerGuide']},
-  {tabId: 'info-tab-settings', ids: ['settingsMusicBtn', 'settingsSfxBtn', 'resetGameBtn']}
+  {tabId: 'info-tab-settings', ids: ['settingsMusicBtn', 'settingsSfxBtn', 'exportSaveBtn', 'importSaveFileInput', 'importSaveText', 'importSaveBtn', 'resetGameBtn']}
 ];
 
 const pristine = {...uiStore.getState()};
@@ -790,6 +790,64 @@ describe('settings tab', () => {
     expect(document.getElementById('resetGameConfirmBtn')).toBeNull();
     expect(document.getElementById('resetGameBtn')).not.toBeNull();
     expect(resetGame).not.toHaveBeenCalled();
+  });
+
+  /** The box appears only once there is an export in it, and goes with the tab. */
+  it('exports through the command and shows the save read-only until the tab changes', () => {
+    const exportSave = vi.fn(() => uiStore.getState().setSaveExport('{"version":18}'));
+    setUiCommands({exportSave});
+    openSettings();
+    expect(document.getElementById('exportSaveText')).toBeNull();
+
+    act(() => { fireEvent.click(document.getElementById('exportSaveBtn')!); });
+    expect(exportSave).toHaveBeenCalledOnce();
+    const box = document.getElementById('exportSaveText') as HTMLTextAreaElement;
+    expect(box.value).toBe('{"version":18}');
+    expect(box.readOnly).toBe(true);
+
+    act(() => { fireEvent.click(document.getElementById('info-tab-controls')!); });
+    act(() => { fireEvent.click(document.getElementById('info-tab-settings')!); });
+    expect(uiStore.getState().saveExport).toBeNull();
+    expect(document.getElementById('exportSaveText')).toBeNull();
+  });
+
+  it('imports the pasted text only once confirmed, and Cancel stands it down', () => {
+    const importSave = vi.fn();
+    setUiCommands({importSave});
+    openSettings();
+
+    act(() => { fireEvent.change(document.getElementById('importSaveText')!, {target: {value: '{"version":18,"cash":7}'}}); });
+    act(() => { fireEvent.click(document.getElementById('importSaveBtn')!); });
+    expect(importSave).not.toHaveBeenCalled();
+    // As with Reset, Cancel takes the trigger's place and the keyboard.
+    expect(document.getElementById('importSaveBtn')).toBeNull();
+    expect(document.activeElement?.id).toBe('importSaveCancelBtn');
+
+    act(() => { fireEvent.click(document.getElementById('importSaveCancelBtn')!); });
+    expect(document.getElementById('importSaveConfirmBtn')).toBeNull();
+    expect(importSave).not.toHaveBeenCalled();
+
+    act(() => { fireEvent.click(document.getElementById('importSaveBtn')!); });
+    act(() => { fireEvent.click(document.getElementById('importSaveConfirmBtn')!); });
+    expect(importSave).toHaveBeenCalledExactlyOnceWith('{"version":18,"cash":7}');
+    // An import the command refused leaves the panel ready for another try.
+    expect(document.getElementById('importSaveBtn')).not.toBeNull();
+  });
+
+  it('reads a chosen save file into the import box', async () => {
+    openSettings();
+    const input = document.getElementById('importSaveFileInput') as HTMLInputElement;
+    expect(input.type).toBe('file');
+    expect(input.accept).toContain('.json');
+
+    const file = new File(['{"version":18,"cash":99}'], 'moleload-save.json', {type: 'application/json'});
+    Object.defineProperty(input, 'files', {value: [file], configurable: true});
+    act(() => { fireEvent.change(input); });
+    // The reader answers asynchronously; let it land inside `act`.
+    await vi.waitFor(async () => {
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+      expect((document.getElementById('importSaveText') as HTMLTextAreaElement).value).toBe('{"version":18,"cash":99}');
+    });
   });
 });
 

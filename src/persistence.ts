@@ -94,6 +94,8 @@ interface SavedProgress {
 
 export const SAVE_KEY = 'moleload-progress-v1';
 export const SAVE_VERSION = 18;
+/** The file name an exported save downloads as. */
+export const SAVE_EXPORT_FILENAME = 'moleload-save.json';
 /** A stored stack is a count, not a licence to write an unbounded number. */
 const MAX_SAVED_STACK = 9999;
 
@@ -438,9 +440,14 @@ export function load(state: GameState): void {
   }
 }
 
-export function save(state: GameState): void {
+/**
+ * The save file for this state, as the object `save` writes and `load` reads
+ * back. Also what an export hands the player, so a downloaded save and the one in
+ * `localStorage` are the same thing.
+ */
+export function serializeProgress(state: GameState): SavedProgress & {version: number; savedAt: number} {
   const p = state.player;
-  const progress = {
+  return {
     version: SAVE_VERSION,
     cash: Math.floor(state.cash),
     x: p.x,
@@ -461,6 +468,43 @@ export function save(state: GameState): void {
     stats: state.stats,
     savedAt: Date.now()
   };
+}
+
+/** The outcome of checking a pasted or chosen save before it replaces the run. */
+export type ImportedSave = {ok: true; json: string} | {ok: false; reason: string};
+
+/**
+ * Check a save a player brings back — pasted, or read from a file — before it
+ * replaces the one on disk. Only the envelope is checked here: it must be JSON,
+ * an object, and exactly this build's `SAVE_VERSION`. Every field inside is
+ * re-validated by `load` on the reload that follows, as for any save.
+ *
+ * The version check is stricter than `load`'s gate on purpose. An older save
+ * would be silently discarded on boot, and a newer one written by a later build
+ * may not mean what this one thinks — either way the player would lose the run
+ * they are standing in for nothing, so both are refused up front.
+ */
+export function parseImportedSave(text: string): ImportedSave {
+  if (text.trim() === '') return {ok: false, reason: 'Paste a save or choose a save file first.'};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return {ok: false, reason: 'That is not a save file: it is not valid JSON.'};
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {ok: false, reason: 'That is not a save file: it is not a JSON object.'};
+  }
+  const {version} = parsed as {version?: unknown};
+  if (version !== SAVE_VERSION) {
+    const found = typeof version === 'number' ? `version ${version}` : 'no version';
+    return {ok: false, reason: `That save has ${found}; this build only reads save version ${SAVE_VERSION}.`};
+  }
+  return {ok: true, json: JSON.stringify(parsed)};
+}
+
+export function save(state: GameState): void {
+  const progress = serializeProgress(state);
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
   } catch (err) {

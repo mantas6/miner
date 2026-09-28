@@ -41,7 +41,7 @@ import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
 import { formatExpeditionObjective } from '../core/objective';
-import { load, save } from '../persistence';
+import { SAVE_EXPORT_FILENAME, SAVE_KEY, load, parseImportedSave, save, serializeProgress } from '../persistence';
 import { clearPersistedGameData } from '../persistence-reset';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { formatExpeditionStats } from '../core/stats';
@@ -321,8 +321,53 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
         zoomSave.cancel();
         clearPersistedGameData();
         window.location.reload();
+      },
+      exportSave: () => {
+        const json = JSON.stringify(serializeProgress(state));
+        uiStore.getState().setSaveExport(json);
+        downloadSaveFile(json);
+        audio.click();
+        toast(`Save exported as ${SAVE_EXPORT_FILENAME}.`);
+      },
+      importSave: text => {
+        const imported = parseImportedSave(text);
+        if (!imported.ok) { audio.alarm(); toast(imported.reason); return; }
+        // The same order as a full reset: silence every writer first, or a pending
+        // debounce — or the unload save the reload itself triggers — would write
+        // the run being replaced straight over the one just imported.
+        persistenceCleared = true;
+        progressSave.cancel();
+        zoomSave.cancel();
+        try {
+          localStorage.setItem(SAVE_KEY, imported.json);
+        } catch {
+          // Nothing was replaced, so the run goes on and keeps saving as before.
+          persistenceCleared = false;
+          audio.alarm();
+          toast('Could not store the imported save: browser storage refused it.');
+          return;
+        }
+        window.location.reload();
       }
     });
+  }
+  /**
+   * Offer the save as a file download. Skipped where there is no DOM to click a
+   * link in or no Blob URLs to point it at (tests, very old browsers); the text
+   * box in Settings still carries the export.
+   */
+  function downloadSaveFile(json: string) {
+    if (typeof document === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+    try {
+      const url = URL.createObjectURL(new Blob([json], {type: 'application/json'}));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = SAVE_EXPORT_FILENAME;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      console.warn('Could not download the exported save:', err);
+    }
   }
   /** The armed-tool groups that all share the single press on the mine. */
   type ArmGroup = 'scanner' | 'dynamite' | 'container' | 'decor' | 'stationDevices' | 'toolkit';

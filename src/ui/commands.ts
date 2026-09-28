@@ -117,6 +117,17 @@ export interface UiCommands {
    * first; by the time this is called the player has already agreed.
    */
   resetGame(): void;
+  /**
+   * Hand the player the current save: into the store for the Settings text box,
+   * and down as `moleload-save.json`.
+   */
+  exportSave(): void;
+  /**
+   * Replace the run with a save the player brings back, then reload into it. A
+   * save that is not this build's version is refused with a toast. The Settings
+   * tab asks for confirmation first.
+   */
+  importSave(text: string): void;
 }
 
 function noop(): void {
@@ -177,7 +188,9 @@ function noopCommands(): UiCommands {
     fillExtractor: noop,
     resetPlayerData: noop,
     resetWorldState: noop,
-    resetGame: noop
+    resetGame: noop,
+    exportSave: noop,
+    importSave: noop
   };
 }
 

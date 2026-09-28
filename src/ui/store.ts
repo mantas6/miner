@@ -276,6 +276,12 @@ export interface UiState {
   statRows: ExpeditionStatRow[];
   activeOverlay: ActiveOverlay;
   infoTab: InfoTab;
+  /**
+   * The save file the last export produced, shown in Settings for copying. Only
+   * lives while the Settings tab it was exported from is up: opening Info or
+   * switching tab drops it, so a stale export is never mistaken for the run.
+   */
+  saveExport: string | null;
   phase: UiPhase;
   runtimeStatus: RuntimeStatus;
   /** Why the runtime failed, when it did. Shown verbatim in the failure notice. */
@@ -320,6 +326,7 @@ export interface UiState {
   /** Close an overlay, but only while it is the one on screen. */
   closeOverlay(overlay: OverlayId): void;
   setInfoTab(tab: InfoTab): void;
+  setSaveExport(json: string | null): void;
   setPhase(phase: UiPhase): void;
   setRuntimeStatus(status: RuntimeStatus, error?: string | null): void;
   setMusic(on: boolean, label: string): void;
@@ -447,6 +454,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   statRows: formatExpeditionStats({}),
   activeOverlay: null,
   infoTab: DEFAULT_INFO_TAB,
+  saveExport: null,
   phase: 'intro',
   runtimeStatus: 'booting',
   runtimeError: null,
@@ -534,7 +542,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   setActiveOverlay(overlay) {
     if (get().activeOverlay === overlay) return;
     // Info always opens on its first tab, as the imperative version did.
-    set(overlay === 'info' ? {activeOverlay: 'info', infoTab: DEFAULT_INFO_TAB} : {activeOverlay: overlay});
+    set(overlay === 'info' ? {activeOverlay: 'info', infoTab: DEFAULT_INFO_TAB, saveExport: null} : {activeOverlay: overlay});
   },
 
   /**
@@ -548,7 +556,11 @@ export const uiStore = createStore<UiState>((set, get) => ({
   },
 
   setInfoTab(tab) {
-    if (get().infoTab !== tab) set({infoTab: tab});
+    if (get().infoTab !== tab) set({infoTab: tab, saveExport: null});
+  },
+
+  setSaveExport(json) {
+    set({saveExport: json});
   },
 
   setPhase(phase) {

@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { SAVE_KEY, SAVE_VERSION, load, numeric, save } from './persistence';
+import { SAVE_KEY, SAVE_VERSION, load, numeric, parseImportedSave, save, serializeProgress } from './persistence';
 import { HOME_SPAWN_X, createInitialState } from './core/state';
 import { CARGO_CONTAINER, CARGO_CONTAINER_ITEM, createPlacedContainer } from './core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM, createPlacedDynamite } from './core/dynamite';
@@ -74,6 +74,66 @@ describe('version gate', () => {
 
     expect(state.cash).toBe(fresh.cash);
     expect(state.player.inventory).toHaveLength(0);
+  });
+});
+
+describe('save export and import', () => {
+  it('serializes exactly the save that `save` writes', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.cash = 321;
+    state.player.inventory = addItem(createInventory(), DYNAMITE_ITEM, 2);
+
+    save(state);
+    const written = readSave(stored);
+    const exported = serializeProgress(state);
+
+    expect({...exported, savedAt: 0}).toEqual({...written, savedAt: 0});
+    expect(exported).toMatchObject({version: SAVE_VERSION, cash: 321, bay: [{kind: 'dynamite', count: 2}]});
+  });
+
+  it('accepts a current-version save and hands back its JSON, which then loads', () => {
+    const state = createInitialState();
+    state.cash = 4321;
+    const text = JSON.stringify(serializeProgress(state), null, 2);
+
+    const result = parseImportedSave(text);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(JSON.parse(result.json)).toEqual(JSON.parse(text));
+    stubStorage(JSON.parse(result.json));
+    const loaded = createInitialState();
+    load(loaded);
+    expect(loaded.cash).toBe(4321);
+  });
+
+  it.each([
+    ['older', SAVE_VERSION - 1],
+    ['newer', SAVE_VERSION + 1]
+  ])('refuses an %s save, naming both versions', (_name, version) => {
+    const result = parseImportedSave(JSON.stringify({version, cash: 9000}));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain(`version ${version}`);
+    expect(result.reason).toContain(`version ${SAVE_VERSION}`);
+  });
+
+  it.each([
+    ['blank input', '   '],
+    ['broken JSON', '{"version": 18,'],
+    ['a JSON array', '[1, 2]'],
+    ['a JSON string', '"save"'],
+    ['null', 'null'],
+    ['a save with no version', '{"cash": 9000}'],
+    ['a version as a string', `{"version": "${SAVE_VERSION}"}`]
+  ])('refuses %s with a reason', (_name, text) => {
+    const result = parseImportedSave(text);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason.length).toBeGreaterThan(0);
   });
 });
 

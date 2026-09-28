@@ -81,6 +81,12 @@ function instructions(): string {
     '  Naming a portal: in the travel overlay, `click` portalNameInput to focus it,',
     '    `type` the new name (max 16 chars), then `click` portalNameSaveBtn (Enter also',
     '    saves). The new name echoes back in `overlay.name` and the portal notable.',
+    '  Save export/import: click infoBtn, then data-info-section value "info-settings".',
+    '    exportSaveBtn puts the save JSON in `overlay.saveExport` (and downloads it).',
+    '    To import, click importSaveText, `type` the JSON, click importSaveBtn, then',
+    '    importSaveConfirmBtn (importSaveCancelBtn backs out); only the current save',
+    '    version is accepted. The page reloads to the title splash with the imported',
+    '    run loaded; call `start_run` again.',
     '  r — reset the run (press twice within ~3.5s mid-run to confirm). With two or',
     '    more portals built, a lost or reset ship raises a portal overlay in `mode',
     '    "respawn"` that cannot be dismissed (Escape/Space are ignored) — pick a',
@@ -214,7 +220,7 @@ server.registerTool(
 server.registerTool(
   'type',
   {
-    description: 'Type text into the focused input, e.g. after clicking portalNameInput.',
+    description: 'Type text into the focused input, e.g. after clicking portalNameInput or importSaveText.',
     inputSchema: {text: z.string().describe('The text to type into the focused input.')}
   },
   ({text}) => withSession(game => game.type(text))
@@ -246,7 +252,10 @@ server.registerTool(
       'a wreck or chest menu takes only "take"|"take-one", and lootAllBtn hauls it all), ' +
       'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +
       '"ore:Iron" to sell or "repairKit" to buy). A portal travel/respawn row is target ' +
-      '"data-portal", value the destination "x,y" (e.g. "48,20"). A wrong target is refused with the full allowed list.',
+      '"data-portal", value the destination "x,y" (e.g. "48,20"). An info tab is target ' +
+      '"data-info-section", value e.g. "info-settings". A click that reloads the page ' +
+      '(importSaveConfirmBtn, resetGameConfirmBtn) returns once the game is back. ' +
+      'A wrong target is refused with the full allowed list.',
     inputSchema: {
       target: z.string().describe('The control id or attribute name.'),
       value: z.string().optional().describe('The attribute value (for data-station/data-cargo it is the transfer action).'),

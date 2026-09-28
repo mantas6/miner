@@ -245,6 +245,22 @@ describe('buildObservation', () => {
     expect(overlay).toEqual({kind: 'grave', ...grave});
   });
 
+  it('mirrors the info tab, adding the exported save only once there is one', () => {
+    const state = createInitialState();
+    const get = tileSource({});
+
+    const plain = buildObservation({state, ui: ui({activeOverlay: 'info', infoTab: 'info-settings', saveExport: null}), get}).overlay;
+    expect(plain).toEqual({kind: 'info', tab: 'info-settings'});
+    expect(plain && 'saveExport' in plain).toBe(false);
+
+    const json = '{"version":18,"cash":5}';
+    const exported = buildObservation({state, ui: ui({activeOverlay: 'info', infoTab: 'info-settings', saveExport: json}), get}).overlay;
+    expect(exported).toEqual({kind: 'info', tab: 'info-settings', saveExport: json});
+
+    // A closed info screen mirrors nothing, export or not.
+    expect(buildObservation({state, ui: ui({activeOverlay: null, saveExport: json}), get}).overlay).toBeNull();
+  });
+
   it('names the home stations in view and notable', () => {
     const state = createInitialState();
     // Ship parked at home; the two stations flank it at (44,20) and (46,20).

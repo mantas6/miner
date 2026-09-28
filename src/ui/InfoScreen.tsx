@@ -243,7 +243,8 @@ function ControlsPanel() {
 }
 
 /**
- * The audio switches, the cheat menu, and the one destructive action.
+ * The audio switches, the cheat menu, save export/import, and the one destructive
+ * action.
  *
  * The switches are the HUD's, not a second set: they dispatch the same commands
  * and read the same store slices, so muting here moves the HUD button too.
@@ -313,6 +314,8 @@ function SettingsPanel() {
       >{cheatsOpen ? 'Hide cheat menu' : 'Show cheat menu'}</button>
       {cheatsOpen && <DeveloperPanel />}
 
+      <SaveDataSection />
+
       <h3 id="settings-reset-title">Reset game</h3>
       <div className={styles.resetGame} aria-labelledby="settings-reset-title">
         {confirmingReset
@@ -333,5 +336,88 @@ function SettingsPanel() {
           )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Export and import of the saved run, beside the reset it is the gentler cousin of.
+ *
+ * Export hands the save over twice — as a download, and as text in a read-only box
+ * that only appears once there is something in it. Import takes a file or a paste
+ * into one box, and asks inline before replacing the run, the same way Reset does
+ * and for the same reasons: Cancel takes the trigger's place and the focus, and
+ * the local confirm state unmounts with the tab. The save itself is only checked
+ * by the command, so a bad paste is refused in one place with one message.
+ */
+function SaveDataSection() {
+  const saveExport = useUiStore(state => state.saveExport);
+  const [importText, setImportText] = useState('');
+  const [confirmingImport, setConfirmingImport] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (confirmingImport) cancelRef.current?.focus({preventScroll: true});
+  }, [confirmingImport]);
+
+  function chooseFile(file: File | undefined): void {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImportText(typeof reader.result === 'string' ? reader.result : '');
+      setConfirmingImport(false);
+    };
+    reader.readAsText(file);
+  }
+
+  return (
+    <>
+      <h3 id="settings-save-title">Save data</h3>
+      <div className={styles.saveData} role="group" aria-labelledby="settings-save-title">
+        <p>Download the saved run to keep or move it, or bring one back.</p>
+        <button id="exportSaveBtn" type="button" onClick={() => uiCommands.exportSave()}>Export save</button>
+        {saveExport !== null && (
+          <textarea
+            id="exportSaveText"
+            aria-label="Exported save"
+            readOnly
+            rows={3}
+            value={saveExport}
+            onFocus={event => event.currentTarget.select()}
+          />
+        )}
+        <label className={styles.saveFile}>
+          <span>Import from file</span>
+          <input
+            id="importSaveFileInput"
+            type="file"
+            accept=".json,application/json"
+            onChange={event => { chooseFile(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }}
+          />
+        </label>
+        <textarea
+          id="importSaveText"
+          aria-label="Save to import"
+          placeholder="…or paste a save here"
+          rows={3}
+          value={importText}
+          onChange={event => { setImportText(event.currentTarget.value); setConfirmingImport(false); }}
+        />
+        {confirmingImport
+          ? (
+            <>
+              <p role="alert">Replace the current run with this save? Your cash, upgrades, stats and dug terrain are overwritten, then the page reloads.</p>
+              <div className={styles.saveDataActions}>
+                <button id="importSaveCancelBtn" ref={cancelRef} type="button" onClick={() => setConfirmingImport(false)}>Cancel</button>
+                <button
+                  id="importSaveConfirmBtn"
+                  type="button"
+                  onClick={() => { setConfirmingImport(false); uiCommands.importSave(importText); }}
+                >Replace run</button>
+              </div>
+            </>
+          )
+          : <button id="importSaveBtn" type="button" onClick={() => setConfirmingImport(true)}>Import save…</button>}
+      </div>
+    </>
   );
 }

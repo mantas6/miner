@@ -176,6 +176,24 @@ function seedGrave(): void {
   }));
 }
 
+/**
+ * Seed a plain solo save with $250 in the wallet — once per tab. Init scripts
+ * rerun on every navigation, and the import under test reloads the page into the
+ * save it just wrote, so an unguarded seed would overwrite the import on the way in.
+ */
+function seedSaveOnce(): void {
+  if (sessionStorage.getItem('seeded')) return;
+  sessionStorage.setItem('seeded', '1');
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 18,
+    cash: 250,
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20}
+    ]
+  }));
+}
+
 /** Units of `kind` in a slot list, or 0 when none. */
 function countKind(slots: {kind: string; count: number}[], kind: string): number {
   return slots.find(slot => slot.kind === kind)?.count ?? 0;
@@ -558,6 +576,51 @@ test('the construction toolkit lifts a placed extractor, and it can be set back 
     await s.click('extractorSlotBtn');
     obs = await s.pressTile(46, 20);
     expect(obs.view.rows.join('')).toContain('X');
+  } finally {
+    await s.close();
+  }
+});
+
+test('Settings exports the save into the observation and imports an edited one across a reload', async () => {
+  const s = await openGameSession({headless: true, port: PORT, initScript: seedSaveOnce});
+  try {
+    let obs = await s.startRun();
+    expect(obs.hud.cash).toBe(250);
+
+    // Info → Settings, then Export: the save text lands in the info overlay.
+    await s.click('infoBtn');
+    obs = await s.click({target: 'data-info-section', value: 'info-settings'});
+    expect(obs.overlay).toEqual({kind: 'info', tab: 'info-settings'});
+    obs = await s.click('exportSaveBtn');
+    if (obs.overlay?.kind !== 'info' || !obs.overlay.saveExport) throw new Error('an exported save expected');
+    expect(obs.overlay.saveExport).toContain('"version":18');
+    const exported = JSON.parse(obs.overlay.saveExport) as {cash: number};
+    expect(exported.cash).toBe(250);
+
+    // An older version is refused with a toast, and nothing reloads.
+    await s.click('importSaveText');
+    await s.type('{"version":17,"cash":9000}');
+    await s.click('importSaveBtn');
+    obs = await s.click('importSaveConfirmBtn');
+    expect(obs.toasts.at(-1)?.message).toContain('version 17');
+    expect(obs.phase).toBe('playing');
+    expect(obs.hud.cash).toBe(250);
+
+    // Paste the export back with the wallet changed, and confirm: the page reloads
+    // into the imported run.
+    await s.click('importSaveText');
+    await s.press('Control+A');
+    await s.type(JSON.stringify({...exported, cash: 4321}));
+    obs = await s.click('importSaveBtn');
+    expect(obs.phase).toBe('playing');
+    // The click returns once the reloaded game is back, on its title splash.
+    obs = await s.click('importSaveConfirmBtn');
+    expect(obs.phase).toBe('intro');
+    expect(obs.cash).toBe(4321);
+    obs = await s.startRun();
+    expect(obs.phase).toBe('playing');
+    expect(obs.hud.cash).toBe(4321);
+    expect(obs.cash).toBe(4321);
   } finally {
     await s.close();
   }

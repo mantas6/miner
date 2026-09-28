@@ -160,7 +160,8 @@ export type AgentOverlay =
       name?: string;
       destinations: {x: number; y: number; name: string; depth: number; distance: number}[];
     }
-  | {kind: 'info'; tab: InfoTab};
+  /** The info screen and its tab; `saveExport` is the save text Export just produced (Settings only). */
+  | {kind: 'info'; tab: InfoTab; saveExport?: string};
 
 export interface AgentObservation {
   tick: number;
@@ -326,7 +327,9 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       return {kind: 'grave', name: grave.name, born: grave.born, died: grave.died, cause: grave.cause};
     }
     case 'info':
-      return {kind: 'info', tab: ui.infoTab};
+      return ui.saveExport === null
+        ? {kind: 'info', tab: ui.infoTab}
+        : {kind: 'info', tab: ui.infoTab, saveExport: ui.saveExport};
     default:
       return null;
   }

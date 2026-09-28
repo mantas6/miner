@@ -27,7 +27,7 @@
 // Everything here is pure Node: no React, no test runner. The MCP server
 // (`agent/mcp-server.ts`) is the only intended caller besides `e2e/agent.spec.ts`.
 
-import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { chromium, type Browser, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { resolveChromiumExecutable } from './chromium';
 import type { AgentObservation } from '../src/agent/observation';
@@ -58,7 +58,9 @@ export interface OpenGameSessionOptions {
   /**
    * A script run in the page before any app code — after the `freshSave` wipe when
    * both are given. It runs in the browser, so it must be self-contained (no
-   * closure over Node values); tests use it to seed a `localStorage` save.
+   * closure over Node values); tests use it to seed a `localStorage` save. Like
+   * any init script it reruns on every navigation, reloads included, so a seed
+   * that must not clobber an imported save has to guard itself.
    */
   initScript?: () => void;
 }
@@ -140,6 +142,11 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'portalSlotBtn', 'portalCloseBtn', 'portalNameInput', 'portalNameSaveBtn',
   // Info / cargo screen.
   'infoCloseBtn',
+  // Info → Settings tab (reach it with data-info-section=info-settings). The two
+  // reset confirms and the import confirm reload the page; `click` waits it out.
+  'settingsMusicBtn', 'settingsSfxBtn', 'cheatsToggleBtn', 'resetPlayerDataBtn', 'resetWorldStateBtn',
+  'exportSaveBtn', 'importSaveText', 'importSaveBtn', 'importSaveConfirmBtn', 'importSaveCancelBtn',
+  'resetGameBtn', 'resetGameCancelBtn', 'resetGameConfirmBtn',
   // Intro.
   'introStartBtn'
 ]);
@@ -257,9 +264,18 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
     if (freshSave) {
       // The save lives in `localStorage` (`src/persistence.ts`); clearing before
       // any app script runs guarantees the game boots with pristine defaults.
-      await page.addInitScript(() => localStorage.clear());
+      // Init scripts rerun on every navigation, so the wipe is one-shot per tab:
+      // a save import (or any reload the game asks for) must boot what it wrote.
+      await page.addInitScript(() => {
+        if (sessionStorage.getItem('agent-fresh-save-done')) return;
+        sessionStorage.setItem('agent-fresh-save-done', '1');
+        localStorage.clear();
+      });
     }
     if (initScript) await page.addInitScript(initScript);
+    // The two cheat-menu resets ask through a native `confirm()`. The agent has no
+    // other way to answer one, and the click that raised it is the intent, so yes.
+    page.on('dialog', dialog => { void dialog.accept(); });
     await page.goto(baseUrl);
     await waitForBridge(page);
 
@@ -268,10 +284,27 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
 
     // Unpause (if realtime), run the action, settle two frames, pause again, then
     // read back the fresh observation — the whole action contract in one place.
+    // An action that reloads the page (a save import, a full reset) is waited out:
+    // the new document boots, its bridge registers, and the pause model is
+    // reapplied to it before the readback.
     async function act(run: () => Promise<void>): Promise<AgentObservation> {
-      if (realtime) await setPaused(page, false);
-      await run();
-      await settleFrames(page);
+      let navigated = false;
+      const onRequest = (request: Request) => {
+        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigated = true;
+      };
+      page.on('request', onRequest);
+      try {
+        if (realtime) await setPaused(page, false);
+        await run();
+        // A reload tears the old document down mid-settle; that is not a failure.
+        try { await settleFrames(page); } catch (error) { if (!navigated) throw error; }
+      } finally {
+        page.off('request', onRequest);
+      }
+      if (navigated) {
+        await page.waitForLoadState('load');
+        await waitForBridge(page);
+      }
       if (realtime) await setPaused(page, true);
       return readObservation(page);
     }
