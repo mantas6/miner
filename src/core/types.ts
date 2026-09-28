@@ -235,8 +235,10 @@ export interface AudioController {
   enable(): Promise<boolean>;
   toggleMusic(): Promise<void>;
   toggleSfx(): Promise<void>;
-  blip(freq?: number, dur?: number, type?: OscillatorType, gain?: number, slide?: number): void;
-  noise(dur?: number, gain?: number, filterFreq?: number): void;
+  /** One enveloped tone; `delay` (seconds) schedules it on the context clock. */
+  blip(freq?: number, dur?: number, type?: OscillatorType, gain?: number, slide?: number, delay?: number): void;
+  /** A lowpassed noise burst; `delay` (seconds) schedules it on the context clock. */
+  noise(dur?: number, gain?: number, filterFreq?: number, delay?: number): void;
   /** Layered boom for dynamite and ship destruction; `power` scales loudness and length. */
   explosion(power?: number): void;
   mine(): void;
@@ -296,4 +298,9 @@ export interface AudioController {
   stopMusic(): void;
   /** Point the soundtrack at another shipped track, keeping playback state. */
   setTrack(trackId: TrackId): void;
+  /**
+   * Tear down for good: stop the loop, release the soundtrack element and close
+   * the context. Every later call on the controller is a no-op.
+   */
+  dispose(): void;
 }

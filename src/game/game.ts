@@ -1141,9 +1141,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // concerned, so bank the run before anything is unwired.
     saveProgress();
     flushZoomSave();
-    audio.stopMusic();
-    // A leaked AudioContext survives the mount and browsers only allow a handful.
-    void audio.ctx?.close().catch(() => { /* already closed */ });
+    // Stops the loop, frees the soundtrack element and closes the context.
+    audio.dispose();
     scope.dispose();
     // Buttons must not reach a runtime whose listeners and frames are gone, and a
     // replacement runtime re-announces its own boot toast.

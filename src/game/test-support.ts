@@ -167,7 +167,8 @@ export function createAudioStub(): AudioStub {
     startSynthMusic: cue('startSynthMusic'),
     musicNote: cue('musicNote'),
     stopMusic: cue('stopMusic'),
-    setTrack: cue('setTrack')
+    setTrack: cue('setTrack'),
+    dispose: cue('dispose')
   };
 }
 
