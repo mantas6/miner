@@ -1,11 +1,12 @@
 // The preview grid shown while a carried device is armed for placement.
 //
-// Three of the depot's consumables are put *onto* a tile of the mine — the survey
-// scanner, a stick of dynamite, and a cargo container — and each answers the same
-// five placement questions from `placement.ts`. The rest (ore, the spent
-// teleporter) are never placed, so they never get a grid.
+// Several carried things are put *onto* a tile of the mine — the survey scanner, a
+// stick of dynamite, a cargo container, the station devices (portal included) and
+// the decorations — and each answers the same five placement questions from
+// `placement.ts`, occupancy included. The rest (ore, the spent teleporter, the
+// toolkit) are never placed, so they never get a grid.
 //
-// This module is the read-only companion to those three: given the armed kind and
+// This module is the read-only companion to those: given the armed kind and
 // a snapshot of the mine, it says which nearby tiles the device could be dropped
 // onto and which it could not, reusing `canPlaceDevice` so the tint the renderer
 // paints can never contradict the toast an actual press would produce.
@@ -14,16 +15,20 @@
 // terrain lookup) and draws whatever cells come back.
 
 import { explorationIndex } from '../../shared/exploration-codec';
-import { CARGO_CONTAINER, type PlacedContainer } from './cargo-container';
-import { DYNAMITE, type PlacedDynamite } from './dynamite';
-import { isDecorKind, isDeviceKind, type InventoryItemKind } from './inventory';
-import { canPlaceDevice, inMineBounds, type PlacementSite } from './placement';
-import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
-import { STATION_DEVICE, isStationTile, stationAt, type PlacedStation } from './stations';
-import { type Wreck } from './wreck';
-import { graveAt, tradingPostAt } from '../world/world';
-import { chestStandsAt } from './chest';
-import type { ChestLedger } from './types';
+import { CARGO_CONTAINER } from './cargo-container';
+import { DYNAMITE } from './dynamite';
+import type { InventoryItemKind } from './inventory';
+import {
+  canPlaceDevice,
+  inMineBounds,
+  isBlockedFor,
+  occupantsAt,
+  placementFamily,
+  type OccupancyState,
+  type PlacementSite
+} from './placement';
+import { SCANNER_DEVICE } from './scanner-device';
+import { STATION_DEVICE, type PlacedStation, type StationKind } from './stations';
 
 /**
  * How far around the ship the placement grid reaches. A device may legally go on
@@ -32,45 +37,22 @@ import type { ChestLedger } from './types';
  */
 export const PLACEMENT_OVERLAY_RADIUS = 4;
 
-/** The device kinds that are set down onto a tile, and so earn a placement grid. */
-const PLACEABLE_KINDS: ReadonlySet<InventoryItemKind> = new Set<InventoryItemKind>([
-  'scanner', 'dynamite', 'container', 'device:manufacturer', 'device:extractor'
-]);
-
 /**
- * Whether this armed kind is one placed into the world (vs. spent, or mere cargo).
- * The deployables and the two placeable stations, plus any decoration — decorations
- * are set down as tiles, so they earn the same preview grid as the devices do.
+ * Whether this armed kind is one placed into the world (vs. spent, or mere cargo):
+ * the deployables, every station device (the portal included), and any decoration
+ * — decorations are set down as tiles, so they earn the same preview grid.
  */
 export function isPlaceableKind(kind: InventoryItemKind | null | undefined): boolean {
   if (kind === null || kind === undefined) return false;
-  return PLACEABLE_KINDS.has(kind) || isDecorKind(kind);
+  return placementFamily(kind) !== null;
 }
 
 /** The slice of the running mine a placement preview needs to read. */
-export interface PlacementOverlayWorld {
+export interface PlacementOverlayWorld extends OccupancyState {
   explored: ReadonlySet<number>;
-  scannerDevices: readonly ScannerDevice[];
-  placedDynamite: readonly PlacedDynamite[];
-  cargoContainers: readonly PlacedContainer[];
-  wrecks: readonly Wreck[];
   stations: readonly PlacedStation[];
-  /** The opened-chest ledger; absent counts every generated chest as still lying there. */
-  chestLedger?: ChestLedger;
   /** Whether the tile is cleared open space a device can be dropped into. */
   isOpen(x: number, y: number): boolean;
-}
-
-/** Whether any placed entity — a station, container, wreck, scanner, dynamite, trading post, chest, or grave — sits on this tile. */
-function isTileOccupied(x: number, y: number, world: PlacementOverlayWorld): boolean {
-  return stationAt(world.stations, x, y) !== null
-    || world.cargoContainers.some(container => container.x === x && container.y === y)
-    || world.wrecks.some(wreck => wreck.x === x && wreck.y === y)
-    || world.scannerDevices.some(device => device.x === x && device.y === y)
-    || world.placedDynamite.some(stick => stick.x === x && stick.y === y)
-    || tradingPostAt(x, y) !== null
-    || chestStandsAt(x, y, world.chestLedger) !== null
-    || graveAt(x, y) !== null;
 }
 
 /** One tile of the preview grid: where it is, and whether the device fits. */
@@ -80,11 +62,30 @@ export interface PlacementOverlayCell {
   valid: boolean;
 }
 
+/** The station a `device:` kind sets down. */
+function stationKindFor(kind: InventoryItemKind): StationKind {
+  return kind === 'device:manufacturer' ? 'manufacturer' : kind === 'device:extractor' ? 'extractor' : 'portal';
+}
+
+/** Whether the mine already holds as many of this kind as it will take. */
+function isFull(kind: InventoryItemKind, world: PlacementOverlayWorld): boolean {
+  switch (placementFamily(kind)) {
+    case 'scanner': return world.scannerDevices.length >= SCANNER_DEVICE.maxPlaced;
+    case 'dynamite': return world.placedDynamite.length >= DYNAMITE.maxPlaced;
+    case 'container': return world.cargoContainers.length >= CARGO_CONTAINER.maxPlaced;
+    case 'station': {
+      const station = stationKindFor(kind);
+      return world.stations.filter(placed => placed.kind === station).length >= STATION_DEVICE[station].maxPlaced;
+    }
+    default: return false;
+  }
+}
+
 /**
- * Build the shared `PlacementSite` for one kind at one tile. `open` is only asked
- * of a tile inside the mine, so a hover far off the map never generates terrain
- * just to be told the tile was never a candidate — the same order the placement
- * handlers use.
+ * Build the shared `PlacementSite` for one kind at one tile — the same one the
+ * placement handlers build. `open` is only asked of a tile inside the mine, so a
+ * hover far off the map never generates terrain just to be told the tile was never
+ * a candidate.
  */
 function placementSiteFor(
   kind: InventoryItemKind,
@@ -92,57 +93,14 @@ function placementSiteFor(
   y: number,
   world: PlacementOverlayWorld
 ): PlacementSite | null {
-  const open = inMineBounds(x, y) && world.isOpen(x, y);
-  // Decorations become tiles, so any explored, cleared, non-station tile takes
-  // one: no soft cap, and no "occupied" — a tile is either air or it is not.
-  if (isDecorKind(kind)) {
-    return {
-      explored: world.explored,
-      open: open && !isStationTile(world.stations, x, y),
-      occupied: false,
-      full: false
-    };
-  }
-  // The two placeable stations share the container's shape, but any placed entity
-  // — station, crate, scanner, or dynamite — counts the tile as taken.
-  if (isDeviceKind(kind)) {
-    const key = kind === 'device:manufacturer' ? 'manufacturer' : kind === 'device:extractor' ? 'extractor' : 'portal';
-    return {
-      explored: world.explored,
-      open,
-      occupied: isTileOccupied(x, y, world),
-      full: world.stations.filter(station => station.kind === key).length >= STATION_DEVICE[key].maxPlaced
-    };
-  }
-  switch (kind) {
-    case 'scanner':
-      return {
-        explored: world.explored,
-        open,
-        occupied: world.scannerDevices.some(device => device.x === x && device.y === y),
-        full: world.scannerDevices.length >= SCANNER_DEVICE.maxPlaced
-      };
-    case 'dynamite':
-      return {
-        explored: world.explored,
-        open,
-        occupied: world.placedDynamite.some(stick => stick.x === x && stick.y === y),
-        full: world.placedDynamite.length >= DYNAMITE.maxPlaced
-      };
-    case 'container':
-      return {
-        explored: world.explored,
-        open,
-        occupied: world.cargoContainers.some(container => container.x === x && container.y === y)
-          || world.wrecks.some(wreck => wreck.x === x && wreck.y === y)
-          || tradingPostAt(x, y) !== null
-          || chestStandsAt(x, y, world.chestLedger) !== null
-          || graveAt(x, y) !== null,
-        full: world.cargoContainers.length >= CARGO_CONTAINER.maxPlaced
-      };
-    default:
-      return null;
-  }
+  const family = placementFamily(kind);
+  if (family === null) return null;
+  return {
+    explored: world.explored,
+    open: inMineBounds(x, y) && world.isOpen(x, y),
+    occupied: isBlockedFor(family, occupantsAt(world, x, y)),
+    full: isFull(kind, world)
+  };
 }
 
 /** Whether the armed device could be placed on this exact tile right now. */
@@ -152,10 +110,9 @@ export function isPlacementValid(
   y: number,
   world: PlacementOverlayWorld
 ): boolean {
-  if (!isPlaceableKind(kind)) return false;
-  const site = placementSiteFor(kind!, x, y, world);
-  if (site === null || !canPlaceDevice(x, y, site)) return false;
-  return true;
+  if (kind === null || kind === undefined) return false;
+  const site = placementSiteFor(kind, x, y, world);
+  return site !== null && canPlaceDevice(x, y, site);
 }
 
 /**

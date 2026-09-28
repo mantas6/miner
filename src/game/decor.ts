@@ -13,9 +13,8 @@
 
 import { DECOR_HP } from '../../shared/constants';
 import { decorIdForKind, decorPlacementRefusal } from '../core/decor';
-import { isStationTile } from '../core/stations';
 import { countItem, removeItem, type DecorKind } from '../core/inventory';
-import { inMineBounds } from '../core/placement';
+import { inMineBounds, occupantsAt } from '../core/placement';
 import type { AudioController, GameState } from '../core/types';
 import type { WorldGrid } from './world-grid';
 
@@ -84,7 +83,8 @@ export function createDecor(deps: DecorDeps): DecorSim {
     }
     const refusal = decorPlacementRefusal(x, y, {
       explored: state.exploredTiles,
-      open: inMineBounds(x, y) && grid.get(x, y).type === 'air' && !isStationTile(state.stations, x, y)
+      open: inMineBounds(x, y) && grid.get(x, y).type === 'air',
+      occupants: occupantsAt(state, x, y)
     });
     if (refusal) {
       audio.alarm();

@@ -100,6 +100,18 @@ describe('placing a decoration', () => {
     expect(countItem(h.state.player.inventory, STEEL)).toBe(1);
   });
 
+  it('never walls the ship in on its own tile', () => {
+    const h = harness();
+    h.state.player.x = 40;
+    h.state.player.y = 100;
+    h.decor.toggleArmed(STEEL);
+
+    expect(h.decor.placeAt(40, 100)).toBe(false);
+    expect(h.grid.writes).toEqual([]);
+    expect(h.toasts.saw('already occupies')).toBe(true);
+    expect(h.decor.armed).toBe(STEEL);
+  });
+
   it('keeps the plate and stays armed on an unexplored tile', () => {
     const h = harness();
     h.decor.toggleArmed(STEEL);

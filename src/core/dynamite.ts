@@ -13,7 +13,7 @@
 
 import { HULL } from './balance';
 import { ITEM_CATALOG } from './items';
-import { placementRefusal, type PlacementCopy } from './placement';
+import { isBlockedFor, placementRefusal, type Occupant, type PlacementCopy } from './placement';
 import type { Tile } from './types';
 
 export const DYNAMITE = Object.freeze({
@@ -76,6 +76,8 @@ export interface DynamitePlacementContext {
   /** Whether the target tile is open space the stick can be dropped into. */
   open: boolean;
   sticks: readonly PlacedDynamite[];
+  /** What already stands on the tile (`occupantsAt`). */
+  occupants: ReadonlySet<Occupant>;
 }
 
 /** How dynamite words each of the shared placement refusals. */
@@ -92,7 +94,7 @@ export function dynamitePlacementRefusal(x: number, y: number, context: Dynamite
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    occupied: context.sticks.some(stick => stick.x === x && stick.y === y),
+    occupied: isBlockedFor('dynamite', context.occupants),
     full: context.sticks.length >= DYNAMITE.maxPlaced
   }, DYNAMITE_PLACEMENT_COPY);
 }

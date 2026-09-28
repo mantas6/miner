@@ -472,7 +472,7 @@ eight around it, and only once it is explored.
   jump, and travel between built portals is otherwise free.
 - **Decorations** — Steel Plate, Stone Block, Copper Trim, Lamp Panel — are crafted panels set
   down as tiles from their inventory slot onto explored, cleared ground (never on a
-  station tile). The panels are solid: drilling one back out returns it to the bay.
+  tile a station, device, wreck, chest, grave or the ship itself stands on). The panels are solid: drilling one back out returns it to the bay.
   A blast destroys any decoration outright.
 - Cargo containers (`src/core/cargo-container.ts`) are the one piece of gear that
   is never used up. Set one down on explored, cleared ground from its inventory

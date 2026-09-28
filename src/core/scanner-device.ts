@@ -16,7 +16,7 @@
 import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { ITEM_CATALOG } from './items';
-import { placementRefusal, type PlacementCopy } from './placement';
+import { isBlockedFor, placementRefusal, type Occupant, type PlacementCopy } from './placement';
 
 export const SCANNER_DEVICE = Object.freeze({
   /** Side of the square it maps, centred on the device. */
@@ -124,6 +124,8 @@ export interface ScannerPlacementContext {
   /** Whether the target tile is open space the device can be dropped into. */
   open: boolean;
   devices: readonly ScannerDevice[];
+  /** What already stands on the tile (`occupantsAt`). */
+  occupants: ReadonlySet<Occupant>;
 }
 
 /** How a scanner words each of the shared placement refusals. */
@@ -140,7 +142,7 @@ export function scannerPlacementRefusal(x: number, y: number, context: ScannerPl
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    occupied: context.devices.some(device => device.x === x && device.y === y),
+    occupied: isBlockedFor('scanner', context.occupants),
     full: context.devices.length >= SCANNER_DEVICE.maxPlaced
   }, SCANNER_PLACEMENT_COPY);
 }

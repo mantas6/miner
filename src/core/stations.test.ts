@@ -9,7 +9,6 @@ import {
   createInitialStations,
   createManufacturer,
   isStationReachable,
-  isStationTile,
   manufacturerStock,
   nearestStation,
   portals,
@@ -23,19 +22,7 @@ import {
 } from './stations';
 import { addItem, countItem, createInventory, oreKind, totalItems, type Inventory } from './inventory';
 import { itemForKind } from './items';
-import { WORLD_W } from '../../shared/constants';
-import { tradingPostAt } from '../world/world';
-
-/** The first trading post in the interior band, for the occupancy checks. */
-function findPost(): {x: number; y: number} {
-  for (let y = HOME_ROW + 40; y < HOME_ROW + 4000; y++) {
-    for (let x = 3; x < WORLD_W - 3; x++) {
-      const post = tradingPostAt(x, y);
-      if (post) return post;
-    }
-  }
-  throw new Error('no trading post found');
-}
+import type { Occupant } from './placement';
 
 /** A station stock or bay built from `{kind, count}` pairs. */
 function inventory(...stacks: [string, number][]): Inventory {
@@ -73,8 +60,6 @@ describe('locating the stations', () => {
   it('reports which station a tile is, and none for the floor between them', () => {
     expect(stationAt(stations, STATIONS.manufacturer.x, STATIONS.manufacturer.y)?.kind).toBe('manufacturer');
     expect(stationAt(stations, STATIONS.manufacturer.x + 1, HOME_ROW)).toBeNull();
-    expect(isStationTile(stations, STATIONS.extractor.x, STATIONS.extractor.y)).toBe(true);
-    expect(isStationTile(stations, 0, 0)).toBe(false);
   });
 
   it('is reachable within one tile in any direction, and not beyond', () => {
@@ -165,25 +150,22 @@ describe('taking cargo back out', () => {
 describe('placing a station device', () => {
   const explored = new Set([explorationIndex(40, 100)]);
 
+  const empty = new Set<Occupant>();
+
   it('accepts an explored, cleared, unoccupied tile', () => {
-    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupied: false, count: 0})).toBeNull();
+    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupants: empty, count: 0})).toBeNull();
   });
 
+  // Which occupants refuse a station is the cross-kind matrix in placement.test.ts.
   it('refuses a fogged, solid, occupied, or capped tile', () => {
-    expect(stationPlacementRefusal(41, 100, 'extractor', {explored, open: true, occupied: false, count: 0})).toMatch(/already explored/);
-    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: false, occupied: false, count: 0})).toMatch(/cleared space/);
-    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupied: true, count: 0})).toMatch(/already stands/);
-    expect(stationPlacementRefusal(40, 100, 'manufacturer', {explored, open: true, occupied: false, count: STATION_DEVICE.manufacturer.maxPlaced}))
-      .toMatch(/Manufacturing Stations/);
-    expect(stationPlacementRefusal(40, 100, 'portal', {explored, open: true, occupied: false, count: STATION_DEVICE.portal.maxPlaced}))
-      .toMatch(/Portals/);
-  });
-
-  it('refuses a tile a trading post already stands on', () => {
-    const post = findPost();
-    const seen = new Set([explorationIndex(post.x, post.y)]);
-    expect(stationPlacementRefusal(post.x, post.y, 'extractor', {explored: seen, open: true, occupied: false, count: 0}))
+    expect(stationPlacementRefusal(41, 100, 'extractor', {explored, open: true, occupants: empty, count: 0})).toMatch(/already explored/);
+    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: false, occupants: empty, count: 0})).toMatch(/cleared space/);
+    expect(stationPlacementRefusal(40, 100, 'extractor', {explored, open: true, occupants: new Set(['container']), count: 0}))
       .toMatch(/already stands/);
+    expect(stationPlacementRefusal(40, 100, 'manufacturer', {explored, open: true, occupants: empty, count: STATION_DEVICE.manufacturer.maxPlaced}))
+      .toMatch(/Manufacturing Stations/);
+    expect(stationPlacementRefusal(40, 100, 'portal', {explored, open: true, occupants: empty, count: STATION_DEVICE.portal.maxPlaced}))
+      .toMatch(/Portals/);
   });
 });
 

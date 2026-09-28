@@ -11,7 +11,7 @@
 // take a decoration. Everything here is DOM-free.
 
 import type { DecorId, DecorKind } from './inventory';
-import { placementRefusal, type PlacementCopy } from './placement';
+import { isBlockedFor, placementRefusal, type Occupant, type PlacementCopy } from './placement';
 
 /** The stack kind one decoration id lives under, e.g. `steelPlate` → `decor:steelPlate`. */
 export function decorKindForId(id: DecorId): DecorKind {
@@ -29,24 +29,28 @@ const DECOR_PLACEMENT_COPY: PlacementCopy = {
   full: 'No more decorations can be placed here.',
   offMine: 'Decorations are set down underground, inside the mine.',
   unexplored: 'Set the decoration down on a tile you have already explored.',
-  blocked: 'Set the decoration down in cleared space, not inside terrain or on a station.',
-  occupied: 'Something already occupies that tile.'
+  blocked: 'Set the decoration down in cleared space, not inside terrain.',
+  occupied: 'Something already occupies that tile — a station, device or the ship itself.'
 };
 
-/**
- * Why this tile cannot take a decoration, or `null` when it can. `open` is the
- * caller's judgement that the tile is cleared air the ship does not need — and,
- * crucially, not a station tile, which the caller excludes before asking.
- */
-export function decorPlacementRefusal(
-  x: number,
-  y: number,
-  context: {explored: ReadonlySet<number>; open: boolean}
-): string | null {
+/** The slice of the mine a decoration placement has to weigh a tile against. */
+export interface DecorPlacementContext {
+  explored: ReadonlySet<number>;
+  /** Whether the target tile is cleared air. */
+  open: boolean;
+  /**
+   * What already stands on the tile (`occupantsAt`). A decoration is a solid tile,
+   * so it refuses every occupant — the ship included, which it would wall in.
+   */
+  occupants: ReadonlySet<Occupant>;
+}
+
+/** Why this tile cannot take a decoration, or `null` when it can. */
+export function decorPlacementRefusal(x: number, y: number, context: DecorPlacementContext): string | null {
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    occupied: false,
+    occupied: isBlockedFor('decor', context.occupants),
     full: false
   }, DECOR_PLACEMENT_COPY);
 }

@@ -1,17 +1,19 @@
 // The placement-preview grid: which nearby tiles a carried device could be
 // dropped onto, and which it could not.
 //
-// The individual placement rules already have their own tests (dynamite, scanner,
-// container); what is checked here is that the overlay reuses them faithfully —
-// the tint it feeds the renderer agrees, tile for tile, with the refusal an actual
+// Which occupant refuses which kind is the cross-kind matrix in placement.test.ts;
+// what is checked here is that the overlay reuses those rules faithfully — the
+// tint it feeds the renderer agrees, tile for tile, with the refusal an actual
 // press would earn — and that it never lights up for an item that is not placed.
 
 import { describe, expect, it } from 'vitest';
 import { STATIONS, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { CARGO_CONTAINER, containerPlacementRefusal, createPlacedContainer } from './cargo-container';
-import { DYNAMITE, createPlacedDynamite } from './dynamite';
-import { oreKind } from './inventory';
+import { decorPlacementRefusal } from './decor';
+import { DYNAMITE, createPlacedDynamite, dynamitePlacementRefusal } from './dynamite';
+import { oreKind, type InventoryItemKind } from './inventory';
+import { OCCUPANTS, occupantsAt, type Occupant } from './placement';
 import {
   PLACEMENT_OVERLAY_RADIUS,
   isPlaceableKind,
@@ -19,8 +21,8 @@ import {
   placementOverlayCells,
   type PlacementOverlayWorld
 } from './placement-overlay';
-import { createScannerDevice } from './scanner-device';
-import { createManufacturer, stationPlacementRefusal } from './stations';
+import { createScannerDevice, scannerPlacementRefusal } from './scanner-device';
+import { STATION_DEVICE, createManufacturer, createPortal, stationPlacementRefusal } from './stations';
 import { HOME_ROW } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 
@@ -50,16 +52,20 @@ function world(overrides: Partial<PlacementOverlayWorld> = {}): PlacementOverlay
 }
 
 describe('isPlaceableKind', () => {
-  it('is true for the three devices and for any decoration', () => {
+  it('is true for the deployables, every station device, and any decoration', () => {
     expect(isPlaceableKind('scanner')).toBe(true);
     expect(isPlaceableKind('dynamite')).toBe(true);
     expect(isPlaceableKind('container')).toBe(true);
+    expect(isPlaceableKind('device:manufacturer')).toBe(true);
+    expect(isPlaceableKind('device:extractor')).toBe(true);
+    expect(isPlaceableKind('device:portal')).toBe(true);
     expect(isPlaceableKind('decor:steelPlate')).toBe(true);
     expect(isPlaceableKind('decor:lampPanel')).toBe(true);
   });
 
   it('is false for the spent, carried, and cargo kinds, and for nothing armed', () => {
     expect(isPlaceableKind('teleporter')).toBe(false);
+    expect(isPlaceableKind('toolkit')).toBe(false);
     expect(isPlaceableKind(oreKind('Copper'))).toBe(false);
     expect(isPlaceableKind(null)).toBe(false);
     expect(isPlaceableKind(undefined)).toBe(false);
@@ -122,6 +128,26 @@ describe('isPlacementValid', () => {
     expect(isPlacementValid('decor:lampPanel', sx, sy, onStation)).toBe(false);
   });
 
+  it('never sets a decoration on an occupied tile, nor under the ship it would wall in', () => {
+    expect(isPlacementValid('decor:lampPanel', x, y, world({explored, cargoContainers: [createPlacedContainer(x, y)]}))).toBe(false);
+    expect(isPlacementValid('decor:lampPanel', x, y, world({explored, scannerDevices: [createScannerDevice(x, y)]}))).toBe(false);
+    expect(isPlacementValid('decor:lampPanel', x, y, world({explored, placedDynamite: [createPlacedDynamite(x, y)]}))).toBe(false);
+    expect(isPlacementValid('decor:lampPanel', x, y, world({explored, wrecks: [{x, y}]}))).toBe(false);
+    expect(isPlacementValid('decor:lampPanel', x, y, world({explored, player: {x, y}}))).toBe(false);
+    // A scanner still goes down right under the ship.
+    expect(isPlacementValid('scanner', x, y, world({explored, player: {x, y}}))).toBe(true);
+  });
+
+  it('gives the portal the same grid as the other stations, capped at its own limit', () => {
+    expect(isPlacementValid('device:portal', x, y, world({explored}))).toBe(true);
+    expect(isPlacementValid('device:portal', x, y, world({explored, cargoContainers: [createPlacedContainer(x, y)]}))).toBe(false);
+    const portals = Array.from({length: STATION_DEVICE.portal.maxPlaced}, (_, i) => createPortal(i, 500, `P${i}`));
+    expect(isPlacementValid('device:portal', x, y, world({explored, stations: portals}))).toBe(false);
+    // Full of portals says nothing about manufacturers.
+    expect(isPlacementValid('device:manufacturer', x, y, world({explored, stations: portals}))).toBe(true);
+    expect(placementOverlayCells('device:portal', x, y, world({explored})).length).toBeGreaterThan(0);
+  });
+
   it('places the two station devices on cleared ground, and never on an occupied tile', () => {
     expect(isPlacementValid('device:manufacturer', x, y, world({explored}))).toBe(true);
     expect(isPlacementValid('device:extractor', x, y, world({explored}))).toBe(true);
@@ -145,15 +171,11 @@ describe('isPlacementValid', () => {
     const lying = world({explored});
     expect(isPlacementValid('container', chest.x, chest.y, lying)).toBe(false);
     expect(isPlacementValid('device:manufacturer', chest.x, chest.y, lying)).toBe(false);
-    expect(containerPlacementRefusal(chest.x, chest.y, {explored, open: true, containers: []})).toContain('already stands');
-    expect(stationPlacementRefusal(chest.x, chest.y, 'extractor', {explored, open: true, occupied: false, count: 0})).toContain('already stands');
 
     const looted = {[`${chest.x},${chest.y}`]: []};
     const bare = world({explored, chestLedger: looted});
     expect(isPlacementValid('container', chest.x, chest.y, bare)).toBe(true);
     expect(isPlacementValid('device:manufacturer', chest.x, chest.y, bare)).toBe(true);
-    expect(containerPlacementRefusal(chest.x, chest.y, {explored, open: true, containers: [], chestLedger: looted})).toBeNull();
-    expect(stationPlacementRefusal(chest.x, chest.y, 'extractor', {explored, open: true, occupied: false, count: 0, chestLedger: looted})).toBeNull();
   });
 });
 
@@ -164,11 +186,8 @@ describe('graves and placement', () => {
     const w = world({explored});
     expect(isPlacementValid('container', grave.x, grave.y, w)).toBe(false);
     expect(isPlacementValid('device:manufacturer', grave.x, grave.y, w)).toBe(false);
-    expect(containerPlacementRefusal(grave.x, grave.y, {explored, open: true, containers: []})).toContain('already stands');
-    expect(stationPlacementRefusal(grave.x, grave.y, 'extractor', {explored, open: true, occupied: false, count: 0})).toContain('already stands');
     // The tile beside it, in the same nook, is ordinary open floor.
     expect(isPlacementValid('container', grave.x + 1, grave.y, w)).toBe(true);
-    expect(containerPlacementRefusal(grave.x + 1, grave.y, {explored, open: true, containers: []})).toBeNull();
   });
 });
 
@@ -234,4 +253,57 @@ describe('placementOverlayCells', () => {
     expect(cells.length).toBeGreaterThan(0);
     expect(cells.every(cell => !cell.valid)).toBe(true);
   });
+});
+
+describe('the overlay and the refusals agree for every kind and occupant', () => {
+  const post = findPost();
+  const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+  const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+  const x = 40, y = 100;
+
+  /** A mine with one `occupant` standing on a tile, and where that tile is. */
+  function scene(occupant: Occupant): {w: PlacementOverlayWorld; x: number; y: number} {
+    const at = occupant === 'tradingPost' ? post : occupant === 'chest' ? chest : occupant === 'grave' ? grave : {x, y};
+    const explored = new Set([explorationIndex(at.x, at.y)]);
+    switch (occupant) {
+      case 'station': return {w: world({explored, stations: [createManufacturer(x, y)]}), ...at};
+      case 'container': return {w: world({explored, cargoContainers: [createPlacedContainer(x, y)]}), ...at};
+      case 'wreck': return {w: world({explored, wrecks: [{x, y}]}), ...at};
+      case 'scanner': return {w: world({explored, scannerDevices: [createScannerDevice(x, y)]}), ...at};
+      case 'dynamite': return {w: world({explored, placedDynamite: [createPlacedDynamite(x, y)]}), ...at};
+      case 'player': return {w: world({explored, player: {x, y}}), ...at};
+      case 'decor': {
+        const rows: {type: string}[][] = [];
+        rows[y] = Array.from({length: WORLD_W}, () => ({type: 'air'}));
+        rows[y][x] = {type: 'decor'};
+        // A decoration is a solid tile, so the terrain lookup says so too.
+        return {w: world({explored, world: rows, isOpen: (tx, ty) => !(tx === x && ty === y)}), ...at};
+      }
+      default: return {w: world({explored}), ...at};
+    }
+  }
+
+  /** The toast a press would earn for this kind on this scene's tile. */
+  function refusal(kind: InventoryItemKind, {w, x, y}: ReturnType<typeof scene>): string | null {
+    const site = {explored: w.explored, open: w.isOpen(x, y), occupants: occupantsAt(w, x, y)};
+    switch (kind) {
+      case 'scanner': return scannerPlacementRefusal(x, y, {...site, devices: []});
+      case 'dynamite': return dynamitePlacementRefusal(x, y, {...site, sticks: []});
+      case 'container': return containerPlacementRefusal(x, y, {...site, containers: []});
+      case 'device:manufacturer': return stationPlacementRefusal(x, y, 'manufacturer', {...site, count: 0});
+      case 'device:extractor': return stationPlacementRefusal(x, y, 'extractor', {...site, count: 0});
+      case 'device:portal': return stationPlacementRefusal(x, y, 'portal', {...site, count: 0});
+      default: return decorPlacementRefusal(x, y, site);
+    }
+  }
+
+  const kinds: InventoryItemKind[] = [
+    'scanner', 'dynamite', 'container', 'device:manufacturer', 'device:extractor', 'device:portal', 'decor:steelPlate'
+  ];
+  for (const kind of kinds) {
+    it.each(OCCUPANTS)(`${kind} on a tile holding a %s`, occupant => {
+      const s = scene(occupant);
+      expect(isPlacementValid(kind, s.x, s.y, s.w)).toBe(refusal(kind, s) === null);
+    });
+  }
 });

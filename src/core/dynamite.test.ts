@@ -11,6 +11,7 @@ import {
   isDynamiteFuseLit,
   tickPlacedDynamite
 } from './dynamite';
+import type { Occupant } from './placement';
 import type { Tile } from './types';
 
 function dirt(): Tile {
@@ -116,7 +117,7 @@ describe('a planted stick', () => {
 
 describe('placing a stick', () => {
   const explored = new Set([explorationIndex(40, 100)]);
-  const site = {explored, open: true, sticks: []};
+  const site = {explored, open: true, sticks: [], occupants: new Set<Occupant>()};
 
   it('accepts explored, cleared ground inside the mine', () => {
     expect(dynamitePlacementRefusal(40, 100, site)).toBeNull();
@@ -128,7 +129,7 @@ describe('placing a stick', () => {
     ['past the far wall', WORLD_W, 100, {...site}, 'underground'],
     ['under fog', 41, 100, {...site}, 'already explored'],
     ['inside terrain', 40, 100, {...site, open: false}, 'cleared space'],
-    ['on another stick', 40, 100, {...site, sticks: [createPlacedDynamite(40, 100)]}, 'already burning']
+    ['on another stick', 40, 100, {...site, occupants: new Set<Occupant>(['dynamite'])}, 'already burning']
   ])('refuses %s', (_name, x, y, context, reason) => {
     expect(dynamitePlacementRefusal(x, y, context)).toContain(reason);
   });

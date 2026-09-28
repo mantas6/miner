@@ -30,10 +30,7 @@ import {
   type InventoryItemKind
 } from './inventory';
 import { ITEM_CATALOG } from './items';
-import { placementRefusal, type PlacementCopy } from './placement';
-import { graveAt, tradingPostAt } from '../world/world';
-import { chestStandsAt } from './chest';
-import type { ChestLedger } from './types';
+import { isBlockedFor, placementRefusal, type Occupant, type PlacementCopy } from './placement';
 
 export const CARGO_CONTAINER = Object.freeze({
   /**
@@ -103,10 +100,8 @@ export interface ContainerPlacementContext {
   /** Whether the target tile is open space the crate can be dropped into. */
   open: boolean;
   containers: readonly PlacedContainer[];
-  /** Wrecks in the mine; a crate may not stand on one. */
-  wrecks?: readonly {x: number; y: number}[];
-  /** The opened-chest ledger; a crate may not stand on a chest still lying in the mine. */
-  chestLedger?: ChestLedger;
+  /** What already stands on the tile (`occupantsAt`). */
+  occupants: ReadonlySet<Occupant>;
 }
 
 /** How a container words each of the shared placement refusals. */
@@ -123,11 +118,7 @@ export function containerPlacementRefusal(x: number, y: number, context: Contain
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    occupied: context.containers.some(container => container.x === x && container.y === y)
-      || (context.wrecks?.some(wreck => wreck.x === x && wreck.y === y) ?? false)
-      || tradingPostAt(x, y) !== null
-      || chestStandsAt(x, y, context.chestLedger) !== null
-      || graveAt(x, y) !== null,
+    occupied: isBlockedFor('container', context.occupants),
     full: context.containers.length >= CARGO_CONTAINER.maxPlaced
   }, CONTAINER_PLACEMENT_COPY);
 }

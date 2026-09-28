@@ -25,10 +25,7 @@ import {
   type InventoryItemKind
 } from './inventory';
 import { ITEM_CATALOG } from './items';
-import { placementRefusal, type PlacementCopy } from './placement';
-import { graveAt, tradingPostAt } from '../world/world';
-import { chestStandsAt } from './chest';
-import type { ChestLedger } from './types';
+import { isBlockedFor, placementRefusal, type Occupant, type PlacementCopy } from './placement';
 
 /** Which kind of station this is. */
 export type StationKind = 'manufacturer' | 'extractor' | 'portal';
@@ -144,11 +141,6 @@ export function createInitialStations(): PlacedStation[] {
 /** The station standing on this tile, or `null`. */
 export function stationAt(stations: readonly PlacedStation[], x: number, y: number): PlacedStation | null {
   return stations.find(station => station.x === x && station.y === y) ?? null;
-}
-
-/** Whether a coordinate falls on any station tile. Decor may not be set here. */
-export function isStationTile(stations: readonly PlacedStation[], x: number, y: number): boolean {
-  return stationAt(stations, x, y) !== null;
 }
 
 /** Whether a ship at `x`/`y` is close enough to work this station. */
@@ -291,12 +283,10 @@ export interface StationPlacementContext {
   explored: ReadonlySet<number>;
   /** Whether the target tile is open space the device can be dropped into. */
   open: boolean;
-  /** Something (a station, container, scanner, or dynamite) is already on the tile. */
-  occupied: boolean;
+  /** What already stands on the tile (`occupantsAt`). */
+  occupants: ReadonlySet<Occupant>;
   /** How many stations of this kind already stand in the mine. */
   count: number;
-  /** The opened-chest ledger; absent counts every generated chest as still lying there. */
-  chestLedger?: ChestLedger;
 }
 
 /** Why this tile cannot take a station device, or `null` when it can. */
@@ -309,11 +299,7 @@ export function stationPlacementRefusal(
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    // A trading post, a chest or a grave stands in a derived air pocket, not in
-    // `state.stations`, so each is checked here from the coordinate rather than
-    // through `context.occupied`.
-    occupied: context.occupied || tradingPostAt(x, y) !== null || chestStandsAt(x, y, context.chestLedger) !== null
-      || graveAt(x, y) !== null,
+    occupied: isBlockedFor('station', context.occupants),
     full: context.count >= STATION_DEVICE[kind].maxPlaced
   }, stationPlacementCopy(kind));
 }

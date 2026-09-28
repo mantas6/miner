@@ -13,6 +13,7 @@
 
 import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { countItem, removeItem } from '../core/inventory';
+import { occupantsAt } from '../core/placement';
 import {
   SCANNER_DEVICE,
   SCANNER_ITEM,
@@ -106,7 +107,8 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
     const refusal = scannerPlacementRefusal(x, y, {
       explored: state.exploredTiles,
       open: inBounds && grid.get(x, y).type === 'air',
-      devices: state.scannerDevices
+      devices: state.scannerDevices,
+      occupants: occupantsAt(state, x, y)
     });
     if (refusal) {
       audio.alarm();

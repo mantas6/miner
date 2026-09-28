@@ -22,7 +22,7 @@ import {
   type PlacedDynamite
 } from '../core/dynamite';
 import { countItem, removeItem } from '../core/inventory';
-import { inMineBounds } from '../core/placement';
+import { inMineBounds, occupantsAt } from '../core/placement';
 import type { AudioController, GameState } from '../core/types';
 import type { WorldGrid } from './world-grid';
 
@@ -106,7 +106,8 @@ export function createDynamiteSticks(deps: DynamiteDeps): DynamiteSim {
     const refusal = dynamitePlacementRefusal(x, y, {
       explored: state.exploredTiles,
       open: inMineBounds(x, y) && grid.get(x, y).type === 'air',
-      sticks: state.placedDynamite
+      sticks: state.placedDynamite,
+      occupants: occupantsAt(state, x, y)
     });
     if (refusal) {
       audio.alarm();

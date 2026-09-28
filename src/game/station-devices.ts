@@ -11,11 +11,8 @@
 // them down, and vice versa. The armed pointer never survives a reload: it is
 // about what the player is doing this instant, not what they own.
 
-import { containerAt } from '../core/cargo-container';
-import { wreckAt } from '../core/wreck';
-import { graveAt, tradingPostAt } from '../world/world';
 import { countItem, removeItem } from '../core/inventory';
-import { inMineBounds } from '../core/placement';
+import { inMineBounds, occupantsAt } from '../core/placement';
 import { defaultPortalName } from '../core/portal';
 import {
   STATION_DEVICE,
@@ -23,7 +20,6 @@ import {
   createManufacturer,
   createPortal,
   portals,
-  stationAt,
   stationDeviceItemKind,
   stationPlacementRefusal,
   type PlacedStation,
@@ -108,17 +104,6 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
     toast(`${stationLabel(kind)} ready — press a mapped tile in the mine. Escape cancels.`);
   }
 
-  /** Whether any placed entity already occupies this tile. */
-  function occupied(x: number, y: number): boolean {
-    return stationAt(state.stations, x, y) !== null
-      || containerAt(state.cargoContainers, x, y) !== null
-      || wreckAt(state.wrecks, x, y) !== null
-      || state.scannerDevices.some(device => device.x === x && device.y === y)
-      || state.placedDynamite.some(stick => stick.x === x && stick.y === y)
-      || tradingPostAt(x, y) !== null
-      || graveAt(x, y) !== null;
-  }
-
   function placeAt(x: number, y: number): boolean {
     const kind = armed;
     if (!kind) return false;
@@ -132,9 +117,8 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
     const refusal = stationPlacementRefusal(x, y, kind, {
       explored: state.exploredTiles,
       open: inMineBounds(x, y) && grid.get(x, y).type === 'air',
-      occupied: occupied(x, y),
-      count: count(kind),
-      chestLedger: state.chestLedger
+      occupants: occupantsAt(state, x, y),
+      count: count(kind)
     });
     if (refusal) {
       audio.alarm();

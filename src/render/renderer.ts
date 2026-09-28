@@ -322,6 +322,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       wrecks: state.wrecks ?? [],
       stations: state.stations ?? [],
       chestLedger: state.chestLedger ?? {},
+      player: state.player,
+      world: state.world,
       isOpen: (x: number, y: number) => get(x, y).type === 'air'
     };
     const cells = placementOverlayCells(kind, state.player.x, state.player.y, world);

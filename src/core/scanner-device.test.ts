@@ -13,6 +13,7 @@ import {
   scannerTileProgress,
   tickScannerDevice
 } from './scanner-device';
+import type { Occupant } from './placement';
 
 /** Step a device until it reports a tile, or through one whole silent interval. */
 function runToReveal(device: Parameters<typeof tickScannerDevice>[0], explored: Set<number>, random = () => 0): number | null {
@@ -129,6 +130,7 @@ describe('scanner placement rules', () => {
     explored: new Set([explorationIndex(40, 100)]),
     open: true,
     devices: [],
+    occupants: new Set<Occupant>(),
     ...overrides
   });
 
@@ -142,7 +144,7 @@ describe('scanner placement rules', () => {
     ['below the deepest row', 40, MAX_WORLD_ROW + 1, {}, 'underground'],
     ['still under fog', 41, 100, {}, 'already explored'],
     ['inside terrain', 40, 100, {open: false}, 'cleared space'],
-    ['already taken', 40, 100, {devices: [createScannerDevice(40, 100)]}, 'already deployed']
+    ['already taken', 40, 100, {occupants: new Set<Occupant>(['scanner'])}, 'already deployed']
   ])('refuses a tile %s', (_name, x, y, overrides, reason) => {
     expect(scannerPlacementRefusal(x, y, context(overrides))).toContain(reason);
   });
