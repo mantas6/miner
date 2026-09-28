@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { explorationIndex } from '../../shared/exploration-codec';
-import { decorIdForKind, decorKindForId, decorPlacementRefusal } from './decor';
+import { decorIdForKind, decorKindForId, decorPlacementRefusal, isPassableDecor } from './decor';
 import type { DecorId } from './inventory';
 
 const DECOR_IDS: DecorId[] = ['steelPlate', 'stoneBlock', 'copperTrim', 'lampPanel', 'leninPortrait'];
@@ -15,6 +15,12 @@ describe('decor kind mapping', () => {
       expect(decorKindForId(id)).toBe(`decor:${id}`);
       expect(decorIdForKind(decorKindForId(id))).toBe(id);
     }
+  });
+});
+
+describe('isPassableDecor', () => {
+  it('lets only the Lenin Portrait hang in open space', () => {
+    expect(DECOR_IDS.filter(isPassableDecor)).toEqual(['leninPortrait']);
   });
 });
 

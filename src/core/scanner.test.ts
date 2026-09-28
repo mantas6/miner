@@ -27,6 +27,13 @@ describe('terrain scanner helper', () => {
       .toBe('Scanner ←: active fiend — drill it before it chews hull.');
   });
 
+  it('reads a hanging decoration as open and a solid one as drillable', () => {
+    expect(formatTerrainScanner({ tile: { type: 'decor', decor: 'leninPortrait', hp: 48, maxHp: 48 }, direction: [1, 0] }))
+      .toBe('Scanner →: decoration — open, the ship flies through; the toolkit lifts it.');
+    expect(formatTerrainScanner({ tile: { type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48 }, direction: [0, 1] }))
+      .toBe('Scanner ↓: decoration — drill to recover it.');
+  });
+
   it('does not leak terrain, rewards, or enemies through unexplored fog', () => {
     expect(formatTerrainScanner({
       tile: {type:'ore', ore:{name:'Gold', color:'#ffd65c', value:70, min:152, max:602, chance:.04}, hp:7, maxHp:7},

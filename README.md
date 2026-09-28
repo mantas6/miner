@@ -13,9 +13,12 @@ The client is React + TypeScript around a canvas: React paints the chrome from a
 zustand store, the canvas renders the mine, and the simulation runs in fixed
 60 Hz steps so tick-based tuning behaves the same on any refresh rate. Booting
 walks a UI phase machine — intro splash → playing. Behind the splash's
-translucent backdrop the canvas shows a fog-free, ship-free slice of freshly
-generated mine at a random spot 30–700 rows down, drifting slowly downward
-(`src/game/intro-showcase.ts`); the run's HUD stays hidden until the run starts.
+translucent backdrop the canvas shows a fresh game state drawn by the game's
+own renderer with fog and ship turned off, at a random spot 30–700 rows down —
+framed so a nearby cave portrait (when one hangs within a few chunks) sits in the
+band above the card — drifting
+slowly downward (`src/game/intro-showcase.ts`); the run's HUD stays hidden until
+the run starts.
 
 The mine is persistent. Terrain is never stored tile by tile — it regenerates
 from its coordinate seed — so the save keeps the *diff*: the list of
@@ -135,7 +138,7 @@ miner/
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), and the world's tile diff (`localStorage`). |
 | `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations), `intro-showcase.ts` (the title screen's drifting mine backdrop, drawn from a private world by its own renderer) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations), `intro-showcase.ts` (the title screen's drifting mine backdrop: a fresh game state drawn by the game's renderer with fog and ship off, framed on a nearby cave portrait when one is within a few chunks) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -271,7 +274,7 @@ zooming the camera with the wheel or a trackpad.
 | Deploy a scanner | — | Scanner inventory slot, then a mine tile |
 | Set a cargo container down | — | Container inventory slot, then a mine tile |
 | Set a crafted station down (Manufacturing Station / Fuel Extractor) | — | Its inventory slot, then a mine tile |
-| Lift an empty station or container back aboard | — | Construction Toolkit inventory slot, then press the station/crate |
+| Lift an empty station, container or hanging decoration back aboard | — | Construction Toolkit inventory slot, then press the station/crate/portrait |
 | Set a decoration down | — | Decoration inventory slot, then a mine tile |
  | Open a placed cargo container — or wreck — (on it or beside it) | `C` | Press the crate or wreck on the mine |
  | Move a stack between the crate and the bay | — | Press the stack in either column |
@@ -339,10 +342,12 @@ Station, the Fuel Extractor, and a Portal named `Home` — fly onto or beside on
 press `Space` (or click its tile) to open it. They are placed entities, not
 fixed world objects, so they can be crafted, carried and set down elsewhere too
 (see "Crafting & ship equipment"). The cavern floor is paved with Stone Blocks, and
-two Lenin Portraits hang high in its upper corners (`HOME_PORTRAITS` in
-`src/world/world.ts`). Like the cavern's air they are derived from the coordinate
-rather than saved; drilling one out writes air to the tile diff and returns the
-decoration to the bay.
+two Lenin Portraits hang one row above it, either side of the middle column
+(`HOME_PORTRAITS` in `src/world/world.ts`). Like the cavern's air they are derived
+from the coordinate rather than saved. The floor drills out as usual; a portrait
+hangs in open space, so the ship flies straight through it and the Construction
+Toolkit lifts it back aboard (writing air to the tile diff). Rarer portraits hang in
+small cleared cave pockets throughout the mine, derived the same way.
 
 - **Manufacturing Station.** Stow cargo here (its stock holds up to 500 items),
   take stacks back aboard, and craft. Crafting consumes from the station stock and
@@ -434,9 +439,13 @@ open it.
   portal. There is no depth gate and no return trip — the charge is the fare for the
   jump, and travel between built portals is otherwise free.
 - **Decorations** — Steel Plate, Copper Trim, Lamp Panel, Lenin Portrait — are crafted panels set
-  down as solid tiles from their inventory slot onto explored, cleared ground
-  (never on a station tile). Drilling one back out returns the panel to the bay;
-  a blast destroys it outright.
+  down as tiles from their inventory slot onto explored, cleared ground (never on a
+  station tile). The panels are solid: drilling one back out returns it to the bay.
+  The Lenin Portrait instead hangs in open space (`isPassableDecor` in
+  `src/core/decor.ts`): the ship flies through it, it is never ground, the drill
+  cannot bite it, and the Construction Toolkit lifts it back aboard. Rare portraits
+  also hang in cave pockets throughout the mine. A blast destroys any decoration
+  outright.
 - Cargo containers (`src/core/cargo-container.ts`) are the one piece of gear that
   is never used up. Set one down on explored, cleared ground from its inventory
   slot and it becomes a 50-item store standing in the mine, obeying the same
@@ -454,8 +463,9 @@ open it.
   keeps its own stock; each extractor runs its own coal→fuel conversion. Up to four
   of each may stand in the mine. The **Construction Toolkit** (`src/game/toolkit.ts`)
   is the durable counterpart: armed from its slot, a press on an *empty* station or
-  container packs it back into the bay (it refuses a loaded one — empty it first —
-  and refuses when the bay has no room). The toolkit is never used up.
+  container, or on a decoration that hangs in open space (the Lenin Portrait) from
+  an adjacent tile, packs it back into the bay (it refuses a loaded one — empty it
+  first — and refuses when the bay has no room). The toolkit is never used up.
 - **Portals** (`src/core/portal.ts`, `src/game/portals.ts`) are placeable stations
   too: crafted, carried, and set down from the portal inventory slot exactly like a
   Manufacturing Station or Fuel Extractor. The base is seeded with one named `Home`,
@@ -711,7 +721,7 @@ what a sighted player sees, as JSON. The top-level shape:
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, alerts{fuel, hull, cargo}, announcement}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now
 - `view`: `{origin:{x, y}, rows:[…], legend}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship
-- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | scanner | dynamite | station | tradingPost`
+- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | decor | container | wreck | scanner | dynamite | station | tradingPost`
 - `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `trade` (cash, sell offers, buy offers), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (tab) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 

@@ -18,6 +18,7 @@
 
 import { isTileExplored } from '../../shared/exploration-codec';
 import { canCraft, missingInputs, RECIPES } from '../core/crafting';
+import { decorKindForId, isPassableDecor } from '../core/decor';
 import { getEnemyType } from '../core/enemy-types';
 import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
@@ -115,15 +116,19 @@ export interface AgentShipSlot {
   info: string[];
 }
 
-/** What a notable tile is. Decor, dirt, rock and air are not notable. */
-export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'wreck' | 'scanner' | 'dynamite' | 'station' | 'tradingPost';
+/**
+ * What a notable tile is. Dirt, rock, air and solid decor are not notable; a
+ * decoration that hangs in open space (the ship flies through it, the toolkit
+ * lifts it) is, so a `D` the ship can pass is told apart from a solid panel.
+ */
+export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'wreck' | 'scanner' | 'dynamite' | 'station' | 'tradingPost' | 'decor';
 
 /** One thing worth the agent's attention, at a world coordinate. */
 export interface NotableTile {
   x: number;
   y: number;
   what: NotableKind;
-  /** Human detail: ore/enemy/station name, crate/scanner state, or fuse seconds. */
+  /** Human detail: ore/enemy/station/decoration name, crate/scanner state, or fuse seconds. */
   detail?: string;
 }
 
@@ -425,6 +430,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
           break;
         case 'decor':
           row += 'D';
+          if (isPassableDecor(tile.decor)) notable.push({x, y, what: 'decor', detail: itemForKind(decorKindForId(tile.decor)).label});
           break;
         case 'enemy':
           row += 'E';

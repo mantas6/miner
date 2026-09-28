@@ -12,7 +12,7 @@
 // so arming a panel stands any armed device down and vice versa.
 
 import { DECOR_HP } from '../../shared/constants';
-import { decorIdForKind, decorPlacementRefusal } from '../core/decor';
+import { decorIdForKind, decorPlacementRefusal, isPassableDecor } from '../core/decor';
 import { isStationTile } from '../core/stations';
 import { countItem, removeItem, type DecorKind } from '../core/inventory';
 import { inMineBounds } from '../core/placement';
@@ -89,12 +89,15 @@ export function createDecor(deps: DecorDeps): DecorSim {
       toast(refusal);
       return false;
     }
-    grid.set(x, y, {type: 'decor', decor: decorIdForKind(kind), hp: DECOR_HP, maxHp: DECOR_HP});
+    const decor = decorIdForKind(kind);
+    grid.set(x, y, {type: 'decor', decor, hp: DECOR_HP, maxHp: DECOR_HP});
     state.player.inventory = removeItem(state.player.inventory, kind);
     setArmed(null);
     saveProgress();
     audio.blip(360, .08, 'triangle', .04, 30);
-    toast('Decoration placed. Drill it out to recover it.');
+    toast(isPassableDecor(decor)
+      ? 'Decoration hung. The Construction Toolkit lifts it back aboard.'
+      : 'Decoration placed. Drill it out to recover it.');
     return true;
   }
 

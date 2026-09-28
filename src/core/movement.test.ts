@@ -1,6 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { FUEL, HULL, STARTING } from './balance';
-import { activeSprintDirection, fuelAfterMovement, isOpenSpaceDestination, isSprintActive, keyboardMovementRepeatMs, movementDestination, movementFuelCost, sprintCrashDamage, sprintMomentumAfterMove } from './movement';
+import { activeSprintDirection, fuelAfterMovement, isOpenSpaceDestination, isSprintActive, isTraversableTile, keyboardMovementRepeatMs, movementDestination, movementFuelCost, sprintCrashDamage, sprintMomentumAfterMove } from './movement';
+import type { Tile } from './types';
+
+const AIR: Tile = {type: 'air'};
+const DIRT: Tile = {type: 'dirt', hp: 2, maxHp: 2};
+const PORTRAIT: Tile = {type: 'decor', decor: 'leninPortrait', hp: 48, maxHp: 48};
+/** Everything the ship has to drill (or cannot pass): no flying through these. */
+const SOLID_TILES: Tile[] = [
+  DIRT,
+  {type: 'ore', ore: {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1}, hp: 3, maxHp: 3},
+  {type: 'rock', hp: 999},
+  {type: 'hazard', hp: 4, maxHp: 4},
+  {type: 'enemy', kind: 'tunnelFiend', hp: 4, maxHp: 4},
+  {type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48}
+];
+
+describe('traversable tiles', () => {
+  it('treats air and a hanging decoration as open space, and nothing else', () => {
+    expect(isTraversableTile(AIR)).toBe(true);
+    expect(isTraversableTile(PORTRAIT)).toBe(true);
+    for (const tile of SOLID_TILES) expect(isTraversableTile(tile)).toBe(false);
+    expect(isTraversableTile(undefined)).toBe(false);
+  });
+
+  it('lets the ship sprint through a portrait like air', () => {
+    const destinationOpen = isOpenSpaceDestination(true, PORTRAIT, false);
+    expect(destinationOpen).toBe(true);
+    expect(keyboardMovementRepeatMs(100, true, destinationOpen)).toBeCloseTo(55);
+  });
+});
 
 describe('world boundaries', () => {
   it('keeps horizontal and world-top boundaries but allows downward travel beyond 10,000 m', () => {
@@ -31,23 +60,23 @@ describe('sprint movement', () => {
   });
 
   it('repeats open-space movement faster and consumes sprint fuel', () => {
-    const destinationOpen = isOpenSpaceDestination(true, 'air', false);
+    const destinationOpen = isOpenSpaceDestination(true, AIR, false);
 
     expect(keyboardMovementRepeatMs(100, true, destinationOpen)).toBeCloseTo(55);
     expect(movementFuelCost(2, true, destinationOpen, false)).toBe(3.5);
   });
 
   it('keeps drill timing and fuel ordinary while Shift is held', () => {
-    for (const tileType of ['dirt', 'ore', 'rock', 'hazard', 'enemy']) {
-      const destinationOpen = isOpenSpaceDestination(true, tileType, false);
+    for (const tile of SOLID_TILES) {
+      const destinationOpen = isOpenSpaceDestination(true, tile, false);
       expect(keyboardMovementRepeatMs(100, true, destinationOpen)).toBe(100);
       expect(movementFuelCost(2, true, destinationOpen, false)).toBe(2);
     }
   });
 
   it('only starts sprinting after a drilled destination becomes open', () => {
-    const drillable = isOpenSpaceDestination(true, 'dirt', false);
-    const cleared = isOpenSpaceDestination(true, 'air', false);
+    const drillable = isOpenSpaceDestination(true, DIRT, false);
+    const cleared = isOpenSpaceDestination(true, AIR, false);
 
     expect(keyboardMovementRepeatMs(100, true, drillable)).toBe(100);
     expect(movementFuelCost(2, true, drillable, false)).toBe(2);
@@ -56,8 +85,8 @@ describe('sprint movement', () => {
   });
 
   it('does not sprint into an active enemy or at a clamped world boundary', () => {
-    expect(isOpenSpaceDestination(true, 'air', true)).toBe(false);
-    expect(isOpenSpaceDestination(false, 'air', false)).toBe(false);
+    expect(isOpenSpaceDestination(true, AIR, true)).toBe(false);
+    expect(isOpenSpaceDestination(false, AIR, false)).toBe(false);
   });
 
   it('does not sprint without Shift even in open space', () => {
@@ -66,7 +95,7 @@ describe('sprint movement', () => {
   });
 
   it('uses no fuel to move downward through open space, with or without Shift', () => {
-    const destinationOpen = isOpenSpaceDestination(true, 'air', false);
+    const destinationOpen = isOpenSpaceDestination(true, AIR, false);
 
     expect(movementFuelCost(2, false, destinationOpen, true)).toBe(0);
     expect(movementFuelCost(2, true, destinationOpen, true)).toBe(0);
@@ -75,7 +104,7 @@ describe('sprint movement', () => {
   });
 
   it('retains ordinary drill fuel when moving downward into terrain, with or without Shift', () => {
-    const destinationOpen = isOpenSpaceDestination(true, 'dirt', false);
+    const destinationOpen = isOpenSpaceDestination(true, DIRT, false);
 
     expect(movementFuelCost(2, false, destinationOpen, true)).toBe(2);
     expect(movementFuelCost(2, true, destinationOpen, true)).toBe(2);
@@ -83,8 +112,8 @@ describe('sprint movement', () => {
   });
 
   it('builds momentum only from a completed sprint step through open space', () => {
-    const open = isOpenSpaceDestination(true, 'air', false);
-    const dirt = isOpenSpaceDestination(true, 'dirt', false);
+    const open = isOpenSpaceDestination(true, AIR, false);
+    const dirt = isOpenSpaceDestination(true, DIRT, false);
 
     expect(sprintMomentumAfterMove(true, true, open, 0, 1)).toEqual([0, 1]);
     // Drilling out a tile and stepping in is not a boost run-up.
@@ -119,7 +148,7 @@ describe('boost crashes', () => {
   });
 
   it('cannot bill a held Shift once per auto-repeat, because the crash spends the momentum', () => {
-    let momentum = sprintMomentumAfterMove(true, true, isOpenSpaceDestination(true, 'air', false), 0, 1);
+    let momentum = sprintMomentumAfterMove(true, true, isOpenSpaceDestination(true, AIR, false), 0, 1);
     let total = 0;
 
     // Ten blocked repeats against the same wall: only the first one lands.
@@ -132,7 +161,7 @@ describe('boost crashes', () => {
   });
 
   it('lets the ship crash again once it has flown away and boosted back in', () => {
-    const open = isOpenSpaceDestination(true, 'air', false);
+    const open = isOpenSpaceDestination(true, AIR, false);
     const regained = sprintMomentumAfterMove(true, true, open, 0, 1);
 
     expect(sprintCrashDamage(regained, true, 0, 1)).toBe(HULL.sprintCrash);
@@ -141,8 +170,8 @@ describe('boost crashes', () => {
 
 describe('sprint fuel edge cases', () => {
   it('does not waive downward fuel for enemies or blocked boundaries', () => {
-    const activeEnemy = isOpenSpaceDestination(true, 'air', true);
-    const clampedBoundary = isOpenSpaceDestination(false, 'air', false);
+    const activeEnemy = isOpenSpaceDestination(true, AIR, true);
+    const clampedBoundary = isOpenSpaceDestination(false, AIR, false);
 
     expect(movementFuelCost(2, false, activeEnemy, true)).toBe(2);
     expect(movementFuelCost(2, true, activeEnemy, true)).toBe(2);

@@ -1,3 +1,4 @@
+import { isPassableDecor } from './decor';
 import { getEnemyType } from './enemy-types';
 import type { Direction, EnemyKind, Tile } from './types';
 
@@ -43,6 +44,8 @@ export function formatTerrainScanner({ tile, direction, activeEnemy = false, exp
     case 'enemy':
       return `${prefix} dirt — drillable, ${hitsLabel(tile.hp)}.`;
     case 'decor':
-      return `${prefix} decoration — drill to recover it.`;
+      return isPassableDecor(tile.decor)
+        ? `${prefix} decoration — open, the ship flies through; the toolkit lifts it.`
+        : `${prefix} decoration — drill to recover it.`;
   }
 }

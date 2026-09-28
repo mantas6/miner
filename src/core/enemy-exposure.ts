@@ -1,4 +1,4 @@
-import { isTraversableTerrain } from './movement';
+import { isTraversableTile } from './movement';
 import { tileKey as key } from '../../shared/tile-key';
 import type { Tile } from './types';
 
@@ -23,7 +23,7 @@ export function expandReachableAir(
   const exposed = new Map<string, TileCoordinate>();
 
   for (const seed of seeds) {
-    if (!isTraversableTerrain(world[seed.y]?.[seed.x]?.type)) continue;
+    if (!isTraversableTile(world[seed.y]?.[seed.x])) continue;
     const seedKey = key(seed.x, seed.y);
     const joinsReachableAir = DIRECTIONS.some(([dx, dy]) => reachableAir.has(key(seed.x + dx, seed.y + dy)));
     if (!forceSeeds && !reachableAir.has(seedKey) && !joinsReachableAir) continue;
@@ -41,7 +41,7 @@ export function expandReachableAir(
       const tileKey = key(x, y);
       if (tile.type === 'enemy') {
         exposed.set(tileKey, {x, y});
-      } else if (isTraversableTerrain(tile.type) && !reachableAir.has(tileKey)) {
+      } else if (isTraversableTile(tile) && !reachableAir.has(tileKey)) {
         reachableAir.add(tileKey);
         queue.push({x, y});
       }

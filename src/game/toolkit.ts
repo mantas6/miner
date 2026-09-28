@@ -1,9 +1,12 @@
-// The Construction Toolkit: lifting an empty station or container back into the bay.
+// The Construction Toolkit: lifting an empty station or container — or a
+// decoration that hangs in open space — back into the bay.
 //
 // It is the inverse of the placement gesture. The inventory slot arms the toolkit
 // (sharing the single `armedPlacement` slot with every other armed tool), and the
-// next press on a station or container tile the ship can reach packs it up: the
-// entity leaves the mine and its device item lands in the cargo bay. The toolkit
+// next press on a station, container or hanging-decoration tile the ship can reach
+// packs it up: the entity leaves the mine and its item lands in the cargo bay. A
+// hanging decoration (`isPassableDecor`) is a tile, so lifting one writes air
+// back through the grid; the drill never bites it, so this is its only way out. The toolkit
 // itself is durable — it is never consumed, so the same one lifts as many things
 // as the player has room to carry.
 //
@@ -17,21 +20,24 @@ import {
   containerAt,
   isWithinContainerReach
 } from '../core/cargo-container';
+import { decorKindForId, isPassableDecor } from '../core/decor';
 import { addItem, countItem, isFull, totalItems } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import {
+  STATION_REACH,
   isStationReachable,
   stationAt,
   stationDeviceItemKind,
   type PlacedStation
 } from '../core/stations';
 import type { AudioController, GameState } from '../core/types';
+import type { WorldGrid } from './world-grid';
 
 /** The durable toolkit item, carried in the bay like the other equipment. */
 export const TOOLKIT_ITEM = itemForKind('toolkit');
 
 export interface ToolkitSim {
-  /** Whether the toolkit is armed, waiting for a station or container to lift. */
+  /** Whether the toolkit is armed, waiting for a station, container or hanging decoration to lift. */
   readonly armed: boolean;
   /** Inventory-slot press: arm the toolkit, or stand it down. */
   toggleArmed(): void;
@@ -45,6 +51,8 @@ export interface ToolkitSim {
 
 export interface ToolkitDeps {
   state: GameState;
+  /** Tile access: a hanging decoration is a tile, lifted by writing air over it. */
+  grid: WorldGrid;
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
@@ -53,7 +61,7 @@ export interface ToolkitDeps {
 }
 
 export function createToolkit(deps: ToolkitDeps): ToolkitSim {
-  const {state, audio, toast, saveProgress} = deps;
+  const {state, grid, audio, toast, saveProgress} = deps;
   let armed = false;
 
   function setArmed(next: boolean): void {
@@ -79,7 +87,7 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
       return toast('No Construction Toolkit aboard. Craft one at the Manufacturing Station.');
     }
     setArmed(true);
-    toast('Toolkit ready — press an empty station or container to pack it up. Escape cancels.');
+    toast('Toolkit ready — press an empty station, a container or a hanging decoration to pack it up. Escape cancels.');
   }
 
   /** Whether the emptied device would fit in the bay before we remove the entity. */
@@ -136,6 +144,28 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
     return true;
   }
 
+  /**
+   * Take down a decoration that hangs in open space, within the same reach as a
+   * station. Anything else on the tile (air, terrain, a solid panel) is not the
+   * toolkit's to lift, so the press is ignored and the toolkit stays armed.
+   */
+  function liftDecor(x: number, y: number): boolean {
+    const tile = grid.get(x, y);
+    if (tile.type !== 'decor' || !isPassableDecor(tile.decor)) return false;
+    if (Math.max(Math.abs(x - state.player.x), Math.abs(y - state.player.y)) > STATION_REACH) {
+      toast('Too far from the decoration. Fly alongside it first.');
+      return false;
+    }
+    if (!bayHasRoom()) return false;
+    const item = itemForKind(decorKindForId(tile.decor));
+    grid.set(x, y, {type: 'air'});
+    state.player.inventory = addItem(state.player.inventory, item);
+    saveProgress();
+    audio.blip(440, .09, 'square', .045, 60);
+    toast(`${item.label} packed into the bay.`);
+    return true;
+  }
+
   function liftAt(x: number, y: number): boolean {
     if (!armed) return false;
     // The bay can empty between arming and pressing — a reset, a lost ship.
@@ -151,9 +181,10 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
       }
       return liftStation(station);
     }
-    // Not a station: it may still be a container. A press on bare rock lifts
-    // nothing and leaves the toolkit armed for the next try.
-    return liftContainer(x, y);
+    // Not a station: it may still be a container, or a decoration hanging in open
+    // space. A press on bare rock lifts nothing and leaves the toolkit armed.
+    if (containerAt(state.cargoContainers, x, y)) return liftContainer(x, y);
+    return liftDecor(x, y);
   }
 
   function tick(): void {

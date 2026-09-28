@@ -8,10 +8,10 @@
 
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { FUEL, HULL } from '../core/balance';
-import { decorKindForId } from '../core/decor';
+import { decorKindForId, isPassableDecor } from '../core/decor';
 import { addItem, addOre, isFull } from '../core/inventory';
 import { itemForKind } from '../core/items';
-import { fuelAfterMovement, isOpenSpaceDestination, movementDestination, sprintCrashDamage, sprintMomentumAfterMove } from '../core/movement';
+import { fuelAfterMovement, isOpenSpaceDestination, isTraversableTile, movementDestination, sprintCrashDamage, sprintMomentumAfterMove } from '../core/movement';
 import type {
   AirTile,
   AudioController,
@@ -80,16 +80,16 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
 
   function grounded(): boolean {
     const p = state.player;
-    return grid.get(p.x, p.y + 1).type !== 'air';
+    return !isTraversableTile(grid.get(p.x, p.y + 1));
   }
 
   function isOpenMovementDestination(dx: number, dy: number): boolean {
     const p = state.player;
     const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W);
-    return isOpenSpaceDestination(nx !== p.x || ny !== p.y, grid.get(nx, ny).type, Boolean(enemies.enemyAt(nx, ny)));
+    return isOpenSpaceDestination(nx !== p.x || ny !== p.y, grid.get(nx, ny), Boolean(enemies.enemyAt(nx, ny)));
   }
 
-  function flyThroughAir(_tile: AirTile, {dy, useFuel, flyCost}: MoveContext): MoveOutcome {
+  function flyThroughAir(_tile: AirTile | DecorTile, {dy, useFuel, flyCost}: MoveContext): MoveOutcome {
     useFuel(flyCost);
     if (performance.now() - audio.lastMove > 120) {
       audio.blip(150 + Math.abs(dy)*35, 0.035, 'triangle', 0.02);
@@ -169,7 +169,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
   }
 
   /**
-   * A placed decoration takes several seconds of drilling to break, then returns
+   * A solid placed decoration takes several seconds of drilling to break, then returns
    * to the bay — the player recovers what they set down. The full-bay check runs
    * only on the final hit, so the ship can chip away at one even with no room to
    * stow it; a full bay then refuses that last hit (the ship stays put), so a
@@ -202,6 +202,15 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     return 'advance';
   }
 
+  /**
+   * A decoration that hangs in open space (`isPassableDecor`) is flown through like
+   * air — the drill never bites it; the Construction Toolkit lifts it instead.
+   * Every other decoration is a solid panel the drill works out.
+   */
+  function enterDecorTile(tile: DecorTile, context: MoveContext): MoveOutcome {
+    return isPassableDecor(tile.decor) ? flyThroughAir(tile, context) : drillDecorTile(tile, context);
+  }
+
   /** Destination tile type → the drill/fly behaviour that resolves the move. */
   const tileMoveHandlers: {[K in Tile['type']]: TileMoveHandler<Extract<Tile, {type: K}>>} = {
     air: flyThroughAir,
@@ -210,7 +219,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     hazard: drillHazard,
     dirt: drillValuableTile,
     ore: drillValuableTile,
-    decor: drillDecorTile
+    decor: enterDecorTile
   };
 
   function resolveDestinationTile(tile: Tile, context: MoveContext): MoveOutcome {
@@ -257,7 +266,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     }
     const tile = grid.get(nx, ny);
     const activeEnemy = enemies.enemyAt(nx, ny);
-    const destinationOpen = isOpenSpaceDestination(true, tile.type, Boolean(activeEnemy));
+    const destinationOpen = isOpenSpaceDestination(true, tile, Boolean(activeEnemy));
     const baseCost = FUEL.baseMove + Math.abs(dy)*FUEL.vertical;
     const context: MoveContext = {
       dx, dy, nx, ny, player: p,
@@ -270,8 +279,8 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     p.drillDy = dy;
     const resolve = (): MoveOutcome => {
       if (activeEnemy) { p.drillAnim = 1.65; context.useFuel(context.dig(FUEL.dig.enemy)); enemies.damageEnemy(activeEnemy); return 'blocked'; }
-      if (tile.type !== 'air' && dy < 0) { p.drillDx = 0; p.drillDy = -1; p.drillAnim = 0.75; audio.bump(); toast('The drill cannot dig upward. Use tunnels to fly up.'); return 'blocked'; }
-      if (tile.type !== 'air' && dx !== 0 && dy === 0 && !grounded()) { p.drillDx = dx; p.drillDy = 0; p.drillAnim = 0.55; audio.bump(); toast('Side drilling needs solid ground underneath.'); return 'blocked'; }
+      if (!isTraversableTile(tile) && dy < 0) { p.drillDx = 0; p.drillDy = -1; p.drillAnim = 0.75; audio.bump(); toast('The drill cannot dig upward. Use tunnels to fly up.'); return 'blocked'; }
+      if (!isTraversableTile(tile) && dx !== 0 && dy === 0 && !grounded()) { p.drillDx = dx; p.drillDy = 0; p.drillAnim = 0.55; audio.bump(); toast('Side drilling needs solid ground underneath.'); return 'blocked'; }
       return resolveDestinationTile(tile, context);
     };
     // Read the momentum before the move consumes it: the crash is paid by the

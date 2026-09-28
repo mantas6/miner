@@ -10,6 +10,7 @@
 import { SHIP_UPGRADE_SLOTS, START_Y } from '../../shared/constants';
 import { STARTING } from '../core/balance';
 import { createInventory, removeOres } from '../core/inventory';
+import { isTraversableTile } from '../core/movement';
 import { respawnPortals } from '../core/portal';
 import { createDefaultStats, placeAtHome, respawnPlayer } from '../core/state';
 import { dropWreck } from '../core/wreck';
@@ -126,9 +127,10 @@ export function createRun(deps: GameRunDeps): GameRun {
     buildSoloWorld();
     const p = state.player;
     // The save carries a tile, not a guarantee: a capped or quota-dropped diff
-    // can leave that coordinate solid again. Anything but open air returns to the
-    // home base, because a ship buried in dirt cannot drill its way back up.
-    if (ensureWorldRow(state.world, p.y)?.[p.x]?.type !== 'air') placeAtHome(p);
+    // can leave that coordinate solid again. Anything but open space (air, or a
+    // decoration hanging in it) returns to the home base, because a ship buried in
+    // dirt cannot drill its way back up.
+    if (!isTraversableTile(ensureWorldRow(state.world, p.y)?.[p.x])) placeAtHome(p);
     // Fuel, hull and cargo are never saved, so a resumed run is a fresh ship
     // parked where the last one left off — carrying the equipment the save
     // restored into its bay, and none of the ore.

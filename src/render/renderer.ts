@@ -882,8 +882,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
   /**
    * A placed decoration: a flat panel, one of five looks. Steel is a riveted grey
    * plate, stone a grey-brown masonry slab, copper trim a warm bordered panel, the
-   * lamp panel a dark plate with a glowing strip, and the Lenin portrait a gilt-framed
-   * red canvas with a stylised bald, goateed head. Deliberately simple and static
+   * lamp panel a dark plate with a glowing strip, and the Lenin portrait a round
+   * gold-ringed red disc with a stylised bald, goateed head. Deliberately simple and static
    * — no `state.tick` — so it caches with the terrain like every other tile.
    */
   function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel' | 'leninPortrait', sx: number, sy: number) {
@@ -920,17 +920,16 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       return;
     }
     if (decor === 'leninPortrait') {
-      // A deep red canvas: dark jacket and collar at the bottom, a pale bald dome of
-      // a head, a dark moustache and goatee, all inside a gilt frame.
-      ctx.fillStyle = '#8e1c18'; ctx.fillRect(x, y, w, h);
-      ctx.fillStyle = '#26221f'; ctx.fillRect(x + w*.22, y + h*.70, w*.56, h*.22);
-      ctx.fillStyle = '#e8d3b4';
-      ctx.beginPath(); ctx.ellipse(x + w*.5, y + h*.42, w*.17, h*.22, 0, 0, Math.PI*2); ctx.fill();
+      // A round portrait: a gold ring around a deep red disc, a pale bald head with a
+      // dark moustache and goatee, and a dark collar, all fitted inside the disc.
+      const cx = sx + TILE*.5, cy = sy + TILE*.5, r = TILE*.40;
+      ctx.fillStyle = '#d9a441'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#8e1c18'; ctx.beginPath(); ctx.arc(cx, cy, r*.80, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#26221f'; ctx.beginPath(); ctx.ellipse(cx, cy + r*.62, r*.42, r*.20, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#e8d3b4'; ctx.beginPath(); ctx.ellipse(cx, cy - r*.08, r*.27, r*.36, 0, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#3a2a1e';
-      ctx.fillRect(x + w*.41, y + h*.51, w*.18, h*.04);
-      ctx.fillRect(x + w*.45, y + h*.55, w*.10, h*.10);
-      ctx.strokeStyle = '#d9a441'; ctx.lineWidth = TILE*.08;
-      ctx.strokeRect(x + TILE*.04, y + TILE*.04, w - TILE*.08, h - TILE*.08);
+      ctx.fillRect(cx - r*.15, cy + r*.08, r*.30, r*.06);
+      ctx.fillRect(cx - r*.08, cy + r*.14, r*.16, r*.16);
       return;
     }
     // lampPanel: a dark plate with a warm glowing strip down its middle.

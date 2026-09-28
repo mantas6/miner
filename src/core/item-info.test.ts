@@ -27,4 +27,12 @@ describe('describeItem', () => {
     expect(describeItem('upgrade:drill:3').lines.join(' ')).toContain('+4 drill power');
     expect(describeItem('upgrade:booster:1').lines.join(' ')).toContain('sprint');
   });
+
+  it('tells a hanging decoration from a solid panel', () => {
+    const portrait = describeItem('decor:leninPortrait').lines.join(' ');
+    expect(portrait).toContain('the ship flies through it');
+    expect(portrait).toContain('Construction Toolkit');
+    expect(portrait).not.toContain('drill hits');
+    expect(describeItem('decor:steelPlate').lines.join(' ')).toContain('drill hits');
+  });
 });

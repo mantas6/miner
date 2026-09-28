@@ -1,4 +1,5 @@
 import { tileKey as key } from '../../shared/tile-key';
+import { isTraversableTile } from './movement';
 import type { Tile } from './types';
 
 export interface EnemyPosition {
@@ -34,7 +35,7 @@ export function findEnemyPathStep(
       const tile = world[y]?.[x];
       const tileKey = key(x, y);
       if (x <= 0 || x >= (world[y]?.length ?? 0) - 1 || y < 0) continue;
-      if (!tile || tile.type !== 'air' || blocked.has(tileKey) || visited.has(tileKey)) continue;
+      if (!isTraversableTile(tile) || blocked.has(tileKey) || visited.has(tileKey)) continue;
       const firstStep = current.firstStep ?? {x, y};
       if (x === target.x && y === target.y) return firstStep;
       visited.add(tileKey);

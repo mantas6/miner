@@ -25,4 +25,17 @@ describe('enemy movement', () => {
 
     expect(enemy).toEqual({x: 3, y: 4});
   });
+
+  it('paths through a hanging decoration like air, but not through a solid panel', () => {
+    const world = Array.from({length: 3}, () => Array.from({length: 7}, dirt));
+    for (let x = 1; x <= 5; x++) world[1][x] = {type: 'air'};
+    world[1][3] = {type: 'decor', decor: 'leninPortrait', hp: 48, maxHp: 48};
+    const enemy = {x: 1, y: 1};
+    const player = {x: 5, y: 1};
+
+    expect(findEnemyPathStep(world, enemy, player, [enemy], 24)).toEqual({x: 2, y: 1});
+
+    world[1][3] = {type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48};
+    expect(findEnemyPathStep(world, enemy, player, [enemy], 24)).toBeNull();
+  });
 });
