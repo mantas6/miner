@@ -125,6 +125,22 @@ describe('opening the stations', () => {
   });
 });
 
+describe('leaving a station', () => {
+  it('shuts the open screen once the ship is out of reach', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    h.sim.openNearest();
+    h.sim.tick();
+    expect(h.sim.openStation?.kind).toBe('manufacturer');
+
+    Object.assign(h.state.player, {x: 5, y: 300});
+    h.sim.tick();
+
+    expect(h.sim.openStation).toBeNull();
+    expect(h.setStationUi).toHaveBeenLastCalledWith(null);
+  });
+});
+
 describe('opening a portal', () => {
   it('opens the travel list on Space when a portal is the nearest station', () => {
     const h = harness();

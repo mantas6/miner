@@ -289,8 +289,10 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
 
   function tick(): void {
     if (state.gameOver) { close(); return; }
-    // The Construction Toolkit can lift the open station out from under its screen.
-    if (open && !state.stations.includes(open)) close();
+    // The Construction Toolkit can lift the open station out from under its screen,
+    // and a ship that has left its reach (a fall, a harness tile press) is no longer
+    // working it: the reach it took to open the screen is what keeps it open.
+    if (open && (!state.stations.includes(open) || !isStationReachable(open, state.player.x, state.player.y))) close();
     // Park on an extractor and it tops the tank up on the spot — once per visit,
     // re-armed on leaving. Silent when there is nothing to move (full tank, empty store).
     const parked = extractorUnderShip();

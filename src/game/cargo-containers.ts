@@ -220,9 +220,13 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
     // A lost ship cannot set anything down or reach into anything, and both the
     // armed slot and the open menu would otherwise still look live behind the
     // game-over screen.
-    if (!state.gameOver) return;
-    disarm();
-    close();
+    if (state.gameOver) {
+      disarm();
+      close();
+      return;
+    }
+    // The reach it took to open the crate is what keeps its menu open.
+    if (open && !isWithinContainerReach(open, state.player.x, state.player.y)) close();
   }
 
   return {

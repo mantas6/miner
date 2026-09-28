@@ -150,7 +150,9 @@ export function createWrecks(deps: WreckDeps): WreckSim {
   function tick(): void {
     // A lost ship cannot reach into anything, and the open menu would otherwise
     // still look live behind the game-over screen.
-    if (state.gameOver) close();
+    if (state.gameOver) { close(); return; }
+    // The reach it took to open the wreck is what keeps its menu open.
+    if (open && !isWreckReachable(open, state.player.x, state.player.y)) close();
   }
 
   return {

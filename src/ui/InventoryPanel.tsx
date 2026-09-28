@@ -143,7 +143,12 @@ export function InventoryPanel() {
  * Either way the row carries the item's tooltip.
  */
 function InventoryRow({slot, armed}: {slot: InventorySlotView; armed: boolean}) {
-  const tooltip = useItemTooltip(slot.kind);
+  const placeable = PLACEABLE[slot.kind];
+  const usable = USABLE[slot.kind];
+  // What a press on the slot does rides in the item's own tooltip, rather than a
+  // native `title` popping up a second box on top of it.
+  const hint = placeable ? (armed ? placeable.armed : placeable.idle) : usable?.title;
+  const tooltip = useItemTooltip(slot.kind, hint === undefined ? undefined : [hint]);
   const stack = (
     <>
       <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
@@ -151,8 +156,6 @@ function InventoryRow({slot, armed}: {slot: InventorySlotView; armed: boolean}) 
       <span className={styles.count}>×{slot.count}</span>
     </>
   );
-  const placeable = PLACEABLE[slot.kind];
-  const usable = USABLE[slot.kind];
   if (placeable) {
     return (
       <li className={styles.slot}>
@@ -161,7 +164,6 @@ function InventoryRow({slot, armed}: {slot: InventorySlotView; armed: boolean}) 
           type="button"
           className={clsx(styles.place, armed && styles.armed)}
           aria-pressed={armed}
-          title={armed ? placeable.armed : placeable.idle}
           onClick={placeable.toggle}
           {...tooltip}
         >{stack}</button>
@@ -175,7 +177,6 @@ function InventoryRow({slot, armed}: {slot: InventorySlotView; armed: boolean}) 
           id={usable.buttonId}
           type="button"
           className={styles.place}
-          title={usable.title}
           onClick={usable.use}
           {...tooltip}
         >{stack}</button>

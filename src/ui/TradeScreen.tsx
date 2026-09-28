@@ -12,47 +12,25 @@
 // on open and after every purchase; the cash header follows the HUD. So the screen
 // holds no copy of anything and cannot disagree with the simulation.
 //
-// The shell/card split, the fixed header over a scrolling body, and the backdrop
-// press are the cargo and station dialogs', for the same reasons.
+// The `<dialog>` itself, its focus and its close requests are `ModalShell`'s.
 
-import { useEffect, useRef, type RefObject } from 'react';
 import { isOreKind, type InventoryItemKind } from '../core/inventory';
 import { uiCommands } from './commands';
 import { useUiStore, type InventorySlotView, type TradeOfferView } from './store';
+import { CardHeader, ModalShell } from './ModalShell';
 import { useItemTooltip } from './Tooltip';
 import styles from './TradeScreen.module.css';
 
 export function TradeScreen() {
   const open = useUiStore(state => state.activeOverlay === 'trade');
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      closeRef.current?.focus({preventScroll: true});
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
   return (
-    <dialog
-      id="trade-screen"
-      ref={dialogRef}
-      className={styles.screen}
-      aria-labelledby="trade-title"
-      onClose={() => uiCommands.closeTrade()}
-      onPointerDown={event => { if (event.target === dialogRef.current) uiCommands.closeTrade(); }}
-    >
-      {open && <TradeCard closeRef={closeRef} />}
-    </dialog>
+    <ModalShell id="trade-screen" titleId="trade-title" open={open} onRequestClose={() => uiCommands.closeTrade()}>
+      {open && <TradeCard />}
+    </ModalShell>
   );
 }
 
-function TradeCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+function TradeCard() {
   const cash = useUiStore(state => state.hud.cash);
   const cargo = useUiStore(state => state.hud.cargo);
   const cargoMax = useUiStore(state => state.hud.cargoMax);
@@ -63,17 +41,15 @@ function TradeCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
 
   return (
     <div id="trade-card" className={styles.card}>
-      <div className={styles.header}>
-        <h2 id="trade-title">Trading Post</h2>
+      <CardHeader
+        titleId="trade-title"
+        title="Trading Post"
+        closeId="tradeCloseBtn"
+        closeLabel="Close trading post"
+        onClose={() => uiCommands.closeTrade()}
+      >
         <span id="tradeCash" className={styles.cash}>${cash}</span>
-        <button
-          id="tradeCloseBtn"
-          ref={closeRef}
-          className={styles.closeBtn}
-          aria-label="Close trading post"
-          onClick={event => { event.stopPropagation(); uiCommands.closeTrade(); }}
-        >×</button>
-      </div>
+      </CardHeader>
       <div className={styles.body}>
         <div className={styles.columns}>
           <section className={styles.column} aria-labelledby="tradeSell-title">

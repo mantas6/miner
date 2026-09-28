@@ -262,6 +262,20 @@ describe('opening a container', () => {
     expect(h.toasts.saw('No container within reach')).toBe(true);
   });
 
+  it('shuts the menu once the ship is out of the crate\'s reach', () => {
+    const h = harness();
+    placed(h);
+    h.containers.openAt(40, 100);
+    h.containers.tick();
+    expect(h.containers.open).not.toBeNull();
+
+    h.state.player.y = 120;
+    h.containers.tick();
+
+    expect(h.containers.open).toBeNull();
+    expect(h.openUi.at(-1)).toBeNull();
+  });
+
   it('shuts the crate and the armed pointer when the ship is lost', () => {
     const h = harness();
     placed(h);

@@ -115,8 +115,8 @@ describe('fuel extractor dialog', () => {
   });
 
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {
-    const closeExtractor = vi.fn();
-    setUiCommands({closeExtractor});
+    const closeStation = vi.fn();
+    setUiCommands({closeStation});
     render(<ExtractorScreen />);
     expect(document.getElementById('extractor-card')).toBeNull();
 
@@ -124,9 +124,9 @@ describe('fuel extractor dialog', () => {
     expect(document.getElementById('extractor-card')).not.toBeNull();
 
     fireEvent.click(document.getElementById('extractorCloseBtn')!);
-    expect(closeExtractor).toHaveBeenCalledOnce();
+    expect(closeStation).toHaveBeenCalledOnce();
 
     fireEvent.pointerDown(document.querySelector('dialog')!);
-    expect(closeExtractor).toHaveBeenCalledTimes(2);
+    expect(closeStation).toHaveBeenCalledTimes(2);
   });
 });

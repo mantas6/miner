@@ -41,7 +41,6 @@ interface Harness {
   closeGrave: ReturnType<typeof vi.fn>;
   openNearest: ReturnType<typeof vi.fn>;
   closeStation: ReturnType<typeof vi.fn>;
-  closeExtractor: ReturnType<typeof vi.fn>;
   closePortal: ReturnType<typeof vi.fn>;
   toast: ReturnType<typeof vi.fn>;
   tryAutoAudio: ReturnType<typeof vi.fn>;
@@ -71,7 +70,6 @@ function harness(): Harness {
     closeGrave: vi.fn(),
     openNearest: vi.fn(),
     closeStation: vi.fn(),
-    closeExtractor: vi.fn(),
     closeTrade: vi.fn(),
     closePortal: vi.fn(),
     toast: vi.fn(),
@@ -161,9 +159,10 @@ describe('phase gating', () => {
     press('Escape');
     expect(h.closeStation).toHaveBeenCalledOnce();
 
+    // Both home-station screens shut through the one close.
     uiStore.getState().setActiveOverlay('extractor');
     press('Escape');
-    expect(h.closeExtractor).toHaveBeenCalledOnce();
+    expect(h.closeStation).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -235,6 +234,86 @@ describe('the editable-element guard', () => {
     press('Escape', field);
     expect(document.activeElement).not.toBe(field);
   });
+
+  it('keeps the overlay open on an Escape that only leaves the field', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    uiStore.getState().setPortalUi({mode: 'travel', destinations: []});
+    uiStore.getState().setActiveOverlay('portal');
+    const field = document.createElement('input');
+    document.body.appendChild(field);
+    field.focus();
+
+    const escape = new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true});
+    field.dispatchEvent(escape);
+
+    // Swallowed, so the UA does not also turn it into the dialog's close request…
+    expect(escape.defaultPrevented).toBe(true);
+    expect(document.activeElement).not.toBe(field);
+    // …and the game's own close did not run either. The next Escape is the dialog's.
+    expect(h.closePortal).not.toHaveBeenCalled();
+    press('Escape');
+    expect(h.closePortal).toHaveBeenCalledOnce();
+  });
+
+  it('lets go of a key released inside a text field', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    press('d');
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+
+    // Focus moves into a field with the key still down; its release lands there.
+    const field = document.createElement('input');
+    document.body.appendChild(field);
+    field.focus();
+    field.dispatchEvent(new KeyboardEvent('keyup', {key: 'd', bubbles: true, cancelable: true}));
+    field.blur();
+
+    h.state.input.lastKeyboardMove = 0;
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+  });
+});
+
+describe('focused controls', () => {
+  it('leaves Space and Enter on a focused button to the button', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    button.focus();
+
+    const down = new KeyboardEvent('keydown', {key: ' ', bubbles: true, cancelable: true});
+    button.dispatchEvent(down);
+    const up = new KeyboardEvent('keyup', {key: ' ', bubbles: true, cancelable: true});
+    button.dispatchEvent(up);
+    press('Enter', button);
+
+    // Neither half of the press was cancelled, so the button still activates…
+    expect(down.defaultPrevented).toBe(false);
+    expect(up.defaultPrevented).toBe(false);
+    // …and the station behind it was not toggled as well.
+    expect(h.openNearest).not.toHaveBeenCalled();
+  });
+
+  it('leaves Space on a focused button in an open screen to that button', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    uiStore.getState().setActiveOverlay('station');
+    const button = document.createElement('button');
+    button.id = 'stowAllBtn';
+    document.body.appendChild(button);
+    button.focus();
+
+    press(' ', button);
+
+    expect(h.closeStation).not.toHaveBeenCalled();
+    // Space from anywhere else in the screen is still the round trip.
+    press(' ');
+    expect(h.closeStation).toHaveBeenCalledOnce();
+  });
+
 });
 
 describe('the portal overlay', () => {
@@ -382,6 +461,7 @@ describe('restarting after a death', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
     h.state.gameOver = true;
+    uiStore.getState().setActiveOverlay('info');
     document.body.innerHTML = '<dialog id="info-screen"><button id="infoCloseBtn">Close</button></dialog>';
 
     pointerDown(document.getElementById('infoCloseBtn')!);
@@ -526,6 +606,58 @@ describe('wheel zoom', () => {
 });
 
 describe('held keys', () => {
+  it('stops a held direction the moment an overlay opens, and does not resume it', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+
+    press('d');
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+
+    // The key is still down when the screen rises: nothing moves under it.
+    uiStore.getState().setActiveOverlay('station');
+    h.state.input.lastKeyboardMove = 0;
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+
+    // What the game does as it raises an overlay: forget what was held, so putting
+    // the screen away does not drive the ship off on a key released behind it.
+    h.input.clearKeys();
+    uiStore.getState().setActiveOverlay(null);
+    h.state.input.lastKeyboardMove = 0;
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+  });
+
+  it('drops a queued impulse when an overlay covers the mine', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+
+    press('s');
+    uiStore.getState().setActiveOverlay('ship');
+    h.input.tick();
+    uiStore.getState().setActiveOverlay(null);
+    release('s');
+    h.input.tick();
+
+    expect(h.move).not.toHaveBeenCalled();
+  });
+
+  it('forgets every held key when the window loses focus', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+
+    press('a');
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+
+    // The keyup for a key released in another window never arrives here.
+    window.dispatchEvent(new Event('blur'));
+    h.state.input.lastKeyboardMove = 0;
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+  });
+
   it('auto-repeats a held direction and stops on release', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');

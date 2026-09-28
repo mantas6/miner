@@ -1,0 +1,84 @@
+/* The modal shell every overlay screen shares (ModalShell.tsx), and the card
+   recipe the screens compose their own card from.
+
+   A native modal `<dialog>` lives in the top layer, so it is positioned against
+   the viewport rather than #game-panel — `inset: 14px` reproduces the panel box
+   (#shell's padding) exactly, and the UA backdrop is dropped because the dialog
+   paints the dimmed overlay itself. */
+.screen {
+  position: fixed;
+  inset: 14px;
+  z-index: 16;
+  margin: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  color: inherit;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(4, 7, 12, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+  overflow: visible;
+}
+.screen:not([open]) {
+  display: none;
+}
+.screen::backdrop {
+  background: transparent;
+}
+
+/* The card is a header over a scroller, not one scrolling block: only .body moves,
+   so the title row and its close button stay on screen at any scroll offset. Each
+   screen composes this and sets its own width and max-height. */
+.card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  background: linear-gradient(145deg, rgba(12, 18, 29, 0.96), rgba(30, 40, 58, 0.94));
+  border: 1px solid var(--hairline-3);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 var(--hairline-2);
+}
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 12px;
+}
+.title {
+  margin: 0;
+  color: var(--gold);
+}
+/* The scrollport, so its scrollbar sits against the card edge. */
+.body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 20px 20px;
+}
+.closeBtn {
+  composes: closeBtn from "./common.module.css";
+}
+
+@media (max-width: 760px) {
+  .screen {
+    padding: 10px;
+  }
+  .card {
+    border-radius: var(--r-lg);
+  }
+  .header {
+    padding: 14px 14px 10px;
+  }
+  .body {
+    padding: 0 14px 14px;
+  }
+}

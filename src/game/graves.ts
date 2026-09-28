@@ -88,7 +88,9 @@ export function createGraves(deps: GraveDeps): GraveSim {
   }
 
   function tick(): void {
-    if (state.gameOver) close();
+    if (state.gameOver) { close(); return; }
+    // The reach it took to read the stone is what keeps it up.
+    if (open && !isGraveReachable(open, state.player.x, state.player.y)) close();
   }
 
   return {

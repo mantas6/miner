@@ -202,6 +202,24 @@ describe('buying gear', () => {
   });
 });
 
+describe('leaving the post', () => {
+  it('shuts the menu once the ship is out of reach, and not before', () => {
+    const h = harness();
+    h.trading.openAt(h.post.x, h.post.y);
+
+    // Still alongside it: the menu stays.
+    h.state.player.x = h.post.x + 1;
+    h.trading.tick();
+    expect(h.trading.open).toEqual(h.post);
+
+    // A fall (or a press elsewhere) carries the ship away: the menu goes with it.
+    h.state.player.y = h.post.y + 5;
+    h.trading.tick();
+    expect(h.trading.open).toBeNull();
+    expect(h.openUi.at(-1)).toBeNull();
+  });
+});
+
 describe('a lost ship', () => {
   it('shuts the post on the next tick', () => {
     const h = harness();

@@ -13,14 +13,13 @@
 // disagree with the simulation behind it. Each column heads with how full it is —
 // items held over its capacity — since neither side shows empty slots any more.
 //
-// The shell/card split, the fixed header over a scrolling body, and the backdrop
-// press are the ship screen's and the info screen's, for the same reasons.
+// The `<dialog>` itself, its focus and its close requests are `ModalShell`'s.
 
-import { useEffect, useRef, type RefObject } from 'react';
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import type { InventoryItemKind } from '../core/inventory';
 import { uiCommands } from './commands';
 import { useUiStore, type InventorySlotView } from './store';
+import { CardHeader, ModalShell } from './ModalShell';
 import { useItemTooltip } from './Tooltip';
 import styles from './CargoScreen.module.css';
 
@@ -32,22 +31,7 @@ export function CargoScreen() {
     const overlay = state.activeOverlay;
     return overlay === 'container' || overlay === 'wreck' || overlay === 'chest' ? overlay : null;
   });
-  const open = mode !== null;
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      closeRef.current?.focus({preventScroll: true});
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
-  // A native close request (Escape reaching the UA, a form submit) must not leave
+  // A native close request (Escape reaching the UA, the backdrop) must not leave
   // the game thinking the crate, wreck or chest is still open.
   const close = () => {
     if (mode === 'wreck') uiCommands.closeWreck();
@@ -56,24 +40,16 @@ export function CargoScreen() {
   };
 
   return (
-    <dialog
-      id="cargo-screen"
-      ref={dialogRef}
-      className={styles.screen}
-      aria-labelledby="cargo-title"
-      onClose={close}
-      onPointerDown={event => { if (event.target === dialogRef.current) close(); }}
-    >
-      {mode === 'container' && <CargoCard closeRef={closeRef} />}
-      {mode === 'wreck' && <WreckCard closeRef={closeRef} />}
-      {mode === 'chest' && <ChestCard closeRef={closeRef} />}
-    </dialog>
+    <ModalShell id="cargo-screen" titleId="cargo-title" open={mode !== null} onRequestClose={close}>
+      {mode === 'container' && <CargoCard />}
+      {mode === 'wreck' && <WreckCard />}
+      {mode === 'chest' && <ChestCard />}
+    </ModalShell>
   );
 }
 
 /** What one take-only menu — the wreck's, or a chest's — lists and dispatches to. */
 interface LootCardProps {
-  closeRef: RefObject<HTMLButtonElement | null>;
   title: string;
   /** Id stem for the slot list and its heading, e.g. `wreckSlots`. */
   listId: string;
@@ -85,11 +61,10 @@ interface LootCardProps {
 }
 
 /** The wreck's salvage menu: one take-only column, plus a loot-all shortcut. */
-function WreckCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+function WreckCard() {
   const wreckSlots = useUiStore(state => state.wreckSlots);
   return (
     <LootCard
-      closeRef={closeRef}
       title="Wreck"
       listId="wreckSlots"
       slots={wreckSlots}
@@ -103,11 +78,10 @@ function WreckCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
 }
 
 /** A buried chest's menu: the wreck's layout, dispatching to the chest commands. */
-function ChestCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+function ChestCard() {
   const chestSlots = useUiStore(state => state.chestSlots);
   return (
     <LootCard
-      closeRef={closeRef}
       title="Chest"
       listId="chestSlots"
       slots={chestSlots}
@@ -121,21 +95,18 @@ function ChestCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
 }
 
 /** One take-only column headed by its item count, plus a loot-all shortcut. */
-function LootCard({closeRef, title, listId, slots, note, close, take, lootAll}: LootCardProps) {
+function LootCard({title, listId, slots, note, close, take, lootAll}: LootCardProps) {
   const used = slots.reduce((count, slot) => count + slot.count, 0);
 
   return (
     <div id="cargo-card" className={styles.card}>
-      <div className={styles.header}>
-        <h2 id="cargo-title">{title}</h2>
-        <button
-          id="cargoCloseBtn"
-          ref={closeRef}
-          className={styles.closeBtn}
-          aria-label={`Close ${title.toLowerCase()}`}
-          onClick={event => { event.stopPropagation(); close(); }}
-        >×</button>
-      </div>
+      <CardHeader
+        titleId="cargo-title"
+        title={title}
+        closeId="cargoCloseBtn"
+        closeLabel={`Close ${title.toLowerCase()}`}
+        onClose={close}
+      />
       <div className={styles.body}>
         <section className={styles.column} aria-labelledby={`${listId}-title`}>
           <div className={styles.columnHeading}>
@@ -189,23 +160,20 @@ function LootRow({slot, take}: {slot: InventorySlotView; take(kind: InventoryIte
   );
 }
 
-function CargoCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+function CargoCard() {
   const containerSlots = useUiStore(state => state.containerSlots);
   const shipSlots = useUiStore(state => state.inventorySlots);
   const cargoMax = useUiStore(state => state.hud.cargoMax);
 
   return (
     <div id="cargo-card" className={styles.card}>
-      <div className={styles.header}>
-        <h2 id="cargo-title">Cargo Container</h2>
-        <button
-          id="cargoCloseBtn"
-          ref={closeRef}
-          className={styles.closeBtn}
-          aria-label="Close cargo container"
-          onClick={event => { event.stopPropagation(); uiCommands.closeContainer(); }}
-        >×</button>
-      </div>
+      <CardHeader
+        titleId="cargo-title"
+        title="Cargo Container"
+        closeId="cargoCloseBtn"
+        closeLabel="Close cargo container"
+        onClose={() => uiCommands.closeContainer()}
+      />
       <div className={styles.body}>
         <div className={styles.columns}>
           <SlotColumn

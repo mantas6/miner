@@ -2,14 +2,14 @@
 // focus inside it, so there is no hand-rolled focus trap here. Tab selection is
 // still a WAI-ARIA tablist with roving focus.
 //
-// The overlay is split three ways on purpose. The shell owns the `<dialog>` and
-// nothing else, the card owns the tablist, and each panel is its own component
+// The overlay is split three ways on purpose. The shell (`ModalShell`) owns the
+// `<dialog>` and nothing else, the card owns the tablist, and each panel is its own component
 // that subscribes to the store itself. Only the selected panel is mounted, so a
 // closed Info screen holds one boolean subscription, an open one holds only the
 // slices the visible tab actually paints, and the 60 Hz cargo/stat sync cannot
 // re-render a tab nobody is looking at.
 
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import { buildDangerGuideRows } from '../core/danger';
 import { DYNAMITE } from '../core/dynamite';
@@ -19,6 +19,7 @@ import { GAME_RESET_CONFIRMATION } from '../persistence-reset';
 import { DeveloperPanel } from './DeveloperPanel';
 import { getInfoNavigationSections, getInfoTabFocusTarget, type InfoTab } from './info-navigation';
 import { uiCommands } from './commands';
+import { CardHeader, ModalShell } from './ModalShell';
 import { uiStore, useUiStore } from './store';
 import styles from './InfoScreen.module.css';
 
@@ -28,42 +29,20 @@ const dangerRows = buildDangerGuideRows();
 /** The dialog shell: open/close mechanics and focus restoration, no content. */
 export function InfoScreen() {
   const open = useUiStore(state => state.activeOverlay === 'info');
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      closeRef.current?.focus({preventScroll: true});
-    } else if (!open && dialog.open) {
-      dialog.close();
-      document.getElementById('infoBtn')?.focus({preventScroll: true});
-    }
-  }, [open]);
-
   return (
-    <dialog
+    <ModalShell
       id="info-screen"
-      ref={dialogRef}
-      className={styles.screen}
-      aria-labelledby="info-title"
-      // A native close request (Escape reaching the UA, a form submit) must not
-      // leave the store thinking the info screen is still open.
-      onClose={() => uiCommands.closeInfo()}
-      onPointerDown={event => { if (event.target === dialogRef.current) uiCommands.closeInfo(); }}
+      titleId="info-title"
+      open={open}
+      onRequestClose={() => uiCommands.closeInfo()}
+      returnFocusId="infoBtn"
     >
-      {open && <InfoCard closeRef={closeRef} />}
-    </dialog>
+      {open && <InfoCard />}
+    </ModalShell>
   );
 }
 
-interface InfoCardProps {
-  closeRef: RefObject<HTMLButtonElement | null>;
-}
-
-function InfoCard({closeRef}: InfoCardProps) {
+function InfoCard() {
   const activeTab = useUiStore(state => state.infoTab);
   const sections = getInfoNavigationSections();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -94,18 +73,13 @@ function InfoCard({closeRef}: InfoCardProps) {
 
   return (
     <div id="info-card" className={styles.card}>
-      {/* Outside the scrolling body on purpose: the close button stays reachable
-          however far the panel below is scrolled. */}
-      <div className={styles.header}>
-        <h2 id="info-title">Cargo &amp; Controls</h2>
-        <button
-          id="infoCloseBtn"
-          ref={closeRef}
-          className={styles.closeBtn}
-          aria-label="Close info screen"
-          onClick={event => { event.stopPropagation(); uiCommands.closeInfo(); }}
-        >×</button>
-      </div>
+      <CardHeader
+        titleId="info-title"
+        title="Cargo & Controls"
+        closeId="infoCloseBtn"
+        closeLabel="Close info screen"
+        onClose={() => uiCommands.closeInfo()}
+      />
       <div ref={bodyRef} className={styles.body}>
         <div className={styles.navigation} aria-label="Info sections" role="tablist" aria-orientation="horizontal">
           {sections.map(section => (

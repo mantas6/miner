@@ -1,32 +1,4 @@
-/* The gravestone shares the station/cargo/trade modal shell; see
-   InfoScreen.module.css for why the `<dialog>` is fixed at inset 14px. */
-.screen {
-  position: fixed;
-  inset: 14px;
-  z-index: 16;
-  margin: 0;
-  width: auto;
-  height: auto;
-  max-width: none;
-  max-height: none;
-  border: 0;
-  color: inherit;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(4, 7, 12, 0.72);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: auto;
-  overflow: visible;
-}
-.screen:not([open]) {
-  display: none;
-}
-.screen::backdrop {
-  background: transparent;
-}
-
+/* The shell is dialog.module.css's (ModalShell); this is only the stone. */
 /* A small stone slab: rounded at the top like a headstone. */
 .card {
   display: grid;

@@ -13,7 +13,7 @@
 
 import { activeSprintDirection, keyboardMovementRepeatMs } from '../core/movement';
 import type { Direction, GameState } from '../core/types';
-import { uiStore } from '../ui/store';
+import { uiStore, type OverlayId } from '../ui/store';
 import { requestViewportZoom, viewport } from './viewport';
 import { zoomAfterWheel } from './zoom';
 import type { GameActions } from './actions';
@@ -28,7 +28,13 @@ export const RESET_CONFIRM_TICKS = 210;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
-const DIALOG_SURFACES = '#info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen, #trade-screen, #grave-screen';
+
+/**
+ * Controls that answer Space/Enter themselves. A keyboard press on one of these is
+ * the control's (a focused Stow all, a tab, the rename field), never the mine's
+ * station toggle as well.
+ */
+const SELF_ACTIVATING = 'button, input, [role=tab], a';
 
 const movementKeys: Record<string, Direction> = {
   arrowleft: [-1, 0], a: [-1, 0],
@@ -48,7 +54,10 @@ const HELD_DIRECTIONS: {keys: string[]; direction: Direction}[] = [
 export interface GameInput {
   /** One simulation step of keyboard movement: impulse first, then auto-repeat. */
   tick(): void;
-  /** Forget held keys, so a modal action does not resume movement afterwards. */
+  /**
+   * Forget held keys (and a queued impulse), so a key held when an overlay rose or
+   * the window lost focus does not keep driving the ship once it is back.
+   */
   clearKeys(): void;
   /** Drop every scrap of keyboard/aim state (restart, world reset). */
   reset(): void;
@@ -87,10 +96,8 @@ export interface GameInputDeps {
   closeGrave(): void;
   /** Space: open the nearest home station, or toggle the open one shut. */
   openNearest(): void;
-  /** Escape/Space while the manufacturing station screen is up. */
+  /** Escape/Space while a home-station screen (manufacturer or extractor) is up. */
   closeStation(): void;
-  /** Escape/Space while the fuel extractor screen is up. */
-  closeExtractor(): void;
   /** Escape/Space while the trading-post screen is up. */
   closeTrade(): void;
   /** Escape/Space while the portal overlay is up (ignored in respawn mode). */
@@ -107,7 +114,31 @@ export function createInput(deps: GameInputDeps): GameInput {
 
   function clearKeys(): void {
     keys.clear();
+    state.input.keyImpulse = null;
   }
+
+  /**
+   * What each overlay answers on the keyboard while it is up: the keys that shut it
+   * and how. Every other key is swallowed by the overlay rather than reaching the
+   * mine. `locked` vetoes the close (the respawn prompt has no way out but a pick)
+   * while still keeping its keys off the mine.
+   *
+   * Space opened the station-like screens and Space shuts them again — the round
+   * trip on one key; C does the same for the crate, the wreck and the chest. The
+   * grave's one OK is the whole stone, so every dismissal key is it.
+   */
+  const OVERLAY_KEYS: Record<OverlayId, {keys: string[]; close: () => void; locked?: () => boolean}> = {
+    ship: {keys: ['escape'], close: () => deps.closeShipScreen()},
+    info: {keys: ['escape'], close: () => deps.closeInfoScreen()},
+    container: {keys: ['escape', 'c'], close: () => deps.closeContainer()},
+    wreck: {keys: ['escape', 'c'], close: () => deps.closeWreck()},
+    chest: {keys: ['escape', 'c'], close: () => deps.closeChest()},
+    grave: {keys: ['escape', 'enter', ' '], close: () => deps.closeGrave()},
+    station: {keys: ['escape', ' '], close: () => deps.closeStation()},
+    extractor: {keys: ['escape', ' '], close: () => deps.closeStation()},
+    trade: {keys: ['escape', ' '], close: () => deps.closeTrade()},
+    portal: {keys: ['escape', ' '], close: () => deps.closePortal(), locked: () => uiStore.getState().portal?.mode === 'respawn'}
+  };
 
   function reset(): void {
     keys.clear();
@@ -144,6 +175,11 @@ export function createInput(deps: GameInputDeps): GameInput {
     state.tick++;
     state.input.sprintDirection = null;
     if (!isPlaying()) return;
+    // An overlay covers the mine: nothing held or queued may drive the ship under it.
+    if (uiStore.getState().activeOverlay !== null) {
+      state.input.keyImpulse = null;
+      return;
+    }
     const now = performance.now();
     // Shift only sprints with a Booster fitted; without one the key does nothing.
     const sprinting = keys.has('shift') && state.player.boost;
@@ -170,80 +206,43 @@ export function createInput(deps: GameInputDeps): GameInput {
     return active !== null && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
   }
 
+  /** Whether a Space/Enter press belongs to the focused control it landed on. */
+  function isControlActivation(e: KeyboardEvent): boolean {
+    if (e.key !== ' ' && e.key !== 'Enter') return false;
+    const target = e.target as Element | null;
+    return typeof target?.closest === 'function' && target.closest(SELF_ACTIVATING) !== null;
+  }
+
   function handleKeyDown(e: KeyboardEvent): void {
     // A focused text field — the portal rename input — owns its own keystrokes, so
     // the mine must not also drive on them. Escape is the way out: it blurs the
-    // field first, handing the keyboard back to the game, and swallows this press.
+    // field first, handing the keyboard back to the game, and swallows this press
+    // so the UA does not also turn it into a close request for the dialog.
     if (editingText()) {
-      if (e.key === 'Escape') (document.activeElement as HTMLElement).blur();
+      if (e.key === 'Escape') {
+        (document.activeElement as HTMLElement).blur();
+        e.preventDefault();
+      }
       return;
     }
+    // Space/Enter on a focused button, tab or link is that control's activation;
+    // it must not also toggle the station behind it.
+    if (isControlActivation(e)) return;
     // Keyboard movement must work even before the browser grants audio permission.
     // Audio can still be enabled with the HUD buttons or any pointer/touch input.
     const key = e.key.toLowerCase();
     const ui = uiStore.getState();
     // The splash and the lobby are React's; they handle their own keys.
     if (ui.phase !== 'playing') return;
-    if (ui.activeOverlay === 'ship') {
-      // Escape is handled here so the dialog closes through the same path as the
-      // buttons; preventDefault keeps the UA from also firing its close request.
-      if (key === 'escape') { deps.closeShipScreen(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'info') {
-      if (key === 'escape') { deps.closeInfoScreen(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'container') {
-      // C shuts the crate it opened, so the one key is the whole round trip.
-      if (key === 'escape' || key === 'c') { deps.closeContainer(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'wreck') {
-      // C shuts the wreck it opened, mirroring the crate's round trip on one key.
-      if (key === 'escape' || key === 'c') { deps.closeWreck(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'chest') {
-      // C shuts the chest it opened, the same one-key round trip as the wreck.
-      if (key === 'escape' || key === 'c') { deps.closeChest(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'grave') {
-      // One OK is the whole stone, so every dismissal key is it: Space opened it and
-      // Space puts it away, Enter is the focused OK, Escape is Escape. Handled here
-      // rather than left to the button, so the press never also reaches the mine.
-      // A held Space auto-repeats, and must not put away the stone it just raised.
-      if (key === 'escape' || key === 'enter' || key === ' ') {
-        if (!e.repeat) deps.closeGrave();
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      return;
-    }
-    if (ui.activeOverlay === 'station') {
-      // Space opened it and Space shuts it again, the round trip on one key.
-      if (key === 'escape' || key === ' ') { deps.closeStation(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'extractor') {
-      if (key === 'escape' || key === ' ') { deps.closeExtractor(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'trade') {
-      // Space opened it and Space shuts it again, the round trip on one key.
-      if (key === 'escape' || key === ' ') { deps.closeTrade(); e.preventDefault(); e.stopPropagation(); }
-      return;
-    }
-    if (ui.activeOverlay === 'portal') {
-      // Escape or Space shuts the travel/teleporter list — the round trip on one
-      // key — but the respawn prompt has no way out but a pick, so it swallows
-      // them instead of closing. Either way, no other key reaches the mine.
-      if (key === 'escape' || key === ' ') {
-        if (ui.portal?.mode !== 'respawn') deps.closePortal();
-        e.preventDefault();
-        e.stopPropagation();
-      }
+    if (ui.activeOverlay !== null) {
+      const overlay = OVERLAY_KEYS[ui.activeOverlay];
+      if (!overlay.keys.includes(key)) return;
+      // Handled here so the dialog closes through the same path as its buttons;
+      // preventDefault keeps the UA from also firing its own close request. A held
+      // key auto-repeats, and must not shut the screen its first press just raised.
+      if (!e.repeat && !overlay.locked?.()) overlay.close();
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
     const dir = movementKeys[key];
@@ -263,7 +262,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     }
     // Space opens whichever station-like thing the ship is parked beside — a home
     // station, a trading post, or a grave.
-    if (key === ' ') { deps.openNearest(); e.preventDefault(); e.stopPropagation(); return; }
+    if (key === ' ') { if (!e.repeat) deps.openNearest(); e.preventDefault(); e.stopPropagation(); return; }
     // E is the shortcut for the dynamite slot, not a detonator: it arms a stick
     // for planting, and the press on the mine that follows is what lights it.
     if (key === 'e') { if (!e.repeat) deps.toggleDynamitePlacement(); e.preventDefault(); e.stopPropagation(); return; }
@@ -273,9 +272,13 @@ export function createInput(deps: GameInputDeps): GameInput {
   }
 
   function handleKeyUp(e: KeyboardEvent): void {
-    // A focused text field owns its keystrokes; leave its releases to it.
-    if (editingText()) return;
+    // A release always lets go of the key, even inside a text field: a direction
+    // held into the rename input must not stay down once it is released there.
     keys.delete(e.key.toLowerCase());
+    // A focused text field owns its keystrokes; leave the rest of its releases to it.
+    if (editingText()) return;
+    // Space on a focused button fires its click on keyup, so it has to reach it.
+    if (isControlActivation(e)) return;
     if (e.key === ' ') { e.preventDefault(); e.stopPropagation(); }
   }
 
@@ -288,7 +291,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     if (!isPlaying()) return;
     if (uiStore.getState().activeOverlay !== null) return;
     const target = e.target as Element | null;
-    if (!target?.closest || target.closest(DIALOG_SURFACES) || !target.closest(ZOOM_SURFACE)) return;
+    if (!target?.closest || !target.closest(ZOOM_SURFACE)) return;
     e.preventDefault();
     // Accumulate against the requested level, not the easing one, so a fast
     // scroll is not swallowed by the frames it takes the view to settle.
@@ -301,8 +304,6 @@ export function createInput(deps: GameInputDeps): GameInput {
     // An overlay owns its own presses — above all the no-close respawn prompt,
     // where a tap anywhere must not bypass the redeploy choice into a home restart.
     if (uiStore.getState().activeOverlay !== null) return;
-    const target = e.target as Element;
-    if (target.closest && target.closest('#info-screen')) return;
     deps.tryAutoAudio(e);
     deps.restartGame();
     e.preventDefault();
@@ -319,6 +320,8 @@ export function createInput(deps: GameInputDeps): GameInput {
     addEventListener('pointerdown', handleRestartPointer, capture);
     addEventListener('wheel', handleWheel, activeCapture);
     addEventListener('touchstart', handleRestartPointer, activeCapture);
+    // A key released while another window has focus never sends its keyup here.
+    addEventListener('blur', clearKeys);
 
     return () => {
       removeEventListener('keydown', handleKeyDown, capture);
@@ -326,6 +329,7 @@ export function createInput(deps: GameInputDeps): GameInput {
       removeEventListener('pointerdown', handleRestartPointer, capture);
       removeEventListener('wheel', handleWheel, activeCapture);
       removeEventListener('touchstart', handleRestartPointer, activeCapture);
+      removeEventListener('blur', clearKeys);
     };
   }
 

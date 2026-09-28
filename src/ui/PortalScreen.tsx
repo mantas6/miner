@@ -12,13 +12,15 @@
 // rename field is uncontrolled and keyed to the source name, so a rename the game
 // echoes back re-seeds it without fighting the player's typing.
 //
-// The shell/card split and the backdrop press are the other dialogs', for the same
-// reasons — except respawn mode, which has no way out but to pick, so it swallows
-// the backdrop press (and, via input.ts, Escape).
+// The `<dialog>` itself, its focus and its close requests are `ModalShell`'s —
+// respawn mode, which has no way out but to pick, is its non-dismissible case: the
+// backdrop press and the UA's cancel are vetoed there (and, via input.ts, Escape
+// and Space).
 
-import { useEffect, useRef, type RefObject } from 'react';
+import { useRef } from 'react';
 import { MAX_PORTAL_NAME_LENGTH } from '../core/portal';
 import { uiCommands } from './commands';
+import { CardHeader, ModalShell } from './ModalShell';
 import { useUiStore, type PortalDestinationView, type PortalView } from './store';
 import styles from './PortalScreen.module.css';
 
@@ -42,58 +44,34 @@ function emptyLineFor(mode: PortalView['mode']): string {
 export function PortalScreen() {
   const open = useUiStore(state => state.activeOverlay === 'portal' && state.portal !== null);
   const mode = useUiStore(state => state.portal?.mode);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      closeRef.current?.focus({preventScroll: true});
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
   return (
-    <dialog
+    <ModalShell
       id="portal-screen"
-      ref={dialogRef}
-      className={styles.screen}
-      aria-labelledby="portal-title"
-      onClose={() => uiCommands.closePortal()}
-      // Respawn mode has no way out but to pick, so the native Escape dismissal is
-      // vetoed here just as the window key layer ignores it.
-      onCancel={event => { if (mode === 'respawn') event.preventDefault(); }}
-      onPointerDown={event => {
-        if (event.target === dialogRef.current && mode !== 'respawn') uiCommands.closePortal();
-      }}
+      titleId="portal-title"
+      open={open}
+      onRequestClose={() => uiCommands.closePortal()}
+      dismissible={mode !== 'respawn'}
     >
-      {open && <PortalCard closeRef={closeRef} />}
-    </dialog>
+      {open && <PortalCard />}
+    </ModalShell>
   );
 }
 
-function PortalCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+function PortalCard() {
   const portal = useUiStore(state => state.portal);
   if (!portal) return null;
   const {mode, source, destinations} = portal;
 
   return (
     <div id="portal-card" className={styles.card}>
-      <div className={styles.header}>
-        <h2 id="portal-title">{headerFor(portal)}</h2>
-        {mode !== 'respawn' && (
-          <button
-            id="portalCloseBtn"
-            ref={closeRef}
-            className={styles.closeBtn}
-            aria-label="Close portal list"
-            onClick={event => { event.stopPropagation(); uiCommands.closePortal(); }}
-          >×</button>
-        )}
-      </div>
+      <CardHeader
+        titleId="portal-title"
+        title={headerFor(portal)}
+        titleClassName={styles.title}
+        closeId="portalCloseBtn"
+        closeLabel="Close portal list"
+        onClose={mode === 'respawn' ? undefined : () => uiCommands.closePortal()}
+      />
       <div className={styles.body}>
         {mode === 'travel' && source && <NameEditor key={source.name} name={source.name} />}
         <ul id="portalList" className={styles.slots}>

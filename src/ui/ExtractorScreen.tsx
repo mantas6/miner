@@ -13,13 +13,13 @@
 // the button amounts follow the bay and the tank. The screen holds no copy of any
 // of it.
 //
-// The shell/card split and the backdrop press are the other dialogs', for the
-// same reasons.
+// The `<dialog>` itself, its focus and its close requests are `ModalShell`'s. Its
+// close is the home-station one the manufacturer's screen dispatches too.
 
-import { useEffect, useRef, type RefObject } from 'react';
 import { EXTRACTOR } from '../core/balance';
 import { oreKind } from '../core/inventory';
 import { uiCommands } from './commands';
+import { CardHeader, ModalShell } from './ModalShell';
 import { useUiStore } from './store';
 import styles from './ExtractorScreen.module.css';
 
@@ -30,35 +30,14 @@ const TICKS_PER_SECOND = 60;
 
 export function ExtractorScreen() {
   const open = useUiStore(state => state.activeOverlay === 'extractor');
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      closeRef.current?.focus({preventScroll: true});
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
   return (
-    <dialog
-      id="extractor-screen"
-      ref={dialogRef}
-      className={styles.screen}
-      aria-labelledby="extractor-title"
-      onClose={() => uiCommands.closeExtractor()}
-      onPointerDown={event => { if (event.target === dialogRef.current) uiCommands.closeExtractor(); }}
-    >
-      {open && <ExtractorCard closeRef={closeRef} />}
-    </dialog>
+    <ModalShell id="extractor-screen" titleId="extractor-title" open={open} onRequestClose={() => uiCommands.closeStation()}>
+      {open && <ExtractorCard />}
+    </ModalShell>
   );
 }
 
-function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+function ExtractorCard() {
   const coal = useUiStore(state => state.extractor.coal);
   const fuel = useUiStore(state => state.extractor.fuel);
   const progress = useUiStore(state => state.extractor.progress);
@@ -77,16 +56,13 @@ function ExtractorCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null
 
   return (
     <div id="extractor-card" className={styles.card}>
-      <div className={styles.header}>
-        <h2 id="extractor-title">Fuel Extractor</h2>
-        <button
-          id="extractorCloseBtn"
-          ref={closeRef}
-          className={styles.closeBtn}
-          aria-label="Close fuel extractor"
-          onClick={event => { event.stopPropagation(); uiCommands.closeExtractor(); }}
-        >×</button>
-      </div>
+      <CardHeader
+        titleId="extractor-title"
+        title="Fuel Extractor"
+        closeId="extractorCloseBtn"
+        closeLabel="Close fuel extractor"
+        onClose={() => uiCommands.closeStation()}
+      />
       <div className={styles.body}>
         <dl className={styles.buffers}>
           <div className={styles.buffer}>

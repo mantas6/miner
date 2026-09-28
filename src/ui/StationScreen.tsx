@@ -13,46 +13,25 @@
 // holds no copy of anything and cannot disagree with the simulation. The recipe
 // affordances are derived from the station stock the same way the sim checks them.
 //
-// The shell/card split, the fixed header over a scrolling body, and the backdrop
-// press are the cargo and ship dialogs', for the same reasons.
+// The `<dialog>` itself, its focus and its close requests are `ModalShell`'s.
 
-import { useEffect, useMemo, useRef, type RefObject } from 'react';
+import { useMemo } from 'react';
 import { canCraft, missingInputs, RECIPES, type Recipe } from '../core/crafting';
 import { addItem, createInventory, type Inventory } from '../core/inventory';
 import { recipeInputLines } from '../core/item-info';
 import { itemForKind } from '../core/items';
 import { uiCommands } from './commands';
 import { useUiStore, type InventorySlotView } from './store';
+import { CardHeader, ModalShell } from './ModalShell';
 import { useItemTooltip } from './Tooltip';
 import styles from './StationScreen.module.css';
 
 export function StationScreen() {
   const open = useUiStore(state => state.activeOverlay === 'station');
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      closeRef.current?.focus({preventScroll: true});
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
   return (
-    <dialog
-      id="station-screen"
-      ref={dialogRef}
-      className={styles.screen}
-      aria-labelledby="station-title"
-      onClose={() => uiCommands.closeStation()}
-      onPointerDown={event => { if (event.target === dialogRef.current) uiCommands.closeStation(); }}
-    >
-      {open && <StationCard closeRef={closeRef} />}
-    </dialog>
+    <ModalShell id="station-screen" titleId="station-title" open={open} onRequestClose={() => uiCommands.closeStation()}>
+      {open && <StationCard />}
+    </ModalShell>
   );
 }
 
@@ -61,23 +40,20 @@ function slotsToInventory(slots: InventorySlotView[]): Inventory {
   return slots.reduce((inventory, slot) => addItem(inventory, itemForKind(slot.kind), slot.count), createInventory());
 }
 
-function StationCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+function StationCard() {
   const stationSlots = useUiStore(state => state.stationSlots);
   const baySlots = useUiStore(state => state.inventorySlots);
   const stock = useMemo(() => slotsToInventory(stationSlots), [stationSlots]);
 
   return (
     <div id="station-card" className={styles.card}>
-      <div className={styles.header}>
-        <h2 id="station-title">Manufacturing Station</h2>
-        <button
-          id="stationCloseBtn"
-          ref={closeRef}
-          className={styles.closeBtn}
-          aria-label="Close manufacturing station"
-          onClick={event => { event.stopPropagation(); uiCommands.closeStation(); }}
-        >×</button>
-      </div>
+      <CardHeader
+        titleId="station-title"
+        title="Manufacturing Station"
+        closeId="stationCloseBtn"
+        closeLabel="Close manufacturing station"
+        onClose={() => uiCommands.closeStation()}
+      />
       <div className={styles.body}>
         <section className={styles.columns} aria-label="Storage">
           <div className={styles.column}>

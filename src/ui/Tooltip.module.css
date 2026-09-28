@@ -1,10 +1,15 @@
-/* Portalled to document.body, so it sits above every modal `<dialog>` (z-index 16)
-   and is positioned in viewport coordinates by the component. Pointer-transparent:
-   it only ever reports what a row already holds, so it must never intercept the
-   press meant for that row. */
+/* A manual popover, so it is promoted into the top layer above the open modal
+   `<dialog>` (a z-index cannot reach past that), and positioned in viewport
+   coordinates by the component. The popover UA defaults — centred at inset 0 with
+   an auto margin, a border and Canvas colours — are all reset here. Pointer-
+   transparent: it only ever reports what a row already holds, so it must never
+   intercept the press meant for that row. */
 .tooltip {
   position: fixed;
   z-index: 40;
+  inset: auto;
+  margin: 0;
+  overflow: visible;
   display: grid;
   gap: 2px;
   max-width: 260px;

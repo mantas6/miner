@@ -162,3 +162,102 @@ test.describe('overlay exclusivity', () => {
     await expect(page.locator('#info-card')).toHaveCount(0);
   });
 });
+
+test.describe('keyboard and hover inside an open dialog', () => {
+  /** Park the ship beside the manufacturer, whose stock holds a few iron. */
+  async function openStationWithIron(page: import('@playwright/test').Page): Promise<void> {
+    await page.addInitScript(() => {
+      localStorage.setItem('moleload-progress-v1', JSON.stringify({
+        version: 19,
+        x: 43, y: 20,
+        stations: [
+          {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Iron', count: 3}]},
+          {kind: 'extractor', x: 46, y: 20}
+        ]
+      }));
+    });
+    await startSoloRun(page);
+    await page.keyboard.press(' ');
+    await expect(page.locator('#station-screen')).toBeVisible();
+  }
+
+  test('an item tooltip paints above the open dialog, not under it', async ({page}) => {
+    await openStationWithIron(page);
+
+    const row = page.locator('#stationStock li > div').first();
+    await row.hover();
+    const tooltip = page.locator('[role="tooltip"]');
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toContainText('Iron');
+    // The row names the popup it is showing.
+    await expect(row).toHaveAttribute('aria-describedby', 'item-tooltip');
+
+    // The popup is pointer-transparent by design, so hit-testing would look straight
+    // through it; lift that for the probe, then ask what is on top at its centre. A
+    // popup under the dialog's top layer would lose to the dialog here.
+    const onTop = await tooltip.evaluate(element => {
+      const tip = element as HTMLElement;
+      tip.style.pointerEvents = 'auto';
+      const box = tip.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      tip.style.pointerEvents = '';
+      return hit !== null && tip.contains(hit);
+    });
+    expect(onTop).toBe(true);
+
+    // And it is painted beside the row it describes, not offset by its host.
+    const rowBox = (await row.boundingBox())!;
+    const tipBox = (await tooltip.boundingBox())!;
+    expect(Math.abs(tipBox.x - rowBox.x)).toBeLessThan(40);
+    expect(Math.min(Math.abs(tipBox.y - (rowBox.y + rowBox.height)), Math.abs(tipBox.y + tipBox.height - rowBox.y))).toBeLessThan(20);
+  });
+
+  test('Space on a focused Stow all presses it, and does not also shut the station', async ({page}) => {
+    const failures = collectPageFailures(page);
+    await openStationWithIron(page);
+
+    // Bring the iron aboard first, so Stow all has something to put back.
+    await page.locator('[data-station="take"][data-station-kind="ore:Iron"]').click();
+    await expect(page.locator('#stationBay [data-station="stow"][data-station-kind="ore:Iron"]')).toBeVisible();
+
+    await page.locator('#stowAllBtn').focus();
+    await page.keyboard.press(' ');
+
+    // The button ran — the iron is back in the stock — and the screen is still up.
+    await expect(page.locator('#stationStock [data-station="take"][data-station-kind="ore:Iron"]')).toBeVisible();
+    await expect(page.locator('#stationBay [data-station="stow"]')).toHaveCount(0);
+    await expect(page.locator('#station-screen')).toBeVisible();
+    await expect(page.locator('#stowAllBtn')).toBeFocused();
+    expect(failures).toEqual([]);
+  });
+
+  test('Escape inside the portal name field leaves the field, not the dialog', async ({page}) => {
+    // Beside the Home portal and out of the manufacturer's reach, so Space opens
+    // the travel list.
+    await page.addInitScript(() => {
+      localStorage.setItem('moleload-progress-v1', JSON.stringify({
+        version: 19,
+        x: 47, y: 20,
+        stations: [
+          {kind: 'manufacturer', x: 44, y: 20, items: []},
+          {kind: 'portal', x: 48, y: 20, name: 'Home'},
+          {kind: 'portal', x: 48, y: 24, name: 'Deep'}
+        ]
+      }));
+    });
+    await startSoloRun(page);
+    await page.keyboard.press(' ');
+    await expect(page.locator('#portal-screen')).toBeVisible();
+
+    await page.locator('#portalNameInput').click();
+    await expect(page.locator('#portalNameInput')).toBeFocused();
+    await page.keyboard.press('Escape');
+
+    await expect(page.locator('#portalNameInput')).not.toBeFocused();
+    await expect(page.locator('#portal-screen')).toBeVisible();
+
+    // The next Escape is the dialog's own.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#portal-screen')).toBeHidden();
+  });
+});

@@ -7,7 +7,7 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { oreKind, type InventoryItemKind } from '../core/inventory';
-import { Tooltip, TOOLTIP_DELAY_MS, useItemTooltip } from './Tooltip';
+import { Tooltip, TOOLTIP_DELAY_MS, TOOLTIP_ID, useItemTooltip } from './Tooltip';
 
 function Harness({kind = oreKind('Gold'), extra}: {kind?: InventoryItemKind; extra?: string[]}) {
   const handlers = useItemTooltip(kind, extra);
@@ -94,5 +94,35 @@ describe('Tooltip', () => {
     fireEvent.mouseLeave(button);
     act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS * 2); });
     expect(tooltip()).toBeNull();
+  });
+
+  it('points the anchor at the popup while it is shown, and only then', () => {
+    vi.useFakeTimers();
+    const {container} = render(<Harness />);
+    const button = container.querySelector('button')!;
+
+    fireEvent.focus(button);
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS); });
+    expect(tooltip()!.id).toBe(TOOLTIP_ID);
+    expect(button.getAttribute('aria-describedby')).toBe(TOOLTIP_ID);
+
+    fireEvent.blur(button);
+    expect(button.hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it('mounts inside the open dialog, the one part of the page that is not inert', () => {
+    // Everything outside a modal dialog is inert, the popup included, so it joins
+    // the dialog's subtree (and, with the Popover API, the top layer above it).
+    vi.useFakeTimers();
+    const dialog = document.createElement('dialog');
+    dialog.setAttribute('open', '');
+    document.body.appendChild(dialog);
+    const {container} = render(<Harness />);
+
+    fireEvent.focus(container.querySelector('button')!);
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS); });
+
+    expect(tooltip()!.parentElement).toBe(dialog);
+    dialog.remove();
   });
 });

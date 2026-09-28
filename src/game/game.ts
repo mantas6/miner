@@ -277,7 +277,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toggleDecorPlacement: kind => { standDownExcept('decor'); decor.toggleArmed(kind); },
       useRepairKit: () => { actions.useRepairKit(); syncPlayerSnapshot(); },
       closeStation: () => homeStations.close(),
-      closeExtractor: () => homeStations.close(),
       stowAll: () => homeStations.stowAll(),
       stowStack: (kind, single) => homeStations.stow(kind, single),
       takeFromStation: (kind, single) => homeStations.take(kind, single),
@@ -399,6 +398,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   function raiseOverlay(overlay: OverlayId, cue = true){
     const store = uiStore.getState();
     if (store.activeOverlay !== overlay && cue) audio.open();
+    // A key held as the screen rose must not drive the ship once it is put away.
+    gameInput.clearKeys();
     store.setActiveOverlay(overlay);
   }
   /**
@@ -1026,7 +1027,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       // covers the mine.
       openNearest: openNearestStationLike,
       closeStation: () => homeStations.close(),
-      closeExtractor: () => homeStations.close(),
       closeTrade: () => trading.close(),
       closePortal: () => portals.close(),
       toast,

@@ -84,10 +84,11 @@ export interface UiCommands {
   toggleDecorPlacement(kind: DecorKind): void;
   /** Spend one repair kit from the bay to patch the hull. */
   useRepairKit(): void;
-  /** Shut the manufacturing station screen; also what its dialog's close reports. */
+  /**
+   * Shut the open home-station screen — the manufacturer's or the fuel extractor's;
+   * also what either dialog's close reports.
+   */
   closeStation(): void;
-  /** Shut the fuel extractor screen; also what its dialog's close reports. */
-  closeExtractor(): void;
   /** Move everything that fits from the bay into the station stock. */
   stowAll(): void;
   /** Move a stack (or one unit) of `kind` from the bay into the station stock. */
@@ -172,7 +173,6 @@ function noopCommands(): UiCommands {
     toggleDecorPlacement: noop,
     useRepairKit: noop,
     closeStation: noop,
-    closeExtractor: noop,
     stowAll: noop,
     stowStack: noop,
     takeFromStation: noop,
