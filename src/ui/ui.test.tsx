@@ -14,9 +14,10 @@ import { ITEM_CATALOG } from '../core/items';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { setUiCommands, uiCommands } from './commands';
 import common from './common.module.css';
-import { buildInventorySlots, uiStore, type HudSnapshot } from './store';
+import { activeOverlayId, buildInventorySlots, uiStore, type HudSnapshot } from './store';
 import { MinerApp } from './ui';
 import { defined, nth } from '../test-narrowing';
+import { emptyOverlay } from '../test-overlays';
 
 /** Ids the game runtime, the keyboard layer, and the tests address directly. */
 const DOM_CONTRACT = [
@@ -73,9 +74,9 @@ afterEach(() => {
 /** The overlay commands the running game installs, in store terms. */
 function installOverlayCommands(): void {
   setUiCommands({
-    openShip: () => uiStore.getState().setActiveOverlay('ship'),
+    openShip: () => uiStore.getState().showOverlay(emptyOverlay('ship')),
     closeShip: () => uiStore.getState().closeOverlay('ship'),
-    openInfo: () => uiStore.getState().setActiveOverlay('info'),
+    openInfo: () => uiStore.getState().showOverlay(emptyOverlay('info')),
     closeInfo: () => uiStore.getState().closeOverlay('info')
   });
 }
@@ -144,11 +145,11 @@ describe('app shell', () => {
     expect(ship.open).toBe(false);
     expect(info.open).toBe(false);
 
-    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('ship')); });
     expect(ship.open).toBe(true);
     expect(document.activeElement?.id).toBe('shipCloseBtn');
 
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     expect(info.open).toBe(true);
   });
 
@@ -160,11 +161,11 @@ describe('app shell', () => {
 
     // What Escape reaching the UA does: the dialog closes without the store or
     // the close button being involved at all.
-    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('ship')); });
     act(() => { dialog('ship-screen').close(); });
     expect(closeShip).toHaveBeenCalled();
 
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     act(() => { dialog('info-screen').close(); });
     expect(closeInfo).toHaveBeenCalled();
   });
@@ -175,12 +176,12 @@ describe('one overlay at a time', () => {
     installOverlayCommands();
     render(<MinerApp />);
 
-    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('ship')); });
     expect(dialog('ship-screen').open).toBe(true);
 
     act(() => { fireEvent.click(document.getElementById('infoBtn')!); });
 
-    expect(uiStore.getState().activeOverlay).toBe('info');
+    expect(activeOverlayId(uiStore.getState())).toBe('info');
     expect(dialog('ship-screen').open).toBe(false);
     expect(dialog('info-screen').open).toBe(true);
     expect(document.activeElement?.id).toBe('infoCloseBtn');
@@ -192,10 +193,10 @@ describe('one overlay at a time', () => {
 
     // Swapping overlays closes the ship screen's `<dialog>`, whose `close` event
     // asks the game to clear the overlay state that info has already claimed.
-    act(() => { uiStore.getState().setActiveOverlay('ship'); });
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('ship')); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
 
-    expect(uiStore.getState().activeOverlay).toBe('info');
+    expect(activeOverlayId(uiStore.getState())).toBe('info');
     expect(dialog('info-screen').open).toBe(true);
   });
 
@@ -203,16 +204,16 @@ describe('one overlay at a time', () => {
     installOverlayCommands();
     render(<MinerApp />);
 
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     fireEvent.click(document.getElementById('info-tab-controls')!);
     expect(uiStore.getState().infoTab).toBe('info-controls');
 
     act(() => { fireEvent.click(document.getElementById('infoCloseBtn')!); });
-    expect(uiStore.getState().activeOverlay).toBeNull();
+    expect(activeOverlayId(uiStore.getState())).toBeNull();
     expect(dialog('info-screen').open).toBe(false);
     expect(document.activeElement?.id).toBe('infoBtn');
 
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     expect(uiStore.getState().infoTab).toBe('info-objective');
   });
 });
@@ -224,25 +225,25 @@ describe('closed overlays', () => {
 
     for (const id of all) expect(document.getElementById(id), id).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('ship')); });
     for (const id of SHIP_CONTRACT) expect(document.getElementById(id), id).not.toBeNull();
     for (const id of INFO_CONTRACT) expect(document.getElementById(id), id).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     for (const id of INFO_CONTRACT) expect(document.getElementById(id), id).not.toBeNull();
     for (const id of SHIP_CONTRACT) expect(document.getElementById(id), id).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay('container'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('container')); });
     for (const id of CARGO_CONTRACT) expect(document.getElementById(id), id).not.toBeNull();
     for (const id of [...SHIP_CONTRACT, ...INFO_CONTRACT]) expect(document.getElementById(id), id).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay(null); });
+    act(() => { uiStore.getState().showOverlay(null); });
     for (const id of [...all, ...CARGO_CONTRACT]) expect(document.getElementById(id), id).toBeNull();
   });
 
   it('mounts only the selected info panel', () => {
     render(<MinerApp />);
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
 
     for (const {tabId, ids} of INFO_TAB_CONTRACT) {
       for (const id of ids) expect(document.getElementById(id), id).toBeNull();
@@ -269,13 +270,13 @@ describe('closed overlays', () => {
     render(<MinerApp />);
     const closed = live;
 
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     expect(live).toBeGreaterThan(closed);
 
-    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('ship')); });
     expect(live).toBeGreaterThan(closed);
 
-    act(() => { uiStore.getState().setActiveOverlay(null); });
+    act(() => { uiStore.getState().showOverlay(null); });
     expect(live).toBe(closed);
   });
 });
@@ -498,7 +499,12 @@ describe('store-driven HUD', () => {
     // Nothing plays before the browser grants audio, so both read as muted.
     expect(music.getAttribute('aria-pressed')).toBe('false');
     expect(sfx.getAttribute('aria-pressed')).toBe('false');
-    expect(sfx.textContent).toBe('🔇');
+    // Toggles keep a fixed name; the state is aria-pressed alone, and the glyph
+    // is a decorative inline SVG rather than an emoji a screen reader would read.
+    expect(music.getAttribute('aria-label')).toBe('Music');
+    expect(sfx.getAttribute('aria-label')).toBe('Sound effects');
+    expect(music.textContent).toBe('');
+    expect(sfx.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
 
     fireEvent.click(music);
     expect(toggleMusic).toHaveBeenCalledOnce();
@@ -517,14 +523,15 @@ describe('store-driven HUD', () => {
     act(() => { uiStore.getState().setMusic(true, 'Mute music'); });
     expect(music.getAttribute('aria-pressed')).toBe('true');
     expect(music.className).not.toMatch(/muted/);
-    expect(music.getAttribute('aria-label')).toBe('Mute music');
+    expect(music.getAttribute('aria-label')).toBe('Music');
+    expect(music.getAttribute('title')).toBe('Mute music');
     // Effects are untouched by the music switch.
     expect(sfx.getAttribute('aria-pressed')).toBe('false');
     expect(sfx.className).toMatch(/muted/);
 
     act(() => { uiStore.getState().setSfx(true, 'Mute sound effects'); });
     expect(sfx.getAttribute('aria-pressed')).toBe('true');
-    expect(sfx.textContent).toBe('🔊');
+    expect(sfx.getAttribute('aria-label')).toBe('Sound effects');
     expect(sfx.className).not.toMatch(/muted/);
   });
 
@@ -688,7 +695,7 @@ describe('inventory panel', () => {
 describe('info dialog tabs', () => {
   it('shows one panel at a time and moves selection on click', () => {
     render(<MinerApp />);
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
 
     expect(document.getElementById('info-objective')).not.toBeNull();
     expect(document.getElementById('info-stats')).toBeNull();
@@ -704,7 +711,7 @@ describe('info dialog tabs', () => {
 
   it('roves focus with the arrow keys and selects with Enter', () => {
     render(<MinerApp />);
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
 
     const first = document.getElementById('info-tab-objective')!;
     fireEvent.keyDown(first, {key: 'ArrowRight'});
@@ -723,7 +730,7 @@ describe('info dialog tabs', () => {
 describe('settings tab', () => {
   function openSettings(): void {
     render(<MinerApp />);
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     act(() => { fireEvent.click(document.getElementById('info-tab-settings')!); });
   }
 
@@ -750,7 +757,8 @@ describe('settings tab', () => {
     act(() => { uiStore.getState().setMusic(true, 'Mute music'); });
     expect(music.getAttribute('aria-pressed')).toBe('true');
     expect(music.textContent).toBe('On');
-    expect(music.getAttribute('aria-label')).toBe('Mute music');
+    expect(music.getAttribute('aria-label')).toBe('Music');
+    expect(music.getAttribute('title')).toBe('Mute music');
     expect(document.getElementById('musicBtn')?.getAttribute('aria-pressed')).toBe('true');
     expect(sfx.getAttribute('aria-pressed')).toBe('false');
   });
@@ -854,7 +862,7 @@ describe('settings tab', () => {
 
 describe('cheat menu', () => {
   function openSettings(): void {
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
     act(() => { fireEvent.click(document.getElementById('info-tab-settings')!); });
   }
 
@@ -864,7 +872,7 @@ describe('cheat menu', () => {
    */
   it('is reachable from Settings with no opt-in, and adds no tab of its own', () => {
     render(<MinerApp />);
-    act(() => { uiStore.getState().setActiveOverlay('info'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
 
     const tabs = [...document.querySelectorAll('[role="tab"]')].map(tab => tab.id);
     expect(tabs).toEqual([
@@ -883,11 +891,14 @@ describe('cheat menu', () => {
 
     const toggle = document.getElementById('cheatsToggleBtn') as HTMLButtonElement;
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    // A disclosure keeps one name; aria-expanded alone says which way it is.
+    expect(toggle.textContent).toContain('Cheat menu');
     expect(document.getElementById('cheat-menu')).toBeNull();
     expect(document.getElementById('developerUpgrades')).toBeNull();
 
     act(() => { fireEvent.click(toggle); });
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.textContent).toContain('Cheat menu');
     expect(toggle.getAttribute('aria-controls')).toBe('cheat-menu');
     expect(document.getElementById('cheat-menu')).not.toBeNull();
 

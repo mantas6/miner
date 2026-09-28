@@ -7,6 +7,7 @@
 
 import { act } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { emptyOverlay } from './test-overlays';
 
 interface RuntimeCall {
   canvas: HTMLCanvasElement;
@@ -39,7 +40,7 @@ async function bootMain(runtime: ReturnType<typeof stubRuntime>): Promise<void> 
  */
 async function openCheatMenu(): Promise<void> {
   const { uiStore } = await import('./ui/store');
-  await act(async () => { uiStore.getState().setActiveOverlay('info'); });
+  await act(async () => { uiStore.getState().showOverlay(emptyOverlay('info')); });
   await act(async () => { uiStore.getState().setInfoTab('info-settings'); });
   await act(async () => { document.getElementById('cheatsToggleBtn')!.click(); });
 }

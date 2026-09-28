@@ -29,7 +29,7 @@ function open(): HTMLDialogElement {
     store.setInventorySlots(buildInventorySlots(
       addItem(addItem(createInventory(), itemForKind('upgrade:cargo:2'), 3), oreItem(COPPER), 4)
     ));
-    store.setActiveOverlay('ship');
+    store.showOverlay({kind: 'ship'});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -93,10 +93,10 @@ describe('ship equipment dialog', () => {
     expect(document.getElementById('ship-screen')).not.toBeNull();
     expect(document.getElementById('ship-card')).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay('ship'); });
+    act(() => { uiStore.getState().showOverlay({kind: 'ship'}); });
     expect(document.getElementById('ship-card')).not.toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay(null); });
+    act(() => { uiStore.getState().showOverlay(null); });
     expect(document.getElementById('ship-card')).toBeNull();
   });
 

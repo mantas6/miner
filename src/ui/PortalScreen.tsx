@@ -21,7 +21,7 @@ import { useRef } from 'react';
 import { MAX_PORTAL_NAME_LENGTH } from '../core/portal';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
-import { useUiStore, type PortalDestinationView, type PortalView } from './store';
+import { overlayOf, useUiStore, type PortalDestinationView, type PortalView } from './store';
 import styles from './PortalScreen.module.css';
 
 /** The header each mode wears; travel appends the source portal's name. */
@@ -42,8 +42,8 @@ function emptyLineFor(mode: PortalView['mode']): string {
 }
 
 export function PortalScreen() {
-  const open = useUiStore(state => state.activeOverlay === 'portal' && state.portal !== null);
-  const mode = useUiStore(state => state.portal?.mode);
+  const open = useUiStore(state => state.overlay?.kind === 'portal');
+  const mode = useUiStore(state => overlayOf(state, 'portal')?.portal.mode);
   return (
     <ModalShell
       id="portal-screen"
@@ -58,7 +58,7 @@ export function PortalScreen() {
 }
 
 function PortalCard() {
-  const portal = useUiStore(state => state.portal);
+  const portal = useUiStore(state => overlayOf(state, 'portal')?.portal ?? null);
   if (!portal) return null;
   const {mode, source, destinations} = portal;
 

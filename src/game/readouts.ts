@@ -3,8 +3,8 @@
 //
 // All three live in `src/core` as pure formatters, but each needs live world
 // data the loop owns. This module is the one place that feeds them, so they are
-// evaluated from `syncUi()` alongside every other HUD field instead of being
-// scattered through the move handlers.
+// evaluated from `uiSync.sync()` (`ui-sync.ts`) alongside every other HUD field
+// instead of being scattered through the move handlers.
 //
 // Everything here is memoized on the scalars it actually depends on — the drill
 // target, its tile and hit points, fuel, depth — because `sync()` runs once per

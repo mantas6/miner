@@ -65,3 +65,43 @@ test.describe('boot', () => {
     expect(failures).toEqual([]);
   });
 });
+
+test.describe('HUD adapts to the viewport and motion preference', () => {
+  test('a short viewport compacts the HUD without changing its layout', async ({page}) => {
+    await page.setViewportSize({width: 1280, height: 800});
+    await startRun(page);
+    const size = () => page.locator('#musicBtn').evaluate(element => element.getBoundingClientRect().height);
+    const tall = await size();
+
+    // A landscape phone: short but wide, so only the height breakpoint applies.
+    await page.setViewportSize({width: 900, height: 400});
+    await expect.poll(size).toBeLessThan(tall);
+    await expect(page.locator('#shipBtn')).toBeVisible();
+    await expect(page.locator('#fuelLabel')).toBeVisible();
+  });
+
+  test('the icon-only audio buttons carry fixed names and their state in aria-pressed', async ({page}) => {
+    await startRun(page);
+    const music = page.locator('#musicBtn');
+    await expect(music).toHaveAccessibleName('Music');
+    await expect(page.locator('#sfxBtn')).toHaveAccessibleName('Sound effects');
+    await expect(music.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+    await expect(music).toHaveAttribute('aria-pressed', /^(true|false)$/);
+    // The store's label — the next action, or why sound is blocked — is the tooltip.
+    await expect(music).toHaveAttribute('title', /\S/);
+  });
+
+  test('reduced motion stops the toast sliding and the buttons shifting', async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'reduce'});
+    await startRun(page);
+    const toast = await page.locator('#toast').evaluate(element => {
+      const style = getComputedStyle(element);
+      return {translate: style.translate, transition: style.transitionProperty};
+    });
+    expect(toast.transition).toBe('opacity');
+    expect(toast.translate).toBe('-50%');
+    await page.locator('#shipBtn').hover();
+    const transform = await page.locator('#shipBtn').evaluate(element => getComputedStyle(element).transform);
+    expect(transform).toBe('none');
+  });
+});

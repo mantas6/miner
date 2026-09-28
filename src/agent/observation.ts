@@ -46,7 +46,7 @@ import type { GameState, GameStats, Tile } from '../core/types';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from '../game/zoom';
 import { CONTROL_ROWS, controlKeysText } from '../ui/info-controls';
 import { getInfoNavigationSections, type InfoTab } from '../ui/info-navigation';
-import type { ActiveOverlay, InventorySlotView, RuntimeStatus, UiPhase, UiState } from '../ui/store';
+import type { InventorySlotView, OverlayId, RuntimeStatus, UiPhase, UiState } from '../ui/store';
 
 /** Horizontal radius of the default view window; 2·r+1 = 15 tiles across. */
 export const DEFAULT_VIEW_RADIUS = 7;
@@ -223,7 +223,7 @@ export interface AgentPlacement {
 export interface AgentObservation {
   tick: number;
   phase: UiPhase;
-  activeOverlay: ActiveOverlay;
+  activeOverlay: OverlayId | null;
   gameOver: boolean;
   ship: {
     x: number;
@@ -326,13 +326,15 @@ function resolveInputs(inputs: {kind: InventoryItemKind; count: number}[]): Agen
 
 /** The one open overlay's mirror, or `null` when the mine is uncovered. */
 function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
-  switch (ui.activeOverlay) {
+  const overlay = ui.overlay;
+  if (!overlay) return null;
+  switch (overlay.kind) {
     case 'station': {
-      const stock = slotsToInventory(ui.stationSlots);
+      const stock = slotsToInventory(overlay.slots);
       return {
         kind: 'station',
         bay: toSlotsWithInfo(ui.inventorySlots),
-        stock: toSlotsWithInfo(ui.stationSlots),
+        stock: toSlotsWithInfo(overlay.slots),
         recipes: RECIPES.map(recipe => {
           const craftable = canCraft(stock, recipe);
           return {
@@ -347,8 +349,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       };
     }
     case 'extractor': {
-      const {coal, fuel, progress} = ui.extractor;
-      const refuelAmount = Math.round(Math.min(fuel, Math.max(0, ui.player.fuelMax - ui.player.fuel)));
+      const {coal, fuel, progress} = overlay.extractor;
+      const refuelAmount = Math.round(Math.min(fuel, Math.max(0, state.player.fuelMax - state.player.fuel)));
       return {kind: 'extractor', coal, fuel, progress, refuelAmount};
     }
     case 'ship':
@@ -363,11 +365,11 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         fittable: toSlotsWithInfo(ui.inventorySlots.filter(slot => isUpgradeKind(slot.kind)))
       };
     case 'container':
-      return {kind: 'container', ship: toSlotsWithInfo(ui.inventorySlots), container: toSlotsWithInfo(ui.containerSlots)};
+      return {kind: 'container', ship: toSlotsWithInfo(ui.inventorySlots), container: toSlotsWithInfo(overlay.slots)};
     case 'wreck':
-      return {kind: 'wreck', ship: toSlotsWithInfo(ui.inventorySlots), wreck: toSlotsWithInfo(ui.wreckSlots)};
+      return {kind: 'wreck', ship: toSlotsWithInfo(ui.inventorySlots), wreck: toSlotsWithInfo(overlay.slots)};
     case 'chest':
-      return {kind: 'chest', ship: toSlotsWithInfo(ui.inventorySlots), chest: toSlotsWithInfo(ui.chestSlots)};
+      return {kind: 'chest', ship: toSlotsWithInfo(ui.inventorySlots), chest: toSlotsWithInfo(overlay.slots)};
     case 'trade':
       return {
         kind: 'trade',
@@ -376,11 +378,10 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         sell: ui.inventorySlots
           .filter(slot => isOreKind(slot.kind))
           .map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, price: sellPrice(slot.kind), info: describeItem(slot.kind).lines})),
-        buy: ui.tradeBuy.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock, info: describeItem(offer.kind).lines}))
+        buy: overlay.offers.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock, info: describeItem(offer.kind).lines}))
       };
     case 'portal': {
-      const portal = ui.portal;
-      if (!portal) return null;
+      const {portal} = overlay;
       return {
         kind: 'portal',
         mode: portal.mode,
@@ -396,14 +397,11 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       };
     }
     case 'grave': {
-      const grave = ui.grave;
-      if (!grave) return null;
+      const grave = overlay.epitaph;
       return {kind: 'grave', name: grave.name, born: grave.born, died: grave.died, cause: grave.cause};
     }
     case 'info':
       return buildInfoOverlay(ui);
-    default:
-      return null;
   }
 }
 
@@ -580,16 +578,14 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
   return {
     tick: state.tick,
     phase: ui.phase,
-    activeOverlay: ui.activeOverlay,
+    activeOverlay: ui.overlay?.kind ?? null,
     gameOver: state.gameOver,
     ship: {
       x: player.x,
       y: player.y,
       depthMeters: hud.depthMeters,
-      // Ship vitals come from the live simulation, not the UI snapshot: `ui.player`
-      // is only re-synced while an overlay is open (`syncUi` in `src/game/game.ts`),
-      // so reading fuel/hull/etc. from it would freeze them during normal mining —
-      // an agent would never see its fuel drop. `state.player` is the ground truth.
+      // Ship vitals come from the live simulation, not the UI snapshot:
+      // `state.player` is the ground truth, and the HUD's copy is a frame behind it.
       fuel: player.fuel,
       fuelMax: player.fuelMax,
       hull: player.hull,

@@ -465,7 +465,9 @@ async function closeSession({browser, context, ownedServer}: SessionBindings): P
 /**
  * The locator for an allowlisted control, once it is known a click can land:
  * rendered, visible, enabled, and not under another surface (an open modal's
- * backdrop, a HUD card). Throws the specific reason otherwise.
+ * backdrop, a HUD card). Throws the specific reason otherwise. "Enabled" is
+ * Playwright's reading, which honours `aria-disabled` as well as `disabled`: an
+ * unaffordable Craft button stays focusable for a human but is refused here.
  */
 async function clickableControl(page: Page, selector: string, name: string) {
   const control = page.locator(selector).first();

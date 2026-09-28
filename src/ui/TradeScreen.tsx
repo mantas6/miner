@@ -16,13 +16,16 @@
 
 import { isOreKind, type InventoryItemKind } from '../core/inventory';
 import { uiCommands } from './commands';
-import { useUiStore, type InventorySlotView, type TradeOfferView } from './store';
+import { overlayOf, useUiStore, type InventorySlotView, type TradeOfferView } from './store';
 import { CardHeader, ModalShell } from './ModalShell';
 import { useItemTooltip } from './Tooltip';
 import styles from './TradeScreen.module.css';
 
+/** A stable stand-in while no post is open, so the selector never returns a fresh array. */
+const NO_OFFERS: TradeOfferView[] = [];
+
 export function TradeScreen() {
-  const open = useUiStore(state => state.activeOverlay === 'trade');
+  const open = useUiStore(state => state.overlay?.kind === 'trade');
   return (
     <ModalShell id="trade-screen" titleId="trade-title" open={open} onRequestClose={() => uiCommands.closeTrade()}>
       {open && <TradeCard />}
@@ -35,7 +38,7 @@ function TradeCard() {
   const cargo = useUiStore(state => state.hud.cargo);
   const cargoMax = useUiStore(state => state.hud.cargoMax);
   const baySlots = useUiStore(state => state.inventorySlots);
-  const buyOffers = useUiStore(state => state.tradeBuy);
+  const buyOffers = useUiStore(state => overlayOf(state, 'trade')?.offers ?? NO_OFFERS);
   const oreSlots = baySlots.filter(slot => isOreKind(slot.kind));
   const bayFull = cargo >= cargoMax;
 
@@ -97,6 +100,7 @@ function SellRow({slot}: {slot: InventorySlotView}) {
           className={styles.action}
           data-trade="sell"
           data-trade-kind={slot.kind}
+          aria-label={`Sell all ${slot.label}`}
           onClick={() => sell(slot.kind, false)}
         >Sell</button>
         <button
@@ -130,6 +134,7 @@ function BuyRow({offer, cash, bayFull}: {offer: TradeOfferView; cash: number; ba
           data-trade="buy"
           data-trade-kind={offer.kind}
           disabled={disabled}
+          aria-label={`Buy ${offer.label} for $${offer.price}`}
           onClick={() => uiCommands.buyFromPost(offer.kind)}
         >${offer.price}</button>
       </div>

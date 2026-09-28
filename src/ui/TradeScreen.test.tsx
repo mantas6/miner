@@ -30,8 +30,7 @@ function open(cash = 500, cargo = 0, cargoMax = 20): HTMLDialogElement {
     const store = uiStore.getState();
     uiStore.setState({hud: {...store.hud, cash, cargo, cargoMax}});
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem(IRON), 4)));
-    store.setTradeBuy(OFFERS);
-    store.setActiveOverlay('trade');
+    store.showOverlay({kind: 'trade', offers: OFFERS});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -81,6 +80,13 @@ describe('trading-post dialog', () => {
     expect(buyFromPost).toHaveBeenCalledWith('repairKit');
   });
 
+  it('names the sell and buy buttons by verb and stack', () => {
+    open();
+    expect(control('sell', 'ore:Iron').getAttribute('aria-label')).toBe('Sell all Iron');
+    expect(control('sell-one', 'ore:Iron').getAttribute('aria-label')).toBe('Sell one Iron');
+    expect(control('buy', 'repairKit').getAttribute('aria-label')).toBe('Buy Repair Kit for $54');
+  });
+
   it('disables a buy the player cannot afford, one that is sold out, and everything when the bay is full', () => {
     // A small wallet: the repair kit at $54 is affordable, the teleporter at $372 is not.
     open(100);
@@ -102,8 +108,7 @@ describe('trading-post dialog', () => {
     expect(document.getElementById('trade-card')).toBeNull();
 
     act(() => {
-      uiStore.getState().setTradeBuy(OFFERS);
-      uiStore.getState().setActiveOverlay('trade');
+      uiStore.getState().showOverlay({kind: 'trade', offers: OFFERS});
     });
     expect(document.getElementById('trade-card')).not.toBeNull();
 

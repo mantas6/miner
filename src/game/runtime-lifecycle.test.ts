@@ -12,10 +12,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { act, render } from '@testing-library/react';
+import { SAVE_KEY } from '../persistence';
 import { uiCommands } from '../ui/commands';
-import { uiStore } from '../ui/store';
+import { activeOverlayId, uiStore } from '../ui/store';
 import { MinerApp } from '../ui/ui';
 import { createGameRuntime, type GameRuntime } from './game';
+import { ZOOM_SETTINGS_KEY } from './zoom-settings';
 
 /** The window/document events the runtime and the keyboard layer install. */
 const RUNTIME_EVENTS = new Set([
@@ -172,7 +174,7 @@ describe('game runtime lifecycle', () => {
 
     // And a button press cannot reach the discarded runtime either.
     act(() => { uiCommands.openInfo(); });
-    expect(uiStore.getState().activeOverlay).toBeNull();
+    expect(activeOverlayId(uiStore.getState())).toBeNull();
   });
 
   it('boots again cleanly after a dispose, exactly like a StrictMode remount', () => {
@@ -191,10 +193,26 @@ describe('game runtime lifecycle', () => {
 
     // The live runtime is the second one, and it is fully wired.
     act(() => { uiCommands.openInfo(); });
-    expect(uiStore.getState().activeOverlay).toBe('info');
+    expect(activeOverlayId(uiStore.getState())).toBe('info');
     act(() => { uiCommands.closeInfo(); });
 
     second.dispose();
+  });
+
+  it('follows the reduced-motion preference live and drops the watch on dispose', () => {
+    const listeners = new Set<EventListener>();
+    const media = {
+      matches: false,
+      addEventListener: (_type: string, listener: EventListener) => { listeners.add(listener); },
+      removeEventListener: (_type: string, listener: EventListener) => { listeners.delete(listener); }
+    };
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue(media as unknown as MediaQueryList);
+    const runtime = boot();
+    matchMedia.mockRestore();
+
+    expect(listeners.size).toBe(1);
+    runtime.dispose();
+    expect(listeners.size).toBe(0);
   });
 
   it('is safe to dispose twice', () => {
@@ -214,5 +232,31 @@ describe('game runtime lifecycle', () => {
     // A refused boot installs nothing.
     expect(windowListeners.added(windowBase)).toEqual([]);
     expect(frames.size).toBe(0);
+  });
+
+  it('tears a boot that fails part-way back down, without writing over the save', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    // The surface, its resize listener and the audio graph are up by the time this throws.
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(() => { throw new Error('media queries exploded'); });
+
+    expect(() => createGameRuntime(surface())).toThrow(/media queries exploded/);
+    matchMedia.mockRestore();
+
+    expect(windowListeners.added(windowBase)).toEqual([]);
+    expect(documentListeners.added(documentBase)).toEqual([]);
+    expect(frames.size).toBe(0);
+    // A half-built run is never banked over the one on disk.
+    expect(setItem.mock.calls.filter(([key]) => key === SAVE_KEY || key === ZOOM_SETTINGS_KEY)).toEqual([]);
+    // And nothing is left for a button to reach.
+    act(() => { uiCommands.openInfo(); });
+    expect(activeOverlayId(uiStore.getState())).toBeNull();
+    setItem.mockRestore();
+
+    // The mount is reusable: the next boot comes up whole.
+    const runtime = boot();
+    act(() => { uiCommands.openInfo(); });
+    expect(activeOverlayId(uiStore.getState())).toBe('info');
+    act(() => { uiCommands.closeInfo(); });
+    runtime.dispose();
   });
 });

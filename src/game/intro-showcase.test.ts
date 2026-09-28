@@ -155,4 +155,18 @@ describe('createIntroShowcase', () => {
     expect(intro.view.tick).toBe(3);
     expect(intro.view.reducedMotion).toBe(true);
   });
+
+  it('follows a live reduced-motion flip in both directions', () => {
+    const intro = showcase({random: () => 0});
+    intro.draw(1000);
+    intro.setReducedMotion(true);
+    intro.draw(2000);
+    expect(intro.view.camY).toBe(SHOWCASE_MIN_ROW);
+    expect(intro.view.reducedMotion).toBe(true);
+
+    intro.setReducedMotion(false);
+    intro.draw(2200);
+    expect(intro.view.camY).toBeGreaterThan(SHOWCASE_MIN_ROW);
+    expect(intro.view.reducedMotion).toBe(false);
+  });
 });

@@ -29,8 +29,7 @@ function open(view: Partial<PortalView> = {}): HTMLDialogElement {
     ...view
   };
   act(() => {
-    uiStore.getState().setPortalUi(portal);
-    uiStore.getState().setActiveOverlay('portal');
+    uiStore.getState().showOverlay({kind: 'portal', portal});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -144,8 +143,7 @@ describe('portal overlay', () => {
     expect(document.getElementById('portal-card')).toBeNull();
 
     act(() => {
-      uiStore.getState().setPortalUi({mode: 'travel', source: {x: 48, y: 20, name: 'Home'}, destinations: []});
-      uiStore.getState().setActiveOverlay('portal');
+      uiStore.getState().showOverlay({kind: 'portal', portal: {mode: 'travel', source: {x: 48, y: 20, name: 'Home'}, destinations: []}});
     });
     expect(document.getElementById('portal-card')).not.toBeNull();
   });

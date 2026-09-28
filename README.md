@@ -123,6 +123,7 @@ miner/
 │   ├── persistence.ts
 │   ├── persistence-reset.ts
 │   ├── test-narrowing.ts
+│   ├── test-overlays.ts
 │   ├── agent/
 │   ├── core/
 │   ├── world/
@@ -161,15 +162,16 @@ miner/
 | `index.html` | Main game page and root mount node; loaded by Vite. |
 | `shared/constants.ts` | World constants, the home-cavern layout and station positions, the depth scale (`METERS_PER_TILE`, `rowDepthMeters`), camera scale (36px tiles), persistence limits, the decoration ids, and the ore table (Iron included). |
 | `shared/exploration-codec.ts` | Fog-of-war index math and the run-length encoding used by persistence. |
-| `shared/world-schema.ts` | Zod schemas and derived types for tiles and the saved tile diff. |
+| `shared/world-schema.ts` | Zod (`zod/mini`) schemas and derived types for tiles and the saved tile diff. |
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
 | `src/test-narrowing.ts` | Test-only `nth()`/`defined()`: index or unwrap a fixture and fail with a readable message when it is missing, the tests' answer to `noUncheckedIndexedAccess`. Shared by the Vitest suites and the Playwright specs. |
+| `src/test-overlays.ts` | Test-only `emptyOverlay(kind)`: a store overlay of that kind with nothing in it, for tests that only need a screen to be up. |
 | `src/persistence-reset.ts` | The **Reset game** wipe: every key the game writes to `localStorage` (save, audio and zoom preferences, and the retired `moleload-*` keys). |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), the opened-chest ledger (`chestLedger`), and the world's tile diff (`localStorage`); plus the save export (`serializeProgress`) and import check (`parseImportedSave`). |
 | `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), chest loot and reach (`chest.ts`), grave epitaphs and reach (`grave.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts, chests and graves in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `chests.ts` (opening and looting buried chests), `graves.ts` (reading a grave's stone), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations), `intro-showcase.ts` (the title screen's drifting mine backdrop: a fresh game state drawn by the game's renderer with fog and ship off) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `chests.ts` (opening and looting buried chests), `graves.ts` (reading a grave's stone), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations), `save-scheduler.ts` (the debounced run save, the dirty-only minute interval and the unload/hidden-tab saves), `overlays.ts` (raising and dropping the one modal screen, with its cues), `ui-sync.ts` (the per-frame, change-only store publish), `placement-router.ts` (the registry of armed tools sharing the one press on the mine), `interactables.ts` (what Space and `c` would open, and the HUD hint naming it), `particles.ts`, `focus.ts` (canvas focus), `cheats.ts` (the developer cheats), `intro-showcase.ts` (the title screen's drifting mine backdrop: a fresh game state drawn by the game's renderer with fog and ship off) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection); `allowlist.test.ts` fails on any interactive `src/ui` control the harness allowlist cannot reach. |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -230,7 +232,7 @@ button can never reach a disposed runtime.
 `setAgentBridge()` wires the running game into the `agentBridge` singleton
 (`src/agent/bridge.ts`) for programmatic play, and `dispose()` calls
 `resetAgentBridge()` to point it back at its no-op defaults. The loop carries a
-`paused` flag the bridge drives: while paused, `draw()` and `syncUi()` keep
+`paused` flag the bridge drives: while paused, `draw()` and `uiSync.sync()` keep
 running so the window and the observation stay live, but the fixed-step advance is
 held; unpausing resets the stepper so the frozen wall-clock gap is discarded
 rather than replayed in a burst (the same reset the `visibilitychange` handler
@@ -280,7 +282,7 @@ npm run preview
 The cheat menu — **Grant ores** (fills the cargo bay, then the station stock,
 with a bundle of every ore), **Fill extractor** (queues coal and stores fuel),
 and the player and world reset controls — lives in the **Settings** tab of Info /
-Cargo, behind a "Show cheat menu" disclosure. It is available in every build with
+Cargo, behind a "Cheat menu" disclosure. It is available in every build with
 no environment opt-in, and it is mounted only while that disclosure is expanded.
 
 The world reset regenerates terrain, enemies, caches, and fog while preserving
@@ -324,7 +326,7 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 | Redeploy mid-run | `R`, then `R` again within 3.5 s | — |
 | Restart after game over | `R` | Click/tap outside the dialogs |
 | Choose where to redeploy (with two or more portals; the prompt cannot be dismissed) | — | Press a portal row |
-| Toggle the music / the sound effects | — | 🎵 / 🔊 HUD buttons, or Info / Cargo → Settings; a trusted pointer/touch gesture may auto-enable |
+| Toggle the music / the sound effects | — | Note / speaker HUD buttons, or Info / Cargo → Settings; a trusted pointer/touch gesture may auto-enable |
 | Reset world | — | Info / Cargo -> Settings -> cheats -> Reset World State |
 
 ## Accessibility
@@ -348,8 +350,23 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
   Manufacturing Station, Fuel Extractor, cargo-container/wreck/chest, trading-post,
   portal and grave overlays are modal `<dialog>`s, so the browser contains Tab, makes the rest of the
   page inert, and each close returns focus to the control that opened it.
-- **`prefers-reduced-motion`.** The looping start-prompt, low-fuel and HUD-alert
-  animations stop; the alert colours stay.
+- **Named controls.** Toggles keep one accessible name and carry their state in
+  `aria-pressed` (the audio switches) or `aria-expanded` (the inventory and cheat
+  disclosures); the audio buttons draw small `aria-hidden` inline SVGs, and their
+  tooltip carries the next action or why sound is blocked. Every stack button in
+  the station, container/wreck/chest and trading-post screens is named by its verb
+  and stack ("Take all Coal", "Stow one Iron", "Sell all Iron"). An unaffordable
+  **Craft** is `aria-disabled` rather than `disabled`: it stays a tab stop,
+  described by its "Need …" shortfall, and a press gets the sim's refusal toast.
+  The agent harness reads `aria-disabled` as disabled and refuses the click.
+- **`prefers-reduced-motion`.** Followed live (a `matchMedia` change listener
+  disposed with the runtime). The looping start-prompt, low-fuel and HUD-alert
+  animations stop (the alert colours stay), the toast fades without sliding,
+  buttons stop shifting on hover/press, and the ship holds still — no hover bob,
+  wobble, flame flicker or drill shake — as do the enemies, fuses and the intro
+  camera drift.
+- **Short viewports.** Below 520 px of height the HUD compacts its paddings,
+  buttons and type, mirroring the 760 px width breakpoint without changing layout.
 
 ## Gameplay notes
 
@@ -831,7 +848,7 @@ what a sighted player sees, as JSON. The top-level shape:
 - `cash`, `stats`
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `placement`: while a placeable device is armed, `{kind, target, valid, sites[]}` — the valid `sites` the canvas grid tints green around the ship, and the hovered/last-pressed `target` tile with whether the device fits there (`null` with no target); `null` when nothing placeable is armed (the toolkit included)
-- `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the labels their buttons carry; `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail
+- `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the tooltips their buttons carry (the next action, or why sound is blocked; the accessible names stay a fixed "Music" / "Sound effects"); `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail
 - `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a grave has none)

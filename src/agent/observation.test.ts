@@ -183,11 +183,11 @@ describe('buildObservation', () => {
     const state = createInitialState();
     const wreckSlots: InventorySlotView[] = [oreSlot('Gold', 4)];
 
-    expect(buildObservation({state, ui: ui({activeOverlay: null, wreckSlots}), get: tileSource({})}).overlay).toBeNull();
+    expect(buildObservation({state, ui: ui({overlay: null}), get: tileSource({})}).overlay).toBeNull();
 
     const overlay = buildObservation({
       state,
-      ui: ui({activeOverlay: 'wreck', wreckSlots, inventorySlots: [oreSlot('Iron', 1)]}),
+      ui: ui({overlay: {kind: 'wreck', slots: wreckSlots}, inventorySlots: [oreSlot('Iron', 1)]}),
       get: tileSource({})
     }).overlay;
 
@@ -238,11 +238,11 @@ describe('buildObservation', () => {
     const state = createInitialState();
     const chestSlots: InventorySlotView[] = [oreSlot('Coal', 3)];
 
-    expect(buildObservation({state, ui: ui({activeOverlay: null, chestSlots}), get: tileSource({})}).overlay).toBeNull();
+    expect(buildObservation({state, ui: ui({overlay: null}), get: tileSource({})}).overlay).toBeNull();
 
     const overlay = buildObservation({
       state,
-      ui: ui({activeOverlay: 'chest', chestSlots, inventorySlots: [oreSlot('Iron', 1)]}),
+      ui: ui({overlay: {kind: 'chest', slots: chestSlots}, inventorySlots: [oreSlot('Iron', 1)]}),
       get: tileSource({})
     }).overlay;
 
@@ -278,10 +278,9 @@ describe('buildObservation', () => {
     const state = createInitialState();
     const grave = {name: 'Ivan Petrov', born: 1901, died: 1950, cause: 'Crushed under rock'};
 
-    expect(buildObservation({state, ui: ui({activeOverlay: null, grave}), get: tileSource({})}).overlay).toBeNull();
-    expect(buildObservation({state, ui: ui({activeOverlay: 'grave', grave: null}), get: tileSource({})}).overlay).toBeNull();
+    expect(buildObservation({state, ui: ui({overlay: null}), get: tileSource({})}).overlay).toBeNull();
 
-    const overlay = buildObservation({state, ui: ui({activeOverlay: 'grave', grave}), get: tileSource({})}).overlay;
+    const overlay = buildObservation({state, ui: ui({overlay: {kind: 'grave', epitaph: grave}}), get: tileSource({})}).overlay;
     expect(overlay).toEqual({kind: 'grave', ...grave});
   });
 
@@ -289,23 +288,23 @@ describe('buildObservation', () => {
     const state = createInitialState();
     const get = tileSource({});
 
-    const plain = buildObservation({state, ui: ui({activeOverlay: 'info', infoTab: 'info-settings', saveExport: null}), get}).overlay;
+    const plain = buildObservation({state, ui: ui({overlay: {kind: 'info'}, infoTab: 'info-settings', saveExport: null}), get}).overlay;
     expect(plain).toMatchObject({kind: 'info', tab: 'info-settings'});
     expect(plain && 'saveExport' in plain).toBe(false);
 
     const json = '{"version":18,"cash":5}';
-    const exported = buildObservation({state, ui: ui({activeOverlay: 'info', infoTab: 'info-settings', saveExport: json}), get}).overlay;
+    const exported = buildObservation({state, ui: ui({overlay: {kind: 'info'}, infoTab: 'info-settings', saveExport: json}), get}).overlay;
     expect(exported).toMatchObject({kind: 'info', tab: 'info-settings', saveExport: json});
 
     // A closed info screen mirrors nothing, export or not.
-    expect(buildObservation({state, ui: ui({activeOverlay: null, saveExport: json}), get}).overlay).toBeNull();
+    expect(buildObservation({state, ui: ui({overlay: null, saveExport: json}), get}).overlay).toBeNull();
   });
 
   it('mirrors every info tab: the tablist, and only the visible tab\'s contents', () => {
     const state = createInitialState();
     const get = tileSource({});
     const info = (overrides: Partial<UiState>) => {
-      const overlay = buildObservation({state, ui: ui({activeOverlay: 'info', ...overrides}), get}).overlay;
+      const overlay = buildObservation({state, ui: ui({overlay: {kind: 'info'}, ...overrides}), get}).overlay;
       if (overlay?.kind !== 'info') throw new Error('expected the info overlay');
       return overlay;
     };
@@ -438,17 +437,16 @@ describe('buildObservation', () => {
     const state = createInitialState();
 
     // Not open: nothing is mirrored.
-    expect(buildObservation({state, ui: ui({activeOverlay: null}), get: tileSource({})}).overlay).toBeNull();
+    expect(buildObservation({state, ui: ui({overlay: null}), get: tileSource({})}).overlay).toBeNull();
 
     const overlay = buildObservation({
       state,
       ui: ui({
-        activeOverlay: 'portal',
-        portal: {
+        overlay: {kind: 'portal', portal: {
           mode: 'travel',
           source: {x: 48, y: 20, name: 'Home'},
           destinations: [{x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}]
-        }
+        }}
       }),
       get: tileSource({})
     }).overlay;
@@ -468,8 +466,7 @@ describe('buildObservation', () => {
     const teleporter = buildObservation({
       state,
       ui: ui({
-        activeOverlay: 'portal',
-        portal: {mode: 'teleporter', destinations: [{x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}]}
+        overlay: {kind: 'portal', portal: {mode: 'teleporter', destinations: [{x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}]}}
       }),
       get: tileSource({})
     }).overlay;
@@ -483,11 +480,10 @@ describe('buildObservation', () => {
     const respawn = buildObservation({
       state,
       ui: ui({
-        activeOverlay: 'portal',
-        portal: {mode: 'respawn', destinations: [
+        overlay: {kind: 'portal', portal: {mode: 'respawn', destinations: [
           {x: 48, y: 20, name: 'Home', depthMeters: 0, distance: 0},
           {x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}
-        ]}
+        ]}}
       }),
       get: tileSource({})
     }).overlay;
@@ -512,11 +508,11 @@ describe('buildObservation', () => {
     const state = createInitialState();
 
     // No overlay open: nothing is mirrored.
-    expect(buildObservation({state, ui: ui({activeOverlay: null}), get: tileSource({})}).overlay).toBeNull();
+    expect(buildObservation({state, ui: ui({overlay: null}), get: tileSource({})}).overlay).toBeNull();
 
     const overlay = buildObservation({
       state,
-      ui: ui({activeOverlay: 'station', stationSlots: [oreSlot('Iron', 3)]}),
+      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3)]}}),
       get: tileSource({})
     }).overlay;
 
@@ -598,10 +594,9 @@ describe('buildObservation', () => {
     const overlay = buildObservation({
       state,
       ui: ui({
-        activeOverlay: 'trade',
+        overlay: {kind: 'trade', offers},
         hud: {...uiStore.getState().hud, cash: 200},
-        inventorySlots: [oreSlot('Iron', 5)],
-        tradeBuy: offers
+        inventorySlots: [oreSlot('Iron', 5)]
       }),
       get: tileSource({})
     }).overlay;
@@ -617,14 +612,11 @@ describe('buildObservation', () => {
 
   it('mirrors the extractor overlay with the refuel amount the screen would show', () => {
     const state = createInitialState();
-    const base = uiStore.getState();
+    state.player.fuel = 50;
+    state.player.fuelMax = 100;
     const overlay = buildObservation({
       state,
-      ui: ui({
-        activeOverlay: 'extractor',
-        extractor: {coal: 5, fuel: 40, progress: 10},
-        player: {...base.player, fuel: 50, fuelMax: 100}
-      }),
+      ui: ui({overlay: {kind: 'extractor', extractor: {coal: 5, fuel: 40, progress: 10}}}),
       get: tileSource({})
     }).overlay;
 
@@ -640,7 +632,7 @@ describe('buildObservation', () => {
     const upgrade: InventorySlotView = {index: 0, kind: 'upgrade:drill:1', label: 'Drill Mk I', color: '#d0d6de', count: 1};
     const overlay = buildObservation({
       state,
-      ui: ui({activeOverlay: 'ship', inventorySlots: [upgrade]}),
+      ui: ui({overlay: {kind: 'ship'}, inventorySlots: [upgrade]}),
       get: tileSource({})
     }).overlay;
 

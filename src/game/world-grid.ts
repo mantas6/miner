@@ -53,11 +53,16 @@ export interface WorldGridOptions {
   state: Pick<GameState, 'world'>;
   /** Mark one tile's terrain cache dirty; only called when its type changed. */
   invalidateTerrain(x: number, y: number): void;
+  /**
+   * Re-read one tile's durability for the crack overlay. Called on every write,
+   * since a drill hit that leaves the type alone skips `invalidateTerrain`.
+   */
+  refreshTileDamage?(x: number, y: number): void;
   /** Record a committed mutation for the tile diff. */
   onTileSet(x: number, y: number, tile: Tile): void;
 }
 
-export function createWorldGrid({state, invalidateTerrain, onTileSet}: WorldGridOptions): WorldGrid {
+export function createWorldGrid({state, invalidateTerrain, refreshTileDamage, onTileSet}: WorldGridOptions): WorldGrid {
   return {
     get world() {
       return state.world;
@@ -73,6 +78,7 @@ export function createWorldGrid({state, invalidateTerrain, onTileSet}: WorldGrid
       const previousType = previous.type;
       row[x] = tile;
       if (previousType !== tile.type) invalidateTerrain(x, y);
+      refreshTileDamage?.(x, y);
       if (record) onTileSet(x, y, tile);
     },
     ensureRow(y) {

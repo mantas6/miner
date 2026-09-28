@@ -18,18 +18,21 @@
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import type { InventoryItemKind } from '../core/inventory';
 import { uiCommands } from './commands';
-import { useUiStore, type InventorySlotView } from './store';
+import { overlayOf, useUiStore, type InventorySlotView } from './store';
 import { CardHeader, ModalShell } from './ModalShell';
 import { useItemTooltip } from './Tooltip';
 import styles from './CargoScreen.module.css';
 
+/** A stable stand-in while no stash is open, so the selector never returns a fresh array. */
+const NO_SLOTS: InventorySlotView[] = [];
+
 export function CargoScreen() {
   // One `<dialog>` serves the crate's two-way transfer menu and the take-only menus
-  // of a wreck and a chest: they never coexist (one `activeOverlay` at a time), and
+  // of a wreck and a chest: they never coexist (one `overlay` at a time), and
   // sharing the shell keeps near-identical modals out of the tree.
   const mode = useUiStore(state => {
-    const overlay = state.activeOverlay;
-    return overlay === 'container' || overlay === 'wreck' || overlay === 'chest' ? overlay : null;
+    const kind = state.overlay?.kind;
+    return kind === 'container' || kind === 'wreck' || kind === 'chest' ? kind : null;
   });
   // A native close request (Escape reaching the UA, the backdrop) must not leave
   // the game thinking the crate, wreck or chest is still open.
@@ -62,7 +65,7 @@ interface LootCardProps {
 
 /** The wreck's salvage menu: one take-only column, plus a loot-all shortcut. */
 function WreckCard() {
-  const wreckSlots = useUiStore(state => state.wreckSlots);
+  const wreckSlots = useUiStore(state => overlayOf(state, 'wreck')?.slots ?? NO_SLOTS);
   return (
     <LootCard
       title="Wreck"
@@ -79,7 +82,7 @@ function WreckCard() {
 
 /** A buried chest's menu: the wreck's layout, dispatching to the chest commands. */
 function ChestCard() {
-  const chestSlots = useUiStore(state => state.chestSlots);
+  const chestSlots = useUiStore(state => overlayOf(state, 'chest')?.slots ?? NO_SLOTS);
   return (
     <LootCard
       title="Chest"
@@ -141,6 +144,7 @@ function LootRow({slot, take}: {slot: InventorySlotView; take(kind: InventoryIte
         className={styles.slot}
         data-cargo-action="take"
         data-cargo-kind={slot.kind}
+        aria-label={`Salvage all ${slot.label} ×${slot.count}`}
         onClick={() => take(slot.kind, false)}
         {...tooltip}
       >
@@ -161,7 +165,7 @@ function LootRow({slot, take}: {slot: InventorySlotView; take(kind: InventoryIte
 }
 
 function CargoCard() {
-  const containerSlots = useUiStore(state => state.containerSlots);
+  const containerSlots = useUiStore(state => overlayOf(state, 'container')?.slots ?? NO_SLOTS);
   const shipSlots = useUiStore(state => state.inventorySlots);
   const cargoMax = useUiStore(state => state.hud.cargoMax);
 
@@ -252,6 +256,7 @@ function TransferSlot({slot, action, verb, onPress}: {
         className={styles.slot}
         data-cargo-action={action}
         data-cargo-kind={slot.kind}
+        aria-label={`${verb} all ${slot.label} ×${slot.count}`}
         onClick={() => onPress(slot.kind, false)}
         {...tooltip}
       >

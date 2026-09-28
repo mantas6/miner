@@ -112,14 +112,22 @@ button {
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
   touch-action: manipulation;
 }
-button:hover:not(:disabled) {
+button:hover:not(:disabled, [aria-disabled="true"]) {
   filter: brightness(1.13);
   transform: translateY(-1px);
 }
-button:active:not(:disabled) {
+button:active:not(:disabled, [aria-disabled="true"]) {
   transform: translateY(1px);
 }
-button:disabled {
+/* Reduced motion: a hovered or pressed button still brightens, but never shifts. */
+@media (prefers-reduced-motion: reduce) {
+  button:hover:not(:disabled, [aria-disabled="true"]),
+  button:active:not(:disabled, [aria-disabled="true"]) {
+    transform: none;
+  }
+}
+button:disabled,
+button[aria-disabled="true"] {
   cursor: not-allowed;
   color: rgba(238, 244, 255, 0.38);
   background: linear-gradient(rgba(44, 52, 65, 0.55), rgba(24, 30, 39, 0.55));
@@ -141,7 +149,8 @@ kbd {
   padding: 1px 5px;
   color: #fff;
 }
-@media (max-width: 760px) {
+/* Narrow or short viewports (a phone either way up) get the compact buttons. */
+@media (max-width: 760px), (max-height: 520px) {
   button {
     padding: 7px 6px;
     font-size: var(--fs-2xs);

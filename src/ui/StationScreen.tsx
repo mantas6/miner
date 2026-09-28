@@ -6,7 +6,7 @@
 // one press. Every station stack carries a Take and a "1" that pull the whole
 // stack or a single unit back aboard. Below, the recipes: one row each, its inputs
 // listed, a Craft button that is live only while the station holds the materials
-// and names what is missing when it does not.
+// and names what is missing when it does not (aria-disabled, so it stays focusable).
 //
 // Everything is painted from the store and is live: the station stock and the bay
 // are snapshots the game pushes on open and after every change, so the screen
@@ -21,13 +21,16 @@ import { addItem, createInventory, type Inventory } from '../core/inventory';
 import { recipeInputLines } from '../core/item-info';
 import { itemForKind } from '../core/items';
 import { uiCommands } from './commands';
-import { useUiStore, type InventorySlotView } from './store';
+import { overlayOf, useUiStore, type InventorySlotView } from './store';
 import { CardHeader, ModalShell } from './ModalShell';
 import { useItemTooltip } from './Tooltip';
 import styles from './StationScreen.module.css';
 
+/** A stable stand-in while the station is shut, so the selector never returns a fresh array. */
+const NO_SLOTS: InventorySlotView[] = [];
+
 export function StationScreen() {
-  const open = useUiStore(state => state.activeOverlay === 'station');
+  const open = useUiStore(state => state.overlay?.kind === 'station');
   return (
     <ModalShell id="station-screen" titleId="station-title" open={open} onRequestClose={() => uiCommands.closeStation()}>
       {open && <StationCard />}
@@ -41,7 +44,7 @@ function slotsToInventory(slots: InventorySlotView[]): Inventory {
 }
 
 function StationCard() {
-  const stationSlots = useUiStore(state => state.stationSlots);
+  const stationSlots = useUiStore(state => overlayOf(state, 'station')?.slots ?? NO_SLOTS);
   const baySlots = useUiStore(state => state.inventorySlots);
   const stock = useMemo(() => slotsToInventory(stationSlots), [stationSlots]);
 
@@ -113,6 +116,7 @@ function StationCard() {
  */
 function TransferRow({slot, action}: {slot: InventorySlotView; action: 'stow' | 'take'}) {
   const move = action === 'stow' ? uiCommands.stowStack : uiCommands.takeFromStation;
+  const verb = action === 'stow' ? 'Stow' : 'Take';
   const tooltip = useItemTooltip(slot.kind);
   return (
     <li>
@@ -125,14 +129,15 @@ function TransferRow({slot, action}: {slot: InventorySlotView; action: 'stow' | 
           className={styles.action}
           data-station={action}
           data-station-kind={slot.kind}
+          aria-label={`${verb} all ${slot.label}`}
           onClick={() => move(slot.kind, false)}
-        >{action === 'stow' ? 'Stow' : 'Take'}</button>
+        >{verb}</button>
         <button
           type="button"
           className={styles.action}
           data-station={`${action}-one`}
           data-station-kind={slot.kind}
-          aria-label={`${action === 'stow' ? 'Stow' : 'Take'} one ${slot.label}`}
+          aria-label={`${verb} one ${slot.label}`}
           onClick={() => move(slot.kind, true)}
         >1</button>
       </div>
@@ -140,19 +145,26 @@ function TransferRow({slot, action}: {slot: InventorySlotView; action: 'stow' | 
   );
 }
 
+/**
+ * One recipe. An unaffordable Craft button is `aria-disabled`, not `disabled`: it
+ * stays in the tab order with the shortfall as its description, and a press still
+ * reaches the sim, whose refusal toast names what is missing. The harness reads
+ * `aria-disabled` as disabled too, so an agent click is still refused up front.
+ */
 function RecipeRow({recipe, index, stock}: {recipe: Recipe; index: number; stock: Inventory}) {
   const item = itemForKind(recipe.output);
   const affordable = canCraft(stock, recipe);
   const missing = affordable ? [] : missingInputs(stock, recipe);
   const inputs = recipe.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(' · ');
   const tooltip = useItemTooltip(recipe.output, recipeInputLines(recipe, stock));
+  const inputsId = `recipe-inputs-${recipe.output}`;
   return (
     <li>
       <div className={styles.recipe} {...tooltip}>
         <span className={styles.icon} style={{background: item.color}} aria-hidden="true" />
         <span className={styles.recipeText}>
           <span className={styles.label}>{item.label}</span>
-          <span className={styles.recipeInputs}>
+          <span id={inputsId} className={styles.recipeInputs}>
             {affordable
               ? inputs
               : `Need ${missing.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ')}`}
@@ -162,7 +174,9 @@ function RecipeRow({recipe, index, stock}: {recipe: Recipe; index: number; stock
           type="button"
           className={styles.action}
           data-craft={recipe.output}
-          disabled={!affordable}
+          aria-label={`Craft ${item.label}`}
+          aria-describedby={inputsId}
+          aria-disabled={!affordable}
           onClick={() => uiCommands.craft(index)}
         >Craft</button>
       </div>

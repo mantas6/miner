@@ -14,6 +14,7 @@ import { CargoScreen } from './CargoScreen';
 import { setUiCommands, uiCommands } from './commands';
 import { buildInventorySlots, uiStore } from './store';
 import { nth } from '../test-narrowing';
+import { emptyOverlay } from '../test-overlays';
 
 const pristine = {...uiStore.getState()};
 const pristineCommands = {...uiCommands};
@@ -24,9 +25,8 @@ function open(): HTMLDialogElement {
   const rendered = render(<CargoScreen />);
   act(() => {
     const store = uiStore.getState();
-    store.setContainerSlots(buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 4)));
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), DYNAMITE_ITEM, 2)));
-    store.setActiveOverlay('container');
+    store.showOverlay({kind: 'container', slots: buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 4))});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -74,10 +74,10 @@ describe('cargo transfer dialog', () => {
     expect(document.getElementById('cargo-screen')).not.toBeNull();
     expect(document.getElementById('cargo-card')).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay('container'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('container')); });
     expect(document.getElementById('cargo-card')).not.toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay(null); });
+    act(() => { uiStore.getState().showOverlay(null); });
     expect(document.getElementById('cargo-card')).toBeNull();
   });
 
@@ -107,6 +107,14 @@ describe('cargo transfer dialog', () => {
     expect(takeFromContainer).toHaveBeenCalledWith('ore:Copper', true);
   });
 
+  it('names every transfer button by its verb and the stack it moves', () => {
+    open();
+    expect(stack('store', 'dynamite').getAttribute('aria-label')).toBe('Store all Dynamite ×2');
+    expect(oneButton('store', 'dynamite').getAttribute('aria-label')).toBe('Store one Dynamite');
+    expect(stack('take', 'ore:Copper').getAttribute('aria-label')).toBe('Take all Copper ×4');
+    expect(oneButton('take', 'ore:Copper').getAttribute('aria-label')).toBe('Take one Copper');
+  });
+
   it('dispatches close from the close button, the backdrop, and the browser', () => {
     const closeContainer = vi.fn();
     setUiCommands({closeContainer});
@@ -131,7 +139,7 @@ describe('cargo transfer dialog', () => {
     open();
 
     act(() => {
-      uiStore.getState().setContainerSlots(buildInventorySlots(createInventory()));
+      uiStore.getState().showOverlay({kind: 'container', slots: buildInventorySlots(createInventory())});
     });
 
     expect(document.querySelector('[data-cargo-action="take"]')).toBeNull();
@@ -146,8 +154,7 @@ function openWreck(): HTMLDialogElement {
   const rendered = render(<CargoScreen />);
   act(() => {
     const store = uiStore.getState();
-    store.setWreckSlots(buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 4)));
-    store.setActiveOverlay('wreck');
+    store.showOverlay({kind: 'wreck', slots: buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 4))});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -162,6 +169,8 @@ describe('wreck salvage dialog', () => {
     // Take controls only — nothing to store into a wreck.
     expect(document.querySelector('[data-cargo-action="take"][data-cargo-kind="ore:Copper"]')).not.toBeNull();
     expect(document.querySelector('[data-cargo-action="store"]')).toBeNull();
+    expect(document.querySelector('[data-cargo-action="take"][data-cargo-kind="ore:Copper"]')?.getAttribute('aria-label'))
+      .toMatch(/^Salvage all Copper ×\d+$/);
   });
 
   it('routes each press to its salvage command', () => {
@@ -183,7 +192,7 @@ describe('wreck salvage dialog', () => {
   it('disables loot-all and shows Empty once the wreck is bare', () => {
     openWreck();
 
-    act(() => { uiStore.getState().setWreckSlots(buildInventorySlots(createInventory())); });
+    act(() => { uiStore.getState().showOverlay({kind: 'wreck', slots: buildInventorySlots(createInventory())}); });
 
     expect(document.querySelector('[data-cargo-action="take"]')).toBeNull();
     expect((document.getElementById('lootAllBtn') as HTMLButtonElement).disabled).toBe(true);
@@ -212,8 +221,7 @@ function openChest(): HTMLDialogElement {
   const rendered = render(<CargoScreen />);
   act(() => {
     const store = uiStore.getState();
-    store.setChestSlots(buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 3)));
-    store.setActiveOverlay('chest');
+    store.showOverlay({kind: 'chest', slots: buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 3))});
   });
   return rendered.container.querySelector('dialog')!;
 }

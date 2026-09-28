@@ -24,12 +24,8 @@ import { countItem, createInventory, oreStacks, type Inventory, type InventoryIt
 import { itemForKind } from '../core/items';
 import { manufacturerStock } from '../core/stations';
 import { sellPrice } from '../core/trading';
-import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
-import { DYNAMITE_ITEM } from '../core/dynamite';
-import { SCANNER_ITEM } from '../core/scanner-device';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import type { Epitaph } from '../core/grave';
-import type { Player } from '../core/types';
 import { DEFAULT_INFO_TAB, type InfoTab } from './info-navigation';
 
 /** Everything the HUD paints every frame. Primitives only, so diffing is cheap. */
@@ -48,7 +44,10 @@ export interface HudSnapshot {
   objective: string;
   atSurface: boolean;
   gameOver: boolean;
-  /** Prompt shown when a station is in reach, e.g. "Space: Manufacturing Station"; empty when none is. */
+  /**
+   * What Space would open right now, e.g. "Space: Manufacturing Station" or
+   * "Space: Trading Post" — a home station, a post or a grave; empty when none is in reach.
+   */
   stationHint: string;
   /**
    * The carried teleporter's whole HUD state: how many charges are aboard, and
@@ -84,23 +83,6 @@ const HUD_KEYS = [
   'scanner', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
-
-/** The ship stats the ship screen and the HUD read to label their rows. */
-export type PlayerSnapshot = Pick<
-  Player,
-  'fuel' | 'fuelMax' | 'hull' | 'hullMax' | 'cargoMax' | 'drill'
-> & {
-  /** Consumables in the cargo bay, counted out of the inventory. */
-  scanners: number;
-  dynamite: number;
-  teleporters: number;
-  containers: number;
-};
-
-const PLAYER_KEYS = [
-  'fuel', 'fuelMax', 'hull', 'hullMax', 'cargoMax', 'drill',
-  'scanners', 'dynamite', 'teleporters', 'containers'
-] as const satisfies readonly (keyof PlayerSnapshot)[];
 
 export interface CargoRow {
   name: string;
@@ -150,9 +132,6 @@ export type UiPhase = 'intro' | 'playing';
  * a silent failure used to leave a dead black rectangle with no explanation.
  */
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
-
-/** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'info' | 'container' | 'wreck' | 'chest' | 'ship' | 'station' | 'extractor' | 'trade' | 'portal' | 'grave';
 
 /** One portal the travel/teleporter/respawn overlay lists as a destination. */
 export interface PortalDestinationView {
@@ -214,68 +193,69 @@ export interface ShipSlotView {
 }
 
 /**
- * Which overlay is up. One field rather than a flag per overlay, because
- * "ship and info at the same time" is not a state the game has any answer for:
- * they are both modal `<dialog>`s over the same canvas, so the second one to open
- * would steal focus while the first still claimed the top of the stack.
+ * The modal overlay covering the mine, and everything it paints. Exactly one of
+ * them, or none: one field rather than a flag per overlay, because "ship and info
+ * at the same time" is not a state the game has any answer for — they are both
+ * modal `<dialog>`s over the same canvas, so the second one to open would steal
+ * focus while the first still claimed the top of the stack.
+ *
+ * Each variant carries its own contents, pushed by the game on open and after
+ * every change, so a screen never reaches into the simulation and a closed
+ * screen's contents cannot linger to be mistaken for an open one's.
  */
-export type ActiveOverlay = OverlayId | null;
+export type Overlay =
+  | {kind: 'info'}
+  /** The fitting slots are `shipEquipment`: a replacement ship resets them while the screen is shut. */
+  | {kind: 'ship'}
+  /** The open cargo container's stacks, in the inventory-slot shape. */
+  | {kind: 'container'; slots: InventorySlotView[]}
+  /** The open wreck's contents, in the same shape. Take-only. */
+  | {kind: 'wreck'; slots: InventorySlotView[]}
+  /** The open chest's contents, in the same shape. Take-only. */
+  | {kind: 'chest'; slots: InventorySlotView[]}
+  /** The manufacturing station's stock, in the inventory-slot shape. */
+  | {kind: 'station'; slots: InventorySlotView[]}
+  /** The fuel extractor's buffers. */
+  | {kind: 'extractor'; extractor: ExtractorView}
+  /** The open trading post's buy offers. The sell side is the bay's ore, read from `inventorySlots`. */
+  | {kind: 'trade'; offers: TradeOfferView[]}
+  /** The travel, teleporter or respawn list. */
+  | {kind: 'portal'; portal: PortalView}
+  /** The epitaph on the grave being read. */
+  | {kind: 'grave'; epitaph: Epitaph};
+
+/** The modal overlays that cover the mine, by name. */
+export type OverlayId = Overlay['kind'];
+
+/** One overlay variant, by name. */
+export type OverlayOf<K extends OverlayId> = Extract<Overlay, {kind: K}>;
+
+export type ActiveOverlay = Overlay | null;
+
+/** The overlay up, narrowed to `kind`, or `null` when something else (or nothing) is. */
+export function overlayOf<K extends OverlayId>(state: Pick<UiState, 'overlay'>, kind: K): OverlayOf<K> | null {
+  const overlay = state.overlay;
+  return overlay?.kind === kind ? overlay as OverlayOf<K> : null;
+}
+
+/** The name of the overlay up, or `null` when the mine is uncovered. */
+export function activeOverlayId(state: Pick<UiState, 'overlay'>): OverlayId | null {
+  return state.overlay?.kind ?? null;
+}
 
 export interface UiState {
   hud: HudSnapshot;
-  player: PlayerSnapshot;
   /** The cargo bay's slots, painted by the always-visible inventory panel. */
   inventorySlots: InventorySlotView[];
-  /**
-   * The open cargo container's slots, in the same shape. Written only while the
-   * transfer menu is up: the game pushes a crate's contents here when it opens one
-   * and after every transfer, so the menu never reaches into the simulation.
-   */
-  containerSlots: InventorySlotView[];
-  /**
-   * The open wreck's contents, in the same shape. Written only while the salvage
-   * menu is up: the game pushes a wreck's contents here when it opens one and after
-   * every haul, so the take-only menu never reaches into the simulation.
-   */
-  wreckSlots: InventorySlotView[];
-  /**
-   * The open chest's contents, in the same shape. Written only while its menu is
-   * up: the game pushes them on open and after every haul, like the wreck's.
-   */
-  chestSlots: InventorySlotView[];
   /**
    * The ship's fitting slots, painted by the Ship screen. Written when the screen
    * opens and after each equip/unequip, so the menu never reads the simulation.
    */
   shipEquipment: ShipSlotView[];
-  /**
-   * The manufacturing station's stock, in the inventory-slot shape. Written while
-   * the station screen is up: the game pushes it on open and after every transfer
-   * or craft, so the screen never reaches into the simulation.
-   */
-  stationSlots: InventorySlotView[];
-  /** The fuel extractor's buffers, written while its screen is up. */
-  extractor: ExtractorView;
-  /**
-   * The open trading post's buy offers, written while the trade screen is up: the
-   * game pushes them on open and after each purchase, so the screen never reaches
-   * into the simulation. The sell side is the bay's ore, read from `inventorySlots`.
-   */
-  tradeBuy: TradeOfferView[];
-  /**
-   * The open portal overlay's contents, written only while it is up: the game
-   * pushes it on open, after a rename, and after each republish, so the screen
-   * never reaches into the simulation. `null` when no portal overlay is open.
-   */
-  portal: PortalView | null;
-  /**
-   * The epitaph on the grave being read, written only while its stone is up: the
-   * game pushes it on open and clears it on close. `null` when no grave is open.
-   */
-  grave: Epitaph | null;
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
-  activeOverlay: ActiveOverlay;
+  /** The overlay covering the mine, with its contents, or `null`. */
+  overlay: ActiveOverlay;
   infoTab: InfoTab;
   /**
    * The save file the last export produced, shown in Settings for copying. Only
@@ -299,7 +279,11 @@ export interface UiState {
   runtimeStatus: RuntimeStatus;
   /** Why the runtime failed, when it did. Shown verbatim in the failure notice. */
   runtimeError: string | null;
-  /** Soundtrack and sound effects mute independently, one button each. */
+  /**
+   * Soundtrack and sound effects mute independently, one button each. The labels
+   * are the buttons' tooltips — the next action, or why sound is blocked — not
+   * their accessible names, which stay fixed with the state in `aria-pressed`.
+   */
   musicOn: boolean;
   musicLabel: string;
   sfxOn: boolean;
@@ -319,25 +303,18 @@ export interface UiState {
   armedPlacement: InventoryItemKind | null;
 
   syncHud(next: Readonly<HudSnapshot>): void;
-  syncPlayer(next: Readonly<PlayerSnapshot>): void;
   setInventorySlots(slots: InventorySlotView[]): void;
-  setContainerSlots(slots: InventorySlotView[]): void;
-  setWreckSlots(slots: InventorySlotView[]): void;
-  setChestSlots(slots: InventorySlotView[]): void;
   setShipEquipment(slots: ShipSlotView[]): void;
-  setStationSlots(slots: InventorySlotView[]): void;
-  setExtractor(view: ExtractorView): void;
-  setTradeBuy(offers: TradeOfferView[]): void;
-  /** Publish the open portal overlay's contents, or take it away with `null`. */
-  setPortalUi(view: PortalView | null): void;
-  /** Publish the open grave's epitaph, or take it away with `null`. */
-  setGraveUi(epitaph: Epitaph | null): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
-  /** Show one overlay, replacing whatever was up; `null` closes them all. */
-  setActiveOverlay(overlay: ActiveOverlay): void;
+  /**
+   * Show one overlay with its contents, replacing whatever was up; `null` closes
+   * them all. Republishing the overlay already up with unchanged contents writes
+   * nothing, so a repaint after every transfer costs no render when nothing moved.
+   */
+  showOverlay(overlay: ActiveOverlay): void;
   /** Close an overlay, but only while it is the one on screen. */
-  closeOverlay(overlay: OverlayId): void;
+  closeOverlay(kind: OverlayId): void;
   setInfoTab(tab: InfoTab): void;
   setSaveExport(json: string | null): void;
   setCheatsOpen(open: boolean): void;
@@ -403,22 +380,6 @@ function initialHud(): HudSnapshot {
   };
 }
 
-function initialPlayer(): PlayerSnapshot {
-  const player = initialState.player;
-  return {
-    fuel: player.fuel,
-    fuelMax: player.fuelMax,
-    hull: player.hull,
-    hullMax: player.hullMax,
-    cargoMax: player.cargoMax,
-    drill: player.drill,
-    teleporters: countItem(player.inventory, TELEPORTER_ITEM.kind),
-    scanners: countItem(player.inventory, SCANNER_ITEM.kind),
-    dynamite: countItem(player.inventory, DYNAMITE_ITEM.kind),
-    containers: countItem(player.inventory, CARGO_CONTAINER_ITEM.kind)
-  };
-}
-
 function sameInventorySlots(a: InventorySlotView[], b: InventorySlotView[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((slot, index) => {
@@ -451,6 +412,36 @@ function sameStatRows(a: ExpeditionStatRow[], b: ExpeditionStatRow[]): boolean {
   });
 }
 
+/**
+ * Whether `next` would repaint nothing over `current`: the same screen with the
+ * same contents. Screens whose contents are pushed wholesale on each change (the
+ * portal list, the epitaph) compare by reference, as their old slices did.
+ */
+function sameOverlay(current: ActiveOverlay, next: ActiveOverlay): boolean {
+  if (current === next) return true;
+  if (!current || !next || current.kind !== next.kind) return false;
+  switch (next.kind) {
+    case 'info':
+    case 'ship':
+      return true;
+    case 'container':
+    case 'wreck':
+    case 'chest':
+    case 'station':
+      return sameInventorySlots((current as typeof next).slots, next.slots);
+    case 'extractor': {
+      const a = (current as typeof next).extractor, b = next.extractor;
+      return a.coal === b.coal && a.fuel === b.fuel && a.progress === b.progress;
+    }
+    case 'trade':
+      return sameTradeOffers((current as typeof next).offers, next.offers);
+    case 'portal':
+      return (current as typeof next).portal === next.portal;
+    case 'grave':
+      return (current as typeof next).epitaph === next.epitaph;
+  }
+}
+
 /** The Settings tab's transient flags as a fresh visit finds them. */
 const CLOSED_SETTINGS = {cheatsOpen: false, confirmingReset: false, confirmingImport: false} as const;
 
@@ -459,20 +450,11 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const uiStore = createStore<UiState>((set, get) => ({
   hud: initialHud(),
-  player: initialPlayer(),
   inventorySlots: buildInventorySlots(createInventory()),
-  containerSlots: [],
-  wreckSlots: [],
-  chestSlots: [],
   shipEquipment: buildShipSlots(initialState.player.equipment),
-  stationSlots: [],
-  extractor: {coal: 0, fuel: 0, progress: 0},
-  tradeBuy: [],
-  portal: null,
-  grave: null,
   cargoRows: [],
   statRows: formatExpeditionStats({}),
-  activeOverlay: null,
+  overlay: null,
   infoTab: DEFAULT_INFO_TAB,
   saveExport: null,
   ...CLOSED_SETTINGS,
@@ -497,58 +479,13 @@ export const uiStore = createStore<UiState>((set, get) => ({
     set({hud: {...next, teleport: {...next.teleport}}});
   },
 
-  syncPlayer(next) {
-    const current = get().player;
-    if (PLAYER_KEYS.every(key => current[key] === next[key])) return;
-    set({player: {...next}});
-  },
-
   setInventorySlots(slots) {
     if (sameInventorySlots(get().inventorySlots, slots)) return;
     set({inventorySlots: slots});
   },
 
-  setContainerSlots(slots) {
-    if (sameInventorySlots(get().containerSlots, slots)) return;
-    set({containerSlots: slots});
-  },
-
-  setWreckSlots(slots) {
-    if (sameInventorySlots(get().wreckSlots, slots)) return;
-    set({wreckSlots: slots});
-  },
-
-  setChestSlots(slots) {
-    if (sameInventorySlots(get().chestSlots, slots)) return;
-    set({chestSlots: slots});
-  },
-
   setShipEquipment(slots) {
     set({shipEquipment: slots});
-  },
-
-  setStationSlots(slots) {
-    if (sameInventorySlots(get().stationSlots, slots)) return;
-    set({stationSlots: slots});
-  },
-
-  setExtractor(view) {
-    const current = get().extractor;
-    if (current.coal === view.coal && current.fuel === view.fuel && current.progress === view.progress) return;
-    set({extractor: {...view}});
-  },
-
-  setTradeBuy(offers) {
-    if (sameTradeOffers(get().tradeBuy, offers)) return;
-    set({tradeBuy: offers});
-  },
-
-  setPortalUi(view) {
-    set({portal: view});
-  },
-
-  setGraveUi(epitaph) {
-    set({grave: epitaph});
   },
 
   setCargoRows(rows) {
@@ -561,12 +498,15 @@ export const uiStore = createStore<UiState>((set, get) => ({
     set({statRows: rows});
   },
 
-  setActiveOverlay(overlay) {
-    if (get().activeOverlay === overlay) return;
-    // Info always opens on its first tab, as the imperative version did.
-    set(overlay === 'info'
-      ? {activeOverlay: 'info', infoTab: DEFAULT_INFO_TAB, saveExport: null, ...CLOSED_SETTINGS}
-      : {activeOverlay: overlay});
+  showOverlay(overlay) {
+    const current = get().overlay;
+    if (sameOverlay(current, overlay)) return;
+    // Info always opens on its first tab, as the imperative version did — but a
+    // repaint of the Info screen already up keeps the tab the player is on.
+    const next = overlay?.kind === 'extractor' ? {...overlay, extractor: {...overlay.extractor}} : overlay;
+    set(overlay?.kind === 'info' && current?.kind !== 'info'
+      ? {overlay: next, infoTab: DEFAULT_INFO_TAB, saveExport: null, ...CLOSED_SETTINGS}
+      : {overlay: next});
   },
 
   /**
@@ -575,8 +515,8 @@ export const uiStore = createStore<UiState>((set, get) => ({
    * claimed it. Ignoring a close for an overlay that is no longer up keeps the
    * swap from closing both.
    */
-  closeOverlay(overlay) {
-    if (get().activeOverlay === overlay) set({activeOverlay: null});
+  closeOverlay(kind) {
+    if (get().overlay?.kind === kind) set({overlay: null});
   },
 
   setInfoTab(tab) {

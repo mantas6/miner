@@ -24,9 +24,8 @@ function open(): HTMLDialogElement {
   act(() => {
     const store = uiStore.getState();
     // The station holds three iron; the bay holds two coal.
-    store.setStationSlots(buildInventorySlots(addItem(createInventory(), oreItem(IRON), 3)));
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem(COAL), 2)));
-    store.setActiveOverlay('station');
+    store.showOverlay({kind: 'station', slots: buildInventorySlots(addItem(createInventory(), oreItem(IRON), 3))});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -82,7 +81,8 @@ describe('manufacturing station dialog', () => {
 
     // The repair kit recipe is the first row, and the station's three iron affords it.
     const repairKitCraft = document.querySelector<HTMLButtonElement>('[data-craft="repairKit"]')!;
-    expect(repairKitCraft.disabled).toBe(false);
+    expect(repairKitCraft.getAttribute('aria-disabled')).toBe('false');
+    expect(repairKitCraft.getAttribute('aria-label')).toBe('Craft Repair Kit');
     fireEvent.click(repairKitCraft);
     expect(craft).toHaveBeenCalledWith(0);
   });
@@ -92,8 +92,26 @@ describe('manufacturing station dialog', () => {
 
     // The teleporter needs silver and gold the iron-only stock does not have.
     const teleporter = document.querySelector<HTMLButtonElement>('[data-craft="teleporter"]')!;
-    expect(teleporter.disabled).toBe(true);
+    // aria-disabled rather than disabled: it stays focusable, described by the
+    // shortfall, and a press still reaches the sim, whose refusal toast explains.
+    expect(teleporter.disabled).toBe(false);
+    expect(teleporter.getAttribute('aria-disabled')).toBe('true');
+    const description = document.getElementById(teleporter.getAttribute('aria-describedby')!);
+    expect(description?.textContent).toMatch(/^Need /);
     expect(teleporter.closest('li')!.textContent).toContain('Need');
+    const craft = vi.fn();
+    setUiCommands({craft});
+    fireEvent.click(teleporter);
+    expect(craft).toHaveBeenCalledOnce();
+  });
+
+  it('names every transfer button by its verb and the stack it moves', () => {
+    open();
+    const label = (selector: string) => document.querySelector(selector)?.getAttribute('aria-label');
+    expect(label('[data-station="take"][data-station-kind="ore:Iron"]')).toBe('Take all Iron');
+    expect(label('[data-station="take-one"][data-station-kind="ore:Iron"]')).toBe('Take one Iron');
+    expect(label('[data-station="stow"][data-station-kind="ore:Coal"]')).toBe('Stow all Coal');
+    expect(label('[data-station="stow-one"][data-station-kind="ore:Coal"]')).toBe('Stow one Coal');
   });
 
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {
@@ -103,8 +121,7 @@ describe('manufacturing station dialog', () => {
     expect(document.getElementById('station-card')).toBeNull();
 
     act(() => {
-      uiStore.getState().setStationSlots([]);
-      uiStore.getState().setActiveOverlay('station');
+      uiStore.getState().showOverlay({kind: 'station', slots: []});
     });
     expect(document.getElementById('station-card')).not.toBeNull();
 

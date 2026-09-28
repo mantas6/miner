@@ -10,9 +10,18 @@ import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
 import { isScannerDone, scannerTileProgress, type ScannerDevice } from '../core/scanner-device';
-import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
+import { chestsInRange, gravesInRange, tradingPostsInRange } from '../world/world';
 import { isChestLooted } from '../core/chest';
-import { TERRAIN_CHUNK_TILES, terrainCacheScale, terrainChunkCoordinate, terrainChunkKeyForTile } from './terrain-cache-policy';
+import {
+  ChunkCache,
+  MAX_EXTRA_CHUNKS,
+  TERRAIN_CHUNK_TILES,
+  terrainCacheScale,
+  terrainChunkCoordinate,
+  terrainChunkKey,
+  terrainChunkKeyForTile
+} from './terrain-cache-policy';
+import { rustPalette } from './rust-palette';
 import type {
   ChestLedger,
   Direction,
@@ -24,11 +33,17 @@ import type {
   Tile
 } from '../core/types';
 
-const TERRAIN_CHUNK_PADDING = 52;
+/**
+ * Room around a terrain chunk for the tiles' deliberate overdraw. The widest
+ * spill is a soft blob, centred up to .09 tile past an edge and up to .66 tile
+ * long — .75 tile (27px) in all — with the ore glow's blur (a 3σ reach of 24px
+ * from a crystal kept well inside its tile) and the strata strokes inside that.
+ * A few pixels over the blob's reach covers antialiasing.
+ */
+export const TERRAIN_CHUNK_PADDING = 30;
 // Fog bleeds one pixel past a tile plus half a vein stroke, so it needs far less
 // room around a chunk than the terrain's blob and strata overdraw.
 const FOG_CHUNK_PADDING = 8;
-const MAX_EXTRA_CHUNKS = 32;
 
 /**
  * The slice of the game state the renderer reads. Fields the renderer already
@@ -91,6 +106,11 @@ export interface Renderer {
   invalidateTerrain(x?: number, y?: number): void;
   /** Drop one tile's fog chunk, or the whole fog cache. */
   invalidateFog(x?: number, y?: number): void;
+  /**
+   * Re-read one tile's durability after a write that kept its type (a drill hit),
+   * which leaves the cached terrain standing but may crack or heal the tile.
+   */
+  refreshTileDamage(x: number, y: number): void;
 }
 
 interface CachedChunk {
@@ -110,23 +130,102 @@ interface ChunkLayerOptions {
   paint(startX: number, startY: number, endX: number, endY: number, padding: number): void;
   /** Chunks that would paint nothing skip both the canvas and the per-frame blit. */
   isBlank?(startX: number, startY: number, endX: number, endY: number): boolean;
+  /** Called whenever the whole cache is dropped, so derived bookkeeping can follow. */
+  reset?(): void;
 }
 
-/**
- * Desaturate a palette color and pull it toward rust, giving the haunted rigs a
- * dead-metal hull that still reads as their type. Enemy colors are all `#rrggbb`.
- */
-function rustColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-  const luma = 0.3 * r + 0.59 * g + 0.11 * b;
-  const mix = (c: number, target: number, amount: number) => c + (target - c) * amount;
-  const rust = (c: number, target: number) => Math.round(mix(mix(c, luma, .5), target, .16) * .82);
-  return `rgb(${rust(r, 122)},${rust(g, 74)},${rust(b, 50)})`;
+/** Whether a tile shows the cracked-durability overlay: a hurt tile that has durability at all. */
+function isDamagedTile(tile: Tile): boolean {
+  return tile.type !== 'air' && tile.type !== 'rock' && tile.hp < tile.maxHp;
+}
+
+/** Row-major tile index for the damaged-tile set; `x` always lies inside the world. */
+function damageKey(x: number, y: number): number {
+  return y * WORLD_W + x;
 }
 
 export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps): Renderer {
   let drawingContext: CanvasRenderingContext2D = ctx;
   const isExplored = (x: number, y: number) => !state.exploredTiles || isTileExplored(state.exploredTiles, x, y);
+
+  /**
+   * Tiles showing damage, so the per-frame crack pass visits only those instead of
+   * reading every visible tile. A superset is fine — every entry is re-checked
+   * when drawn and dropped once healed or cleared — but a hurt tile on screen must
+   * never be missing: each terrain chunk build records its own tiles (the build
+   * reads every one anyway), and a damage-only write that leaves the cached chunk
+   * standing reports in through `refreshTileDamage`.
+   */
+  const damagedTiles = new Set<number>();
+  function recordTileDamage(tile: Tile, x: number, y: number) {
+    if (isDamagedTile(tile)) damagedTiles.add(damageKey(x, y));
+    else damagedTiles.delete(damageKey(x, y));
+  }
+  function refreshTileDamage(x: number, y: number) {
+    if (x < 0 || x >= WORLD_W || y < 0) return;
+    recordTileDamage(get(x, y), x, y);
+  }
+
+  // A gradient is a paint description in the coordinates it was made in, not a
+  // per-frame object: the fixed ones below are drawn in a body's own local space
+  // (the caller translates the context to it), so each is built once and reused.
+  let caveFill: CanvasGradient | null = null;
+  let caveFillHeight = 0;
+  /** The rock void behind the terrain, top to bottom of the view; rebuilt only when that height changes. */
+  function caveGradient(height: number): CanvasGradient {
+    if (!caveFill || caveFillHeight !== height) {
+      caveFill = ctx.createLinearGradient(0,0,0,height);
+      caveFill.addColorStop(0,'#0a0705'); caveFill.addColorStop(1,'#050301');
+      caveFillHeight = height;
+    }
+    return caveFill;
+  }
+  /** The hull's diagonal three-stop sheen, in the hull's local space. */
+  function hullGradient(top: string, middle: string, bottom: string): CanvasGradient {
+    const body = ctx.createLinearGradient(-TILE*.35,-TILE*.3,TILE*.35,TILE*.30);
+    body.addColorStop(0, top); body.addColorStop(.45, middle); body.addColorStop(1, bottom);
+    return body;
+  }
+  let liveHull: CanvasGradient | null = null;
+  let deadHull: CanvasGradient | null = null;
+  let canopyGlass: CanvasGradient | null = null;
+  let portalField: CanvasGradient | null = null;
+  const enemyHulls = new Map<EnemyKind, CanvasGradient>();
+  const enemyHitHulls = new Map<EnemyKind, CanvasGradient>();
+  function liveHullGradient(): CanvasGradient {
+    return liveHull ??= hullGradient('#9ee6ff', '#4dbbe8', '#126a98');
+  }
+  /** The spent-ship grey, shared by the lost player ship and every wreck. */
+  function deadHullGradient(): CanvasGradient {
+    return deadHull ??= hullGradient('#555', '#676767', '#333');
+  }
+  function canopyGradient(): CanvasGradient {
+    if (!canopyGlass) {
+      canopyGlass = ctx.createLinearGradient(0,-TILE*.50,0,-TILE*.24);
+      canopyGlass.addColorStop(0,'#ffffff'); canopyGlass.addColorStop(.25,'#b9f3ff'); canopyGlass.addColorStop(1,'#387898');
+    }
+    return canopyGlass;
+  }
+  function portalFieldGradient(): CanvasGradient {
+    if (!portalField) {
+      portalField = ctx.createLinearGradient(-TILE*.20, 0, TILE*.20, 0);
+      portalField.addColorStop(0, 'rgba(114,217,255,.22)');
+      portalField.addColorStop(.5, 'rgba(170,238,255,.62)');
+      portalField.addColorStop(1, 'rgba(114,217,255,.22)');
+    }
+    return portalField;
+  }
+  /** A haunted rig's rusted hull, or the whitened one a hit flash paints; one of each per kind. */
+  function enemyHullGradient(kind: EnemyKind, hit: boolean): CanvasGradient {
+    const cache = hit ? enemyHitHulls : enemyHulls;
+    let body = cache.get(kind);
+    if (!body) {
+      const rust = rustPalette(kind);
+      body = hit ? hullGradient('#fff6a8', '#fff0c0', rust[2]) : hullGradient(rust[0], rust[1], rust[2]);
+      cache.set(kind, body);
+    }
+    return body;
+  }
 
   // Terrain and fog both change rarely (mining / exploration) but were redrawn per
   // frame, so both use the same chunked offscreen cache: DPR-aware scale, LRU trim,
@@ -136,9 +235,14 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     source: () => state.world,
     paint: (startX, startY, endX, endY, padding) => {
       for(let wy=startY;wy<=endY;wy++) for(let wx=startX;wx<=endX;wx++) {
-        drawTile(get(wx,wy), wx, wy, padding + (wx-startX)*TILE, padding + (wy-startY)*TILE);
+        const tile = get(wx,wy);
+        recordTileDamage(tile, wx, wy);
+        drawTile(tile, wx, wy, padding + (wx-startX)*TILE, padding + (wy-startY)*TILE);
       }
-    }
+    },
+    // Whole-cache resets rebuild every chunk before it is drawn again, and each
+    // rebuild re-records its tiles, so the set can start over with them.
+    reset: () => damagedTiles.clear()
   });
   const fogLayer = createChunkLayer({
     padding: FOG_CHUNK_PADDING,
@@ -153,9 +257,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
   function invalidateTerrain(x?: number, y?: number){ terrainLayer.invalidate(x, y); }
   function invalidateFog(x?: number, y?: number){ fogLayer.invalidate(x, y); }
 
-  function createChunkLayer({ padding, source, paint, isBlank }: ChunkLayerOptions){
-    // `null` is a cached "nothing to draw here" result, not a cache miss.
-    const chunks = new Map<string, CachedChunk | null>();
+  function createChunkLayer({ padding, source, paint, isBlank, reset }: ChunkLayerOptions){
+    const chunks = new ChunkCache<CachedChunk>();
     let cachedScale = 0;
     let cachedSource: unknown = null;
 
@@ -189,6 +292,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       invalidate(x?: number, y?: number){
         if (x === undefined || y === undefined) {
           chunks.clear();
+          reset?.();
           return;
         }
         chunks.delete(terrainChunkKeyForTile(x, y));
@@ -201,6 +305,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
         const currentSource = source();
         if (cachedScale !== scale || cachedSource !== currentSource) {
           chunks.clear();
+          reset?.();
           cachedScale = scale;
           cachedSource = currentSource;
         }
@@ -211,12 +316,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
         const endChunkY = terrainChunkCoordinate(range.endY);
         let visibleChunkCount = 0;
         for(let chunkY=startChunkY;chunkY<=endChunkY;chunkY++) for(let chunkX=startChunkX;chunkX<=endChunkX;chunkX++) {
-          const key = `${chunkX},${chunkY}`;
-          const cached = chunks.has(key);
-          const chunk = cached ? chunks.get(key)! : build(chunkX, chunkY, scale);
-          // Re-inserting keeps the Map ordered least- to most-recently used.
-          if (cached) chunks.delete(key);
-          chunks.set(key, chunk);
+          const chunk = chunks.use(terrainChunkKey(chunkX, chunkY), () => build(chunkX, chunkY, scale));
           visibleChunkCount++;
           if (!chunk) continue;
           drawingContext.drawImage(
@@ -229,20 +329,22 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
           );
         }
 
-        while (chunks.size > visibleChunkCount + MAX_EXTRA_CHUNKS) {
-          const oldestKey = chunks.keys().next().value;
-          if (oldestKey === undefined) break;
-          chunks.delete(oldestKey);
-        }
+        chunks.trim(visibleChunkCount + MAX_EXTRA_CHUNKS);
       }
     };
   }
 
   function drawTerrainDamage(camX: number, camY: number){
+    if (damagedTiles.size === 0) return;
     const range = getVisibleTileRange(camX, camY, viewport.tilesX, viewport.tilesY, WORLD_W);
-    for(let wy=range.startY;wy<=range.endY;wy++) for(let wx=range.startX;wx<=range.endX;wx++) {
+    for (const key of damagedTiles) {
+      const wy = Math.floor(key / WORLD_W), wx = key - wy * WORLD_W;
+      if (wx < range.startX || wx > range.endX || wy < range.startY || wy > range.endY) continue;
+      const tile = get(wx, wy);
+      // Healed, or cleared to air since it was recorded: it has nothing left to show.
+      if (!isDamagedTile(tile)) { damagedTiles.delete(key); continue; }
       if (!isExplored(wx, wy)) continue;
-      drawTileDamage(get(wx,wy), (wx-camX)*TILE, (wy-camY)*TILE);
+      drawTileDamage(tile, (wx-camX)*TILE, (wy-camY)*TILE);
     }
   }
 
@@ -257,12 +359,10 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.scale(viewport.zoom, viewport.zoom);
     // The world is solid underground now: a dark rock void backs the terrain
     // wherever a dug-out tunnel would otherwise show nothing behind it.
-    const cave = ctx.createLinearGradient(0,0,0,viewport.worldHeightPx);
-    cave.addColorStop(0,'#0a0705'); cave.addColorStop(1,'#050301');
-    ctx.fillStyle = cave; ctx.fillRect(0,0,viewport.worldWidthPx,viewport.worldHeightPx);
+    ctx.fillStyle = caveGradient(viewport.worldHeightPx); ctx.fillRect(0,0,viewport.worldWidthPx,viewport.worldHeightPx);
     terrainLayer.draw(camX, camY);
     drawTerrainDamage(camX, camY);
-    drawTerrainBlendOverlay(camY);
+    drawTerrainBlendOverlay();
     drawHomeStations(camX, camY);
     drawTradingPosts(camX, camY);
     drawChests(camX, camY);
@@ -287,7 +387,9 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       const sx=(p.drawX-camX)*TILE, sy=(p.drawY-camY)*TILE;
       ctx.save();
       if (state.teleportEffect) ctx.globalAlpha = Math.min(1, .32 + state.teleportEffect.frame / Math.max(1, state.teleportEffect.duration * .42));
-      ctx.translate(sx+TILE*.5, sy+TILE*.5 + Math.sin(state.tick*.45)*p.bob*TILE*.08);
+      // The hover bob after a move; reduced motion parks the ship still.
+      const hover = state.reducedMotion ? 0 : Math.sin(state.tick*.45)*p.bob*TILE*.08;
+      ctx.translate(sx+TILE*.5, sy+TILE*.5 + hover);
       ctx.rotate((p.x - p.drawX) * -0.12 + (p.y - p.drawY) * 0.08 + (p.drillDy > 0 ? p.drillAnim * 0.10 : 0));
       ctx.scale(p.facing, 1);
       drawShip(p, state.input?.sprintDirection);
@@ -297,10 +399,12 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.restore();
     if(state.gameOver){
       ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,viewport.widthPx,viewport.heightPx);
+      // The three lines are one block centred on the viewport, whatever its height.
+      const cx = viewport.widthPx/2, cy = viewport.heightPx/2;
       ctx.fillStyle='#fff'; ctx.textAlign='center';
-      ctx.font='bold 38px sans-serif'; ctx.fillText('GAME OVER', viewport.widthPx/2, 295);
-      ctx.font='bold 24px sans-serif'; ctx.fillText('Tap anywhere to restart', viewport.widthPx/2, 338);
-      ctx.font='18px sans-serif'; ctx.fillText('or press R', viewport.widthPx/2, 370);
+      ctx.font='bold 38px sans-serif'; ctx.fillText('GAME OVER', cx, cy - 18);
+      ctx.font='bold 24px sans-serif'; ctx.fillText('Tap anywhere to restart', cx, cy + 25);
+      ctx.font='18px sans-serif'; ctx.fillText('or press R', cx, cy + 57);
       ctx.textAlign='left';
     }
   }
@@ -528,11 +632,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillStyle = 'rgba(0,0,0,.32)';
     ctx.fillRect(-TILE*.34, TILE*.25, TILE*.68, TILE*.05);
     // Contained field between the pylons: a blue gradient fading at its edges.
-    const field = ctx.createLinearGradient(-TILE*.20, 0, TILE*.20, 0);
-    field.addColorStop(0, 'rgba(114,217,255,.22)');
-    field.addColorStop(.5, 'rgba(170,238,255,.62)');
-    field.addColorStop(1, 'rgba(114,217,255,.22)');
-    ctx.fillStyle = field;
+    ctx.fillStyle = portalFieldGradient();
     ctx.fillRect(-TILE*.20, -TILE*.22, TILE*.40, TILE*.38);
     // Scan line sweeping down the field.
     ctx.fillStyle = 'rgba(225,250,255,.75)';
@@ -571,15 +671,14 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
   /**
    * Trading posts, as a lit kiosk with a coin sign. Derived from the tile
    * coordinate like the home cavern (see `world.ts`), so the renderer walks the
-   * visible tile range and asks `tradingPostAt` rather than reading any stored list.
+   * chunks overlapping the view (`tradingPostsInRange`) rather than any stored list.
    * Culled off-screen and skipped under fog, exactly like the other mine fixtures.
    */
   function drawTradingPosts(camX: number, camY: number) {
     const range = getVisibleTileRange(camX, camY, viewport.tilesX, viewport.tilesY, WORLD_W);
-    for (let wy = range.startY; wy <= range.endY; wy++) for (let wx = range.startX; wx <= range.endX; wx++) {
-      if (!isExplored(wx, wy)) continue;
-      if (!tradingPostAt(wx, wy)) continue;
-      drawTradingPostBody((wx - camX) * TILE, (wy - camY) * TILE);
+    for (const post of tradingPostsInRange(range.startX, range.startY, range.endX, range.endY)) {
+      if (!isExplored(post.x, post.y)) continue;
+      drawTradingPostBody((post.x - camX) * TILE, (post.y - camY) * TILE);
     }
   }
   function drawTradingPostBody(sx: number, sy: number) {
@@ -743,9 +842,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.translate(sx + TILE*.5, sy + TILE*.5);
     // The dead-ship gradient and dark canopy from `drawShip`, held still: a wreck
     // reads as a spent hull without an engine flame or a drill.
-    const body = ctx.createLinearGradient(-TILE*.35,-TILE*.3,TILE*.35,TILE*.30);
-    body.addColorStop(0, '#555'); body.addColorStop(.45, '#676767'); body.addColorStop(1, '#333');
-    drawShipHull(body, 'rgba(196,214,210,.28)', '#26384d');
+    drawShipHull(deadHullGradient(), 'rgba(196,214,210,.28)', '#26384d');
     drawShipCanopy('rgba(14,20,24,.85)');
     ctx.restore();
   }
@@ -853,6 +950,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
    */
   function drawHauntedShip(sx: number, sy: number, kind: EnemyKind, hpPct=1, flash=0, tick=state.tick) {
     const enemyType = getEnemyType(kind);
+    const rust = rustPalette(kind);
     const hit = flash > .1;
     const phase = sx * .017 + sy * .023;
     const flicker = state.reducedMotion ? .7 : 0.62 + 0.08 * Math.sin(tick * 0.3 + phase);
@@ -863,11 +961,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.shadowColor = hit ? '#fff6a8' : enemyType.glow;
     ctx.shadowBlur = hit ? 14 : 7;
     // Rusted, desaturated hull built from the type's palette; a hit flash whitens it.
-    const body = ctx.createLinearGradient(-TILE*.35,-TILE*.3,TILE*.35,TILE*.30);
-    body.addColorStop(0, hit ? '#fff6a8' : rustColor(enemyType.colors[0]));
-    body.addColorStop(.45, hit ? '#fff0c0' : rustColor(enemyType.colors[1]));
-    body.addColorStop(1, rustColor(enemyType.colors[2]));
-    drawShipHull(body, 'rgba(196,214,210,.28)', rustColor(enemyType.colors[2]));
+    drawShipHull(enemyHullGradient(kind, hit), 'rgba(196,214,210,.28)', rust[2]);
     ctx.shadowBlur = 0;
     // Dead, dark canopy with a couple of thin cracks across the glass.
     drawShipCanopy(hit ? 'rgba(120,120,90,.85)' : 'rgba(14,20,24,.85)');
@@ -882,7 +976,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     const spin = state.reducedMotion ? 0 : Math.sin(tick * .15 + phase) * TILE * .07;
     ctx.fillStyle = '#25222a';
     ctx.beginPath(); ctx.moveTo(-TILE*.16, 0); ctx.lineTo(spin, TILE*.30); ctx.lineTo(TILE*.16, 0); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = rustColor(enemyType.colors[2]); ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = rust[2]; ctx.lineWidth = 3; ctx.stroke();
     ctx.restore();
     ctx.restore();
     // HP bar at full opacity so it stays readable above the translucent hull.
@@ -1059,31 +1153,59 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.lineTo(sx+TILE*.70, sy+TILE*.70);
     ctx.stroke();
   }
-  function drawTerrainBlendOverlay(_camY: number) {
-    ctx.fillStyle = 'rgba(45,24,13,.075)'; ctx.fillRect(0,0,viewport.worldWidthPx,viewport.worldHeightPx);
+  function drawTerrainBlendOverlay() {
+    const width = viewport.worldWidthPx, height = viewport.worldHeightPx;
+    ctx.fillStyle = 'rgba(45,24,13,.075)'; ctx.fillRect(0,0,width,height);
+    const overlay = blendOverlay();
+    if (!overlay) return;
     ctx.save(); ctx.globalCompositeOperation = 'soft-light';
-    for (let i=0;i<10;i++) {
-      ctx.fillStyle = i%2 ? 'rgba(255,182,96,.035)' : 'rgba(0,0,0,.045)';
-      ctx.beginPath();
-      ctx.ellipse((i*.137%1)*viewport.worldWidthPx, (i*.293%1)*viewport.worldHeightPx, viewport.worldWidthPx*(.10+.025*(i%3)), viewport.worldHeightPx*(.06+.015*(i%4)), (i*.7)%Math.PI, 0, Math.PI*2);
-      ctx.fill();
-    }
+    ctx.drawImage(overlay, 0, 0, overlay.width, overlay.height, 0, 0, width, height);
     ctx.restore();
+  }
+  /**
+   * The soft-light wash of warm and dark ellipses over the terrain, baked once.
+   * Every ellipse is laid out in fractions of the view's width and height, and a
+   * zoom scales both by the same factor, so the picture depends on the canvas's
+   * CSS size alone: it is painted at that size and stretched over the zoomed
+   * world, rebuilt only on a resize. The ellipses blend with each other plainly
+   * inside the bake and with the terrain once as a group — at a few percent alpha
+   * each, the same wash the per-frame composite painted.
+   */
+  let blendCanvas: HTMLCanvasElement | null = null;
+  let blendWidth = 0, blendHeight = 0;
+  function blendOverlay(): HTMLCanvasElement | null {
+    const width = viewport.widthPx, height = viewport.heightPx;
+    if (blendCanvas && blendWidth === width && blendHeight === height) return blendCanvas;
+    blendCanvas ??= document.createElement('canvas');
+    // Resizing clears the canvas and resets its context, so the bake starts clean.
+    blendCanvas.width = width;
+    blendCanvas.height = height;
+    const bake = blendCanvas.getContext('2d');
+    if (!bake) return null;
+    blendWidth = width;
+    blendHeight = height;
+    for (let i=0;i<10;i++) {
+      bake.fillStyle = i%2 ? 'rgba(255,182,96,.035)' : 'rgba(0,0,0,.045)';
+      bake.beginPath();
+      bake.ellipse((i*.137%1)*width, (i*.293%1)*height, width*(.10+.025*(i%3)), height*(.06+.015*(i%4)), (i*.7)%Math.PI, 0, Math.PI*2);
+      bake.fill();
+    }
+    return blendCanvas;
   }
   function drawShip(p: ShipTransform, sprintDirection: Direction | null = null) {
     const dead = state.gameOver;
-    const wobble = Math.sin(state.tick*.22) * p.bob * TILE*.025;
+    // Idle motion — the post-move wobble and the flame flicker — holds still under
+    // reduced motion; the flame keeps its mid-length so the ship still reads as lit.
+    const still = state.reducedMotion;
+    const wobble = still ? 0 : Math.sin(state.tick*.22) * p.bob * TILE*.025;
     ctx.translate(0, wobble);
     if (!dead && sprintDirection) drawBoostFlames(sprintDirection, p.facing);
     // engine flame + drill pulse
-    const flame = TILE*(.22 + Math.sin(state.tick*.55)*.04);
+    const flame = TILE*(.22 + (still ? 0 : Math.sin(state.tick*.55)*.04));
     ctx.fillStyle = dead ? '#433' : '#ffb02e'; ctx.beginPath(); ctx.moveTo(-TILE*.16,TILE*.28); ctx.lineTo(0,TILE*.54+flame*.18); ctx.lineTo(TILE*.16,TILE*.28); ctx.fill();
     ctx.fillStyle = '#9a5a16'; ctx.beginPath(); ctx.moveTo(-TILE*.08,TILE*.30); ctx.lineTo(0,TILE*.46); ctx.lineTo(TILE*.08,TILE*.30); ctx.fill();
-    const body = ctx.createLinearGradient(-TILE*.35,-TILE*.3,TILE*.35,TILE*.30);
-    body.addColorStop(0, dead ? '#555' : '#9ee6ff'); body.addColorStop(.45, dead ? '#676767' : '#4dbbe8'); body.addColorStop(1, dead ? '#333' : '#126a98');
-    drawShipHull(body, 'rgba(255,255,255,.35)', '#26384d');
-    const glass = ctx.createLinearGradient(0,-TILE*.50,0,-TILE*.24); glass.addColorStop(0,'#ffffff'); glass.addColorStop(.25,'#b9f3ff'); glass.addColorStop(1,'#387898');
-    drawShipCanopy(glass);
+    drawShipHull(dead ? deadHullGradient() : liveHullGradient(), 'rgba(255,255,255,.35)', '#26384d');
+    drawShipCanopy(canopyGradient());
     ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-TILE*.12,-TILE*.46,TILE*.10,TILE*.035);
     drawDirectionalDrill(p);
     ctx.fillStyle = '#ffd35f'; ctx.fillRect(TILE*.30, -TILE*.09, TILE*.14, TILE*.18);
@@ -1133,7 +1255,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
   }
   function drawDirectionalDrill(p: ShipTransform) {
     const active = p.drillAnim > 0.05;
-    const jitter = active ? Math.sin(state.tick * 1.8) * TILE * .025 * p.drillAnim : 0;
+    const shake = active && !state.reducedMotion;
+    const jitter = shake ? Math.sin(state.tick * 1.8) * TILE * .025 * p.drillAnim : 0;
     ctx.save();
     if (active && p.drillDx !== 0) {
       // ctx is already scaled to facing; +X is the visual nose side after ctx.scale(p.facing, 1).
@@ -1142,7 +1265,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     } else {
       ctx.translate(0, jitter);
     }
-    const spin = active ? Math.sin(state.tick * 1.2) * TILE * .025 : 0;
+    const spin = shake ? Math.sin(state.tick * 1.2) * TILE * .025 : 0;
     ctx.fillStyle = '#25222a';
     ctx.beginPath(); ctx.moveTo(-TILE*.18,TILE*.28); ctx.lineTo(spin,TILE*.62); ctx.lineTo(TILE*.18,TILE*.28); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = active ? '#fff0a6' : '#d5d0c0'; ctx.lineWidth = active ? 5 : 3; ctx.stroke();
@@ -1159,5 +1282,5 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
   }
 
-  return { draw, invalidateTerrain, invalidateFog };
+  return { draw, invalidateTerrain, invalidateFog, refreshTileDamage };
 }

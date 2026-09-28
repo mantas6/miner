@@ -122,10 +122,11 @@
   font-weight: 800;
   cursor: pointer;
 }
-.action:hover:not(:disabled) {
+.action:hover:not(:disabled, [aria-disabled="true"]) {
   background: rgba(255, 255, 255, 0.14);
 }
-.action:disabled {
+.action:disabled,
+.action[aria-disabled="true"] {
   opacity: 0.4;
   cursor: default;
 }

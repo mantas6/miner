@@ -2,7 +2,7 @@
 //
 // A small modal card: a cross, the miner's name, the years they lived, and what
 // the mine did to them, with one OK to put it away. Everything is painted from the
-// store's `grave` slice, which the game writes on open and clears on close, so the
+// store's `grave` overlay, which the game raises on open and drops on close, so the
 // card holds no copy of anything. Enter, Space and Escape dismiss it through the
 // keyboard layer (`input.ts`); OK, the backdrop and the dialog's own close request
 // all dispatch the same `closeGrave`.
@@ -13,13 +13,12 @@
 import type { Epitaph } from '../core/grave';
 import { uiCommands } from './commands';
 import { ModalShell, useModalFocus } from './ModalShell';
-import { useUiStore } from './store';
+import { overlayOf, useUiStore } from './store';
 import styles from './GraveScreen.module.css';
 
 export function GraveScreen() {
-  const open = useUiStore(state => state.activeOverlay === 'grave');
-  const epitaph = useUiStore(state => state.grave);
-  const visible = open && epitaph !== null;
+  const epitaph = useUiStore(state => overlayOf(state, 'grave')?.epitaph ?? null);
+  const visible = epitaph !== null;
 
   return (
     <ModalShell

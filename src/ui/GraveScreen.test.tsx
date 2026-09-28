@@ -19,8 +19,7 @@ const EPITAPH: Epitaph = {name: 'Praskovya Ivanova', born: 1939, died: 1983, cau
 function open(epitaph: Epitaph = EPITAPH): HTMLDialogElement {
   const rendered = render(<GraveScreen />);
   act(() => {
-    uiStore.getState().setGraveUi(epitaph);
-    uiStore.getState().setActiveOverlay('grave');
+    uiStore.getState().showOverlay({kind: 'grave', epitaph});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -53,8 +52,7 @@ describe('grave dialog', () => {
     expect(document.getElementById('grave-card')).toBeNull();
 
     act(() => {
-      uiStore.getState().setGraveUi(EPITAPH);
-      uiStore.getState().setActiveOverlay('grave');
+      uiStore.getState().showOverlay({kind: 'grave', epitaph: EPITAPH});
     });
     expect(document.getElementById('grave-card')).not.toBeNull();
 
@@ -70,7 +68,6 @@ describe('grave dialog', () => {
 
     act(() => {
       uiStore.getState().closeOverlay('grave');
-      uiStore.getState().setGraveUi(null);
     });
 
     expect(dialog.open).toBe(false);

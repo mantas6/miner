@@ -20,7 +20,7 @@ import { EXTRACTOR } from '../core/balance';
 import { oreKind } from '../core/inventory';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
-import { useUiStore } from './store';
+import { overlayOf, useUiStore } from './store';
 import styles from './ExtractorScreen.module.css';
 
 const COAL_KIND = oreKind('Coal');
@@ -29,7 +29,7 @@ const COAL_KIND = oreKind('Coal');
 const TICKS_PER_SECOND = 60;
 
 export function ExtractorScreen() {
-  const open = useUiStore(state => state.activeOverlay === 'extractor');
+  const open = useUiStore(state => state.overlay?.kind === 'extractor');
   return (
     <ModalShell id="extractor-screen" titleId="extractor-title" open={open} onRequestClose={() => uiCommands.closeStation()}>
       {open && <ExtractorCard />}
@@ -38,11 +38,12 @@ export function ExtractorScreen() {
 }
 
 function ExtractorCard() {
-  const coal = useUiStore(state => state.extractor.coal);
-  const fuel = useUiStore(state => state.extractor.fuel);
-  const progress = useUiStore(state => state.extractor.progress);
-  const playerFuel = useUiStore(state => state.player.fuel);
-  const fuelMax = useUiStore(state => state.player.fuelMax);
+  const coal = useUiStore(state => overlayOf(state, 'extractor')?.extractor.coal ?? 0);
+  const fuel = useUiStore(state => overlayOf(state, 'extractor')?.extractor.fuel ?? 0);
+  const progress = useUiStore(state => overlayOf(state, 'extractor')?.extractor.progress ?? 0);
+  // The ship's tank, off the HUD snapshot the loop refreshes every frame.
+  const playerFuel = useUiStore(state => state.hud.fuel);
+  const fuelMax = useUiStore(state => state.hud.fuelMax);
   const bayCoal = useUiStore(state => state.inventorySlots.find(slot => slot.kind === COAL_KIND)?.count ?? 0);
 
   const storedFuel = Math.round(fuel);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STARTING } from './balance';
-import { formatExpeditionObjective, nextOreMilestone } from './objective';
+import { createExpeditionObjectiveFormatter, formatExpeditionObjective, nextOreMilestone, type ObjectiveInput } from './objective';
 import { addItem, createInventory, oreItem, type Inventory, type UpgradeKind } from './inventory';
 import { ORES, START_Y } from '../../shared/constants';
 
@@ -103,5 +103,60 @@ describe('expedition objective helper', () => {
 
     expect(objective).toBe('Objective: work the Core Shard depths, fill the bay, and get home alive.');
     expect(objective).not.toContain('Motherlode');
+  });
+});
+
+describe('memoised expedition objective', () => {
+  /**
+   * A per-frame caller walks the ship through every branch; the memo must agree
+   * with the pure formatter on every step, including the steps it answers from
+   * its cache (small moves that cross no gate) and the ones that cross a gate.
+   */
+  it('agrees with the pure formatter on every frame of a run', () => {
+    const format = createExpeditionObjectiveFormatter();
+    const ship = {...player, equipment: [null, null] as (UpgradeKind | null)[]};
+    const input: ObjectiveInput = {player: ship, cargoCount: 0, atSurface: true, bay: empty, station: createInventory()};
+    const frames: string[] = [];
+    const check = () => {
+      const text = format(input);
+      expect(text).toBe(formatExpeditionObjective(input));
+      frames.push(text);
+    };
+
+    check();
+    // No manufacturer hands a fresh empty stock every frame: still the same objective.
+    input.station = createInventory();
+    check();
+    input.station = tankMaterials();
+    check();
+    input.station = empty;
+    // Descending with an upgrade fitted, row by row, through an ore band boundary.
+    ship.equipment = ['upgrade:tank:1', null];
+    input.atSurface = false;
+    for (let row = START_Y; row < START_Y + 400; row += 7) {
+      ship.y = row;
+      check();
+    }
+    // Fuel draining below the warning, then a refuel.
+    for (let fuel = ship.fuelMax; fuel >= 0; fuel -= ship.fuelMax / 20) {
+      ship.fuel = fuel;
+      check();
+    }
+    ship.fuel = ship.fuelMax;
+    check();
+    // Filling the bay to the brim.
+    for (let count = 0; count <= ship.cargoMax; count++) {
+      input.cargoCount = count;
+      check();
+    }
+    input.cargoCount = 0;
+    // Unfitting leaves an upgrade in the bay (a new bay array), then nowhere.
+    ship.equipment = [null, null];
+    input.bay = addItem(createInventory(), {kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', color: '#000', value: 0});
+    check();
+    input.bay = empty;
+    check();
+
+    expect(new Set(frames).size).toBeGreaterThan(4);
   });
 });

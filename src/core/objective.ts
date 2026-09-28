@@ -22,8 +22,14 @@ export interface ObjectiveInput {
 const FIRST_UPGRADE = 'upgrade:tank:1';
 const FIRST_UPGRADE_LABEL = 'Fuel Tank Mk I';
 
+/** The first ore band starting deeper than `depthMeters`, if any is left. */
+function nextOreBelow(depthMeters: number, ores: readonly Ore[], startY: number): Ore | undefined {
+  for (const ore of ores) if (rowDepthMeters(ore.min, startY) > depthMeters) return ore;
+  return undefined;
+}
+
 export function nextOreMilestone(depthMeters: number, ores: Ore[] = ORES, startY = START_Y): { name: string; depthMeters: number } | null {
-  const nextOre = ores.find(ore => rowDepthMeters(ore.min, startY) > depthMeters);
+  const nextOre = nextOreBelow(depthMeters, ores, startY);
   if (!nextOre) return null;
   return { name: nextOre.name, depthMeters: rowDepthMeters(nextOre.min, startY) };
 }
@@ -31,7 +37,7 @@ export function nextOreMilestone(depthMeters: number, ores: Ore[] = ORES, startY
 /** Whether any ship upgrade is fitted, in the bay, or stored at the station. */
 function hasAnyUpgrade(player: ObjectivePlayer, bay: Inventory, station: Inventory): boolean {
   if (player.equipment.some(slot => slot !== null)) return true;
-  return [...bay, ...station].some(stack => isUpgradeKind(stack.kind));
+  return bay.some(stack => isUpgradeKind(stack.kind)) || station.some(stack => isUpgradeKind(stack.kind));
 }
 
 export function formatExpeditionObjective({
@@ -75,4 +81,52 @@ export function formatExpeditionObjective({
   }
 
   return 'Objective: dig deeper, fill the bay, and get home alive.';
+}
+
+/** The same stock for the objective's purposes: one inventory, or two empty ones. */
+function sameStock(a: Inventory, b: Inventory | null): boolean {
+  return a === b || (b !== null && a.length === 0 && b.length === 0);
+}
+
+/**
+ * `formatExpeditionObjective` for a caller that asks every frame. The objective
+ * is a function of a few coarse facts — the fuel-return and full-bay gates, the
+ * upgrade state (the fitted slots, the bay and the station stock, all replaced
+ * rather than mutated on change), and which ore band lies ahead — so the text is
+ * rebuilt only when one of those moves, and a steady frame hands back the same
+ * string without allocating.
+ */
+export function createExpeditionObjectiveFormatter(): (input: ObjectiveInput) => string {
+  let primed = false;
+  let returnGate = false;
+  let fullGate = false;
+  let equipment: ObjectivePlayer['equipment'] | null = null;
+  let bay: Inventory | null = null;
+  let station: Inventory | null = null;
+  let oreTable: readonly Ore[] | null = null;
+  let firstRow = 0;
+  let aheadOre: Ore | undefined;
+  let text = '';
+  return input => {
+    const {player, ores = ORES, startY = START_Y} = input;
+    const returnForFuel = !input.atSurface && player.fuel <= player.fuelMax * FUEL.lowFuelFraction;
+    const full = input.cargoCount >= player.cargoMax;
+    const nextOre = nextOreBelow(rowDepthMeters(player.y, startY), ores, startY);
+    if (
+      primed && returnForFuel === returnGate && full === fullGate && player.equipment === equipment
+      && input.bay === bay && sameStock(input.station, station)
+      && ores === oreTable && startY === firstRow && nextOre === aheadOre
+    ) return text;
+    primed = true;
+    returnGate = returnForFuel;
+    fullGate = full;
+    equipment = player.equipment;
+    bay = input.bay;
+    station = input.station;
+    oreTable = ores;
+    firstRow = startY;
+    aheadOre = nextOre;
+    text = formatExpeditionObjective(input);
+    return text;
+  };
 }

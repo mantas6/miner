@@ -12,17 +12,21 @@
 // Anything with a life of its own lives next door: `enemies.ts` (enemy
 // simulation), `actions.ts` (player transactions), `move.ts` (one step of the
 // ship), `run.ts` (run lifecycle and death), `input.ts` (keyboard),
-// `world-grid.ts` (tile access). What stays here is the glue those modules
-// share — progress saving, particles, the UI sync, and the loop itself.
+// `world-grid.ts` (tile access), `save-scheduler.ts` (when the run is written),
+// `overlays.ts` (raising and dropping the modal screens), `ui-sync.ts` (the
+// per-frame store publish), `placement-router.ts` (the armed tools sharing the
+// press on the mine), `interactables.ts` (what Space and C would open),
+// `particles.ts`, `focus.ts` and `cheats.ts`. What stays here is the wiring
+// between them and the loop itself.
 //
 // The UI is React reading `src/ui/store.ts`. This module pushes a snapshot into
-// that store once per frame (`syncUi()`) and exposes a flat command table
-// (`src/ui/commands.ts`) for the buttons to dispatch into; it never reads or
-// writes UI DOM apart from the canvas.
+// that store once per frame and exposes a flat command table (`src/ui/commands.ts`)
+// for the buttons to dispatch into; it never reads or writes UI DOM apart from
+// the canvas.
 
-import { TILE, WORLD_W, rowDepthMeters } from '../../shared/constants';
+import { TILE, WORLD_W } from '../../shared/constants';
 import { createDisposalScope } from './disposal';
-import { createGameSurface, type GameSurfaceRefs } from './dom';
+import { createGameSurface, type GameSurface, type GameSurfaceRefs } from './dom';
 import { advanceViewportZoom, drawnCamera, setViewportZoom, tileAtViewportPoint, viewport } from './viewport';
 import { recenteredCamera } from './zoom';
 import { loadZoomLevel, saveZoomLevel } from './zoom-settings';
@@ -31,29 +35,25 @@ import { shouldAttemptAutoAudio } from '../audio/audio-permission';
 import { createDefaultStats, createInitialState, isAtHome } from '../core/state';
 import { createRenderer, type Renderer } from '../render/renderer';
 import { createIntroShowcase, type IntroShowcase } from './intro-showcase';
-import { FUEL, REVEAL_FOOTPRINT } from '../core/balance';
-import { countItem, totalItems, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
-import { manufacturerStock, nearestStation, stationDeviceItemKind } from '../core/stations';
+import { REVEAL_FOOTPRINT } from '../core/balance';
+import type { Inventory, InventoryItemKind, UpgradeKind } from '../core/inventory';
+import type { Epitaph } from '../core/grave';
+import { stationDeviceItemKind } from '../core/stations';
 import { equip, unequip } from '../core/ship-upgrades';
 import { isPlaceableKind } from '../core/placement-overlay';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
-import { shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
-import { formatExpeditionObjective } from '../core/objective';
 import { SAVE_EXPORT_FILENAME, SAVE_KEY, discardSave, load, parseImportedSave, save, serializeProgress } from '../persistence';
 import { clearPersistedGameData } from '../persistence-reset';
-import { formatShipStatusAnnouncement } from '../core/ship-status';
-import { formatExpeditionStats } from '../core/stats';
 import { rand } from '../world/world';
 import { resetUiCommands, setUiCommands } from '../ui/commands';
 import { resetAgentBridge, setAgentBridge } from '../agent/bridge';
-import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast, uiStore, type HudSnapshot, type OverlayId, type PlayerSnapshot, type PortalView } from '../ui/store';
+import { buildInventorySlots, pushToast as toast, uiStore, type ExtractorView, type PortalView, type TradeOfferView } from '../ui/store';
 
-import { TELEPORTER_ITEM, advanceTeleportEffect, canUsePortableTeleporter } from '../core/teleporter';
+import { advanceTeleportEffect } from '../core/teleporter';
 import type { AudioController } from '../core/types';
 import { revealFootprint } from '../../shared/exploration-codec';
-import { fillDeveloperExtractor, grantDeveloperOres } from '../core/developer';
 import { confirmWorldStateReset } from '../world/world-state';
 import { createFixedStepper } from '../core/fixed-step';
 import { recordTileDiff } from '../world/tile-diff';
@@ -66,8 +66,6 @@ import { createCargoContainers, type CargoContainerSim } from './cargo-container
 import { createWrecks, type WreckSim } from './wrecks';
 import { createChests, type ChestSim } from './chests';
 import { createGraves, type GraveSim } from './graves';
-import { reachableContainer } from '../core/cargo-container';
-import { reachableWreck } from '../core/wreck';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
 import { createPortalsSim, type PortalsSim } from './portals';
 import { createTrading, type TradingSim } from './trading';
@@ -78,6 +76,15 @@ import { createMovement } from './move';
 import { createReadouts, type HudReadouts } from './readouts';
 import { confirmPlayerDataReset, createRun, type GameRun } from './run';
 import { createInput, type GameInput } from './input';
+import { createSaveScheduler } from './save-scheduler';
+import { advanceParticles, spawnDust, spawnExplosion } from './particles';
+import { createOverlaySession } from './overlays';
+import { createUiSync, type UiSync } from './ui-sync';
+import { createArmedSlot, createPlacementRouter, type PlacementRouter } from './placement-router';
+import { createCanvasFocus, type CanvasFocus } from './focus';
+import { watchReducedMotion } from './reduced-motion';
+import { createCheats, type Cheats } from './cheats';
+import { nearestInteractable } from './interactables';
 
 export type GameRuntimeOptions = GameSurfaceRefs;
 
@@ -92,21 +99,26 @@ export interface GameRuntime {
 
 /**
  * Build a runtime around a mounted canvas/panel pair and start it. Throws if the
- * surface is unusable; the caller turns that into the visible `failed` state.
+ * surface is unusable or the boot fails part-way; whatever was already installed
+ * is torn down first, and the caller turns the throw into the visible `failed`
+ * state (`useGameRuntime` → `RuntimeFailure`, and the observation's `runtime`).
  */
 export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   // Every side effect below registers its own undo here.
   const scope = createDisposalScope();
-  const surface = createGameSurface(options, scope);
   const state = createInitialState();
+  let surface: GameSurface;
   let audio: AudioController;
+  /** Set once `audio` exists, so a boot that failed before it knows not to close it. */
+  let audioStarted = false;
   let renderer: Renderer | undefined;
   /** The title screen's mine backdrop; dropped once the run leaves the intro. */
   let introShowcase: IntroShowcase | undefined;
+  let focus: CanvasFocus;
 
   /**
    * Whether the simulation is frozen between an agent's decisions. `draw()` and
-   * `syncUi()` keep running while paused so the window stays live and the
+   * `uiSync.sync()` keep running while paused so the window stays live and the
    * observation stays current; only `stepper.advance()` is held.
    */
   let paused = false;
@@ -118,6 +130,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let run: GameRun;
   let gameInput: GameInput;
   let readouts: HudReadouts;
+  let uiSync: UiSync;
   let scanners: ScannerDeviceSim;
   let dynamite: DynamiteSim;
   let containers: CargoContainerSim;
@@ -130,66 +143,26 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let stationDevices: StationDeviceSim;
   let toolkit: ToolkitSim;
   let decor: DecorSim;
+  let placements: PlacementRouter;
+  let cheats: Cheats;
 
   state.stats = createDefaultStats();
   /** Whether the ship could land on a tile — what a teleporter's portal list is filtered by. */
   const canLand = canLandOn(state);
 
-  function loadProgress() { load(state); renderer?.invalidateFog(); }
+  const saves = createSaveScheduler({
+    writeRun: () => save(state),
+    writeZoom: () => saveZoomLevel(viewport.targetZoom)
+  });
+  const scheduleSave = () => saves.schedule();
 
-  /**
-   * Set by a full reset, and never cleared: the page is on its way out, and
-   * `beforeunload`, the minute interval and the visibility handler would
-   * otherwise write the keys straight back before the reload takes effect.
-   */
-  let persistenceCleared = false;
-
-  /**
-   * Whether anything worth keeping changed since the last write. Set by every
-   * scheduled save and every committed tile; cleared by a write. The minute
-   * interval only writes a dirty run, so an idle tab stops rewriting the same
-   * (possibly megabytes of) JSON into `localStorage` every minute.
-   */
-  let dirty = false;
-
-  /**
-   * Write the run now. Reserved for the moments a debounce could lose it — game
-   * over, a hidden tab, an unload, a teardown — and the explicit resets; every
-   * gameplay change goes through `scheduleSave` instead.
-   */
-  function saveProgress() {
-    if (persistenceCleared) return;
-    progressSave.cancel();
-    save(state);
-    dirty = false;
-  }
-
-  function persistZoom() { if (!persistenceCleared) saveZoomLevel(viewport.targetZoom); }
-
-  /** A trailing-edge debounce, so a long tunnel does not save on every tile. */
-  function createDebouncedSave(flush: () => void, delayMs: number) {
-    let timer = 0;
-    return {
-      schedule(){ clearTimeout(timer); timer = window.setTimeout(flush, delayMs); },
-      cancel(){ clearTimeout(timer); }
-    };
-  }
-  /**
-   * The save every gameplay change asks for. Trailing-edge, so a burst of
-   * transfers, a long tunnel or a run of sales costs one write, not one each.
-   */
-  const progressSave = createDebouncedSave(() => saveProgress(), 500);
-  function scheduleSave() { dirty = true; progressSave.schedule(); }
-  /** The minute interval's save: only when something changed since the last write. */
-  function saveIfDirty() { if (dirty) saveProgress(); }
-  /**
-   * The camera framing, saved apart from the run. Debounced against the glide
-   * rather than the wheel: one scroll is dozens of events and dozens of eased
-   * frames, and `localStorage` is synchronous, so only the level the view settles
-   * on is written.
-   */
-  const zoomSave = createDebouncedSave(persistZoom, 500);
-  function flushZoomSave() { zoomSave.cancel(); persistZoom(); }
+  const overlays = createOverlaySession({
+    // Read at call time: the session is built before the audio graph it cues.
+    get audio() { return audio; },
+    clearKeys: () => gameInput.clearKeys(),
+    isGameOver: () => state.gameOver,
+    disarmPlacements: () => { placements.disarmAll(); }
+  });
 
   // Fog is cached per chunk, so every newly explored tile has to mark its chunk dirty.
   function invalidateFogTiles(indexes: number[]) {
@@ -231,53 +204,120 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     uiStore.getState().setArmedPlacement(kind);
   }
 
-  function cargoUsed(){ return totalItems(state.player.inventory); }
-  /** Whether the ship is parked at the home base, where the stations live. */
-  function atSurface(){ return isAtHome(state.player); }
+  const dust = (x: number, y: number, color?: string, amount?: number) => spawnDust(state.particles, x, y, color, amount);
+  const explosion = (x: number, y: number) => spawnExplosion(state.particles, x, y);
 
-  function spawnDust(x: number, y: number, color='#9d6a42', amount=10){
-    for (let i=0;i<amount;i++) state.particles.push({x:x+0.5,y:y+0.5,vx:(Math.random()-.5)*.08,vy:(Math.random()-.7)*.09,life:22+Math.random()*18,color,size:.035+Math.random()*.045});
+  // --- Screens ---------------------------------------------------------------
+  // Each feature module drives its screen through one of these: show these
+  // contents, or take the screen away with `null`. The screens that cover the
+  // mine with nothing of the mine left to aim at stand an armed placement down.
+  const setStationUi = overlays.publisher('station', (inventory: Inventory) =>
+    ({kind: 'station', slots: buildInventorySlots(inventory)}), {standDown: true});
+  const setExtractorUi = overlays.publisher('extractor', (extractor: ExtractorView) =>
+    ({kind: 'extractor', extractor}), {standDown: true});
+  const setPortalUi = overlays.publisher('portal', (portal: PortalView) =>
+    ({kind: 'portal', portal}), {standDown: true});
+  const setTradeUi = overlays.publisher('trade', (offers: TradeOfferView[]) =>
+    ({kind: 'trade', offers}), {standDown: true});
+  // The bell (`grave`, played by the sim) is the stone's open cue.
+  const setGraveUi = overlays.publisher('grave', (epitaph: Epitaph) =>
+    ({kind: 'grave', epitaph}), {standDown: true, cue: false});
+  // The stashes' own openers stand their placements down (C does it for them).
+  const setContainerUi = overlays.publisher('container', (contents: Inventory) =>
+    ({kind: 'container', slots: buildInventorySlots(contents)}));
+  const setWreckUi = overlays.publisher('wreck', (contents: Inventory) =>
+    ({kind: 'wreck', slots: buildInventorySlots(contents)}));
+  // The lid's own creak (`chestOpen`, played by the sim) is the open cue.
+  const setChestUi = overlays.publisher('chest', (contents: Inventory) =>
+    ({kind: 'chest', slots: buildInventorySlots(contents)}), {cue: false});
+
+  function openShipScreen(){
+    // An overlay covers the mine, so a pointer armed for placement has nothing
+    // left to aim at. The ship screen opens anywhere — it needs no station.
+    placements.disarmAll();
+    uiSync.syncShipUpgrades();
+    overlays.raise({kind: 'ship'});
   }
-  function spawnExplosion(x: number, y: number){
-    const colors = ['#ffec8b','#ff9f1c','#ff4d2d','#7a1f16','#d7e7ff'];
-    for (let i=0;i<70;i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = .035 + Math.random() * .16;
-      state.particles.push({x:x+0.5,y:y+0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-.04,life:34+Math.random()*34,color:colors[i%colors.length] ?? '#ffec8b',size:.045+Math.random()*.085});
-    }
+  function closeShipScreen(){
+    overlays.drop('ship');
   }
-  // --- Cheat menu -----------------------------------------------------------
-  function grantDeveloperOresCheat(){
-    const granted = grantDeveloperOres(state);
-    scheduleSave();
-    syncPlayerSnapshot();
-    // Repaint the station screen if it happens to be open, so the overflow shows.
-    const open = homeStations.openStation;
-    if (open?.kind === 'manufacturer') setStationUi(open.inventory);
-    toast(granted > 0 ? `Developer action: granted ${granted} ore for $0.` : 'Developer action: no room for more ore.');
+  function openInfoScreen(){
+    placements.disarmAll();
+    uiSync.syncInfoDetails(true);
+    overlays.raise({kind: 'info'});
   }
-  function fillExtractorCheat(){
-    fillDeveloperExtractor(state);
-    scheduleSave();
-    // Repaint the extractor screen if it is open, so the new buffers show at once.
-    const open = homeStations.openStation;
-    if (open?.kind === 'extractor') setExtractorUi({coal: open.coal, fuel: open.fuel, progress: open.progress});
-    toast('Developer action: extractor stocked for $0.');
+  function closeInfoScreen(){
+    overlays.drop('info');
   }
 
-  // --- Screens and UI sync -------------------------------------------------
+  /**
+   * Space, or a click with no tile named: whichever station-like thing is nearest
+   * wins — a home station, a trading post, a grave (`nearestInteractable`). Toggles
+   * the open one shut, and stands any placement down before covering the mine with
+   * a new screen. Nothing in reach is the home stations' refusal to word.
+   */
+  function openNearestStationLike(){
+    if (homeStations.openStation) return homeStations.close();
+    if (trading.open) return trading.close();
+    if (graves.open) return graves.close();
+    placements.disarmAll();
+    const target = nearestInteractable(state, 'space');
+    if (target?.kind === 'grave') graves.openNearest();
+    else if (target?.kind === 'post') trading.openNearest();
+    else homeStations.openNearest();
+  }
+  /**
+   * The `c` key: open whichever stash is nearest — a cargo container, a wreck, a
+   * chest (`nearestInteractable`). Toggles the open one shut first, and stands any
+   * placement down before covering the mine. Nothing in reach is the crate's
+   * refusal to word.
+   */
+  function openNearestStash(){
+    if (containers.open) return containers.close();
+    if (wrecks.open) return wrecks.close();
+    if (chests.open) return chests.close();
+    placements.disarmAll();
+    const target = nearestInteractable(state, 'stash');
+    if (target?.kind === 'chest') chests.openNearest();
+    else if (target?.kind === 'wreck') wrecks.openNearest();
+    else containers.openNearest();
+  }
+
+  /** The slot a fit lands in when none is given: the first empty one, else slot 0. */
+  function firstFittingSlot(){
+    const empty = state.player.equipment.findIndex(slot => slot === null);
+    return empty === -1 ? 0 : empty;
+  }
+  function equipUpgrade(kind: UpgradeKind, slot?: number){
+    const result = equip(state.player, slot ?? firstFittingSlot(), kind);
+    if (!result.ok) { audio.alarm(); return toast(result.reason); }
+    scheduleSave();
+    uiSync.syncShipUpgrades();
+    audio.upgradeFit();
+    toast('Upgrade fitted.');
+  }
+  function unequipUpgrade(slot: number){
+    const result = unequip(state.player, slot);
+    if (!result.ok) { audio.alarm(); return toast(result.reason); }
+    scheduleSave();
+    uiSync.syncShipUpgrades();
+    audio.upgradeRemove();
+    toast('Upgrade returned to the cargo bay.');
+  }
+
+  // --- Command table ---------------------------------------------------------
   /** Register the button/dialog dispatch table the React tree calls into. */
   function registerUiCommands(){
     setUiCommands({
       // Only one press on the mine is available, so arming any deployable stands
       // the others down.
-      toggleScannerPlacement: () => { standDownExcept('scanner'); scanners.toggleArmed(); },
-      toggleDynamitePlacement: () => { standDownExcept('dynamite'); dynamite.toggleArmed(); },
-      toggleContainerPlacement: () => { standDownExcept('container'); containers.toggleArmed(); },
-      toggleManufacturerPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('manufacturer'); },
-      toggleExtractorPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('extractor'); },
-      togglePortalPlacement: () => { standDownExcept('stationDevices'); stationDevices.toggleArmed('portal'); },
-      toggleToolkit: () => { standDownExcept('toolkit'); toolkit.toggleArmed(); },
+      toggleScannerPlacement: () => placements.toggle('scanner', () => scanners.toggleArmed()),
+      toggleDynamitePlacement: () => placements.toggle('dynamite', () => dynamite.toggleArmed()),
+      toggleContainerPlacement: () => placements.toggle('container', () => containers.toggleArmed()),
+      toggleManufacturerPlacement: () => placements.toggle('stationDevices', () => stationDevices.toggleArmed('manufacturer')),
+      toggleExtractorPlacement: () => placements.toggle('stationDevices', () => stationDevices.toggleArmed('extractor')),
+      togglePortalPlacement: () => placements.toggle('stationDevices', () => stationDevices.toggleArmed('portal')),
+      toggleToolkit: () => placements.toggle('toolkit', () => toolkit.toggleArmed()),
       closeContainer: () => containers.close(),
       storeInContainer: (kind, single) => containers.store(kind, single),
       takeFromContainer: (kind, single) => containers.take(kind, single),
@@ -299,8 +339,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeShip: closeShipScreen,
       equipUpgrade: (kind, slot) => equipUpgrade(kind, slot),
       unequipUpgrade: slot => unequipUpgrade(slot),
-      toggleDecorPlacement: kind => { standDownExcept('decor'); decor.toggleArmed(kind); },
-      useRepairKit: () => { actions.useRepairKit(); syncPlayerSnapshot(); },
+      toggleDecorPlacement: kind => placements.toggle('decor', () => decor.toggleArmed(kind)),
+      useRepairKit: () => actions.useRepairKit(),
       closeStation: () => homeStations.close(),
       stowAll: () => homeStations.stowAll(),
       stowStack: (kind, single) => homeStations.stow(kind, single),
@@ -315,25 +355,25 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toggleMusic: () => { audio.click(); void audio.toggleMusic(); },
       toggleSfx: () => { audio.click(); void audio.toggleSfx(); },
       beginRun: event => beginRun(event),
-      grantDeveloperOres: grantDeveloperOresCheat,
-      fillExtractor: fillExtractorCheat,
+      grantDeveloperOres: () => cheats.grantOres(),
+      fillExtractor: () => cheats.fillExtractor(),
       resetPlayerData: () => {
         if (!confirmPlayerDataReset(message => window.confirm(message))) return;
         gameInput.clearKeys();
         // The bay is about to be emptied, so nothing it held may stay armed.
-        disarmPlacements();
+        placements.disarmAll();
         run.resetPlayer(true);
         readouts.reset();
-        // Replace the save outright; `saveProgress` also drops any pending debounce.
+        // Replace the save outright; `saveNow` also drops any pending debounce.
         discardSave();
-        saveProgress();
+        saves.saveNow();
         closeInfoScreen();
         toast('Player data reset. Mine terrain preserved.');
       },
       resetWorldState: () => {
         if (!confirmWorldStateReset(message => window.confirm(message))) return;
         run.clearWorldRuntime();
-        saveProgress();
+        saves.saveNow();
         toast('World state reset. Player progress preserved.');
         closeInfoScreen();
       },
@@ -341,9 +381,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
         // Order matters: silence every writer *before* the keys go, or a pending
         // debounce — or the unload save the reload itself triggers — would put
         // the run back on disk between the wipe and the fresh boot.
-        persistenceCleared = true;
-        progressSave.cancel();
-        zoomSave.cancel();
+        saves.silence();
         clearPersistedGameData();
         window.location.reload();
       },
@@ -360,14 +398,12 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
         // The same order as a full reset: silence every writer first, or a pending
         // debounce — or the unload save the reload itself triggers — would write
         // the run being replaced straight over the one just imported.
-        persistenceCleared = true;
-        progressSave.cancel();
-        zoomSave.cancel();
+        saves.silence();
         try {
           localStorage.setItem(SAVE_KEY, imported.json);
         } catch {
           // Nothing was replaced, so the run goes on and keeps saving as before.
-          persistenceCleared = false;
+          saves.resume();
           audio.alarm();
           toast('Could not store the imported save: browser storage refused it.');
           return;
@@ -394,218 +430,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       console.warn('Could not download the exported save:', err);
     }
   }
-  /** The armed-tool groups that all share the single press on the mine. */
-  type ArmGroup = 'scanner' | 'dynamite' | 'container' | 'decor' | 'stationDevices' | 'toolkit';
-  /** Stand every armed tool down except the one about to be (re)armed. */
-  function standDownExcept(keep: ArmGroup): void {
-    if (keep !== 'scanner') scanners.disarm();
-    if (keep !== 'dynamite') dynamite.disarm();
-    if (keep !== 'container') containers.disarm();
-    if (keep !== 'decor') decor.disarm();
-    if (keep !== 'stationDevices') stationDevices.disarm();
-    if (keep !== 'toolkit') toolkit.disarm();
-  }
-  /** Stand down whichever deployable is waiting for a press on the mine. */
-  function disarmPlacements(): boolean {
-    // All of them, and not short-circuited: only one can be armed, but a disarm
-    // must never depend on which.
-    const hadScanner = scanners.disarm();
-    const hadDynamite = dynamite.disarm();
-    const hadDecor = decor.disarm();
-    const hadStation = stationDevices.disarm();
-    const hadToolkit = toolkit.disarm();
-    return containers.disarm() || hadToolkit || hadStation || hadDecor || hadDynamite || hadScanner;
-  }
-  /**
-   * Raise an overlay, playing the open cue only on the transition: a repaint of a
-   * screen already up republishes through here too and must stay silent. `cue`
-   * false is for a screen whose module plays its own opening sound (a chest's lid).
-   */
-  function raiseOverlay(overlay: OverlayId, cue = true){
-    const store = uiStore.getState();
-    if (store.activeOverlay !== overlay && cue) audio.open();
-    // A key held as the screen rose must not drive the ship once it is put away.
-    gameInput.clearKeys();
-    store.setActiveOverlay(overlay);
-  }
-  /**
-   * Take an overlay down, with the close cue only if it was actually up — the
-   * `<dialog>` echoes every close back as a second request. `quiet` is for an
-   * action that shut the screen and plays its own cue; a lost ship's explosion
-   * already covers the screens it tears down.
-   */
-  function dropOverlay(overlay: OverlayId, quiet = false){
-    const store = uiStore.getState();
-    if (store.activeOverlay === overlay && !quiet && !state.gameOver) audio.close();
-    store.closeOverlay(overlay);
-  }
-  /** Push the current fitting slots to the store for the Ship screen to paint. */
-  function syncShipUpgrades(){
-    uiStore.getState().setShipEquipment(buildShipSlots(state.player.equipment));
-  }
-  function openShipScreen(){
-    // An overlay covers the mine, so a pointer armed for placement has nothing
-    // left to aim at. The ship screen opens anywhere — it needs no station.
-    disarmPlacements();
-    syncShipUpgrades();
-    syncPlayerSnapshot();
-    raiseOverlay('ship');
-  }
-  function closeShipScreen(){
-    dropOverlay('ship');
-  }
-  /**
-   * Publish the manufacturing station's stock to the store and raise its screen,
-   * or take the screen away with `null`. An overlay covers the mine, so opening one
-   * stands any armed placement down first.
-   */
-  function setStationUi(inventory: Inventory | null){
-    const store = uiStore.getState();
-    if (!inventory) return dropOverlay('station');
-    disarmPlacements();
-    store.setStationSlots(buildInventorySlots(inventory));
-    syncPlayerSnapshot();
-    raiseOverlay('station');
-  }
-  function setExtractorUi(view: {coal: number; fuel: number; progress: number} | null){
-    const store = uiStore.getState();
-    if (!view) return dropOverlay('extractor');
-    disarmPlacements();
-    store.setExtractor(view);
-    syncPlayerSnapshot();
-    raiseOverlay('extractor');
-  }
-  /**
-   * Publish the portal overlay and raise it, or take it away with `null`. Like the
-   * station screens it covers the mine, so opening it stands any placement down.
-   */
-  function setPortalUi(view: PortalView | null, quiet = false){
-    const store = uiStore.getState();
-    if (!view) return dropOverlay('portal', quiet);
-    disarmPlacements();
-    store.setPortalUi(view);
-    raiseOverlay('portal');
-  }
-  /** Space, or a click with no tile named: open the nearest station. */
-  function openNearestStation(){
-    homeStations.openNearest();
-  }
-  /**
-   * Space, or a click with no tile named, weighing the home stations against a
-   * trading post and a grave: whichever station-like thing is nearest wins, a
-   * station breaking a tie, then a post. Toggles the open one shut, and stands any
-   * placement down before covering the mine with a new screen.
-   */
-  function openNearestStationLike(){
-    if (homeStations.openStation) return homeStations.close();
-    if (trading.open) return trading.close();
-    if (graves.open) return graves.close();
-    disarmPlacements();
-    const station = nearestStation(state.stations, state.player);
-    const stationDistance = station
-      ? Math.abs(station.x - state.player.x) + Math.abs(station.y - state.player.y)
-      : Infinity;
-    const post = trading.nearestPost();
-    const postDistance = post ? post.distance : Infinity;
-    const grave = graves.nearest();
-    if (grave && grave.distance < stationDistance && grave.distance < postDistance) graves.openNearest();
-    else if (post && postDistance < stationDistance) trading.openNearest();
-    else openNearestStation();
-  }
-  /**
-   * The `c` key, weighing a cargo container against a wreck and a chest: open
-   * whichever stash is nearest, a container breaking a tie, then a wreck. Toggles
-   * the open one shut first, and stands any placement down before covering the mine.
-   */
-  function openNearestContainerOrWreck(){
-    if (containers.open) return containers.close();
-    if (wrecks.open) return wrecks.close();
-    if (chests.open) return chests.close();
-    disarmPlacements();
-    const {x, y} = state.player;
-    const container = reachableContainer(state.cargoContainers, x, y);
-    const wreck = reachableWreck(state.wrecks, x, y);
-    const chest = chests.nearest();
-    if (!container && !wreck && !chest) return void containers.openNearest();
-    const containerDistance = container ? Math.abs(container.x - x) + Math.abs(container.y - y) : Infinity;
-    const wreckDistance = wreck ? Math.abs(wreck.x - x) + Math.abs(wreck.y - y) : Infinity;
-    const chestDistance = chest ? chest.distance : Infinity;
-    if (chest && chestDistance < containerDistance && chestDistance < wreckDistance) chests.openNearest();
-    else if (wreck && wreckDistance < containerDistance) wrecks.openNearest();
-    else containers.openNearest();
-  }
-  /** The slot a fit lands in when none is given: the first empty one, else slot 0. */
-  function firstFittingSlot(){
-    const empty = state.player.equipment.findIndex(slot => slot === null);
-    return empty === -1 ? 0 : empty;
-  }
-  function equipUpgrade(kind: UpgradeKind, slot?: number){
-    const result = equip(state.player, slot ?? firstFittingSlot(), kind);
-    if (!result.ok) { audio.alarm(); return toast(result.reason); }
-    scheduleSave();
-    syncShipUpgrades();
-    syncPlayerSnapshot();
-    audio.upgradeFit();
-    toast('Upgrade fitted.');
-  }
-  function unequipUpgrade(slot: number){
-    const result = unequip(state.player, slot);
-    if (!result.ok) { audio.alarm(); return toast(result.reason); }
-    scheduleSave();
-    syncShipUpgrades();
-    syncPlayerSnapshot();
-    audio.upgradeRemove();
-    toast('Upgrade returned to the cargo bay.');
-  }
-  function openInfoScreen(){
-    disarmPlacements();
-    syncPlayerSnapshot();
-    syncInfoDetails();
-    raiseOverlay('info');
-  }
-  function closeInfoScreen(){
-    dropOverlay('info');
-  }
-  /**
-   * Reused scratch snapshots. The loop fills them every frame and the store copies
-   * them only when a value actually changed, so a steady HUD allocates nothing.
-   */
-  // The nested `teleport` object is copied out, not shared, so mutating the scratch
-  // in place each frame never touches the store's own snapshot behind the diff.
-  const hudScratch: HudSnapshot = {...uiStore.getState().hud, teleport: {...uiStore.getState().hud.teleport}};
-  const playerScratch: PlayerSnapshot = {...uiStore.getState().player};
 
-  function syncPlayerSnapshot(){
-    const p = state.player;
-    playerScratch.fuel = p.fuel;
-    playerScratch.fuelMax = p.fuelMax;
-    playerScratch.hull = p.hull;
-    playerScratch.hullMax = p.hullMax;
-    playerScratch.cargoMax = p.cargoMax;
-    playerScratch.drill = p.drill;
-    playerScratch.teleporters = countItem(p.inventory, TELEPORTER_ITEM.kind);
-    playerScratch.scanners = countItem(p.inventory, SCANNER_ITEM.kind);
-    playerScratch.dynamite = countItem(p.inventory, DYNAMITE_ITEM.kind);
-    playerScratch.containers = countItem(p.inventory, CARGO_CONTAINER_ITEM.kind);
-    uiStore.getState().syncPlayer(playerScratch);
-  }
-  function syncInfoDetails(){
-    const store = uiStore.getState();
-    store.setCargoRows(buildCargoRows(state.player.inventory));
-    store.setStatRows(formatExpeditionStats(state.stats));
-  }
-  /**
-   * The inventory panel is on screen the whole run, so this runs every frame.
-   * The bay is immutable — every load, sale and respawn hands back a new array —
-   * so one reference comparison is enough to skip rebuilding the slot views, and
-   * a ship that mined nothing this frame allocates nothing.
-   */
-  let syncedInventory: Inventory | null = null;
-  function syncInventory(){
-    if (state.player.inventory === syncedInventory) return;
-    syncedInventory = state.player.inventory;
-    uiStore.getState().setInventorySlots(buildInventorySlots(syncedInventory));
-  }
+  // --- Loop --------------------------------------------------------------------
   function updateAnimation(){
     const p = state.player;
     p.drawX += (p.x - p.drawX) * 0.23;
@@ -621,75 +447,13 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state.camY = Math.max(0, recenteredCamera(state.camY, previousTilesY, viewport.tilesY));
       // Trailing edge: the glide only stops moving once the wheel has, so this
       // fires once per gesture, with the level that was actually landed on.
-      zoomSave.schedule();
+      saves.scheduleZoom();
     }
     const targetCamX = Math.max(0, Math.min(WORLD_W-viewport.tilesX, p.drawX - viewport.tilesX/2 + 0.5));
     const targetCamY = Math.max(0, p.drawY - viewport.tilesY/2 + 0.5);
     state.camX += (targetCamX - state.camX) * 0.12;
     state.camY += (targetCamY - state.camY) * 0.12;
-    state.particles = state.particles.filter(pt => {
-      pt.x += pt.vx; pt.y += pt.vy; pt.vy += .003; pt.life -= 1;
-      return pt.life > 0;
-    });
-  }
-  /** Publish this frame's UI state. The only place the game talks to the chrome. */
-  function syncUi(){
-    const p = state.player;
-    const surf = atSurface();
-    const lowFuel = shouldFuelBarFlash(state);
-
-    hudScratch.cash = state.cash;
-    hudScratch.depthMeters = rowDepthMeters(p.y);
-    hudScratch.fuel = p.fuel;
-    hudScratch.fuelMax = p.fuelMax;
-    hudScratch.hull = p.hull;
-    hudScratch.hullMax = p.hullMax;
-    hudScratch.cargo = cargoUsed();
-    hudScratch.cargoMax = p.cargoMax;
-    hudScratch.fuelAlert = lowFuel;
-    hudScratch.hullAlert = shouldHullBarFlash(state);
-    hudScratch.cargoAlert = shouldCargoBarFlash(state);
-    hudScratch.objective = formatExpeditionObjective({
-      player: p,
-      cargoCount: hudScratch.cargo,
-      atSurface: surf,
-      bay: p.inventory,
-      station: manufacturerStock(state.stations)
-    });
-    hudScratch.atSurface = surf;
-    hudScratch.gameOver = state.gameOver;
-    const near = nearestStation(state.stations, p);
-    hudScratch.stationHint = near?.kind === 'manufacturer'
-      ? 'Space: Manufacturing Station'
-      : near?.kind === 'extractor'
-        ? 'Space: Fuel Extractor'
-        : near?.kind === 'portal'
-          ? `Space: Portal "${near.name}"`
-          : '';
-    // The teleporter is a carried charge that opens the portal list: the whole HUD
-    // state is how many are aboard and whether a jump is available right now.
-    hudScratch.teleport.count = countItem(p.inventory, TELEPORTER_ITEM.kind);
-    hudScratch.teleport.usable = canUsePortableTeleporter(p, state.stations, canLand);
-    // The canvas, spoken: the one HUD field that exists for the live region rather
-    // than the layout. Thresholds only, so it changes when the ship crosses one and
-    // is byte-identical (and therefore silent) on every frame in between.
-    hudScratch.announcement = formatShipStatusAnnouncement({
-      gameOver: state.gameOver,
-      atSurface: surf,
-      cargoFull: hudScratch.cargoAlert,
-      hullCritical: hudScratch.hullAlert
-    });
-    // Scanner line, return-fuel forecast, and depth landmark, each recomputed only
-    // when its own inputs moved. Milestone crossings toast from in here.
-    readouts.sync(hudScratch);
-
-    const store = uiStore.getState();
-    store.syncHud(hudScratch);
-    syncInventory();
-    if (store.activeOverlay !== null) syncPlayerSnapshot();
-    if (store.activeOverlay === 'info') syncInfoDetails();
-
-    if (lowFuel && !surf && performance.now() - audio.lastLowFuel > FUEL.lowFuelWarnMs) { audio.lowFuel(); audio.lastLowFuel = performance.now(); }
+    advanceParticles(state.particles);
   }
   // Everything tuned in ticks lives here: `state.tick`, enemy cooldowns, keyboard
   // repeat, and the per-step easing in updateAnimation(). It runs a whole number of
@@ -728,7 +492,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // phase never returns to `intro`, so the showcase is released on leaving it.
     if (uiStore.getState().phase === 'intro' && introShowcase) introShowcase.draw(now);
     else { introShowcase = undefined; renderer?.draw(); }
-    syncUi();
+    uiSync.sync();
   }
   /**
    * Freeze or resume the simulation for programmatic play. Resuming discards the
@@ -740,6 +504,19 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     if (paused === value) return;
     paused = value;
     if (!value) stepper.reset();
+  }
+  /** Map a pointer event onto the tile under it, or `null` when the canvas has no layout box. */
+  function tileAtPointer(event: PointerEvent): {x: number; y: number} | null {
+    const rect = surface.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    // The canvas may be laid out at a different size than it is drawn at, so the
+    // press is normalised into the CSS pixels the viewport is expressed in first.
+    return tileAtViewportPoint(
+      (event.clientX - rect.left) * (viewport.widthPx / rect.width),
+      (event.clientY - rect.top) * (viewport.heightPx / rect.height),
+      state.camX,
+      state.camY
+    );
   }
   /**
    * Canvas client coordinates of a tile's centre, inverting `tileAtViewportPoint`:
@@ -768,42 +545,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       isTrusted: event?.isTrusted
     })) audio.enable();
   }
-  /**
-   * Put the keyboard on the mine. The canvas is the surface's only tab stop, so
-   * this is also what makes the focus ring land on the thing the keys drive; while
-   * a modal dialog is up the rest of the page is inert and the call does nothing,
-   * which is exactly what should happen.
-   */
-  function focusGame(){
-    try { surface.canvas.focus({preventScroll:true}); }
-    catch { try { surface.canvas.focus(); } catch { /* focus is best-effort */ } }
-  }
-  /**
-   * Drop the keyboard focus ring from the canvas after a pointer press, without
-   * giving up the keyboard. `:focus-visible` is a modality heuristic the browser
-   * only re-decides when focus moves, so a click on the already-focused canvas
-   * leaves a keyboard-seeded ring up — including through a device placement. A
-   * blur-then-refocus inside the pointer gesture reseats the flag as pointer-
-   * driven, so the ring goes and the mine keeps the keys. Only when the canvas
-   * actually holds focus: elsewhere the browser's own decision is already right.
-   */
-  function resetCanvasFocusRing(){
-    if (document.activeElement !== surface.canvas) return;
-    surface.canvas.blur();
-    focusGame();
-  }
-  /**
-   * Take the keyboard for a run that has just started. `focusGame()` cannot do it
-   * on the spot: the intro overlay may still hold focus until React commits the
-   * phase change, so the call would be a silent no-op and the run would begin with
-   * focus on `<body>`. Retrying for a few frames covers the flush React gives the
-   * press that started the run.
-   */
-  function claimFocusForRun(attempts = 4){
-    focusGame();
-    if (document.activeElement === surface.canvas || attempts <= 0) return;
-    scope.timeout(() => claimFocusForRun(attempts - 1), 16);
-  }
   /** Whether the run is live. The simulation and the keyboard both hang off this. */
   function isPlaying(){
     return uiStore.getState().phase === 'playing';
@@ -824,7 +565,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const store = uiStore.getState();
     if (store.phase === 'playing') return;
     store.setPhase('playing');
-    claimFocusForRun();
+    focus.claimForRun();
     tryAutoAudio(event);
     // Heard when audio is already live; a gesture that is only now unlocking it
     // gets the unlock chirp instead.
@@ -841,9 +582,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     grid = createWorldGrid({
       state,
       invalidateTerrain: (x, y) => renderer?.invalidateTerrain(x, y),
+      refreshTileDamage: (x, y) => renderer?.refreshTileDamage(x, y),
       // A world regenerates from its seed on every restart, so the diff is the
       // only record that a tunnel was ever dug.
-      onTileSet: (x, y, tile) => { recordTileDiff(state.tileDiff, {x, y, tile}); dirty = true; }
+      onTileSet: (x, y, tile) => { recordTileDiff(state.tileDiff, {x, y, tile}); saves.markDirty(); }
     });
     run = createRun({
       state,
@@ -852,9 +594,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       input: () => gameInput,
       portals: () => portals,
       toast,
-      saveProgress,
+      saveProgress: () => saves.saveNow(),
       revealAtPlayer,
-      spawnExplosion,
+      spawnExplosion: explosion,
       invalidateTerrain: () => renderer?.invalidateTerrain(),
       invalidateFog: () => renderer?.invalidateFog()
     });
@@ -866,8 +608,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       addCash,
       saveProgress: scheduleSave,
       damagePlayer: run.damage,
-      spawnDust,
-      spawnExplosion
+      spawnDust: dust,
+      spawnExplosion: explosion
     });
     const movement = createMovement({
       state,
@@ -880,8 +622,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       revealAtPlayer,
       damage: run.damage,
       gameOver: run.gameOver,
-      spawnDust,
-      spawnExplosion
+      spawnDust: dust,
+      spawnExplosion: explosion
     });
     portals = createPortalsSim({
       state,
@@ -898,7 +640,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       saveProgress: scheduleSave,
       portals
     });
-    readouts = createReadouts({state, grid, enemies, audio, atSurface, toast});
+    readouts = createReadouts({state, grid, enemies, audio, atSurface: () => isAtHome(state.player), toast});
+    uiSync = createUiSync({state, audio, readouts, canLand});
     scanners = createScannerDevices({
       state,
       grid,
@@ -915,7 +658,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toast,
       saveProgress: scheduleSave,
       wakeEnemiesNear: (x, y) => enemies.wakeEnemiesNear(x, y),
-      spawnExplosion,
+      spawnExplosion: explosion,
       damagePlayer: run.damage,
       setArmedUi: value => paintArmedPlacement(value ? DYNAMITE_ITEM.kind : null)
     });
@@ -926,54 +669,27 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toast,
       saveProgress: scheduleSave,
       setArmedUi: value => paintArmedPlacement(value ? CARGO_CONTAINER_ITEM.kind : null),
-      setOpenUi: contents => {
-        const store = uiStore.getState();
-        if (!contents) return dropOverlay('container');
-        store.setContainerSlots(buildInventorySlots(contents));
-        raiseOverlay('container');
-      }
+      setOpenUi: setContainerUi
     });
     wrecks = createWrecks({
       state,
       audio,
       toast,
       saveProgress: scheduleSave,
-      setOpenUi: (contents, quiet) => {
-        const store = uiStore.getState();
-        if (!contents) return dropOverlay('wreck', quiet);
-        store.setWreckSlots(buildInventorySlots(contents));
-        raiseOverlay('wreck');
-      }
+      setOpenUi: setWreckUi
     });
     chests = createChests({
       state,
       audio,
       toast,
       saveProgress: scheduleSave,
-      setOpenUi: (contents, quiet) => {
-        const store = uiStore.getState();
-        if (!contents) return dropOverlay('chest', quiet);
-        store.setChestSlots(buildInventorySlots(contents));
-        // The lid's own creak (`chestOpen`, played by the sim) is the open cue.
-        raiseOverlay('chest', false);
-      }
+      setOpenUi: setChestUi
     });
     graves = createGraves({
       state,
       audio,
       toast,
-      setGraveUi: epitaph => {
-        const store = uiStore.getState();
-        if (!epitaph) {
-          dropOverlay('grave');
-          store.setGraveUi(null);
-          return;
-        }
-        disarmPlacements();
-        store.setGraveUi(epitaph);
-        // The bell (`grave`, played by the sim) is the open cue.
-        raiseOverlay('grave', false);
-      }
+      setGraveUi
     });
     decor = createDecor({
       state,
@@ -990,7 +706,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       saveProgress: scheduleSave,
       setStationUi,
       setExtractorUi,
-      syncPlayer: syncPlayerSnapshot,
       portals
     });
     trading = createTrading({
@@ -999,13 +714,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toast,
       saveProgress: scheduleSave,
       addCash,
-      setOpenUi: offers => {
-        const store = uiStore.getState();
-        if (!offers) return dropOverlay('trade');
-        disarmPlacements();
-        store.setTradeBuy(offers);
-        raiseOverlay('trade');
-      }
+      setOpenUi: setTradeUi
     });
     stationDevices = createStationDevices({
       state,
@@ -1022,6 +731,23 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       saveProgress: scheduleSave,
       setArmedUi: value => paintArmedPlacement(value ? TOOLKIT_ITEM.kind : null)
     });
+    // Every tool that waits for the press on the mine, in press priority order.
+    placements = createPlacementRouter({
+      scanner: createArmedSlot(scanners, (x, y) => scanners.placeAt(x, y)),
+      dynamite: createArmedSlot(dynamite, (x, y) => dynamite.placeAt(x, y)),
+      container: createArmedSlot(containers, (x, y) => containers.placeAt(x, y)),
+      stationDevices: createArmedSlot(stationDevices, (x, y) => stationDevices.placeAt(x, y)),
+      toolkit: createArmedSlot(toolkit, (x, y) => toolkit.liftAt(x, y)),
+      decor: createArmedSlot(decor, (x, y) => decor.placeAt(x, y))
+    });
+    cheats = createCheats({
+      state,
+      openStation: () => homeStations.openStation,
+      scheduleSave,
+      repaintStation: station => setStationUi(station.inventory),
+      repaintExtractor: station => setExtractorUi({coal: station.coal, fuel: station.fuel, progress: station.progress}),
+      toast
+    });
     gameInput = createInput({
       state,
       actions,
@@ -1030,26 +756,26 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       // A replacement ship deploys with empty fitting slots, so the Ship screen's
       // store snapshot has to be re-synced or it would still paint the dead ship's
       // upgrades until the screen is next reopened.
-      restartGame: () => { run.restartGame(); syncShipUpgrades(); },
+      restartGame: () => { run.restartGame(); uiSync.syncShipUpgrades(); },
       closeShipScreen,
       closeInfoScreen,
       // Escape on an armed device: the same stand-down cue as the slot's own cancel.
       cancelPlacement: () => {
-        const cancelled = disarmPlacements();
+        const cancelled = placements.disarmAll();
         if (cancelled) audio.disarm();
         return cancelled;
       },
-      toggleDynamitePlacement: () => { standDownExcept('dynamite'); dynamite.toggleArmed(); },
+      toggleDynamitePlacement: () => placements.toggle('dynamite', () => dynamite.toggleArmed()),
       // A crate's or wreck's menu covers the mine, so nothing may be left waiting
       // for a press on it — including the two deployables this module does not own.
-      toggleContainer: () => { if (!containers.open && !wrecks.open && !chests.open) disarmPlacements(); openNearestContainerOrWreck(); },
+      toggleContainer: () => { if (!containers.open && !wrecks.open && !chests.open) placements.disarmAll(); openNearestStash(); },
       closeContainer: () => containers.close(),
       closeWreck: () => wrecks.close(),
       closeChest: () => chests.close(),
       closeGrave: () => graves.close(),
       // Space opens whichever station-like thing is in reach — a home station, a
-      // trading post or a grave; a placement pointer has nothing left to aim at once its screen
-      // covers the mine.
+      // trading post or a grave; a placement pointer has nothing left to aim at once
+      // its screen covers the mine.
       openNearest: openNearestStationLike,
       closeStation: () => homeStations.close(),
       closeTrade: () => trading.close(),
@@ -1078,32 +804,17 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // placement and beyond it. Re-focusing during the pointer gesture reseats the
     // flag as pointer-driven (no ring) while keeping the keys on the mine; the
     // next Tab or keyboard focus brings the ring back, so nothing is lost.
-    resetCanvasFocusRing();
-    const armed = scanners.armed || dynamite.armed || containers.armed
-      || stationDevices.armed !== null || toolkit.armed || decor.armed !== null;
+    focus.resetFocusRing();
     // Nothing is armed and something is already over the mine: the press belongs
     // to whatever is on top of it, not to the tile underneath.
-    if (!armed && uiStore.getState().activeOverlay !== null) return;
-    const rect = surface.canvas.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    // The canvas may be laid out at a different size than it is drawn at, so the
-    // press is normalised into the CSS pixels the viewport is expressed in first.
-    const point = tileAtViewportPoint(
-      (event.clientX - rect.left) * (viewport.widthPx / rect.width),
-      (event.clientY - rect.top) * (viewport.heightPx / rect.height),
-      state.camX,
-      state.camY
-    );
-    if (scanners.armed) scanners.placeAt(point.x, point.y);
-    else if (dynamite.armed) dynamite.placeAt(point.x, point.y);
-    else if (containers.armed) containers.placeAt(point.x, point.y);
-    else if (stationDevices.armed) stationDevices.placeAt(point.x, point.y);
-    else if (toolkit.armed) toolkit.liftAt(point.x, point.y);
-    else if (decor.armed) decor.placeAt(point.x, point.y);
+    if (!placements.anyArmed() && overlays.active() !== null) return;
+    const point = tileAtPointer(event);
+    if (!point) return;
+    if (placements.pressAt(point.x, point.y)) return;
     // An unarmed press opens a station tile the ship can reach, a trading post, the
     // crate, the wreck, the chest or the grave on the tile; a press on bare rock is
     // not a refusal, it was about none of them.
-    else if (!homeStations.openAt(point.x, point.y) && !trading.openAt(point.x, point.y)
+    if (!homeStations.openAt(point.x, point.y) && !trading.openAt(point.x, point.y)
       && !containers.openAt(point.x, point.y) && !wrecks.openAt(point.x, point.y)
       && !chests.openAt(point.x, point.y)) graves.openAt(point.x, point.y);
   }
@@ -1119,14 +830,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state.hoverTile = null;
       return;
     }
-    const rect = surface.canvas.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    state.hoverTile = tileAtViewportPoint(
-      (event.clientX - rect.left) * (viewport.widthPx / rect.width),
-      (event.clientY - rect.top) * (viewport.heightPx / rect.height),
-      state.camX,
-      state.camY
-    );
+    const point = tileAtPointer(event);
+    if (point) state.hoverTile = point;
   }
 
   /** The pointer left the mine: drop the hover highlight it was driving. */
@@ -1134,15 +839,18 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     state.hoverTile = null;
   }
 
-  /** Hand the runtime back to the mount that owns it. */
-  function dispose(){
+  /**
+   * Undo everything installed so far. `bankRun` is false for a boot that failed
+   * part-way: a half-built run must never be written over the save it came from.
+   */
+  function teardown(bankRun: boolean){
     if (scope.disposed) return;
     // A teardown is indistinguishable from a tab close as far as the save is
     // concerned, so bank the run before anything is unwired.
-    saveProgress();
-    flushZoomSave();
+    if (bankRun) saves.flushAll();
+    else saves.silence();
     // Stops the loop, frees the soundtrack element and closes the context.
-    audio.dispose();
+    if (audioStarted) audio.dispose();
     scope.dispose();
     // Buttons must not reach a runtime whose listeners and frames are gone, and a
     // replacement runtime re-announces its own boot toast.
@@ -1153,22 +861,26 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     // take the press it is waiting for. A crate's transfer menu is worse: every
     // button in it would dispatch into a table of no-ops.
     uiStore.getState().setArmedPlacement(null);
-    uiStore.getState().closeOverlay('container');
-    uiStore.getState().closeOverlay('wreck');
-    uiStore.getState().closeOverlay('chest');
-    uiStore.getState().closeOverlay('grave');
-    uiStore.getState().setGraveUi(null);
-    uiStore.getState().closeOverlay('station');
-    uiStore.getState().closeOverlay('extractor');
-    uiStore.getState().closeOverlay('trade');
-    uiStore.getState().closeOverlay('portal');
+    overlays.closeRuntimeScreens();
+  }
+
+  /** Hand the runtime back to the mount that owns it. */
+  function dispose(){
+    teardown(true);
   }
 
   // --- Boot ------------------------------------------------------------------
   /** Construct the world, wire the listeners, and start the loop. */
   function boot(): void {
+    surface = createGameSurface(options, scope);
+    focus = createCanvasFocus(surface.canvas, scope);
     audio = createAudio(toast);
-    state.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    audioStarted = true;
+    // Followed live: an OS toggle mid-session reaches the renderer and the intro.
+    state.reducedMotion = watchReducedMotion(scope, reduced => {
+      state.reducedMotion = reduced;
+      introShowcase?.setReducedMotion(reduced);
+    });
     // Adopt the remembered framing before anything reads the viewport: the tile
     // extents it derives feed the renderer's caches and the camera, and jumping
     // straight to it (rather than easing) keeps the first frame from sliding.
@@ -1186,7 +898,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       ctx: surface.ctx,
       reducedMotion: state.reducedMotion
     });
-    loadProgress();
+    load(state);
+    renderer.invalidateFog();
     scope.onWindow('touchstart', tryAutoAudio, {passive:true});
     surface.canvas.addEventListener('pointerdown', handleMinePointerDown);
     scope.add(() => surface.canvas.removeEventListener('pointerdown', handleMinePointerDown));
@@ -1195,15 +908,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     surface.canvas.addEventListener('pointerleave', handleMinePointerLeave);
     scope.add(() => surface.canvas.removeEventListener('pointerleave', handleMinePointerLeave));
     scope.add(gameInput.attach());
-    scope.onWindow('focus', focusGame);
-    scope.onDocument('visibilitychange', () => {
-      // Mobile browsers routinely discard a hidden tab without ever firing
-      // `beforeunload`, so hiding is the last reliable chance to keep the run.
-      if (document.hidden) { saveProgress(); flushZoomSave(); return; }
-      // Animation frames stop while hidden; discard the gap instead of fast-forwarding.
-      stepper.reset();
-      focusGame();
-    });
+    scope.onWindow('focus', focus.focusGame);
     scope.onWindow('pointerdown', tryAutoAudio);
     registerUiCommands();
     setAgentBridge({
@@ -1216,14 +921,24 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       getZoom: () => viewport.targetZoom
     });
     run.resume();
-    scope.interval(saveIfDirty, 60000);
-    scope.onWindow('beforeunload', () => { saveProgress(); flushZoomSave(); });
-    focusGame();
-    scope.timeout(focusGame, 60);
+    // The minute interval, the unload save, and the hidden-tab save; a tab coming
+    // back discards the gap its stopped animation frames left instead of
+    // fast-forwarding it, and hands the keyboard back to the mine.
+    saves.attach(scope, () => { stepper.reset(); focus.focusGame(); });
+    focus.focusGame();
+    scope.timeout(focus.focusGame, 60);
     scope.frameLoop(loop);
   }
 
-  boot();
+  try {
+    boot();
+  } catch (error) {
+    // Nothing half-built may keep running behind the failure notice: every
+    // listener, timer, frame and command installed so far goes, and the throw
+    // reaches the mount, which reports it.
+    teardown(false);
+    throw error;
+  }
 
   return {dispose};
 }

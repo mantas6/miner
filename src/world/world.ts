@@ -7,6 +7,38 @@ import { enemyHealth, enemyKindForDepthRoll } from '../core/enemy-types';
 /** Deterministic pseudo-random value in [0,1) for a tile coordinate. */
 export function rand(x: number, y: number): number { const n = Math.sin(x*127.1 + y*311.7) * 43758.5453; return n - Math.floor(n); }
 
+/**
+ * Chunk columns a memo key holds apart. Fixture chunks are at least 16 tiles wide
+ * and the world is 90, so real columns sit well inside; a column outside
+ * `[-CHUNK_MEMO_OFFSET, CHUNK_MEMO_STRIDE - CHUNK_MEMO_OFFSET)` skips the memo.
+ */
+const CHUNK_MEMO_STRIDE = 64;
+const CHUNK_MEMO_OFFSET = 8;
+/** Entries a memo keeps before starting over; a result is always re-rollable. */
+const CHUNK_MEMO_LIMIT = 16384;
+
+/**
+ * Remember a per-chunk fixture roll. The rolls are pure functions of the chunk,
+ * but world generation asks the same chunk once per tile it generates (and the
+ * grave roll re-asks its neighbours' rolls twenty times over), so caching the
+ * answer leaves every result identical while each chunk is rolled once. The
+ * results are frozen: they are shared between every caller now.
+ */
+function memoiseChunkRoll<T extends object>(roll: (chunkX: number, chunkY: number) => T | null): (chunkX: number, chunkY: number) => T | null {
+  const cache = new Map<number, T | null>();
+  return (chunkX, chunkY) => {
+    const column = chunkX + CHUNK_MEMO_OFFSET;
+    if (column < 0 || column >= CHUNK_MEMO_STRIDE) return roll(chunkX, chunkY);
+    const key = chunkY * CHUNK_MEMO_STRIDE + column;
+    const cached = cache.get(key);
+    if (cached !== undefined) return cached;
+    const result = roll(chunkX, chunkY);
+    if (cache.size >= CHUNK_MEMO_LIMIT) cache.clear();
+    cache.set(key, result && Object.freeze(result));
+    return result;
+  };
+}
+
 // --- Trading posts -----------------------------------------------------------
 //
 // A trading post is a small kiosk that stands in an air pocket carved deep in the
@@ -40,7 +72,7 @@ function tradingChunk(v: number): number {
  * neighbouring chunk — which is what lets `tradingPostAt` and `tradingPostPocket`
  * answer from a tile's own chunk alone — and clear of the world's side walls.
  */
-function tradingPostInChunk(chunkX: number, chunkY: number): TradingPost | null {
+function rollTradingPostInChunk(chunkX: number, chunkY: number): TradingPost | null {
   // Only chunks whose whole span sits below the shallow band qualify, so a post is
   // always deep in the mine and never near the home cavern.
   if (chunkY * TRADING_POST_CHUNK < TRADING_POST_MIN_ROW) return null;
@@ -53,6 +85,7 @@ function tradingPostInChunk(chunkX: number, chunkY: number): TradingPost | null 
   if (x - 1 < 2 || x + 1 > WORLD_W - 3) return null;
   return {x, y};
 }
+const tradingPostInChunk = memoiseChunkRoll(rollTradingPostInChunk);
 
 /** The trading post standing exactly on this tile, or `null`. */
 export function tradingPostAt(x: number, y: number): TradingPost | null {
@@ -64,6 +97,22 @@ export function tradingPostAt(x: number, y: number): TradingPost | null {
 export function tradingPostPocket(x: number, y: number): boolean {
   const post = tradingPostInChunk(tradingChunk(x), tradingChunk(y));
   return post !== null && Math.abs(post.x - x) <= 1 && Math.abs(post.y - y) <= 1;
+}
+
+/**
+ * Every trading post inside an inclusive tile rectangle, one chunk roll per
+ * overlapping chunk — the renderer's per-frame lookup, instead of asking every
+ * visible tile whether it holds one.
+ */
+export function tradingPostsInRange(startX: number, startY: number, endX: number, endY: number): TradingPost[] {
+  const posts: TradingPost[] = [];
+  for (let cy = tradingChunk(startY); cy <= tradingChunk(endY); cy++) {
+    for (let cx = tradingChunk(startX); cx <= tradingChunk(endX); cx++) {
+      const post = tradingPostInChunk(cx, cy);
+      if (post && post.x >= startX && post.x <= endX && post.y >= startY && post.y <= endY) posts.push(post);
+    }
+  }
+  return posts;
 }
 
 /** Whether a natural air pocket / cave seam exists at this coordinate. */
@@ -146,7 +195,7 @@ function chestChunk(v: number): number {
  * right beside — a trading post's pocket holds nothing, so a chest never shares a
  * fixture's cleared space.
  */
-function chestInChunk(chunkX: number, chunkY: number): Chest | null {
+function rollChestInChunk(chunkX: number, chunkY: number): Chest | null {
   if (chunkX < 0 || chunkY < 0) return null;
   if (rand(chunkX + 2131, chunkY + 1471) >= CHEST_CHANCE) return null;
   const x = chunkX * CHEST_CHUNK + 1 + Math.floor(rand(chunkX + 571, chunkY + 1933) * (CHEST_CHUNK - 2));
@@ -160,6 +209,7 @@ function chestInChunk(chunkX: number, chunkY: number): Chest | null {
   }
   return {x, y};
 }
+const chestInChunk = memoiseChunkRoll(rollChestInChunk);
 
 /** The chest lying exactly on this tile, or `null`. Looted or not — see `core/chest.ts`. */
 export function chestAt(x: number, y: number): Chest | null {
@@ -217,7 +267,7 @@ function graveChunk(v: number): number {
  * lookups can answer from a tile's own chunk. A chunk whose nook would sit in — or
  * right beside — a trading post's or chest's pocket, or the starter seam, holds nothing; nor does one whose grave would hang over a natural cave.
  */
-function graveInChunk(chunkX: number, chunkY: number): Grave | null {
+function rollGraveInChunk(chunkX: number, chunkY: number): Grave | null {
   if (chunkX < 0 || chunkY < 0) return null;
   if (rand(chunkX + 3187, chunkY + 2203) >= GRAVE_CHANCE) return null;
   const x = chunkX * GRAVE_CHUNK + 1 + Math.floor(rand(chunkX + 1291, chunkY + 2767) * (GRAVE_CHUNK - 2));
@@ -233,6 +283,7 @@ function graveInChunk(chunkX: number, chunkY: number): Grave | null {
   if (naturalAirPocket(x, y + 1)) return null;
   return {x, y};
 }
+const graveInChunk = memoiseChunkRoll(rollGraveInChunk);
 
 /** The grave lying exactly on this tile, or `null`. */
 export function graveAt(x: number, y: number): Grave | null {

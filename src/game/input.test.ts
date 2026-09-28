@@ -16,6 +16,7 @@ import type { GameActions } from './actions';
 import { createInput, RESET_CONFIRM_TICKS, type GameInput } from './input';
 import { setViewportZoom, viewport } from './viewport';
 import { MAX_ZOOM, MIN_ZOOM } from './zoom';
+import { emptyOverlay } from '../test-overlays';
 
 function createActionsSpy() {
   return {
@@ -97,7 +98,7 @@ function pointerDown(target: EventTarget = document.body): void {
 
 beforeEach(() => {
   uiStore.getState().setPhase('intro');
-  uiStore.getState().setActiveOverlay(null);
+  uiStore.getState().showOverlay(null);
   document.body.innerHTML = '';
 });
 
@@ -139,28 +140,28 @@ describe('phase gating', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
 
-    uiStore.getState().setActiveOverlay('ship');
+    uiStore.getState().showOverlay(emptyOverlay('ship'));
     press('Escape');
     expect(h.closeShipScreen).toHaveBeenCalledOnce();
 
     // Opening the other overlay replaces the ship screen rather than stacking on
     // it, so Escape only ever reaches one of them.
-    uiStore.getState().setActiveOverlay('info');
+    uiStore.getState().showOverlay(emptyOverlay('info'));
     press('Escape');
     expect(h.closeInfoScreen).toHaveBeenCalledOnce();
     expect(h.closeShipScreen).toHaveBeenCalledOnce();
 
-    uiStore.getState().setActiveOverlay('container');
+    uiStore.getState().showOverlay(emptyOverlay('container'));
     press('Escape');
     expect(h.closeContainer).toHaveBeenCalledOnce();
     expect(h.closeInfoScreen).toHaveBeenCalledOnce();
 
-    uiStore.getState().setActiveOverlay('station');
+    uiStore.getState().showOverlay(emptyOverlay('station'));
     press('Escape');
     expect(h.closeStation).toHaveBeenCalledOnce();
 
     // Both home-station screens shut through the one close.
-    uiStore.getState().setActiveOverlay('extractor');
+    uiStore.getState().showOverlay(emptyOverlay('extractor'));
     press('Escape');
     expect(h.closeStation).toHaveBeenCalledTimes(2);
   });
@@ -175,7 +176,7 @@ describe('the home-station key', () => {
     expect(h.openNearest).toHaveBeenCalledOnce();
 
     // With the station screen up, Space is the round trip: it closes, and no move.
-    uiStore.getState().setActiveOverlay('station');
+    uiStore.getState().showOverlay(emptyOverlay('station'));
     press(' ');
     press('d');
     h.input.tick();
@@ -189,7 +190,7 @@ describe('the grave stone', () => {
   it('puts the stone away on Escape, Enter or Space, and keeps the keys off the mine', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('grave');
+    uiStore.getState().showOverlay(emptyOverlay('grave'));
 
     press('Escape');
     press('Enter');
@@ -207,7 +208,7 @@ describe('the grave stone', () => {
   it('does not put away the stone a held Space just raised', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('grave');
+    uiStore.getState().showOverlay(emptyOverlay('grave'));
 
     window.dispatchEvent(new KeyboardEvent('keydown', {key: ' ', repeat: true, bubbles: true, cancelable: true}));
 
@@ -238,8 +239,7 @@ describe('the editable-element guard', () => {
   it('keeps the overlay open on an Escape that only leaves the field', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setPortalUi({mode: 'travel', destinations: []});
-    uiStore.getState().setActiveOverlay('portal');
+    uiStore.getState().showOverlay({kind: 'portal', portal: {mode: 'travel', destinations: []}});
     const field = document.createElement('input');
     document.body.appendChild(field);
     field.focus();
@@ -300,7 +300,7 @@ describe('focused controls', () => {
   it('leaves Space on a focused button in an open screen to that button', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('station');
+    uiStore.getState().showOverlay(emptyOverlay('station'));
     const button = document.createElement('button');
     button.id = 'stowAllBtn';
     document.body.appendChild(button);
@@ -320,14 +320,13 @@ describe('the portal overlay', () => {
   it('closes on Escape/Space in travel mode but ignores them in respawn mode', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setPortalUi({mode: 'travel', destinations: []});
-    uiStore.getState().setActiveOverlay('portal');
+    uiStore.getState().showOverlay({kind: 'portal', portal: {mode: 'travel', destinations: []}});
 
     press('Escape');
     expect(h.closePortal).toHaveBeenCalledOnce();
 
     // The respawn prompt has no way out but a pick: Escape and Space are swallowed.
-    uiStore.getState().setPortalUi({mode: 'respawn', destinations: []});
+    uiStore.getState().showOverlay({kind: 'portal', portal: {mode: 'respawn', destinations: []}});
     press('Escape');
     press(' ');
     expect(h.closePortal).toHaveBeenCalledOnce();
@@ -337,7 +336,7 @@ describe('the portal overlay', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
     h.state.gameOver = true;
-    uiStore.getState().setActiveOverlay('portal');
+    uiStore.getState().showOverlay(emptyOverlay('portal'));
 
     pointerDown();
 
@@ -384,7 +383,7 @@ describe('the cargo container key', () => {
   it('shuts the open menu rather than reopening it, and never moves the ship', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('container');
+    uiStore.getState().showOverlay(emptyOverlay('container'));
 
     press('c');
     press('d');
@@ -398,7 +397,7 @@ describe('the cargo container key', () => {
   it('shuts an open chest on C or Escape, and keeps the keys off the mine', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('chest');
+    uiStore.getState().showOverlay(emptyOverlay('chest'));
 
     press('c');
     press('Escape');
@@ -461,7 +460,7 @@ describe('restarting after a death', () => {
     const h = harness();
     uiStore.getState().setPhase('playing');
     h.state.gameOver = true;
-    uiStore.getState().setActiveOverlay('info');
+    uiStore.getState().showOverlay(emptyOverlay('info'));
     document.body.innerHTML = '<dialog id="info-screen"><button id="infoCloseBtn">Close</button></dialog>';
 
     pointerDown(document.getElementById('infoCloseBtn')!);
@@ -590,11 +589,11 @@ describe('wheel zoom', () => {
     expect(viewport.targetZoom).toBe(1);
 
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('info');
+    uiStore.getState().showOverlay(emptyOverlay('info'));
     wheel(document.getElementById('infoBody')!, {deltaY: -120});
     expect(viewport.targetZoom).toBe(1);
 
-    uiStore.getState().setActiveOverlay(null);
+    uiStore.getState().showOverlay(null);
     wheel(document.body, {deltaY: -120});
     expect(viewport.targetZoom).toBe(1);
 
@@ -629,11 +628,11 @@ describe('wheel zoom', () => {
     expect(viewport.targetZoom).toBe(1);
 
     uiStore.getState().setPhase('playing');
-    uiStore.getState().setActiveOverlay('info');
+    uiStore.getState().showOverlay(emptyOverlay('info'));
     press('+');
     expect(viewport.targetZoom).toBe(1);
 
-    uiStore.getState().setActiveOverlay(null);
+    uiStore.getState().showOverlay(null);
     // Ctrl + `=` is the browser's own page zoom.
     const browserZoom = new KeyboardEvent('keydown', {key: '=', ctrlKey: true, bubbles: true, cancelable: true});
     window.dispatchEvent(browserZoom);
@@ -652,7 +651,7 @@ describe('held keys', () => {
     expect(h.move).toHaveBeenCalledOnce();
 
     // The key is still down when the screen rises: nothing moves under it.
-    uiStore.getState().setActiveOverlay('station');
+    uiStore.getState().showOverlay(emptyOverlay('station'));
     h.state.input.lastKeyboardMove = 0;
     h.input.tick();
     expect(h.move).toHaveBeenCalledOnce();
@@ -660,7 +659,7 @@ describe('held keys', () => {
     // What the game does as it raises an overlay: forget what was held, so putting
     // the screen away does not drive the ship off on a key released behind it.
     h.input.clearKeys();
-    uiStore.getState().setActiveOverlay(null);
+    uiStore.getState().showOverlay(null);
     h.state.input.lastKeyboardMove = 0;
     h.input.tick();
     expect(h.move).toHaveBeenCalledOnce();
@@ -671,9 +670,9 @@ describe('held keys', () => {
     uiStore.getState().setPhase('playing');
 
     press('s');
-    uiStore.getState().setActiveOverlay('ship');
+    uiStore.getState().showOverlay(emptyOverlay('ship'));
     h.input.tick();
-    uiStore.getState().setActiveOverlay(null);
+    uiStore.getState().showOverlay(null);
     release('s');
     h.input.tick();
 

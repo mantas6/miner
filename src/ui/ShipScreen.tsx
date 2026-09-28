@@ -20,7 +20,7 @@ import { useItemTooltip } from './Tooltip';
 import styles from './ShipScreen.module.css';
 
 export function ShipScreen() {
-  const open = useUiStore(state => state.activeOverlay === 'ship');
+  const open = useUiStore(state => state.overlay?.kind === 'ship');
   return (
     <ModalShell id="ship-screen" titleId="ship-title" open={open} onRequestClose={() => uiCommands.closeShip()}>
       {open && <ShipCard />}

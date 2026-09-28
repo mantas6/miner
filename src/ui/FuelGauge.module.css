@@ -147,3 +147,16 @@
     height: 72px;
   }
 }
+
+/* Short viewports (a landscape phone, a squat window): the same compaction as the
+   narrow breakpoint, but only in height — paddings and type shrink, layout stays. */
+@media (max-height: 520px) {
+  .panel {
+    padding: 6px;
+  }
+  .gauge,
+  .dial {
+    width: 68px;
+    height: 68px;
+  }
+}

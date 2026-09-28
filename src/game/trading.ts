@@ -30,6 +30,24 @@ import { tradingPostAt, type TradingPost } from '../world/world';
 /** How far a ship may stand from a post and still trade: Chebyshev ≤ 1, its own tile too. */
 export const TRADING_POST_REACH = 1;
 
+/**
+ * The post a ship at (x,y) would open with no tile named — the keyboard's answer:
+ * the nearest on its own tile or the eight around it, by Manhattan distance, with
+ * that distance; `null` when none is in reach.
+ */
+export function reachableTradingPost(x: number, y: number): {post: TradingPost; distance: number} | null {
+  let best: {post: TradingPost; distance: number} | null = null;
+  for (let dy = -TRADING_POST_REACH; dy <= TRADING_POST_REACH; dy++) {
+    for (let dx = -TRADING_POST_REACH; dx <= TRADING_POST_REACH; dx++) {
+      const post = tradingPostAt(x + dx, y + dy);
+      if (!post) continue;
+      const distance = Math.abs(dx) + Math.abs(dy);
+      if (!best || distance < best.distance) best = {post, distance};
+    }
+  }
+  return best;
+}
+
 /** One buy offer as the trade screen paints it: an item, its price, and stock left. */
 export interface TradeOfferView {
   index: number;
@@ -47,8 +65,6 @@ export interface TradingSim {
   openAt(x: number, y: number): boolean;
   /** Space, or a click with no tile named: open the nearest post, or toggle it shut. */
   openNearest(): boolean;
-  /** The nearest reachable post, or `null` — for the keyboard's station-vs-post choice. */
-  nearestPost(): {post: TradingPost; distance: number} | null;
   /** Put the screen away. Idempotent; also what the dialog's own close reports. */
   close(): void;
   /** Sell a stack (or one unit) of ore for cash. */
@@ -77,19 +93,6 @@ export function createTrading(deps: TradingDeps): TradingSim {
   /** Whether a ship at the current position is close enough to work this post. */
   function inReach(post: TradingPost): boolean {
     return Math.max(Math.abs(post.x - state.player.x), Math.abs(post.y - state.player.y)) <= TRADING_POST_REACH;
-  }
-
-  function nearestPost(): {post: TradingPost; distance: number} | null {
-    let best: {post: TradingPost; distance: number} | null = null;
-    for (let dy = -TRADING_POST_REACH; dy <= TRADING_POST_REACH; dy++) {
-      for (let dx = -TRADING_POST_REACH; dx <= TRADING_POST_REACH; dx++) {
-        const post = tradingPostAt(state.player.x + dx, state.player.y + dy);
-        if (!post) continue;
-        const distance = Math.abs(dx) + Math.abs(dy);
-        if (!best || distance < best.distance) best = {post, distance};
-      }
-    }
-    return best;
   }
 
   /** The buy offers with their live remaining stock, for the screen to paint. */
@@ -138,7 +141,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
   function openNearest(): boolean {
     if (state.gameOver) return false;
     if (open) { close(); return true; }
-    const near = nearestPost();
+    const near = reachableTradingPost(state.player.x, state.player.y);
     if (!near) {
       toast('No trading post within reach.');
       return false;
@@ -211,7 +214,6 @@ export function createTrading(deps: TradingDeps): TradingSim {
     },
     openAt,
     openNearest,
-    nearestPost,
     close,
     sell,
     buy,

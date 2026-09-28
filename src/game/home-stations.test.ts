@@ -43,7 +43,6 @@ function harness(): Harness {
     saveProgress: context.saveProgress,
     setStationUi: context.setStationUi,
     setExtractorUi: context.setExtractorUi,
-    syncPlayer: vi.fn(),
     portals: context.portals
   });
   return {...context, sim};

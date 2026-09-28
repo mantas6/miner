@@ -26,7 +26,7 @@ const dangerRows = buildDangerGuideRows();
 
 /** The dialog shell: open/close mechanics and focus restoration, no content. */
 export function InfoScreen() {
-  const open = useUiStore(state => state.activeOverlay === 'info');
+  const open = useUiStore(state => state.overlay?.kind === 'info');
   return (
     <ModalShell
       id="info-screen"
@@ -263,8 +263,9 @@ function SettingsPanel() {
           <button
             id="settingsMusicBtn"
             type="button"
-            aria-label={musicLabel}
+            aria-label="Music"
             aria-pressed={musicOn}
+            title={musicLabel}
             onClick={() => uiCommands.toggleMusic()}
           >{musicOn ? 'On' : 'Muted'}</button>
         </li>
@@ -273,8 +274,9 @@ function SettingsPanel() {
           <button
             id="settingsSfxBtn"
             type="button"
-            aria-label={sfxLabel}
+            aria-label="Sound effects"
             aria-pressed={sfxOn}
+            title={sfxLabel}
             onClick={() => uiCommands.toggleSfx()}
           >{sfxOn ? 'On' : 'Muted'}</button>
         </li>
@@ -288,7 +290,9 @@ function SettingsPanel() {
         aria-expanded={cheatsOpen}
         aria-controls={cheatsOpen ? 'cheat-menu' : undefined}
         onClick={() => setCheatsOpen(!cheatsOpen)}
-      >{cheatsOpen ? 'Hide cheat menu' : 'Show cheat menu'}</button>
+      >
+        Cheat menu <span aria-hidden="true">{cheatsOpen ? '▾' : '▸'}</span>
+      </button>
       {cheatsOpen && <DeveloperPanel />}
 
       <SaveDataSection />

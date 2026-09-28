@@ -90,8 +90,6 @@ export interface HomeStationsDeps {
   setStationUi(inventory: Inventory | null): void;
   /** Show the extractor screen with these buffers, or take it away with `null`. */
   setExtractorUi(view: ExtractorView | null): void;
-  /** Re-derive the HUD player snapshot (fuel changes on a refuel). */
-  syncPlayer(): void;
   /** The portal sim: a press on a portal tile opens its travel list. */
   portals: PortalsSim;
 }
@@ -287,7 +285,6 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
       audio.alarm();
       return toast(state.player.fuel >= state.player.fuelMax ? 'Fuel tank already full.' : 'No fuel stored in the extractor yet.');
     }
-    deps.syncPlayer();
     repaint();
     saveProgress();
     audio.refuel();
@@ -312,7 +309,6 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     if (parked && !wasOnExtractor) {
       const moved = pourFuel(parked);
       if (moved > 0) {
-        deps.syncPlayer();
         if (open === parked) repaint();
         saveProgress();
         audio.refuel();
@@ -325,15 +321,17 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     // most extractors fall out here doing nothing.
     for (const station of state.stations) {
       if (station.kind !== 'extractor') continue;
-      const before = {coal: station.coal, fuel: station.fuel, progress: station.progress};
-      const next = tickExtractor(before);
-      if (next === before) continue;
+      // The station is its own buffer: a steady tick hands the same reference back
+      // without a copy, and only a moving one allocates its next state.
+      const next = tickExtractor(station);
+      if (next === station) continue;
+      const coalBefore = station.coal;
       station.coal = next.coal;
       station.fuel = next.fuel;
       station.progress = next.progress;
       // Banking a whole coal's fuel is worth persisting on the spot, so a crash
       // between visits cannot lose it; a bare progress tick is transient.
-      if (next.coal !== before.coal) saveProgress();
+      if (next.coal !== coalBefore) saveProgress();
       if (open === station) deps.setExtractorUi(extractorView(station));
     }
   }

@@ -3,8 +3,12 @@
 // Every domain type below is derived from its zod schema with `z.infer`, and the
 // save's tile diff is validated against the same schemas on load, so a tile the
 // game can build is exactly a tile a save can restore.
+//
+// Built on `zod/mini`: the same validator core with a functional API
+// (`.check(z.minimum(0))` rather than `.min(0)`), which tree-shakes down to the
+// handful of checks used here instead of pulling every chainable method in.
 
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import {
   DECOR_HP,
   DECOR_IDS,
@@ -15,16 +19,22 @@ import {
   WORLD_W
 } from './constants.ts';
 
+/**
+ * A value used when the field is missing — zod/mini's spelling of `.default()`,
+ * whose underscore is the library's, not ours.
+ */
+// oxlint-disable-next-line no-underscore-dangle
+const withDefault = z._default;
 /** Any real number: zod rejects `NaN` and `±Infinity` for `z.number()`. */
 const real = z.number();
 /** Safe integer (zod's `int` bounds by `Number.MAX_SAFE_INTEGER`). */
 const integer = z.int();
 /** Remaining durability. Never negative. */
-const hp = real.min(0);
+const hp = real.check(z.minimum(0));
 /** Total durability. A destructible tile/enemy always has at least 1. */
-const maxHp = real.min(1);
-const column = integer.min(0).max(WORLD_W - 1);
-const row = integer.min(0).max(MAX_WORLD_ROW);
+const maxHp = real.check(z.minimum(1));
+const column = integer.check(z.minimum(0), z.maximum(WORLD_W - 1));
+const row = integer.check(z.minimum(0), z.maximum(MAX_WORLD_ROW));
 
 export const enemyKindSchema = z.enum(ENEMY_KINDS);
 
@@ -33,12 +43,12 @@ export const enemyKindSchema = z.enum(ENEMY_KINDS);
  * `shared/constants.ts`.
  */
 export const oreSchema = z.object({
-  name: z.string().min(1).max(100),
-  color: z.string().min(1).max(32),
-  value: real.min(0).max(MAX_VALUABLE_VALUE),
-  min: real.min(0).max(MAX_WORLD_ROW),
-  max: real.min(0).max(MAX_WORLD_ROW),
-  chance: real.min(0).max(1)
+  name: z.string().check(z.minLength(1), z.maxLength(100)),
+  color: z.string().check(z.minLength(1), z.maxLength(32)),
+  value: real.check(z.minimum(0), z.maximum(MAX_VALUABLE_VALUE)),
+  min: real.check(z.minimum(0), z.maximum(MAX_WORLD_ROW)),
+  max: real.check(z.minimum(0), z.maximum(MAX_WORLD_ROW)),
+  chance: real.check(z.minimum(0), z.maximum(1))
 });
 
 /** The craftable decoration tiles the player can set down in the mine. */
@@ -59,13 +69,13 @@ export const hazardTileSchema = z.object({ type: z.literal('hazard'), hp, maxHp 
 export const decorTileSchema = z.object({
   type: z.literal('decor'),
   decor: decorIdSchema,
-  hp: hp.default(DECOR_HP),
-  maxHp: maxHp.default(DECOR_HP)
+  hp: withDefault(hp, DECOR_HP),
+  maxHp: withDefault(maxHp, DECOR_HP)
 });
 /** Dormant enemy. Legacy payloads omit `kind`; they normalize to the weakest. */
 export const dormantEnemyTileSchema = z.object({
   type: z.literal('enemy'),
-  kind: enemyKindSchema.default('tunnelFiend'),
+  kind: withDefault(enemyKindSchema, 'tunnelFiend'),
   hp,
   maxHp
 });
@@ -84,7 +94,7 @@ export const tileSchema = z.discriminatedUnion('type', [
 export const tileEntrySchema = z.object({ x: column, y: row, tile: tileSchema });
 
 /** A save's whole tile diff. */
-export const tileEntriesSchema = z.array(tileEntrySchema).max(MAX_LOADED_TILE_ENTRIES);
+export const tileEntriesSchema = z.array(tileEntrySchema).check(z.maxLength(MAX_LOADED_TILE_ENTRIES));
 
 export type Ore = z.infer<typeof oreSchema>;
 export type EnemyKind = z.infer<typeof enemyKindSchema>;

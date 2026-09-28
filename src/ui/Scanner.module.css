@@ -26,3 +26,12 @@
     font-size: var(--fs-3xs);
   }
 }
+
+/* Short viewports (a landscape phone, a squat window): the same compaction as the
+   narrow breakpoint, but only in height — paddings and type shrink, layout stays. */
+@media (max-height: 520px) {
+  .scanner {
+    padding: 6px 8px;
+    font-size: var(--fs-3xs);
+  }
+}

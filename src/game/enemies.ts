@@ -15,6 +15,13 @@ import type { WorldGrid } from './world-grid';
 /** Enemies stop pathing toward a target further away than this (Manhattan). */
 const ENEMY_AGGRO_RANGE = 24;
 
+/** Drop dead enemies in place, keeping the living in order, without a new array per tick. */
+function compactLiving(enemies: Enemy[]): void {
+  let kept = 0;
+  for (const enemy of enemies) if (enemy.alive) enemies[kept++] = enemy;
+  enemies.length = kept;
+}
+
 /** What a kill removes: a live entity, or a dormant cocoon tile. */
 type KillTarget =
   | {kind: 'active'; enemy: Enemy}
@@ -197,7 +204,7 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
   // gate (the UI phase), so it only rules out a finished run here.
   function update(): void {
     if (state.gameOver) return;
-    state.enemies = state.enemies.filter(e => e.alive);
+    compactLiving(state.enemies);
     const p = state.player;
     for (const e of state.enemies) {
       easeEnemy(e);
@@ -209,7 +216,9 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
       const moveDelay = enemyMoveDelay(e.kind, e.y);
       if (state.tick - e.moveTick < moveDelay || dist > ENEMY_AGGRO_RANGE) continue;
       e.moveTick = state.tick;
-      const step = findEnemyPathStep(state.world, e, p, state.enemies.filter(enemy => enemy.alive), ENEMY_AGGRO_RANGE);
+      // Nothing in this pass kills an enemy, so the list compacted above is still
+      // exactly the living ones and doubles as the occupied set.
+      const step = findEnemyPathStep(state.world, e, p, state.enemies, ENEMY_AGGRO_RANGE);
       if (step && (step.x !== p.x || step.y !== p.y)) { e.x = step.x; e.y = step.y; }
     }
   }

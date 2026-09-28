@@ -18,6 +18,13 @@
   opacity: 1;
   translate: -50% 0;
 }
+/* Reduced motion: the toast fades in place instead of sliding up into it. */
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    translate: -50% 0;
+    transition: opacity 0.2s;
+  }
+}
 
 @media (max-width: 760px) {
   .toast {
@@ -26,5 +33,15 @@
     font-size: var(--fs-sm);
     padding: 9px 12px;
     text-align: center;
+  }
+}
+
+/* Short viewports (a landscape phone, a squat window): the same compaction as the
+   narrow breakpoint, but only in height — paddings and type shrink, layout stays. */
+@media (max-height: 520px) {
+  .toast {
+    bottom: 92px;
+    padding: 8px 14px;
+    font-size: var(--fs-sm);
   }
 }

@@ -13,7 +13,7 @@
 
 import { activeSprintDirection, keyboardMovementRepeatMs } from '../core/movement';
 import type { Direction, GameState } from '../core/types';
-import { uiStore, type OverlayId } from '../ui/store';
+import { overlayOf, uiStore, type OverlayId } from '../ui/store';
 import { requestViewportZoom, viewport } from './viewport';
 import { zoomAfterKey, zoomAfterWheel } from './zoom';
 import type { GameActions } from './actions';
@@ -140,7 +140,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     station: {keys: ['escape', ' '], close: () => deps.closeStation()},
     extractor: {keys: ['escape', ' '], close: () => deps.closeStation()},
     trade: {keys: ['escape', ' '], close: () => deps.closeTrade()},
-    portal: {keys: ['escape', ' '], close: () => deps.closePortal(), locked: () => uiStore.getState().portal?.mode === 'respawn'}
+    portal: {keys: ['escape', ' '], close: () => deps.closePortal(), locked: () => overlayOf(uiStore.getState(), 'portal')?.portal.mode === 'respawn'}
   };
 
   function reset(): void {
@@ -179,7 +179,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     state.input.sprintDirection = null;
     if (!isPlaying()) return;
     // An overlay covers the mine: nothing held or queued may drive the ship under it.
-    if (uiStore.getState().activeOverlay !== null) {
+    if (uiStore.getState().overlay !== null) {
       state.input.keyImpulse = null;
       return;
     }
@@ -237,8 +237,8 @@ export function createInput(deps: GameInputDeps): GameInput {
     const ui = uiStore.getState();
     // The title splash is React's; it handles its own keys.
     if (ui.phase !== 'playing') return;
-    if (ui.activeOverlay !== null) {
-      const overlay = OVERLAY_KEYS[ui.activeOverlay];
+    if (ui.overlay !== null) {
+      const overlay = OVERLAY_KEYS[ui.overlay.kind];
       if (!overlay.keys.includes(key)) return;
       // Handled here so the dialog closes through the same path as its buttons;
       // preventDefault keeps the UA from also firing its own close request. A held
@@ -301,7 +301,7 @@ export function createInput(deps: GameInputDeps): GameInput {
    */
   function handleWheel(e: WheelEvent): void {
     if (!isPlaying()) return;
-    if (uiStore.getState().activeOverlay !== null) return;
+    if (uiStore.getState().overlay !== null) return;
     const target = e.target as Element | null;
     if (!target?.closest || !target.closest(ZOOM_SURFACE)) return;
     e.preventDefault();
@@ -315,7 +315,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     if (!isPlaying() || !state.gameOver) return;
     // An overlay owns its own presses — above all the no-close respawn prompt,
     // where a tap anywhere must not bypass the redeploy choice into a home restart.
-    if (uiStore.getState().activeOverlay !== null) return;
+    if (uiStore.getState().overlay !== null) return;
     deps.tryAutoAudio(e);
     deps.restartGame();
     e.preventDefault();

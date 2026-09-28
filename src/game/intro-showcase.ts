@@ -60,13 +60,16 @@ export interface IntroShowcaseDeps {
 export interface IntroShowcase {
   /** Paint one frame at the animation-frame timestamp `now` (milliseconds). */
   draw(now: number): void;
+  /** Follow a live `prefers-reduced-motion` flip: stop (or resume) the drift. */
+  setReducedMotion(reduced: boolean): void;
   /** The fresh game state behind the showcase; exposed for tests. */
   readonly state: Readonly<GameState>;
   /** What the renderer actually reads (the state plus the intro's overrides); exposed for tests. */
   readonly view: Readonly<RendererState>;
 }
 
-export function createIntroShowcase({canvas, ctx, reducedMotion = false, random = Math.random}: IntroShowcaseDeps): IntroShowcase {
+export function createIntroShowcase({canvas, ctx, reducedMotion: initialReducedMotion = false, random = Math.random}: IntroShowcaseDeps): IntroShowcase {
+  let reducedMotion = initialReducedMotion;
   const state = createInitialState();
   state.reducedMotion = reducedMotion;
   // A fresh world with no save: rows generate from the seed on first read,
@@ -101,6 +104,10 @@ export function createIntroShowcase({canvas, ctx, reducedMotion = false, random 
       lastFrame = now;
       view.tick++;
       renderer.draw();
+    },
+    setReducedMotion(reduced) {
+      reducedMotion = reduced;
+      view.reducedMotion = reduced;
     }
   };
 }

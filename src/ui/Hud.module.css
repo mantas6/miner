@@ -39,13 +39,11 @@
   padding: 0;
   display: grid;
   place-items: center;
-  font-size: var(--fs-xl);
-  line-height: 1;
   background: linear-gradient(#4f4a26, #322d18);
   color: #ffe6a3;
 }
-/* A muted switch stays readable but plainly off: dimmed, and — where the glyph
-   itself does not say so, as the speaker does — struck through. */
+/* A muted switch stays readable but plainly off: dimmed, and — where the icon
+   itself does not say so, as the crossed speaker does — struck through. */
 .muted {
   opacity: 0.6;
   filter: grayscale(0.75);
@@ -77,6 +75,22 @@
   .soundBtn {
     width: 38px;
     height: 38px;
-    font-size: var(--fs-lg);
+  }
+}
+
+/* Short viewports (a landscape phone, a squat window): the same compaction as the
+   narrow breakpoint, but only in height — paddings and type shrink, layout stays. */
+@media (max-height: 520px) {
+  .hud {
+    inset: 6px;
+    gap: 6px;
+  }
+  .top {
+    padding: 5px;
+    gap: 6px;
+  }
+  .soundBtn {
+    width: 36px;
+    height: 36px;
   }
 }

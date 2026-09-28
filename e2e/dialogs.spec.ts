@@ -223,6 +223,24 @@ test.describe('keyboard and hover inside an open dialog', () => {
     expect(failures).toEqual([]);
   });
 
+  test('an unaffordable Craft stays focusable, describes its shortfall, and explains a press', async ({page}) => {
+    await openStationWithIron(page);
+
+    // Three iron cannot make a Teleporter (3 Silver, 2 Gold).
+    const craft = page.locator('[data-craft="teleporter"]');
+    await expect(craft).toHaveAttribute('aria-disabled', 'true');
+    await expect(craft).toBeDisabled();
+    await expect(craft).toHaveAccessibleName('Craft Teleporter');
+    await expect(craft).toHaveAccessibleDescription(/^Need /);
+
+    // Keyboard: still a tab stop, and Space reaches the sim, whose toast says why.
+    await craft.focus();
+    await expect(craft).toBeFocused();
+    await page.keyboard.press(' ');
+    await expect(page.locator('#toast')).toContainText('Not enough materials for Teleporter');
+    await expect(page.locator('#station-screen')).toBeVisible();
+  });
+
   test('Escape inside the portal name field leaves the field, not the dialog', async ({page}) => {
     // Beside the Home portal and out of the manufacturer's reach, so Space opens
     // the travel list.

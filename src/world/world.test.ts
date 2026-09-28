@@ -19,7 +19,8 @@ import {
   oreSpawnChanceAtDepth,
   starterOreForCoordinate,
   tradingPostAt,
-  tradingPostPocket
+  tradingPostPocket,
+  tradingPostsInRange
 } from './world';
 import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
@@ -195,6 +196,41 @@ describe('trading posts', () => {
         }
       }
     }
+  });
+
+  it('lists exactly the posts a tile-by-tile scan finds in a rectangle', () => {
+    const scan = (startX: number, startY: number, endX: number, endY: number) => {
+      const found: {x: number; y: number}[] = [];
+      for (let y = startY; y <= endY; y++) for (let x = startX; x <= endX; x++) {
+        const post = tradingPostAt(x, y);
+        if (post) found.push(post);
+      }
+      return found;
+    };
+    const byPosition = (a: {x: number; y: number}, b: {x: number; y: number}) => a.y - b.y || a.x - b.x;
+    const post = firstPostInBand();
+    // A view-sized rectangle around a known post, one clipping it off by a tile,
+    // and a tall band crossing many chunk rows.
+    const rectangles: [number, number, number, number][] = [
+      [post.x - 8, post.y - 6, post.x + 8, post.y + 6],
+      [post.x + 1, post.y - 6, post.x + 12, post.y + 6],
+      [0, TRADING_POST_MIN_ROW, WORLD_W - 1, TRADING_POST_MIN_ROW + 600]
+    ];
+    for (const [startX, startY, endX, endY] of rectangles) {
+      const listed = tradingPostsInRange(Math.max(0, startX), startY, Math.min(WORLD_W - 1, endX), endY);
+      expect([...listed].sort(byPosition)).toEqual(scan(Math.max(0, startX), startY, Math.min(WORLD_W - 1, endX), endY).sort(byPosition));
+    }
+    expect(tradingPostsInRange(post.x - 8, post.y - 6, post.x + 8, post.y + 6)).toContainEqual(post);
+    expect(tradingPostsInRange(post.x + 1, post.y - 6, post.x + 12, post.y + 6)).not.toContainEqual(post);
+    expect(tradingPostsInRange(0, TRADING_POST_MIN_ROW, WORLD_W - 1, TRADING_POST_MIN_ROW + 600).length).toBeGreaterThan(1);
+  });
+
+  it('rolls a chunk once and shares the frozen result with every caller', () => {
+    const post = firstPostInBand();
+    const again = tradingPostAt(post.x, post.y);
+    expect(again).toBe(post);
+    expect(Object.isFrozen(post)).toBe(true);
+    expect(tradingPostsInRange(post.x, post.y, post.x, post.y)).toEqual([post]);
   });
 });
 

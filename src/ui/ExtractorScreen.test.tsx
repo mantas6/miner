@@ -12,30 +12,26 @@ import { EXTRACTOR } from '../core/balance';
 import { addItem, createInventory, oreItem } from '../core/inventory';
 import { ExtractorScreen } from './ExtractorScreen';
 import { setUiCommands, uiCommands } from './commands';
-import { buildInventorySlots, uiStore, type ExtractorView, type PlayerSnapshot } from './store';
+import { buildInventorySlots, uiStore, type ExtractorView } from './store';
+import { emptyOverlay } from '../test-overlays';
 
 const pristine = {...uiStore.getState()};
 const pristineCommands = {...uiCommands};
 
 const COAL = {name: 'Coal', color: '#343434', value: 8, min: 0, max: 900, chance: 1};
 
-function playerSnapshot(overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot {
-  return {
-    fuel: 100, fuelMax: 100, hull: 100, hullMax: 100, cargoMax: 20, drill: 1,
-    scanners: 0, dynamite: 0, teleporters: 0, containers: 0, ...overrides
-  };
-}
+/** The ship's tank, as the HUD snapshot the screen reads it from carries it. */
+type ShipFuel = {fuel: number; fuelMax: number};
 
-function open(options: {extractor?: Partial<ExtractorView>; player?: Partial<PlayerSnapshot>; bayCoal?: number} = {}): HTMLDialogElement {
+function open(options: {extractor?: Partial<ExtractorView>; player?: Partial<ShipFuel>; bayCoal?: number} = {}): HTMLDialogElement {
   const rendered = render(<ExtractorScreen />);
   act(() => {
     const store = uiStore.getState();
-    store.setExtractor({coal: 0, fuel: 0, progress: 0, ...options.extractor});
-    store.syncPlayer(playerSnapshot(options.player));
+    uiStore.setState({hud: {...store.hud, fuel: 100, fuelMax: 100, ...options.player}});
     store.setInventorySlots(
       options.bayCoal ? buildInventorySlots(addItem(createInventory(), oreItem(COAL), options.bayCoal)) : []
     );
-    store.setActiveOverlay('extractor');
+    store.showOverlay({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0, ...options.extractor}});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -120,7 +116,7 @@ describe('fuel extractor dialog', () => {
     render(<ExtractorScreen />);
     expect(document.getElementById('extractor-card')).toBeNull();
 
-    act(() => { uiStore.getState().setActiveOverlay('extractor'); });
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('extractor')); });
     expect(document.getElementById('extractor-card')).not.toBeNull();
 
     fireEvent.click(document.getElementById('extractorCloseBtn')!);

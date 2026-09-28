@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TILE, WORLD_W } from '../../shared/constants';
-import { chestsInRange, gravesInRange } from '../world/world';
+import { chestsInRange, gravesInRange, tradingPostsInRange } from '../world/world';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { createPlacedContainer } from '../core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
@@ -8,6 +8,9 @@ import { addItem } from '../core/inventory';
 import { createInitialStations } from '../core/stations';
 import type { Direction } from '../core/types';
 import { nth } from '../test-narrowing';
+import { TERRAIN_CHUNK_TILES } from './terrain-cache-policy';
+
+const CHUNK = TERRAIN_CHUNK_TILES;
 
 const mocks = vi.hoisted(() => {
   const gradient = {addColorStop: vi.fn()};
@@ -73,7 +76,15 @@ function zoomViewport(zoom: number): void {
   });
 }
 
-import { createRenderer as createRendererWithSurface, type RendererDeps } from './renderer';
+import { createRenderer as createRendererWithSurface, TERRAIN_CHUNK_PADDING, type RendererDeps } from './renderer';
+
+/**
+ * The offscreen canvases cut for terrain and fog chunks. The one canvas sized to
+ * the whole view is the baked blend overlay, not a chunk, so it is left out.
+ */
+function chunkCanvases() {
+  return mocks.terrainCanvases.filter(canvas => canvas.width !== mocks.viewport.widthPx || canvas.height !== mocks.viewport.heightPx);
+}
 
 /**
  * The renderer takes its canvas and context as dependencies now, so the tests
@@ -135,21 +146,27 @@ describe('terrain cache lifecycle', () => {
     renderer.draw();
     const initialTileDraws = mocks.terrainContext.fillRect.mock.calls.length;
     expect(initialTileDraws).toBeGreaterThan(0);
-    const chunkCanvasSize = 4 * TILE + 2 * 52; // 4-tile chunk plus overdraw padding
-    expect(Math.max(...mocks.terrainCanvases.map(canvas => canvas.width))).toBe(chunkCanvasSize);
-    expect(Math.max(...mocks.terrainCanvases.map(canvas => canvas.height))).toBe(chunkCanvasSize);
+    const chunkCanvasSize = CHUNK * TILE + 2 * TERRAIN_CHUNK_PADDING; // one chunk plus overdraw padding
+    expect(Math.max(...chunkCanvases().map(canvas => canvas.width))).toBe(chunkCanvasSize);
+    expect(Math.max(...chunkCanvases().map(canvas => canvas.height))).toBe(chunkCanvasSize);
 
     renderer.draw();
     expect(mocks.terrainContext.fillRect).toHaveBeenCalledTimes(initialTileDraws);
 
-    // Four-by-four blocks keep the cache stable during short camera interpolation.
-    state.camX = 14.2;
+    // A camera glide inside one chunk column exposes nothing new.
+    state.camX = 11.2;
+    renderer.draw();
+    expect(mocks.terrainContext.fillRect).toHaveBeenCalledTimes(initialTileDraws);
+
+    // A whole chunk further across exposes one new column of chunks.
+    state.camX = 10.2 + CHUNK;
     renderer.draw();
     expect(mocks.terrainContext.fillRect.mock.calls.length).toBeGreaterThan(initialTileDraws);
 
-    state.camX = 18.2;
+    const beforeSecondShift = mocks.terrainContext.fillRect.mock.calls.length;
+    state.camX = 10.2 + CHUNK * 2;
     renderer.draw();
-    const exposedTileDraws = mocks.terrainContext.fillRect.mock.calls.length - initialTileDraws;
+    const exposedTileDraws = mocks.terrainContext.fillRect.mock.calls.length - beforeSecondShift;
     expect(exposedTileDraws).toBeGreaterThan(0);
     expect(exposedTileDraws).toBeLessThan(initialTileDraws / 2);
   });
@@ -186,7 +203,7 @@ describe('terrain cache lifecycle', () => {
 
     renderer.invalidateTerrain(12, 22);
     renderer.draw();
-    expect(mocks.terrainContext.fillRect).toHaveBeenCalledTimes(initialTileDraws + 16);
+    expect(mocks.terrainContext.fillRect).toHaveBeenCalledTimes(initialTileDraws + CHUNK * CHUNK);
 
     renderer.invalidateTerrain();
     renderer.draw();
@@ -310,22 +327,23 @@ describe('terrain cache lifecycle', () => {
     renderer.draw();
     expect(fogTileDraws()).toBe(initial);
 
-    // One newly explored tile repaints only its own 4x4 chunk, minus that tile.
+    // One newly explored tile repaints only its own chunk, minus that tile.
     state.exploredTiles.add(explorationIndex(12, 22));
     renderer.invalidateFog(12, 22);
     renderer.draw();
-    expect(fogTileDraws()).toBe(initial + 15);
+    expect(fogTileDraws()).toBe(initial + CHUNK * CHUNK - 1);
 
     renderer.invalidateFog();
     renderer.draw();
-    expect(fogTileDraws()).toBe(initial * 2 + 14);
+    expect(fogTileDraws()).toBe(initial * 2 + CHUNK * CHUNK - 2);
 
     // A fully explored chunk caches "nothing to draw": no canvas, no blit, no paint.
     const canvasesBefore = mocks.terrainCanvases.length;
-    for (let y = 20; y < 24; y++) for (let x = 12; x < 16; x++) state.exploredTiles.add(explorationIndex(x, y));
+    const chunkX = Math.floor(12 / CHUNK) * CHUNK, chunkY = Math.floor(22 / CHUNK) * CHUNK;
+    for (let y = chunkY; y < chunkY + CHUNK; y++) for (let x = chunkX; x < chunkX + CHUNK; x++) state.exploredTiles.add(explorationIndex(x, y));
     renderer.invalidateFog(12, 22);
     renderer.draw();
-    expect(fogTileDraws()).toBe(initial * 2 + 14);
+    expect(fogTileDraws()).toBe(initial * 2 + CHUNK * CHUNK - 2);
     expect(mocks.terrainCanvases.length).toBe(canvasesBefore);
   });
 
@@ -625,6 +643,61 @@ describe('terrain cache lifecycle', () => {
     expect(firstFrame).toEqual(secondFrame);
   });
 
+  it('holds the ship still — no hover bob, wobble or flame flicker — under reduced motion', () => {
+    const state = {
+      world: [], camX: 10, camY: 20, tick: 3, gameOver: false, reducedMotion: true,
+      exploredTiles: new Set<number>(), teleportEffect: null,
+      particles: [], enemies: [],
+      // A ship that has just moved: full bob, the drill spinning.
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:1, drillAnim:1, drillDx:0, drillDy:1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    const frame = () => {
+      vi.clearAllMocks();
+      renderer.draw();
+      return {
+        translate: mocks.mainContext.translate.mock.calls.map(call => [...call]),
+        lineTo: mocks.mainContext.lineTo.mock.calls.map(call => [...call])
+      };
+    };
+
+    const still = frame();
+    state.tick = 29;
+    expect(frame()).toEqual(still);
+
+    // With motion allowed, the same two ticks draw the ship in different places.
+    state.reducedMotion = false;
+    state.tick = 3;
+    const moving = frame();
+    state.tick = 29;
+    expect(frame()).not.toEqual(moving);
+  });
+
+  it('centres the game-over text on the viewport height', () => {
+    const state = {
+      world: [], camX: 10, camY: 20, tick: 0, gameOver: true,
+      particles: [], enemies: [],
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    const lineY = (text: string) => mocks.mainContext.fillText.mock.calls.find(call => call[0] === text)?.[2];
+
+    for (const heightPx of [640, 380, 1100]) {
+      mocks.viewport.heightPx = heightPx;
+      vi.clearAllMocks();
+      renderer.draw();
+      const title = lineY('GAME OVER');
+      const last = lineY('or press R');
+      expect(title).toBeDefined();
+      expect(last).toBeDefined();
+      // The block straddles the middle: the title above it, the last line below.
+      expect(title!).toBeLessThan(heightPx / 2);
+      expect(last!).toBeGreaterThan(heightPx / 2);
+      expect(Math.abs((title! + last!) / 2 - heightPx / 2)).toBeLessThan(40);
+    }
+    mocks.viewport.heightPx = 640;
+  });
+
   it('leaves the ship out when asked to, as the intro showcase does', () => {
     const state = {
       world: [], camX: 10, camY: 20, tick: 0, gameOver: false, hideShip: false,
@@ -682,7 +755,7 @@ describe('camera zoom', () => {
 
     // The overlay is painted after `restore()`, so it still covers the CSS canvas.
     expect(mocks.mainContext.fillRect).toHaveBeenCalledWith(0, 0, 960, 640);
-    expect(mocks.mainContext.fillText).toHaveBeenCalledWith('GAME OVER', 480, 295);
+    expect(mocks.mainContext.fillText).toHaveBeenCalledWith('GAME OVER', 480, 640 / 2 - 18);
   });
 
   it('cuts terrain chunks at the magnified resolution so zooming in stays crisp', () => {
@@ -691,8 +764,8 @@ describe('camera zoom', () => {
 
     renderer.draw();
 
-    const chunkPixels = (4 * TILE + 2 * 52) * 2;
-    expect(Math.max(...mocks.terrainCanvases.map(canvas => canvas.width))).toBe(chunkPixels);
+    const chunkPixels = (CHUNK * TILE + 2 * TERRAIN_CHUNK_PADDING) * 2;
+    expect(Math.max(...chunkCanvases().map(canvas => canvas.width))).toBe(chunkPixels);
     expect(mocks.terrainContext.setTransform).toHaveBeenCalledWith(2, 0, 0, 2, 0, 0);
   });
 
@@ -714,5 +787,176 @@ describe('camera zoom', () => {
     renderer.draw();
     expect(mocks.terrainCanvases.length).toBeGreaterThan(builtAtBaseline);
     expect(mocks.terrainContext.setTransform).toHaveBeenLastCalledWith(2, 0, 0, 2, 0, 0);
+  });
+});
+
+describe('per-frame work the caches spare', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    zoomViewport(1);
+    mocks.terrainCanvases.length = 0;
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => {
+        const terrainCanvas = {width: 0, height: 0, getContext: vi.fn(() => mocks.terrainContext)};
+        mocks.terrainCanvases.push(terrainCanvas);
+        return terrainCanvas;
+      })
+    });
+  });
+
+  const ship = () => ({x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1});
+
+  /**
+   * The crack overlay reads only the tiles known to be hurt: a tile damaged when
+   * its chunk is cut, or reported by a drill hit that kept its type, is cracked;
+   * a steady frame with nothing hurt reads no tile at all.
+   */
+  it('cracks exactly the damaged tiles without reading the rest of the view', () => {
+    const hurt = {type: 'dirt' as const, hp: 2, maxHp: 5};
+    const tiles = new Map<string, {type: 'dirt'; hp: number; maxHp: number}>([['12,22', hurt]]);
+    const get = vi.fn((x: number, y: number) => tiles.get(`${x},${y}`) ?? {type: 'dirt' as const, hp: 5, maxHp: 5});
+    const state = {
+      world: [], camX: 10, camY: 20, tick: 0, gameOver: false,
+      particles: [], enemies: [], exploredTiles: undefined as Set<number> | undefined,
+      player: ship()
+    };
+    const renderer = createRenderer({state, get, rand: () => 0});
+    // The first crack stroke of a dirt tile two tiles right of and below the camera.
+    const cracked = () => mocks.mainContext.moveTo.mock.calls.some(([x, y]) => x === 2*TILE + TILE*.24 && y === 2*TILE + TILE*.36);
+
+    // Already hurt when its chunk is first cut.
+    renderer.draw();
+    expect(cracked()).toBe(true);
+
+    // A steady frame re-reads only that one tile.
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(cracked()).toBe(true);
+
+    // Healed and reported: no crack, and the next frame reads nothing.
+    hurt.hp = 5;
+    renderer.refreshTileDamage(12, 22);
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(cracked()).toBe(false);
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(get).not.toHaveBeenCalled();
+
+    // A drill hit keeps the type, so the cached chunk stands; the report alone cracks it.
+    const canvases = mocks.terrainCanvases.length;
+    hurt.hp = 3;
+    renderer.refreshTileDamage(12, 22);
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(cracked()).toBe(true);
+    expect(mocks.terrainCanvases.length).toBe(canvases);
+
+    // A hurt tile still hides under fog.
+    state.exploredTiles = new Set<number>();
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(cracked()).toBe(false);
+  });
+
+  it('keeps tracking damage across a whole-cache rebuild', () => {
+    const hurt = {type: 'dirt' as const, hp: 2, maxHp: 5};
+    const get = (x: number, y: number) => x === 12 && y === 22 ? hurt : {type: 'dirt' as const, hp: 5, maxHp: 5};
+    const state = {world: [], camX: 10, camY: 20, tick: 0, gameOver: false, particles: [], enemies: [], player: ship()};
+    const renderer = createRenderer({state, get, rand: () => 0});
+    const cracked = () => mocks.mainContext.moveTo.mock.calls.some(([x, y]) => x === 2*TILE + TILE*.24 && y === 2*TILE + TILE*.36);
+
+    renderer.draw();
+    renderer.invalidateTerrain();
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(cracked()).toBe(true);
+
+    // A new world is a new cache source: its chunks re-record their own damage.
+    state.world = [[]] as never[];
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(cracked()).toBe(true);
+  });
+
+  it('builds the ship, rig and cave gradients once and reuses them every frame', () => {
+    const enemy = {id:1, kind:'abyssStalker' as const, x:13, y:1002, drawX:13, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:0, origin: {x: 13, y: 1002}};
+    const state = {
+      world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
+      particles: [], enemies: [enemy],
+      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+
+    renderer.draw();
+    expect(mocks.mainContext.createLinearGradient).toHaveBeenCalled();
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(mocks.mainContext.createLinearGradient).not.toHaveBeenCalled();
+
+    // The hit flash has its own whitened hull, built on the first struck frame only.
+    enemy.flash = 1;
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(mocks.mainContext.createLinearGradient).toHaveBeenCalledTimes(1);
+    expect(mocks.gradient.addColorStop).toHaveBeenCalledWith(0, '#fff6a8');
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(mocks.mainContext.createLinearGradient).not.toHaveBeenCalled();
+  });
+
+  it('bakes the blend overlay once per canvas size and stretches it over any zoom', () => {
+    const state = {world: [], camX: 10, camY: 20, tick: 0, gameOver: false, particles: [], enemies: [], player: ship()};
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    // Air with a zero roll paints no haze, so every offscreen ellipse is the overlay's.
+    const bakedEllipses = () => mocks.terrainContext.ellipse.mock.calls.length;
+    const overlayBlit = () => mocks.mainContext.drawImage.mock.calls.find(call => (call[0] as {width: number}).width === mocks.viewport.widthPx);
+
+    renderer.draw();
+    expect(bakedEllipses()).toBe(10);
+    expect(overlayBlit()?.slice(5)).toEqual([0, 0, 960, 640]);
+
+    renderer.draw();
+    zoomViewport(2);
+    vi.clearAllMocks();
+    renderer.draw();
+    expect(bakedEllipses()).toBe(0);
+    // Zoomed in, the same picture covers the smaller world view.
+    expect(overlayBlit()?.slice(5)).toEqual([0, 0, 480, 320]);
+
+    const {widthPx} = mocks.viewport;
+    try {
+      mocks.viewport.widthPx = 800;
+      zoomViewport(1);
+      vi.clearAllMocks();
+      renderer.draw();
+      expect(bakedEllipses()).toBe(10);
+    } finally {
+      mocks.viewport.widthPx = widthPx;
+      zoomViewport(1);
+    }
+  });
+
+  it('paints an explored trading post in view, and skips it under fog', () => {
+    const post = tradingPostsInRange(0, 0, WORLD_W - 1, 4000).find(candidate => candidate.x >= 6 && candidate.x - 6 <= WORLD_W - mocks.viewport.tilesX);
+    if (!post) throw new Error('no trading post in the sampled band');
+    const state = {
+      world: [], camX: post.x - 6, camY: post.y - 4, tick: 0, gameOver: false,
+      exploredTiles: new Set([explorationIndex(post.x, post.y)]),
+      particles: [], enemies: [],
+      player: {x: post.x - 3, y: post.y, drawX: post.x - 3, drawY: post.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    const at = (call: unknown[]) => call[0] === TILE*6.5 && call[1] === TILE*4.5;
+
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(true);
+    expect(mocks.mainContext.fillText).toHaveBeenCalledWith('$', 0, expect.any(Number));
+
+    vi.clearAllMocks();
+    state.exploredTiles = new Set<number>();
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(false);
   });
 });

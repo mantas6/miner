@@ -11,7 +11,7 @@ import styles from './StationHint.module.css';
 
 export function StationHint() {
   const hint = useUiStore(state => state.hud.stationHint);
-  const overlayOpen = useUiStore(state => state.activeOverlay !== null);
+  const overlayOpen = useUiStore(state => state.overlay !== null);
   const shown = overlayOpen ? '' : hint;
   return (
     <div id="stationHint" className={styles.hint} aria-live="polite" hidden={!shown}>{shown}</div>
