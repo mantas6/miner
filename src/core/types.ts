@@ -88,6 +88,12 @@ export interface Enemy {
   moveTick: number;
   biteTick: number;
   flash: number;
+  /**
+   * The cocoon tile it hatched from. Transient (enemies are never saved): the
+   * hatch is left out of the tile diff so a reload regrows the cocoon, and a kill
+   * records this tile as air so a destroyed enemy stays destroyed.
+   */
+  origin: {x: number; y: number};
 }
 
 export interface Particle {

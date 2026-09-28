@@ -37,7 +37,7 @@ function oreTile(name: string): Tile {
 }
 
 function liveEnemy(x: number, y: number): Enemy {
-  return {id: 1, kind: 'tunnelFiend', x, y, drawX: x, drawY: y, hp: 3, maxHp: 3, alive: true, moveTick: 0, biteTick: 0, flash: 0};
+  return {id: 1, kind: 'tunnelFiend', x, y, drawX: x, drawY: y, hp: 3, maxHp: 3, alive: true, moveTick: 0, biteTick: 0, flash: 0, origin: {x, y}};
 }
 
 /** The store's live projection, spread so a test can override just what it needs. */

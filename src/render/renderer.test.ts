@@ -219,7 +219,7 @@ describe('terrain cache lifecycle', () => {
     const state = {
       world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
       particles: [],
-      enemies: [{id:1, kind:'abyssStalker' as const, x:12, y:1002, drawX:12, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:0}],
+      enemies: [{id:1, kind:'abyssStalker' as const, x:12, y:1002, drawX:12, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:0, origin: {x: 12, y: 1002}}],
       player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
@@ -238,7 +238,7 @@ describe('terrain cache lifecycle', () => {
     const state = {
       world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
       particles: [],
-      enemies: [{id:1, kind:'abyssStalker' as const, x:12, y:1002, drawX:12, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:1}],
+      enemies: [{id:1, kind:'abyssStalker' as const, x:12, y:1002, drawX:12, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:1, origin: {x: 12, y: 1002}}],
       player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
@@ -274,7 +274,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 20, tick: 0, gameOver: false,
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [{x:12.5, y:22.5, vx:0, vy:0, life:20, color:'#fff', size:.1}],
-      enemies: [{id:1, kind:'tunnelFiend' as const, x:12, y:22, drawX:12, drawY:22, hp:4, maxHp:4, alive:true, moveTick:0, biteTick:0, flash:0}],
+      enemies: [{id:1, kind:'tunnelFiend' as const, x:12, y:22, drawX:12, drawY:22, hp:4, maxHp:4, alive:true, moveTick:0, biteTick:0, flash:0, origin: {x: 12, y: 22}}],
       player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
     };
     const renderer = createRenderer({state, get: () => ({type:'dirt', hp:5, maxHp:5}), rand: () => 0});

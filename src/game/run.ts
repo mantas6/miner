@@ -5,13 +5,14 @@
 // The rules worth remembering:
 //   * hull damage that empties the hull ends the run exactly once;
 //   * death keeps cash and stats, and loses cargo, fitted upgrades and position;
-//   * a boot keeps the position the save recorded, because only dying costs it.
+//   * a boot keeps the position the save recorded, because only dying costs it;
+//   * a player-data wipe keeps the mine and its live enemies, and never rewinds
+//     the tick their cooldowns are measured against.
 
-import { SHIP_UPGRADE_SLOTS, START_Y } from '../../shared/constants';
-import { STARTING } from '../core/balance';
-import { createInventory, removeOres } from '../core/inventory';
+import { START_Y } from '../../shared/constants';
+import { removeOres } from '../core/inventory';
 import { respawnPortals } from '../core/portal';
-import { createDefaultStats, placeAtHome, respawnPlayer } from '../core/state';
+import { createInitialState, placeAtHome, respawnPlayer } from '../core/state';
 import { dropWreck } from '../core/wreck';
 import { applyTileEntries, tileDiffEntries } from '../world/tile-diff';
 import { resetWorldTerrain } from '../world/world-state';
@@ -21,6 +22,12 @@ import type { GameInput } from './input';
 import type { PortalsSim } from './portals';
 import { viewport } from './viewport';
 import { canLandOn } from './world-grid';
+
+export const PLAYER_DATA_RESET_CONFIRMATION = 'Reset all player data? This permanently clears cash, upgrades, equipment, cargo, stats, objectives, explored fog, and current ship progress. The mine terrain will be preserved.';
+
+export function confirmPlayerDataReset(confirmReset: (message: string) => boolean): boolean {
+  return confirmReset(PLAYER_DATA_RESET_CONFIRMATION);
+}
 
 /** Where a fresh ship redeploys after a restart: a portal tile, or the home base. */
 type SpawnAt = {x: number; y: number} | undefined;
@@ -32,7 +39,10 @@ export interface GameRun {
   resume(): void;
   /** Regenerate terrain in place, keeping all player progress. */
   clearWorldRuntime(): void;
-  /** Redeploy the ship at `at` (a portal) or the home base; `full` also wipes progress. */
+  /**
+   * Redeploy the ship at `at` (a portal) or the home base; `full` (the default)
+   * also wipes all player data, keeping the mine. Never saves — the caller does.
+   */
   resetPlayer(full?: boolean, at?: SpawnAt): void;
   /** R or a tap after death: a whole new world. */
   restartGame(): void;
@@ -74,29 +84,40 @@ export function createRun(deps: GameRunDeps): GameRun {
     state.camY = Math.max(0, state.player.y - Math.floor(viewport.tilesY/2));
   }
 
+  /**
+   * The one ship redeploy, and — with `full` — the one player-data wipe. A plain
+   * redeploy (`full` false, the death/restart path) keeps every piece of
+   * progress; a full wipe returns everything the player owns to a new game's
+   * values while the mine itself — terrain, tile diff, live enemies — is left
+   * standing. Neither writes the save: the caller does, once the state is final.
+   *
+   * `state.tick` is never rewound. Enemy move and bite cooldowns are stamped
+   * with absolute ticks, so rewinding the clock would freeze every live enemy
+   * until it caught back up.
+   */
   function resetPlayer(full = true, at?: SpawnAt): void {
     state.teleportEffect = null;
     if (full) {
-      state.cash = STARTING.cash;
-      Object.assign(state.player, {
-        // The four maxima are derived from the fitted slots, so unfitting every
-        // upgrade is the wipe; `respawnPlayer` re-derives them to the base below.
-        equipment: Array.from({length: SHIP_UPGRADE_SLOTS}, () => null),
-        // Bought equipment lives in the bay, so emptying it is part of the wipe.
-        inventory: createInventory()
-      });
-      state.scannerDevices = [];
-      state.placedDynamite = [];
-      state.cargoContainers = [];
-      state.wrecks = [];
+      const fresh = createInitialState();
+      state.cash = fresh.cash;
+      state.stats = fresh.stats;
+      // Bought equipment lives in the bay and the fitted upgrades in the slots, so
+      // a fresh ship is the wipe; `respawnPlayer` below re-derives the maxima.
+      Object.assign(state.player, fresh.player);
+      state.scannerDevices = fresh.scannerDevices;
+      state.placedDynamite = fresh.placedDynamite;
+      state.cargoContainers = fresh.cargoContainers;
+      state.wrecks = fresh.wrecks;
+      // Back to the two home stations and the Home portal: everything crafted and
+      // placed since was player property.
+      state.stations = fresh.stations;
       // A full player wipe drops the drawn-down trading stock too; a plain death
       // (`full` false) leaves it, so a post the player emptied stays emptied.
-      state.tradeLedger = {};
+      state.tradeLedger = fresh.tradeLedger;
       // Likewise every chest the player opened comes back full.
-      state.chestLedger = {};
+      state.chestLedger = fresh.chestLedger;
+      state.input = fresh.input;
       state.exploredTiles.clear();
-      state.stats = createDefaultStats();
-      saveProgress();
       deps.invalidateFog();
     }
     respawnPlayer(state.player, at);
@@ -109,6 +130,9 @@ export function createRun(deps: GameRunDeps): GameRun {
 
   /** The mine rebuilt from its seed, with the saved diff dug back out. */
   function buildSoloWorld(): void {
+    // Live enemies go with the old grid: a hatch is never written to the diff,
+    // so every cocoon comes back from the seed and the exposure pass that
+    // follows re-wakes the reachable ones. Keeping the entities would double them.
     state.enemies = [];
     state.world = [];
     // Terrain comes back from the seed, so the dug-out blocks have to be layered

@@ -82,7 +82,7 @@ describe('terrain scanner readout', () => {
 
     const fiend: Enemy = {
       id: 7, kind: 'tunnelFiend', x: game.state.player.x, y: game.state.player.y + 1,
-      drawX: 0, drawY: 0, hp: 4, maxHp: 4, alive: true, moveTick: 0, biteTick: 0, flash: 0
+      drawX: 0, drawY: 0, hp: 4, maxHp: 4, alive: true, moveTick: 0, biteTick: 0, flash: 0, origin: {x: 0, y: 0}
     };
     game.enemies.standingEnemy = fiend;
     expect(game.sync().scanner).toContain('active tunnel fiend');

@@ -62,7 +62,11 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
   function wakeEnemy(x: number, y: number): boolean {
     const tile = grid.get(x, y);
     if (tile.type !== 'enemy') return false;
-    grid.set(x, y, {type: 'air'});
+    // The hatch is not a dig: left out of the tile diff, a reload regenerates the
+    // cocoon from the seed (and the exposure pass wakes it again) instead of
+    // leaving the tile permanently empty with its enemy gone for good. Only a kill
+    // makes it permanent (see `killEnemy`).
+    grid.set(x, y, {type: 'air'}, {record: false});
     const enemy: Enemy = {
       id: state.enemyIdCounter++,
       kind: tile.kind,
@@ -75,7 +79,8 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
       alive: true,
       moveTick: 0,
       biteTick: 0,
-      flash: 0
+      flash: 0,
+      origin: {x, y}
     };
     state.enemies.push(enemy);
     spawnDust(x, y, getEnemyType(enemy.kind).glow, 18);
@@ -134,6 +139,11 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
     const bounty = enemyBounty(y);
     if (target.kind === 'active') {
       target.enemy.alive = false;
+      // Commit the hatch now that the enemy is gone for good: recording its cocoon
+      // tile as air keeps a reload from regrowing it and paying the bounty twice.
+      // Anything else standing there since (a placed panel) was recorded already.
+      const {origin} = target.enemy;
+      if (grid.get(origin.x, origin.y).type === 'air') grid.set(origin.x, origin.y, {type: 'air'});
       spawnExplosion(x, y);
     } else {
       grid.set(x, y, {type: 'air'});

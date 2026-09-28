@@ -562,6 +562,18 @@ export function parseImportedSave(text: string): ImportedSave {
   return {ok: true, json: JSON.stringify(parsed)};
 }
 
+/**
+ * Drop the saved run, ahead of writing a wiped one over it: should storage then
+ * refuse that write, a reload still finds nothing rather than the old progress.
+ */
+export function discardSave(): void {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {
+    // Storage may be unavailable; the save that follows still gets its chance.
+  }
+}
+
 export function save(state: GameState): void {
   const progress = serializeProgress(state);
   for (;;) {

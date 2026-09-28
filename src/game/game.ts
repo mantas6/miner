@@ -41,7 +41,7 @@ import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
 import { formatExpeditionObjective } from '../core/objective';
-import { SAVE_EXPORT_FILENAME, SAVE_KEY, load, parseImportedSave, save, serializeProgress } from '../persistence';
+import { SAVE_EXPORT_FILENAME, SAVE_KEY, discardSave, load, parseImportedSave, save, serializeProgress } from '../persistence';
 import { clearPersistedGameData } from '../persistence-reset';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { formatExpeditionStats } from '../core/stats';
@@ -53,7 +53,6 @@ import { buildCargoRows, buildInventorySlots, buildShipSlots, pushToast as toast
 import { TELEPORTER_ITEM, advanceTeleportEffect, canUsePortableTeleporter } from '../core/teleporter';
 import type { AudioController } from '../core/types';
 import { revealFootprint } from '../../shared/exploration-codec';
-import { confirmPlayerDataReset, resetPlayerData } from '../core/player-data-reset';
 import { fillDeveloperExtractor, grantDeveloperOres } from '../core/developer';
 import { confirmWorldStateReset } from '../world/world-state';
 import { createFixedStepper } from '../core/fixed-step';
@@ -77,7 +76,7 @@ import { createToolkit, TOOLKIT_ITEM, type ToolkitSim } from './toolkit';
 import { createDecor, type DecorSim } from './decor';
 import { createMovement } from './move';
 import { createReadouts, type HudReadouts } from './readouts';
-import { createRun, type GameRun } from './run';
+import { confirmPlayerDataReset, createRun, type GameRun } from './run';
 import { createInput, type GameInput } from './input';
 
 export type GameRuntimeOptions = GameSurfaceRefs;
@@ -320,12 +319,13 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       fillExtractor: fillExtractorCheat,
       resetPlayerData: () => {
         if (!confirmPlayerDataReset(message => window.confirm(message))) return;
-        progressSave.cancel();
         gameInput.clearKeys();
-        resetPlayerData(state);
+        // The bay is about to be emptied, so nothing it held may stay armed.
+        disarmPlacements();
+        run.resetPlayer(true);
         readouts.reset();
-        revealAtPlayer();
-        progressSave.cancel();
+        // Replace the save outright; `saveProgress` also drops any pending debounce.
+        discardSave();
         saveProgress();
         closeInfoScreen();
         toast('Player data reset. Mine terrain preserved.');
@@ -896,7 +896,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       audio,
       toast,
       saveProgress: scheduleSave,
-      atSurface,
       portals
     });
     readouts = createReadouts({state, grid, enemies, audio, atSurface, toast});

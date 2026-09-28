@@ -32,7 +32,6 @@ export interface GameActionsDeps {
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
-  atSurface(): boolean;
   /** The portal sim: a teleporter opens its list in `teleporter` mode. */
   portals: PortalsSim;
 }

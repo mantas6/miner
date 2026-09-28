@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ORES, START_Y, WORLD_W } from '../../shared/constants';
+import { HOME_ROW, HOME_X, ORES, START_Y, WORLD_W } from '../../shared/constants';
 import { STARTING } from '../core/balance';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
 import { applyEquipment } from '../core/ship-upgrades';
@@ -10,10 +10,13 @@ import { WRECK } from '../core/wreck';
 import type { GameState } from '../core/types';
 import { createTileDiff } from '../world/tile-diff';
 import { makeTile } from '../world/world';
-import { createRun, type GameRun } from './run';
+import { DYNAMITE_ITEM } from '../core/dynamite';
+import { createEnemySim } from './enemies';
+import { confirmPlayerDataReset, createRun, PLAYER_DATA_RESET_CONFIRMATION, type GameRun } from './run';
 import {
   createAudioStub,
   createEnemySimStub,
+  createFakeGrid,
   createInputStub,
   createPortalsSimStub,
   createToastLog,
@@ -405,6 +408,41 @@ describe('a full player reset', () => {
     expect(h.invalidateFog).toHaveBeenCalled();
   });
 
+  it('clears every player/profile field back to a new game, and leaves saving to the caller', () => {
+    const h = harness();
+    Object.assign(h.state.player, {
+      x: 8, y: 80, drawX: 7, drawY: 79, facing: -1, bob: 1, drillAnim: 2,
+      drillDx: 1, drillDy: 0, fuel: 2, hull: 3,
+      inventory: addItem(
+        addItem(addOre(createInventory(), ORES[3], 80)!, DYNAMITE_ITEM, 2)!,
+        TELEPORTER_ITEM,
+        8
+      )!
+    });
+    h.state.gameOver = true;
+    h.state.particles.push({x: 1, y: 1, vx: 1, vy: 1, life: 1, color: '#fff', size: 1});
+    h.state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4};
+    h.state.scannerDevices = [{x: 3, y: 40, timer: 9}];
+    h.state.cargoContainers = [{x: 4, y: 40, inventory: createInventory()}];
+    h.state.wrecks = [{x: 5, y: 40, inventory: addOre(createInventory(), ORES[0], 1)!}];
+    h.state.stations = [createPortal(50, 100, 'Deep')];
+    h.state.input.resetConfirmUntil = 999;
+
+    h.run.resetPlayer(true);
+
+    const fresh = createInitialState();
+    expect(h.state.player).toEqual(fresh.player);
+    expect(h.state).toMatchObject({
+      cash: fresh.cash, gameOver: false, particles: [], stats: fresh.stats,
+      teleportEffect: null, input: fresh.input,
+      scannerDevices: [], placedDynamite: [], cargoContainers: [], wrecks: [],
+      stations: fresh.stations
+    });
+    expect(h.state.exploredTiles.size).toBe(0);
+    expect(h.revealAtPlayer).toHaveBeenCalled();
+    expect(h.saveProgress).not.toHaveBeenCalled();
+  });
+
   it('clears the trading stock ledger, which a plain death would have kept', () => {
     const h = harness();
     h.state.tradeLedger = {'40,120': [0, 1]};
@@ -414,6 +452,66 @@ describe('a full player reset', () => {
 
     expect(h.state.tradeLedger).toEqual({});
     expect(h.state.chestLedger).toEqual({});
+  });
+
+  it('preserves the current world, its tile diff and the live enemies', () => {
+    const h = harness();
+    const world = [[{type: 'air'}]] as typeof h.state.world;
+    const diff = createTileDiff([{x: 40, y: 60, tile: {type: 'air'}}]);
+    const enemies = [{id: 9, kind: 'tunnelFiend' as const, x: 1, y: 2, drawX: 1, drawY: 2, hp: 3, maxHp: 4, alive: true, moveTick: 2, biteTick: 1, flash: 0, origin: {x: 1, y: 2}}];
+    h.state.world = world;
+    h.state.soloTileDiff = diff;
+    h.state.enemies = enemies;
+
+    h.run.resetPlayer(true);
+
+    expect(h.state.world).toBe(world);
+    expect(h.state.soloTileDiff).toBe(diff);
+    expect(h.state.enemies).toBe(enemies);
+  });
+
+  it('keeps the sim clock running, so a live enemy still moves afterwards', () => {
+    const h = harness();
+    // An open cavern around the home base, with an enemy that last stepped on
+    // tick 500 — the tick the reset happens on.
+    h.state.world = Array.from({length: HOME_ROW + 10}, () => Array.from({length: WORLD_W}, () => ({type: 'air'} as const)));
+    h.state.tick = 500;
+    const enemy = {
+      id: 1, kind: 'tunnelFiend' as const, x: HOME_X + 6, y: HOME_ROW, drawX: HOME_X + 6, drawY: HOME_ROW,
+      hp: 4, maxHp: 4, alive: true, moveTick: 500, biteTick: 500, flash: 0, origin: {x: HOME_X + 6, y: HOME_ROW}
+    };
+    h.state.enemies = [enemy];
+    const sim = createEnemySim({
+      state: h.state,
+      grid: createFakeGrid(),
+      audio: h.audio,
+      toast: h.toasts.toast,
+      addCash: vi.fn(),
+      saveProgress: vi.fn(),
+      damagePlayer: vi.fn(),
+      spawnDust: vi.fn(),
+      spawnExplosion: vi.fn()
+    });
+
+    h.run.resetPlayer(true);
+    expect(h.state.tick).toBe(500);
+    // The fresh ship is parked at home, six tiles from the enemy.
+    expect(h.state.player).toMatchObject({x: HOME_X, y: HOME_ROW});
+
+    for (let i = 0; i < 60; i++) {
+      h.state.tick++;
+      sim.update();
+    }
+
+    expect(enemy.x).toBeLessThan(HOME_X + 6);
+  });
+});
+
+describe('the player-data reset confirmation', () => {
+  it('does nothing when explicit confirmation is cancelled', () => {
+    const confirm = vi.fn(() => false);
+    expect(confirmPlayerDataReset(confirm)).toBe(false);
+    expect(confirm).toHaveBeenCalledWith(PLAYER_DATA_RESET_CONFIRMATION);
   });
 });
 

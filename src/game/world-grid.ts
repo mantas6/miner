@@ -34,10 +34,19 @@ export interface WorldGrid {
   readonly world: Tile[][];
   /** Tile at a coordinate, generating its row chunk on first access. */
   get(x: number, y: number): Tile;
-  /** Commit a tile mutation, invalidating render caches and recording the diff. */
-  set(x: number, y: number, tile: Tile): void;
+  /**
+   * Commit a tile mutation, invalidating render caches and recording the diff.
+   * `record: false` changes the live grid only, so a reload regenerates the
+   * tile from the seed — for transient changes such as a cocoon hatching.
+   */
+  set(x: number, y: number, tile: Tile, options?: TileSetOptions): void;
   /** Generate the row chunk containing `y` so bulk readers can index it. */
   ensureRow(y: number): Tile[] | undefined;
+}
+
+export interface TileSetOptions {
+  /** Write the mutation into the tile diff (and so the save). Default true. */
+  record?: boolean;
 }
 
 export interface WorldGridOptions {
@@ -57,13 +66,13 @@ export function createWorldGrid({state, invalidateTerrain, onTileSet}: WorldGrid
       if (x < 0 || x >= WORLD_W) return outOfBoundsTile();
       return ensureWorldRow(state.world, y)?.[x] || outOfBoundsTile();
     },
-    set(x, y, tile) {
+    set(x, y, tile, {record = true} = {}) {
       const row = ensureWorldRow(state.world, y);
       if (!row || x < 0 || x >= row.length) return;
       const previousType = row[x].type;
       row[x] = tile;
       if (previousType !== tile.type) invalidateTerrain(x, y);
-      onTileSet(x, y, tile);
+      if (record) onTileSet(x, y, tile);
     },
     ensureRow(y) {
       return ensureWorldRow(state.world, y);

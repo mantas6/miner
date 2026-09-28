@@ -66,7 +66,7 @@ function harness(): Harness {
 }
 
 function liveEnemy(x: number, y: number): Enemy {
-  return {id: 1, kind: 'tunnelFiend', x, y, drawX: x, drawY: y, hp: 4, maxHp: 4, alive: true, moveTick: 0, biteTick: 0, flash: 0};
+  return {id: 1, kind: 'tunnelFiend', x, y, drawX: x, drawY: y, hp: 4, maxHp: 4, alive: true, moveTick: 0, biteTick: 0, flash: 0, origin: {x, y}};
 }
 
 const dirt = (hp: number): Tile => ({type: 'dirt', hp, maxHp: hp});

@@ -21,7 +21,6 @@ interface Harness {
   toasts: ReturnType<typeof createToastLog>;
   saveProgress: ReturnType<typeof vi.fn>;
   portals: PortalsSimStub;
-  flags: {atSurface: boolean};
 }
 
 function harness(): Harness {
@@ -31,15 +30,13 @@ function harness(): Harness {
     audio: createAudioStub(),
     toasts: createToastLog(),
     saveProgress: vi.fn(),
-    portals: createPortalsSimStub(),
-    flags: {atSurface: true}
+    portals: createPortalsSimStub()
   };
   const actions = createActions({
     state,
     audio: context.audio,
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
-    atSurface: () => context.flags.atSurface,
     portals: context.portals
   });
   return {...context, actions};

@@ -35,7 +35,7 @@ describe('world state reset', () => {
     state.stats.maxDepth = 900;
     state.world = [[{type:'air'}]];
     state.soloTileDiff = createTileDiff([{x:1, y:60, tile:{type:'air'}}]);
-    state.enemies = [{id:1,kind:'tunnelFiend',x:1,y:1,drawX:1,drawY:1,hp:2,maxHp:2,alive:true,moveTick:0,biteTick:0,flash:0}];
+    state.enemies = [{id:1,kind:'tunnelFiend',x:1,y:1,drawX:1,drawY:1,hp:2,maxHp:2,alive:true,moveTick:0,biteTick:0,flash:0,origin:{x:1,y:1}}];
     state.exploredTiles.add(400);
     state.cargoContainers = [createPlacedContainer(12, 300)];
     state.chestLedger = {'41,44': []};
