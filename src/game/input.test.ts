@@ -38,6 +38,7 @@ interface Harness {
   closeContainer: ReturnType<typeof vi.fn>;
   closeWreck: ReturnType<typeof vi.fn>;
   closeChest: ReturnType<typeof vi.fn>;
+  closeGrave: ReturnType<typeof vi.fn>;
   openNearest: ReturnType<typeof vi.fn>;
   closeStation: ReturnType<typeof vi.fn>;
   closeExtractor: ReturnType<typeof vi.fn>;
@@ -67,6 +68,7 @@ function harness(): Harness {
     closeContainer: vi.fn(),
     closeWreck: vi.fn(),
     closeChest: vi.fn(),
+    closeGrave: vi.fn(),
     openNearest: vi.fn(),
     closeStation: vi.fn(),
     closeExtractor: vi.fn(),
@@ -181,6 +183,37 @@ describe('the home-station key', () => {
     expect(h.closeStation).toHaveBeenCalledOnce();
     expect(h.openNearest).toHaveBeenCalledOnce();
     expect(h.move).not.toHaveBeenCalled();
+  });
+});
+
+describe('the grave stone', () => {
+  it('puts the stone away on Escape, Enter or Space, and keeps the keys off the mine', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    uiStore.getState().setActiveOverlay('grave');
+
+    press('Escape');
+    press('Enter');
+    press(' ');
+    press('d');
+    press('c');
+    h.input.tick();
+
+    expect(h.closeGrave).toHaveBeenCalledTimes(3);
+    expect(h.openNearest).not.toHaveBeenCalled();
+    expect(h.toggleContainer).not.toHaveBeenCalled();
+    expect(h.move).not.toHaveBeenCalled();
+  });
+
+  it('does not put away the stone a held Space just raised', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    uiStore.getState().setActiveOverlay('grave');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {key: ' ', repeat: true, bubbles: true, cancelable: true}));
+
+    expect(h.closeGrave).not.toHaveBeenCalled();
+    expect(h.openNearest).not.toHaveBeenCalled();
   });
 });
 

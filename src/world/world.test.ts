@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   CHEST_CHUNK,
   CHEST_MIN_ROW,
+  GRAVE_CHUNK,
+  GRAVE_MIN_ROW,
   HOME_PORTRAITS,
   PORTRAIT_CHUNK,
   TRADING_POST_CHUNK,
@@ -9,6 +11,9 @@ import {
   chestAt,
   chestsInRange,
   ensureWorldRow,
+  graveAt,
+  gravePocket,
+  gravesInRange,
   homePortraitAt,
   rand,
   naturalAirPocket,
@@ -317,6 +322,62 @@ describe('chests', () => {
       }
       expect(tradingPostAt(x, y)).toBeNull();
       expect(minePortraitAt(x, y)).toBe(false);
+    }
+  });
+});
+
+describe('graves', () => {
+  const graves = gravesInRange(0, 0, WORLD_W - 1, 1199);
+
+  it('lays roughly one per seven 16-tile chunks, derived the same every time', () => {
+    expect(GRAVE_CHUNK).toBe(16);
+    // ~0.15 per chunk, fewer at the walls, above the depth gate, beside the
+    // fixtures and over caves: 1200 rows × 90 columns ≈ 400 qualifying chunks.
+    expect(graves.length).toBeGreaterThan(30);
+    expect(graves.length).toBeLessThan(90);
+    expect(gravesInRange(0, 0, WORLD_W - 1, 1199)).toEqual(graves);
+    for (const {x, y} of graves.slice(0, 20)) expect(graveAt(x, y)).toEqual({x, y});
+  });
+
+  it('agrees tile by tile with graveAt over a scanned band', () => {
+    const scanned: {x: number; y: number}[] = [];
+    for (let y = 0; y < 300; y++) for (let x = 0; x < WORLD_W; x++) if (graveAt(x, y)) scanned.push({x, y});
+    const order = (a: {x: number; y: number}, b: {x: number; y: number}) => a.y - b.y || a.x - b.x;
+    expect(gravesInRange(0, 0, WORLD_W - 1, 299).sort(order)).toEqual(scanned.sort(order));
+  });
+
+  it('clears a 3-wide, 2-tall nook with the grave on its floor, below the depth gate', () => {
+    for (const {x, y} of graves) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const ny of [y - 1, y]) {
+          expect(gravePocket(x + dx, ny)).toBe(true);
+          expect(makeTile(x + dx, ny)).toEqual({type: 'air'});
+        }
+        // Nothing beyond the nook belongs to it: not the row above, nor the floor.
+        expect(gravePocket(x + dx, y - 2)).toBe(false);
+        expect(gravePocket(x + dx, y + 1)).toBe(false);
+      }
+      expect(gravePocket(x - 2, y)).toBe(false);
+      expect(gravePocket(x + 2, y)).toBe(false);
+      // It lies on something: the tile under the grave is not open cave.
+      expect(makeTile(x, y + 1).type).not.toBe('air');
+      expect(y).toBeGreaterThanOrEqual(GRAVE_MIN_ROW);
+      expect(x - 1).toBeGreaterThanOrEqual(2);
+      expect(x + 1).toBeLessThanOrEqual(WORLD_W - 3);
+    }
+    for (let y = 0; y < GRAVE_MIN_ROW; y++) for (let x = 0; x < WORLD_W; x++) expect(graveAt(x, y)).toBeNull();
+  });
+
+  it('never shares — or touches — a trading post, mine portrait or chest', () => {
+    for (const {x, y} of graves) {
+      for (let dy = -2; dy <= 1; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          expect(tradingPostPocket(x + dx, y + dy)).toBe(false);
+          expect(minePortraitPocket(x + dx, y + dy)).toBe(false);
+          expect(chestAt(x + dx, y + dy)).toBeNull();
+          expect(starterOreForCoordinate(x + dx, y + dy)).toBeNull();
+        }
+      }
     }
   });
 });

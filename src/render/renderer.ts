@@ -10,7 +10,7 @@ import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
 import { isScannerDone, scannerTileProgress, type ScannerDevice } from '../core/scanner-device';
-import { chestsInRange, tradingPostAt } from '../world/world';
+import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 import { isChestLooted } from '../core/chest';
 import { TERRAIN_CHUNK_TILES, terrainCacheScale, terrainChunkCoordinate, terrainChunkKeyForTile } from './terrain-cache-policy';
 import type {
@@ -266,6 +266,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     drawHomeStations(camX, camY);
     drawTradingPosts(camX, camY);
     drawChests(camX, camY);
+    drawGraves(camX, camY);
     drawCargoContainers(camX, camY);
     drawWrecks(camX, camY);
     drawScannerDevices(camX, camY);
@@ -612,6 +613,33 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillStyle = '#ffd65c';
     ctx.shadowColor = '#e0b040'; ctx.shadowBlur = 6;
     ctx.fillRect(-TILE * .05, -TILE * .06, TILE * .10, TILE * .10);
+    ctx.restore();
+  }
+  /**
+   * Graves, as an earth mound on the nook's floor with a pale cross planted at its
+   * head. Derived from the coordinate like the chests, walked chunk by chunk
+   * (`gravesInRange`), and never painted under fog.
+   */
+  function drawGraves(camX: number, camY: number) {
+    const range = getVisibleTileRange(camX, camY, viewport.tilesX, viewport.tilesY, WORLD_W);
+    for (const grave of gravesInRange(range.startX, range.startY, range.endX, range.endY)) {
+      if (!isExplored(grave.x, grave.y)) continue;
+      drawGraveBody((grave.x - camX) * TILE, (grave.y - camY) * TILE);
+    }
+  }
+  function drawGraveBody(sx: number, sy: number) {
+    ctx.save();
+    ctx.translate(sx + TILE * .5, sy + TILE * .5);
+    // The mound: a low heap of turned earth along the tile floor.
+    ctx.fillStyle = '#5a4030';
+    ctx.beginPath();
+    ctx.ellipse(0, TILE * .5, TILE * .40, TILE * .18, 0, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    // The cross: an upright and a crossbeam, two bars.
+    ctx.fillStyle = '#c9ced8';
+    ctx.fillRect(-TILE * .04, -TILE * .30, TILE * .08, TILE * .58);
+    ctx.fillRect(-TILE * .17, -TILE * .18, TILE * .34, TILE * .08);
     ctx.restore();
   }
   /**

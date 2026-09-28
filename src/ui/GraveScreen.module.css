@@ -1,0 +1,108 @@
+/* The gravestone shares the station/cargo/trade modal shell; see
+   InfoScreen.module.css for why the `<dialog>` is fixed at inset 14px. */
+.screen {
+  position: fixed;
+  inset: 14px;
+  z-index: 16;
+  margin: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  color: inherit;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(4, 7, 12, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+  overflow: visible;
+}
+.screen:not([open]) {
+  display: none;
+}
+.screen::backdrop {
+  background: transparent;
+}
+
+/* A small stone slab: rounded at the top like a headstone. */
+.card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(300px, 88vw);
+  padding: 26px 22px 20px;
+  border-radius: 120px 120px var(--r-xl) var(--r-xl);
+  background: linear-gradient(170deg, rgba(58, 62, 70, 0.97), rgba(28, 31, 38, 0.97));
+  border: 1px solid var(--hairline-3);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 var(--hairline-2);
+  text-align: center;
+}
+
+/* The cross, as two bars: the upright and the crossbeam above its middle. */
+.cross {
+  position: relative;
+  width: 28px;
+  height: 40px;
+  margin-bottom: 4px;
+}
+.cross::before,
+.cross::after {
+  content: "";
+  position: absolute;
+  border-radius: 2px;
+  background: #cfd6e2;
+  box-shadow: 0 0 10px rgba(207, 214, 226, 0.25);
+}
+.cross::before {
+  left: 11px;
+  top: 0;
+  width: 6px;
+  height: 40px;
+}
+.cross::after {
+  left: 0;
+  top: 10px;
+  width: 28px;
+  height: 6px;
+}
+
+.name {
+  margin: 0;
+  color: #eef4ff;
+  font-size: var(--fs-lg);
+  letter-spacing: 0.02em;
+}
+.years {
+  margin: 0;
+  color: var(--gold);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+.cause {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-style: italic;
+  line-height: 1.3;
+}
+
+.ok {
+  min-width: 96px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  color: #eef4ff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ok:hover {
+  background: rgba(255, 255, 255, 0.16);
+}

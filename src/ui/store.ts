@@ -27,6 +27,7 @@ import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { SCANNER_ITEM } from '../core/scanner-device';
 import { TELEPORTER_ITEM } from '../core/teleporter';
+import type { Epitaph } from '../core/grave';
 import type { Player } from '../core/types';
 import { DEFAULT_INFO_TAB, type InfoTab } from './info-navigation';
 
@@ -150,7 +151,7 @@ export type UiPhase = 'intro' | 'playing';
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'info' | 'container' | 'wreck' | 'chest' | 'ship' | 'station' | 'extractor' | 'trade' | 'portal';
+export type OverlayId = 'info' | 'container' | 'wreck' | 'chest' | 'ship' | 'station' | 'extractor' | 'trade' | 'portal' | 'grave';
 
 /** One portal the travel/teleporter/respawn overlay lists as a destination. */
 export interface PortalDestinationView {
@@ -266,6 +267,11 @@ export interface UiState {
    * never reaches into the simulation. `null` when no portal overlay is open.
    */
   portal: PortalView | null;
+  /**
+   * The epitaph on the grave being read, written only while its stone is up: the
+   * game pushes it on open and clears it on close. `null` when no grave is open.
+   */
+  grave: Epitaph | null;
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
   activeOverlay: ActiveOverlay;
@@ -305,6 +311,8 @@ export interface UiState {
   setTradeBuy(offers: TradeOfferView[]): void;
   /** Publish the open portal overlay's contents, or take it away with `null`. */
   setPortalUi(view: PortalView | null): void;
+  /** Publish the open grave's epitaph, or take it away with `null`. */
+  setGraveUi(epitaph: Epitaph | null): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
   /** Show one overlay, replacing whatever was up; `null` closes them all. */
@@ -434,6 +442,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   extractor: {coal: 0, fuel: 0, progress: 0},
   tradeBuy: [],
   portal: null,
+  grave: null,
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   activeOverlay: null,
@@ -506,6 +515,10 @@ export const uiStore = createStore<UiState>((set, get) => ({
 
   setPortalUi(view) {
     set({portal: view});
+  },
+
+  setGraveUi(epitaph) {
+    set({grave: epitaph});
   },
 
   setCargoRows(rows) {

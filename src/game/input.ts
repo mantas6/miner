@@ -23,7 +23,7 @@ const RESET_CONFIRM_MS = 3500;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
-const DIALOG_SURFACES = '#info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen, #trade-screen';
+const DIALOG_SURFACES = '#info-screen, #cargo-screen, #ship-screen, #station-screen, #extractor-screen, #trade-screen, #grave-screen';
 
 const movementKeys: Record<string, Direction> = {
   arrowleft: [-1, 0], a: [-1, 0],
@@ -78,6 +78,8 @@ export interface GameInputDeps {
   closeWreck(): void;
   /** Escape/C while a chest's menu is up. */
   closeChest(): void;
+  /** Escape/Enter/Space while a grave's stone is up. */
+  closeGrave(): void;
   /** Space: open the nearest home station, or toggle the open one shut. */
   openNearest(): void;
   /** Escape/Space while the manufacturing station screen is up. */
@@ -203,6 +205,18 @@ export function createInput(deps: GameInputDeps): GameInput {
       if (key === 'escape' || key === 'c') { deps.closeChest(); e.preventDefault(); e.stopPropagation(); }
       return;
     }
+    if (ui.activeOverlay === 'grave') {
+      // One OK is the whole stone, so every dismissal key is it: Space opened it and
+      // Space puts it away, Enter is the focused OK, Escape is Escape. Handled here
+      // rather than left to the button, so the press never also reaches the mine.
+      // A held Space auto-repeats, and must not put away the stone it just raised.
+      if (key === 'escape' || key === 'enter' || key === ' ') {
+        if (!e.repeat) deps.closeGrave();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
     if (ui.activeOverlay === 'station') {
       // Space opened it and Space shuts it again, the round trip on one key.
       if (key === 'escape' || key === ' ') { deps.closeStation(); e.preventDefault(); e.stopPropagation(); }
@@ -243,7 +257,8 @@ export function createInput(deps: GameInputDeps): GameInput {
       e.preventDefault();
       return;
     }
-    // Space opens whichever home station the ship is parked beside.
+    // Space opens whichever station-like thing the ship is parked beside — a home
+    // station, a trading post, or a grave.
     if (key === ' ') { deps.openNearest(); e.preventDefault(); e.stopPropagation(); return; }
     // E is the shortcut for the dynamite slot, not a detonator: it arms a stick
     // for planting, and the press on the mine that follows is what lights it.

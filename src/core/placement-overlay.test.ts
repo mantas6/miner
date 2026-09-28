@@ -22,7 +22,7 @@ import {
 import { createScannerDevice } from './scanner-device';
 import { createManufacturer, stationPlacementRefusal } from './stations';
 import { HOME_ROW } from '../../shared/constants';
-import { chestsInRange, tradingPostAt } from '../world/world';
+import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 
 /** The first trading post in the interior band, for the occupancy check. */
 function findPost(): {x: number; y: number} {
@@ -154,6 +154,21 @@ describe('isPlacementValid', () => {
     expect(isPlacementValid('device:manufacturer', chest.x, chest.y, bare)).toBe(true);
     expect(containerPlacementRefusal(chest.x, chest.y, {explored, open: true, containers: [], chestLedger: looted})).toBeNull();
     expect(stationPlacementRefusal(chest.x, chest.y, 'extractor', {explored, open: true, occupied: false, count: 0, chestLedger: looted})).toBeNull();
+  });
+});
+
+describe('graves and placement', () => {
+  it('never places a container or station on a grave, but leaves the rest of its nook open', () => {
+    const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+    const explored = new Set([explorationIndex(grave.x, grave.y), explorationIndex(grave.x + 1, grave.y)]);
+    const w = world({explored});
+    expect(isPlacementValid('container', grave.x, grave.y, w)).toBe(false);
+    expect(isPlacementValid('device:manufacturer', grave.x, grave.y, w)).toBe(false);
+    expect(containerPlacementRefusal(grave.x, grave.y, {explored, open: true, containers: []})).toContain('already stands');
+    expect(stationPlacementRefusal(grave.x, grave.y, 'extractor', {explored, open: true, occupied: false, count: 0})).toContain('already stands');
+    // The tile beside it, in the same nook, is ordinary open floor.
+    expect(isPlacementValid('container', grave.x + 1, grave.y, w)).toBe(true);
+    expect(containerPlacementRefusal(grave.x + 1, grave.y, {explored, open: true, containers: []})).toBeNull();
   });
 });
 

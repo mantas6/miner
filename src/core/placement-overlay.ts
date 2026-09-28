@@ -21,7 +21,7 @@ import { canPlaceDevice, inMineBounds, type PlacementSite } from './placement';
 import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
 import { STATION_DEVICE, isStationTile, stationAt, type PlacedStation } from './stations';
 import { type Wreck } from './wreck';
-import { tradingPostAt } from '../world/world';
+import { graveAt, tradingPostAt } from '../world/world';
 import { chestStandsAt } from './chest';
 import type { ChestLedger } from './types';
 
@@ -61,7 +61,7 @@ export interface PlacementOverlayWorld {
   isOpen(x: number, y: number): boolean;
 }
 
-/** Whether any placed entity — a station, container, wreck, scanner, dynamite, trading post, or chest — sits on this tile. */
+/** Whether any placed entity — a station, container, wreck, scanner, dynamite, trading post, chest, or grave — sits on this tile. */
 function isTileOccupied(x: number, y: number, world: PlacementOverlayWorld): boolean {
   return stationAt(world.stations, x, y) !== null
     || world.cargoContainers.some(container => container.x === x && container.y === y)
@@ -69,7 +69,8 @@ function isTileOccupied(x: number, y: number, world: PlacementOverlayWorld): boo
     || world.scannerDevices.some(device => device.x === x && device.y === y)
     || world.placedDynamite.some(stick => stick.x === x && stick.y === y)
     || tradingPostAt(x, y) !== null
-    || chestStandsAt(x, y, world.chestLedger) !== null;
+    || chestStandsAt(x, y, world.chestLedger) !== null
+    || graveAt(x, y) !== null;
 }
 
 /** One tile of the preview grid: where it is, and whether the device fits. */
@@ -135,7 +136,8 @@ function placementSiteFor(
         occupied: world.cargoContainers.some(container => container.x === x && container.y === y)
           || world.wrecks.some(wreck => wreck.x === x && wreck.y === y)
           || tradingPostAt(x, y) !== null
-          || chestStandsAt(x, y, world.chestLedger) !== null,
+          || chestStandsAt(x, y, world.chestLedger) !== null
+          || graveAt(x, y) !== null,
         full: world.cargoContainers.length >= CARGO_CONTAINER.maxPlaced
       };
     default:

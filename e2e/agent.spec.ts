@@ -158,6 +158,24 @@ function seedChest(): void {
   }));
 }
 
+/**
+ * Seed the ship inside a grave's nook. Worldgen is deterministic, so the first
+ * grave below the home cavern always lies at (21, 33), on the floor of its 3×2 air
+ * nook (see `graveAt` in `src/world/world.ts`), with Praskovya Ivanova's epitaph
+ * (`epitaphFor` in `src/core/grave.ts`). The ship parks one tile east of it, on the
+ * nook floor, with solid ground beneath, so it sits still.
+ */
+function seedGrave(): void {
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 18,
+    x: 22, y: 33,
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20}
+    ]
+  }));
+}
+
 /** Units of `kind` in a slot list, or 0 when none. */
 function countKind(slots: {kind: string; count: number}[], kind: string): number {
   return slots.find(slot => slot.kind === kind)?.count ?? 0;
@@ -356,6 +374,51 @@ test('a buried chest opens with c or a tile press, and loot-all hauls it aboard 
     expect(obs.activeOverlay).toBeNull();
     expect(obs.notable.some(n => n.what === 'chest')).toBe(false);
     expect(obs.view.rows[obs.ship.y - obs.view.origin.y][41 - obs.view.origin.x]).toBe('.');
+  } finally {
+    await s.close();
+  }
+});
+
+test('a grave reads with Space or a tile press, and OK, Enter or Escape put it away', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedGrave});
+  try {
+    await s.startRun();
+    let obs = await s.observe();
+    expect(obs.ship.x).toBe(22);
+    expect(obs.ship.y).toBe(33);
+    // The grave beside the ship paints as + and is notable.
+    expect(obs.notable).toContainEqual({x: 21, y: 33, what: 'grave'});
+    expect(obs.view.rows[obs.ship.y - obs.view.origin.y][21 - obs.view.origin.x]).toBe('+');
+    expect(obs.view.legend['+']).toBe('grave');
+
+    // Space beside it raises the stone, with every field filled in.
+    obs = await s.press(' ');
+    expect(obs.overlay).toEqual({kind: 'grave', name: 'Praskovya Ivanova', born: 1939, died: 1983, cause: 'Ran dry at 130 m'});
+    if (obs.overlay?.kind !== 'grave') throw new Error('grave overlay expected');
+    expect(obs.overlay.name.length).toBeGreaterThan(0);
+    expect(obs.overlay.cause.length).toBeGreaterThan(0);
+    expect(obs.overlay.born).toBeLessThan(obs.overlay.died);
+
+    // OK puts it away.
+    obs = await s.click('graveOkBtn');
+    expect(obs.overlay).toBeNull();
+    expect(obs.activeOverlay).toBeNull();
+    await s.page.locator('#game').focus();
+
+    // A press on its tile raises it again, and Enter puts it away.
+    obs = await s.pressTile(21, 33);
+    expect(obs.overlay?.kind).toBe('grave');
+    obs = await s.press('Enter');
+    expect(obs.activeOverlay).toBeNull();
+    await s.page.locator('#game').focus();
+
+    // And Escape does too; the ship never moved through any of it.
+    obs = await s.press(' ');
+    expect(obs.overlay?.kind).toBe('grave');
+    obs = await s.press('Escape');
+    expect(obs.activeOverlay).toBeNull();
+    expect(obs.ship.x).toBe(22);
+    expect(obs.ship.y).toBe(33);
   } finally {
     await s.close();
   }

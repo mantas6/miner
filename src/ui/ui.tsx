@@ -23,6 +23,7 @@ import { CargoScreen } from './CargoScreen';
 import { ExtractorScreen } from './ExtractorScreen';
 import { RuntimeFailure } from './Failure';
 import { FuelWarning } from './FuelWarning';
+import { GraveScreen } from './GraveScreen';
 import { Hud } from './Hud';
 import { InfoScreen } from './InfoScreen';
 import { Intro } from './Intro';
@@ -87,6 +88,7 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
         <ExtractorScreen />
         <TradeScreen />
         <PortalScreen />
+        <GraveScreen />
         <FuelWarning />
         <StationHint />
         <Toast />

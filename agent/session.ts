@@ -134,6 +134,8 @@ const ID_TARGETS: ReadonlySet<string> = new Set([
   'lootAllBtn',
   // Trading-post screen.
   'tradeCloseBtn',
+  // Grave stone.
+  'graveOkBtn',
   // Portal screen.
   'portalSlotBtn', 'portalCloseBtn', 'portalNameInput', 'portalNameSaveBtn',
   // Info / cargo screen.

@@ -15,7 +15,7 @@ import { createPlacedDynamite } from '../core/dynamite';
 import { uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
 import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
-import { chestsInRange, tradingPostAt } from '../world/world';
+import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 import { appendToast, buildObservation, VIEW_LEGEND } from './observation';
 
 /** A tile grid backed by a map; anything unset reads as plain dirt. */
@@ -211,6 +211,38 @@ describe('buildObservation', () => {
     expect(overlay.chest).toMatchObject([{kind: oreKind('Coal'), label: 'Coal', count: 3}]);
     expect(overlay.ship).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
     expect(overlay.chest[0].info?.length).toBeGreaterThan(0);
+  });
+
+  it('draws a grave as + in view and notable once explored', () => {
+    const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+    const state = createInitialState();
+    state.player.x = grave.x + 1;
+    state.player.y = grave.y;
+    revealRect(state, grave.x - 1, grave.y - 1, grave.x + 1, grave.y);
+    // origin is (x+1-7, y-5): the grave sits at row 5, column 6.
+    const glyph = (obs: ReturnType<typeof buildObservation>) => obs.view.rows[5][6];
+
+    let obs = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(glyph(obs)).toBe('+');
+    expect(obs.notable).toContainEqual({x: grave.x, y: grave.y, what: 'grave'});
+    expect(VIEW_LEGEND['+']).toBe('grave');
+
+    // One under fog is never shown.
+    state.exploredTiles.clear();
+    obs = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(glyph(obs)).toBe('?');
+    expect(obs.notable.some(n => n.what === 'grave')).toBe(false);
+  });
+
+  it('mirrors the grave stone only while it is open', () => {
+    const state = createInitialState();
+    const grave = {name: 'Ivan Petrov', born: 1901, died: 1950, cause: 'Crushed under rock'};
+
+    expect(buildObservation({state, ui: ui({activeOverlay: null, grave}), get: tileSource({})}).overlay).toBeNull();
+    expect(buildObservation({state, ui: ui({activeOverlay: 'grave', grave: null}), get: tileSource({})}).overlay).toBeNull();
+
+    const overlay = buildObservation({state, ui: ui({activeOverlay: 'grave', grave}), get: tileSource({})}).overlay;
+    expect(overlay).toEqual({kind: 'grave', ...grave});
   });
 
   it('names the home stations in view and notable', () => {

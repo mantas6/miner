@@ -31,7 +31,7 @@ import {
 } from './inventory';
 import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
-import { tradingPostAt } from '../world/world';
+import { graveAt, tradingPostAt } from '../world/world';
 import { chestStandsAt } from './chest';
 import type { ChestLedger } from './types';
 
@@ -126,7 +126,8 @@ export function containerPlacementRefusal(x: number, y: number, context: Contain
     occupied: context.containers.some(container => container.x === x && container.y === y)
       || (context.wrecks?.some(wreck => wreck.x === x && wreck.y === y) ?? false)
       || tradingPostAt(x, y) !== null
-      || chestStandsAt(x, y, context.chestLedger) !== null,
+      || chestStandsAt(x, y, context.chestLedger) !== null
+      || graveAt(x, y) !== null,
     full: context.containers.length >= CARGO_CONTAINER.maxPlaced
   }, CONTAINER_PLACEMENT_COPY);
 }

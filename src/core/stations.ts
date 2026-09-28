@@ -26,7 +26,7 @@ import {
 } from './inventory';
 import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
-import { tradingPostAt } from '../world/world';
+import { graveAt, tradingPostAt } from '../world/world';
 import { chestStandsAt } from './chest';
 import type { ChestLedger } from './types';
 
@@ -309,10 +309,11 @@ export function stationPlacementRefusal(
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    // A trading post or a chest stands in a derived air pocket, not in
+    // A trading post, a chest or a grave stands in a derived air pocket, not in
     // `state.stations`, so each is checked here from the coordinate rather than
     // through `context.occupied`.
-    occupied: context.occupied || tradingPostAt(x, y) !== null || chestStandsAt(x, y, context.chestLedger) !== null,
+    occupied: context.occupied || tradingPostAt(x, y) !== null || chestStandsAt(x, y, context.chestLedger) !== null
+      || graveAt(x, y) !== null,
     full: context.count >= STATION_DEVICE[kind].maxPlaced
   }, stationPlacementCopy(kind));
 }

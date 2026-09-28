@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TILE, WORLD_W } from '../../shared/constants';
-import { chestsInRange } from '../world/world';
+import { chestsInRange, gravesInRange } from '../world/world';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { createPlacedContainer } from '../core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
@@ -513,6 +513,35 @@ describe('terrain cache lifecycle', () => {
     state.exploredTiles = new Set<number>();
     renderer.draw();
     expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(false);
+  });
+
+  /**
+   * A grave is derived from the coordinate too: once its tile is explored it
+   * paints as a mound (an ellipse) under a two-bar cross, and not at all under fog.
+   */
+  it('paints an explored grave as a mound and a cross, and skips it under fog', () => {
+    const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+    const state = {
+      world: [], camX: grave.x - 6, camY: grave.y - 4, tick: 4, gameOver: false, reducedMotion: false,
+      exploredTiles: new Set([explorationIndex(grave.x, grave.y)]), teleportEffect: null,
+      particles: [], enemies: [],
+      player: {x: grave.x - 3, y: grave.y, drawX: grave.x - 3, drawY: grave.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    const at = (call: unknown[]) => call[0] === TILE*6.5 && call[1] === TILE*4.5;
+    // The cross's upright: a narrow bar centred on the tile.
+    const upright = (call: unknown[]) => call[0] === -TILE*.04 && call[2] === TILE*.08;
+
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(true);
+    expect(mocks.mainContext.ellipse).toHaveBeenCalled();
+    expect(mocks.mainContext.fillRect.mock.calls.some(upright)).toBe(true);
+
+    vi.clearAllMocks();
+    state.exploredTiles = new Set<number>();
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(false);
+    expect(mocks.mainContext.fillRect.mock.calls.some(upright)).toBe(false);
   });
 
   /**

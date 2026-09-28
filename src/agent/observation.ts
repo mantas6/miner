@@ -25,7 +25,7 @@ import { isScannerDone } from '../core/scanner-device';
 import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
 import { sellPrice } from '../core/trading';
-import { chestAt, tradingPostAt } from '../world/world';
+import { chestAt, graveAt, tradingPostAt } from '../world/world';
 import { chestContents, isChestLooted } from '../core/chest';
 import {
   addItem,
@@ -64,6 +64,7 @@ export const VIEW_LEGEND: Readonly<Record<string, string>> = Object.freeze({
   C: 'container',
   W: 'wreck',
   H: 'chest',
+  '+': 'grave',
   S: 'scanner',
   '*': 'dynamite',
   '@': 'ship',
@@ -123,7 +124,7 @@ export interface AgentShipSlot {
  * decoration that hangs in open space (the ship flies through it, the toolkit
  * lifts it) is, so a `D` the ship can pass is told apart from a solid panel.
  */
-export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'wreck' | 'chest' | 'scanner' | 'dynamite' | 'station' | 'tradingPost' | 'decor';
+export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'wreck' | 'chest' | 'grave' | 'scanner' | 'dynamite' | 'station' | 'tradingPost' | 'decor';
 
 /** One thing worth the agent's attention, at a world coordinate. */
 export interface NotableTile {
@@ -142,6 +143,8 @@ export type AgentOverlay =
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
   | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]}
   | {kind: 'chest'; ship: AgentSlot[]; chest: AgentSlot[]}
+  /** A grave's stone: who lies there, the years they lived, and how the mine took them. */
+  | {kind: 'grave'; name: string; born: number; died: number; cause: string}
   | {
       kind: 'trade';
       cash: number;
@@ -317,6 +320,11 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         }))
       };
     }
+    case 'grave': {
+      const grave = ui.grave;
+      if (!grave) return null;
+      return {kind: 'grave', name: grave.name, born: grave.born, died: grave.died, cause: grave.cause};
+    }
     case 'info':
       return {kind: 'info', tab: ui.infoTab};
     default:
@@ -419,6 +427,11 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
         row += 'H';
         const items = totalItems(chestContents(state.chestLedger, x, y));
         notable.push({x, y, what: 'chest', detail: `${items} item${items === 1 ? '' : 's'}`});
+        continue;
+      }
+      if (graveAt(x, y)) {
+        row += '+';
+        notable.push({x, y, what: 'grave'});
         continue;
       }
       const tile = get(x, y);

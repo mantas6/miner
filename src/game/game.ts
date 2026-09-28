@@ -66,6 +66,7 @@ import { createDynamiteSticks, type DynamiteSim } from './dynamite-sticks';
 import { createCargoContainers, type CargoContainerSim } from './cargo-containers';
 import { createWrecks, type WreckSim } from './wrecks';
 import { createChests, type ChestSim } from './chests';
+import { createGraves, type GraveSim } from './graves';
 import { reachableContainer } from '../core/cargo-container';
 import { reachableWreck } from '../core/wreck';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
@@ -123,6 +124,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let containers: CargoContainerSim;
   let wrecks: WreckSim;
   let chests: ChestSim;
+  let graves: GraveSim;
   let homeStations: HomeStationsSim;
   let portals: PortalsSim;
   let trading: TradingSim;
@@ -260,6 +262,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeChest: () => chests.close(),
       takeFromChest: (kind, single) => chests.take(kind, single),
       lootAllChest: () => chests.lootAll(),
+      closeGrave: () => graves.close(),
       closeTrade: () => trading.close(),
       sellToPost: (kind, single) => trading.sell(kind, single),
       buyFromPost: kind => trading.buy(kind),
@@ -417,20 +420,24 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   }
   /**
    * Space, or a click with no tile named, weighing the home stations against a
-   * trading post: whichever station-like thing is nearest wins, and a station
-   * breaks a tie. Toggles the open one shut, and stands any placement down before
-   * covering the mine with a new screen.
+   * trading post and a grave: whichever station-like thing is nearest wins, a
+   * station breaking a tie, then a post. Toggles the open one shut, and stands any
+   * placement down before covering the mine with a new screen.
    */
   function openNearestStationLike(){
     if (homeStations.openStation) return homeStations.close();
     if (trading.open) return trading.close();
+    if (graves.open) return graves.close();
     disarmPlacements();
     const station = nearestStation(state.stations, state.player);
     const stationDistance = station
       ? Math.abs(station.x - state.player.x) + Math.abs(station.y - state.player.y)
       : Infinity;
     const post = trading.nearestPost();
-    if (post && post.distance < stationDistance) trading.openNearest();
+    const postDistance = post ? post.distance : Infinity;
+    const grave = graves.nearest();
+    if (grave && grave.distance < stationDistance && grave.distance < postDistance) graves.openNearest();
+    else if (post && postDistance < stationDistance) trading.openNearest();
     else openNearestStation();
   }
   /**
@@ -626,6 +633,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       containers.tick();
       wrecks.tick();
       chests.tick();
+      graves.tick();
       stationDevices.tick();
       toolkit.tick();
       decor.tick();
@@ -879,6 +887,23 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
         raiseOverlay('chest', false);
       }
     });
+    graves = createGraves({
+      state,
+      audio,
+      toast,
+      setGraveUi: epitaph => {
+        const store = uiStore.getState();
+        if (!epitaph) {
+          dropOverlay('grave');
+          store.setGraveUi(null);
+          return;
+        }
+        disarmPlacements();
+        store.setGraveUi(epitaph);
+        // The bell (`grave`, played by the sim) is the open cue.
+        raiseOverlay('grave', false);
+      }
+    });
     decor = createDecor({
       state,
       grid,
@@ -951,8 +976,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeContainer: () => containers.close(),
       closeWreck: () => wrecks.close(),
       closeChest: () => chests.close(),
-      // Space opens whichever station-like thing is in reach — a home station or a
-      // trading post; a placement pointer has nothing left to aim at once its screen
+      closeGrave: () => graves.close(),
+      // Space opens whichever station-like thing is in reach — a home station, a
+      // trading post or a grave; a placement pointer has nothing left to aim at once its screen
       // covers the mine.
       openNearest: openNearestStationLike,
       closeStation: () => homeStations.close(),
@@ -1006,10 +1032,11 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     else if (toolkit.armed) toolkit.liftAt(point.x, point.y);
     else if (decor.armed) decor.placeAt(point.x, point.y);
     // An unarmed press opens a station tile the ship can reach, a trading post, the
-    // crate, the wreck or the chest on the tile; a press on bare rock is not a
-    // refusal, it was about none of them.
+    // crate, the wreck, the chest or the grave on the tile; a press on bare rock is
+    // not a refusal, it was about none of them.
     else if (!homeStations.openAt(point.x, point.y) && !trading.openAt(point.x, point.y)
-      && !containers.openAt(point.x, point.y) && !wrecks.openAt(point.x, point.y)) chests.openAt(point.x, point.y);
+      && !containers.openAt(point.x, point.y) && !wrecks.openAt(point.x, point.y)
+      && !chests.openAt(point.x, point.y)) graves.openAt(point.x, point.y);
   }
 
   /**
@@ -1062,6 +1089,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     uiStore.getState().closeOverlay('container');
     uiStore.getState().closeOverlay('wreck');
     uiStore.getState().closeOverlay('chest');
+    uiStore.getState().closeOverlay('grave');
+    uiStore.getState().setGraveUi(null);
     uiStore.getState().closeOverlay('station');
     uiStore.getState().closeOverlay('extractor');
     uiStore.getState().closeOverlay('trade');

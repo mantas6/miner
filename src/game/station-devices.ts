@@ -13,7 +13,7 @@
 
 import { containerAt } from '../core/cargo-container';
 import { wreckAt } from '../core/wreck';
-import { tradingPostAt } from '../world/world';
+import { graveAt, tradingPostAt } from '../world/world';
 import { countItem, removeItem } from '../core/inventory';
 import { inMineBounds } from '../core/placement';
 import { defaultPortalName } from '../core/portal';
@@ -115,7 +115,8 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
       || wreckAt(state.wrecks, x, y) !== null
       || state.scannerDevices.some(device => device.x === x && device.y === y)
       || state.placedDynamite.some(stick => stick.x === x && stick.y === y)
-      || tradingPostAt(x, y) !== null;
+      || tradingPostAt(x, y) !== null
+      || graveAt(x, y) !== null;
   }
 
   function placeAt(x: number, y: number): boolean {

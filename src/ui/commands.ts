@@ -67,6 +67,8 @@ export interface UiCommands {
   takeFromChest(kind: InventoryItemKind, single?: boolean): void;
   /** Haul everything that fits from the open chest into the bay in one press. */
   lootAllChest(): void;
+  /** Put a grave's stone away (its OK button); also what the dialog's own close request reports. */
+  closeGrave(): void;
   /** Open the ship equipment screen, from anywhere. */
   openShip(): void;
   /** Shut the ship equipment screen; also what its dialog's close request reports. */
@@ -151,6 +153,7 @@ function noopCommands(): UiCommands {
     closeChest: noop,
     takeFromChest: noop,
     lootAllChest: noop,
+    closeGrave: noop,
     openShip: noop,
     closeShip: noop,
     equipUpgrade: noop,

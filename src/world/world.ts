@@ -283,6 +283,82 @@ export function chestsInRange(startX: number, startY: number, endX: number, endY
   return chests;
 }
 
+// --- Graves ------------------------------------------------------------------
+//
+// Miners who never made it back lie in small nooks throughout the mine. Like the
+// chests they are derived from the coordinate and never stored: per square chunk
+// one roll decides whether the chunk holds a grave, two more pick its cell, and the
+// grave clears a 3-wide, 2-tall nook with the grave on its floor — the middle of
+// the bottom row. The epitaph is rolled from the same coordinate (`core/grave.ts`);
+// nothing about a grave is ever consumed, so there is nothing to save.
+
+/** One grave lying in the mine, derived from its coordinate. */
+export interface Grave {
+  x: number;
+  y: number;
+}
+
+/** Side of the square chunk grave placement is rolled per. */
+export const GRAVE_CHUNK = 16;
+/** Chance a chunk holds a grave — rarer than a chest. */
+export const GRAVE_CHANCE = 0.15;
+/** No grave lies above this row, keeping the home cavern and its starter seam clear. */
+export const GRAVE_MIN_ROW = START_Y + 6;
+
+/** The chunk a coordinate falls in, on the square grave grid. */
+function graveChunk(v: number): number {
+  return Math.floor(v / GRAVE_CHUNK);
+}
+
+/**
+ * The grave a chunk holds, or `null`. The cell is kept one tile in from the chunk's
+ * side edges and at least one row below its top, so the whole nook (the grave's
+ * row and the one above, a column either side) stays inside the chunk and the
+ * lookups can answer from a tile's own chunk. A chunk whose nook would sit in — or
+ * right beside — a trading post's, mine portrait's or chest's pocket, or the starter
+ * seam, holds nothing; nor does one whose grave would hang over a natural cave.
+ */
+function graveInChunk(chunkX: number, chunkY: number): Grave | null {
+  if (chunkX < 0 || chunkY < 0) return null;
+  if (rand(chunkX + 3187, chunkY + 2203) >= GRAVE_CHANCE) return null;
+  const x = chunkX * GRAVE_CHUNK + 1 + Math.floor(rand(chunkX + 1291, chunkY + 2767) * (GRAVE_CHUNK - 2));
+  const y = chunkY * GRAVE_CHUNK + 1 + Math.floor(rand(chunkX + 2459, chunkY + 613) * (GRAVE_CHUNK - 2));
+  if (x - 1 < 2 || x + 1 > WORLD_W - 3) return null;
+  if (y < GRAVE_MIN_ROW) return null;
+  for (let dy = -2; dy <= 1; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const tx = x + dx, ty = y + dy;
+      if (tradingPostPocket(tx, ty) || minePortraitPocket(tx, ty) || chestAt(tx, ty) || starterOreForCoordinate(tx, ty)) return null;
+    }
+  }
+  if (naturalAirPocket(x, y + 1)) return null;
+  return {x, y};
+}
+
+/** The grave lying exactly on this tile, or `null`. */
+export function graveAt(x: number, y: number): Grave | null {
+  const grave = graveInChunk(graveChunk(x), graveChunk(y));
+  return grave && grave.x === x && grave.y === y ? grave : null;
+}
+
+/** Whether this tile falls within a grave's cleared nook: its row and the one above, a column either side. */
+export function gravePocket(x: number, y: number): boolean {
+  const grave = graveInChunk(graveChunk(x), graveChunk(y));
+  return grave !== null && Math.abs(grave.x - x) <= 1 && (y === grave.y || y === grave.y - 1);
+}
+
+/** Every grave inside an inclusive tile rectangle, one chunk roll per overlapping chunk. */
+export function gravesInRange(startX: number, startY: number, endX: number, endY: number): Grave[] {
+  const graves: Grave[] = [];
+  for (let cy = graveChunk(startY); cy <= graveChunk(endY); cy++) {
+    for (let cx = graveChunk(startX); cx <= graveChunk(endX); cx++) {
+      const grave = graveInChunk(cx, cy);
+      if (grave && grave.x >= startX && grave.x <= endX && grave.y >= startY && grave.y <= endY) graves.push(grave);
+    }
+  }
+  return graves;
+}
+
 /** Generate the tile at a world coordinate. Deterministic for a given (x,y). */
 export function makeTile(x: number, y: number): Tile {
   // An indestructible bedrock cap seals the top of the world. Below it, the rows
@@ -308,6 +384,8 @@ export function makeTile(x: number, y: number): Tile {
   // A buried chest clears just its own tile: a one-tile pocket drilled into like
   // any other, derived from the coordinate like a trading post.
   if (chestAt(x,y)) return {type:'air'};
+  // A grave clears its 3×2 nook, the grave lying on the floor of it.
+  if (gravePocket(x,y)) return {type:'air'};
   // Natural cave seams only open up below the cavern's immediate floor.
   if (y > HOME_ROW + 1 && naturalAirPocket(x,y)) return {type:'air'};
   const r = rand(x,y), depth = y;
