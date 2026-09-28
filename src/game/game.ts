@@ -20,7 +20,7 @@
 // (`src/ui/commands.ts`) for the buttons to dispatch into; it never reads or
 // writes UI DOM apart from the canvas.
 
-import { START_Y, TILE, WORLD_W } from '../../shared/constants';
+import { TILE, WORLD_W, rowDepthMeters } from '../../shared/constants';
 import { createDisposalScope } from './disposal';
 import { createGameSurface, type GameSurfaceRefs } from './dom';
 import { advanceViewportZoom, drawnCamera, setViewportZoom, tileAtViewportPoint, viewport } from './viewport';
@@ -314,7 +314,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       // other command here already sounds (open/close, arm/disarm, or its action).
       toggleMusic: () => { audio.click(); void audio.toggleMusic(); },
       toggleSfx: () => { audio.click(); void audio.toggleSfx(); },
-      playSolo: event => playSolo(event),
+      beginRun: event => beginRun(event),
       grantDeveloperOres: grantDeveloperOresCheat,
       fillExtractor: fillExtractorCheat,
       resetPlayerData: () => {
@@ -639,7 +639,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     const lowFuel = shouldFuelBarFlash(state);
 
     hudScratch.cash = state.cash;
-    hudScratch.depthMeters = Math.max(0, p.y - START_Y) * 10;
+    hudScratch.depthMeters = rowDepthMeters(p.y);
     hudScratch.fuel = p.fuel;
     hudScratch.fuelMax = p.fuelMax;
     hudScratch.hull = p.hull;
@@ -815,7 +815,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
    * The press that got us here is also the audio-unlock gesture, spent by
    * `startGame()`.
    */
-  function playSolo(event?: Event){
+  function beginRun(event?: Event){
     if (uiStore.getState().phase !== 'intro') return;
     startGame(event);
   }
@@ -843,7 +843,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       invalidateTerrain: (x, y) => renderer?.invalidateTerrain(x, y),
       // A world regenerates from its seed on every restart, so the diff is the
       // only record that a tunnel was ever dug.
-      onTileSet: (x, y, tile) => { recordTileDiff(state.soloTileDiff, {x, y, tile}); dirty = true; }
+      onTileSet: (x, y, tile) => { recordTileDiff(state.tileDiff, {x, y, tile}); dirty = true; }
     });
     run = createRun({
       state,

@@ -6,9 +6,10 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { START_Y, WORLD_W } from '../../shared/constants';
+import { tileKey } from '../../shared/tile-key';
 import { addItem, countItem, createInventory, oreItem, oreKind, type Inventory } from '../core/inventory';
 import { createInitialState } from '../core/state';
-import { offersForPost, remainingStock, tradePostKey } from '../core/trading';
+import { offersForPost, remainingStock } from '../core/trading';
 import type { GameState, Ore } from '../core/types';
 import { tradingPostAt, type TradingPost } from '../world/world';
 import { createTrading, type TradingSim } from './trading';
@@ -166,7 +167,7 @@ describe('buying gear', () => {
   it('refuses a sold-out offer', () => {
     const h = harness();
     const offers = offersForPost(h.post.x, h.post.y);
-    h.state.tradeLedger[tradePostKey(h.post.x, h.post.y)] = offers.map(() => 0);
+    h.state.tradeLedger[tileKey(h.post.x, h.post.y)] = offers.map(() => 0);
     h.trading.openAt(h.post.x, h.post.y);
 
     h.trading.buy(offers[0].kind);

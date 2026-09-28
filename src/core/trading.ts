@@ -20,6 +20,7 @@
 // Everything here is pure and DOM-free.
 
 import { START_Y } from '../../shared/constants';
+import { tileKey } from '../../shared/tile-key';
 import { RECIPES } from './crafting';
 import { itemForKind } from './items';
 import type { InventoryItemKind } from './inventory';
@@ -65,11 +66,6 @@ const BUY_POOL: readonly PoolEntry[] = [
   {kind: 'upgrade:cargo:2', minRow: START_Y + 260},
   {kind: 'upgrade:hull:2', minRow: START_Y + 260}
 ];
-
-/** The ledger key one post is stored under. */
-export function tradePostKey(x: number, y: number): string {
-  return `${x},${y}`;
-}
 
 /** The ore-value of an item's crafting recipe inputs; 0 for an item with no recipe. */
 function recipeOreValue(kind: InventoryItemKind): number {
@@ -132,7 +128,7 @@ export function remainingStock(
   y: number,
   offers: readonly BuyOffer[]
 ): number[] {
-  const saved = ledger[tradePostKey(x, y)];
+  const saved = ledger[tileKey(x, y)];
   if (saved && saved.length === offers.length) return saved.map((n, i) => Math.max(0, Math.min(offers[i].stock, Math.floor(n))));
   return offers.map(offer => offer.stock);
 }

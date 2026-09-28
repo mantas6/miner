@@ -9,7 +9,7 @@
 //   * a player-data wipe keeps the mine and its live enemies, and never rewinds
 //     the tick their cooldowns are measured against.
 
-import { START_Y } from '../../shared/constants';
+import { START_Y, rowDepthMeters } from '../../shared/constants';
 import { removeOres } from '../core/inventory';
 import { respawnPortals } from '../core/portal';
 import { createInitialState, placeAtHome, respawnPlayer } from '../core/state';
@@ -129,7 +129,7 @@ export function createRun(deps: GameRunDeps): GameRun {
   }
 
   /** The mine rebuilt from its seed, with the saved diff dug back out. */
-  function buildSoloWorld(): void {
+  function buildWorld(): void {
     // Live enemies go with the old grid: a hatch is never written to the diff,
     // so every cocoon comes back from the seed and the exposure pass that
     // follows re-wakes the reachable ones. Keeping the entities would double them.
@@ -137,12 +137,12 @@ export function createRun(deps: GameRunDeps): GameRun {
     state.world = [];
     // Terrain comes back from the seed, so the dug-out blocks have to be layered
     // on again: a death or a refresh must not refill the tunnels behind you.
-    applyTileEntries(state.world, tileDiffEntries(state.soloTileDiff));
+    applyTileEntries(state.world, tileDiffEntries(state.tileDiff));
   }
 
   function generate(at?: SpawnAt): void {
-    buildSoloWorld();
-    // A portal placed underground sits on a dug-out (air) tile, and the solo tile
+    buildWorld();
+    // A portal placed underground sits on a dug-out (air) tile, and the tile
     // diff carries that hole back out of the reseeded terrain. A diff that lost it
     // (a capped or quota-trimmed save) leaves the tile solid, and a ship set down
     // there would be buried, so that redeploy falls back to the home base.
@@ -151,7 +151,7 @@ export function createRun(deps: GameRunDeps): GameRun {
   }
 
   function resume(): void {
-    buildSoloWorld();
+    buildWorld();
     const p = state.player;
     // The save carries a tile, not a guarantee: a capped or quota-dropped diff
     // can leave that coordinate solid again. Anything but open space (air, or a
@@ -166,7 +166,7 @@ export function createRun(deps: GameRunDeps): GameRun {
     centreCameraOnShip();
     state.gameOver = false;
     deps.enemies().resetExposure();
-    toast(p.y > START_Y ? `Ship recovered at ${(p.y - START_Y) * 10} m.` : 'Fresh drill deployed.');
+    toast(p.y > START_Y ? `Ship recovered at ${rowDepthMeters(p.y)} m.` : 'Fresh drill deployed.');
   }
 
   function clearWorldRuntime(): void {

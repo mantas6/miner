@@ -1,7 +1,7 @@
 // Pure deterministic world generation. DOM-free / testable.
-// No imports from dom.js, game.js, or balance.js.
 import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
+import { TERRAIN } from '../core/balance';
 import { enemyHealth, enemyKindForDepthRoll } from '../core/enemy-types';
 
 /** Deterministic pseudo-random value in [0,1) for a tile coordinate. */
@@ -97,12 +97,13 @@ export function starterOreForCoordinate(x: number, y: number) {
   return ORES.find(ore => ore.name === patch.oreName && y >= ore.min) || null;
 }
 
-export function oreSpawnChanceAtDepth(depth: number): number {
-  return .10 * Math.min(2.2, 1 + depth / 90);
+export function oreSpawnChanceAtDepth(row: number): number {
+  const {base, rowDivisor, maxMultiplier} = TERRAIN.oreChance;
+  return base * Math.min(maxMultiplier, 1 + row / rowDivisor);
 }
 
-export function oreForDepthRoll(depth: number, roll: number) {
-  const eligible = ORES.filter(ore => depth >= ore.min && depth <= ore.max);
+export function oreForDepthRoll(row: number, roll: number) {
+  const eligible = ORES.filter(ore => row >= ore.min && row <= ore.max);
   const totalWeight = eligible.reduce((total, ore) => total + ore.chance, 0);
   let target = roll * totalWeight;
   for (const ore of eligible) {
@@ -262,7 +263,7 @@ export function makeTile(x: number, y: number): Tile {
   // An indestructible bedrock cap seals the top of the world. Below it, the rows
   // between the cap and the cavern ceiling generate as ordinary terrain: they are
   // unreachable (upward digging is blocked), so they stay a fogged dark band.
-  if (y < BEDROCK_ROWS) return {type:'rock', hp:999};
+  if (y < BEDROCK_ROWS) return {type:'rock', hp: TERRAIN.rock.hp};
   // The home cavern is deterministic air, never stored in the tile diff.
   if (isHomeCavern(x, y)) return {type:'air'};
   // The cavern floor is a stone-paved base: deterministic decor tiles the player
@@ -279,24 +280,30 @@ export function makeTile(x: number, y: number): Tile {
   if (gravePocket(x,y)) return {type:'air'};
   // Natural cave seams only open up below the cavern's immediate floor.
   if (y > HOME_ROW + 1 && naturalAirPocket(x,y)) return {type:'air'};
-  const r = rand(x,y), depth = y;
+  const r = rand(x,y);
   let ore = starterOreForCoordinate(x, y);
-  if (!ore && r < oreSpawnChanceAtDepth(depth)) {
-    ore = oreForDepthRoll(depth, rand(x + 73, y - 47));
+  if (!ore && r < oreSpawnChanceAtDepth(y)) {
+    ore = oreForDepthRoll(y, rand(x + 73, y - 47));
   }
-  if (ore) { const hp = Math.max(3, Math.ceil((depth/28)+4)); return {type:'ore', ore, hp, maxHp: hp}; }
-  const rockChance = y > 190 ? .036 : .018;
-  if (rand(x+9,y-3) < rockChance && y >= DANGER.rockMinRow) return {type:'rock', hp: 999};
-  if (y >= DANGER.hazardMinRow && rand(x+51,y-91) < Math.min(.026, .007 + y / 13000)) {
-    const hp = Math.max(4, Math.ceil(3 + y / 55));
+  if (ore) {
+    const {min, rowDivisor, base} = TERRAIN.oreHp;
+    const hp = Math.max(min, Math.ceil((y/rowDivisor)+base));
+    return {type:'ore', ore, hp, maxHp: hp};
+  }
+  const {rock, hazard, enemy, dirtHp} = TERRAIN;
+  const rockChance = y > rock.deepRow ? rock.deepChance : rock.chance;
+  if (rand(x+9,y-3) < rockChance && y >= DANGER.rockMinRow) return {type:'rock', hp: rock.hp};
+  if (y >= DANGER.hazardMinRow && rand(x+51,y-91) < Math.min(hazard.chanceMax, hazard.chanceBase + y / hazard.chanceRowDivisor)) {
+    const hp = Math.max(hazard.hpMin, Math.ceil(hazard.hpBase + y / hazard.hpRowDivisor));
     return {type:'hazard', hp, maxHp: hp};
   }
-  if (y >= DANGER.enemyMinRow && rand(x-37,y+83) < Math.min(.046, .008 + y / 6500)) {
+  if (y >= DANGER.enemyMinRow && rand(x-37,y+83) < Math.min(enemy.chanceMax, enemy.chanceBase + y / enemy.chanceRowDivisor)) {
     const kind = enemyKindForDepthRoll(y, rand(x+211,y-157));
-    const hp = enemyHealth(kind, Math.max(4, Math.ceil(3 + y / 35)));
+    const hp = enemyHealth(kind, Math.max(enemy.hpMin, Math.ceil(enemy.hpBase + y / enemy.hpRowDivisor)));
     return {type:'enemy', kind, hp, maxHp: hp};
   }
-  { const hp = Math.max(2, Math.ceil(depth/42)+1 + (depth > 210 ? 2 : 0)); return {type:'dirt', hp, maxHp: hp}; }
+  const hp = Math.max(dirtHp.min, Math.ceil(y/dirtHp.rowDivisor)+dirtHp.base + (y > dirtHp.deepRow ? dirtHp.deepBonus : 0));
+  return {type:'dirt', hp, maxHp: hp};
 }
 
 /** Generate the containing row chunk on first access. */

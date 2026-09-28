@@ -155,7 +155,7 @@ describe('a cocoon hatching', () => {
     const grid = createWorldGrid({
       state,
       invalidateTerrain: () => {},
-      onTileSet: (x, y, tile) => recordTileDiff(state.soloTileDiff, {x, y, tile})
+      onTileSet: (x, y, tile) => recordTileDiff(state.tileDiff, {x, y, tile})
     });
     const sim = createEnemySim({
       state, grid, audio: createAudioStub(), toast: () => {}, addCash: vi.fn(), saveProgress: vi.fn(),
@@ -183,7 +183,7 @@ describe('a cocoon hatching', () => {
     save(state);
     const reloaded = createInitialState();
     load(reloaded);
-    applyTileEntries(reloaded.world, tileDiffEntries(reloaded.soloTileDiff));
+    applyTileEntries(reloaded.world, tileDiffEntries(reloaded.tileDiff));
     mine(reloaded).sim.resetExposure();
     return reloaded;
   }
@@ -204,7 +204,7 @@ describe('a cocoon hatching', () => {
     save(state);
     const loaded = createInitialState();
     load(loaded);
-    applyTileEntries(loaded.world, tileDiffEntries(loaded.soloTileDiff));
+    applyTileEntries(loaded.world, tileDiffEntries(loaded.tileDiff));
     // The dug neighbour is a real change and survives; the hatch does not.
     expect(ensureWorldRow(loaded.world, cocoon.y)![cocoon.x - 1]).toEqual({type: 'air'});
     expect(ensureWorldRow(loaded.world, cocoon.y)![cocoon.x]).toEqual(makeTile(cocoon.x, cocoon.y));
@@ -222,7 +222,7 @@ describe('a cocoon hatching', () => {
     Object.assign(enemy, {x: cocoon.x - 1, drawX: cocoon.x - 1});
     sim.damageEnemy(enemy, 999);
     expect(enemy.alive).toBe(false);
-    expect(tileDiffEntries(state.soloTileDiff)).toContainEqual({...cocoon, tile: {type: 'air'}});
+    expect(tileDiffEntries(state.tileDiff)).toContainEqual({...cocoon, tile: {type: 'air'}});
 
     const reloaded = reload(state);
 

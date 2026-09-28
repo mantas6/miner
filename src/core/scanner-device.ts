@@ -7,9 +7,9 @@
 //
 // Everything here is pure and DOM-free. A device is three numbers — where it
 // sits and how long since it last reported — because the interesting part of its
-// state is not stored at all: what is left to map is *derived* from the shared
-// explored set every time it is asked. That is what keeps a device honest in
-// co-op, where a partner's own footprint can clear tiles it was still working on;
+// state is not stored at all: what is left to map is *derived* from the explored
+// set every time it is asked. That is what keeps a device honest when the ship's
+// own footprint, or a neighbouring scanner, clears tiles it was still working on;
 // storing a private to-do list would leave it counting down to reveals that had
 // already happened.
 

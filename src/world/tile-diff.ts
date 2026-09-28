@@ -1,12 +1,10 @@
 // Tile mutations layered over the deterministic terrain.
 //
 // Terrain is never stored tile by tile: `world.ts` regenerates it from the
-// coordinate seed, and everything the miners changed is a diff on top. The relay
-// keeps the shared world exactly this way (`server/world-state.js` holds a list
-// of `shared/world-schema.ts` tile entries behind a coordinate index), so the
-// solo save reuses the same entries and the same application path — a world
-// restored from `localStorage` and one adopted from the relay are rebuilt by
-// identical code.
+// coordinate seed, and everything the player changed is a diff on top — a list of
+// `shared/world-schema.ts` tile entries behind a coordinate index. The save
+// writes exactly these entries, and `applyTileEntries` is the one path that
+// layers them back over fresh terrain.
 //
 // The diff is a mutable `Map` rather than a copied-on-write object because it is
 // written on every drill hit and grows to tens of thousands of entries; copying
@@ -46,8 +44,8 @@ export function tileDiffEntries(diff: TileDiff): TileEntry[] {
 }
 
 /**
- * Validate persisted or received entries with the shared world schema. A
- * malformed payload yields no entries at all rather than a half-restored world.
+ * Validate saved entries with the shared world schema. A malformed payload
+ * yields no entries at all rather than a half-restored world.
  */
 export function parseTileEntries(value: unknown): TileEntry[] {
   const result = tileEntriesSchema.safeParse(value);

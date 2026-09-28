@@ -1,16 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DECOR_HP, MAX_WORLD_ROW, ORES, WORLD_STATE_VERSION } from './constants';
-import {
-  emptyWorldState,
-  oreSchema,
-  parseTile,
-  parseWorldState,
-  tileSchema
-} from './world-schema';
+import { DECOR_HP, MAX_WORLD_ROW, ORES } from './constants';
+import { oreSchema, parseTile, tileEntriesSchema, tileSchema } from './world-schema';
 
 describe('valuable tables', () => {
-  // The generator embeds these entries in tiles that must survive validation on
-  // both sides; a table the schema rejects would silently drop ore mutations.
+  // The generator embeds these entries in tiles a save must restore; a table the
+  // schema rejects would silently drop ore mutations on load.
   it('accepts every shipped ore', () => {
     for (const ore of ORES) expect(oreSchema.safeParse(ore).success).toBe(true);
   });
@@ -42,23 +36,15 @@ describe('tiles', () => {
   });
 });
 
-describe('persisted world state', () => {
+describe('saved tile entries', () => {
   const tile = { x: 3, y: 7, tile: { type: 'dirt', hp: 2, maxHp: 2 } };
 
-  it('accepts a pristine and a populated world', () => {
-    expect(parseWorldState(emptyWorldState())).toEqual(emptyWorldState());
-    expect(parseWorldState({ ...emptyWorldState(), initialized: true, tiles: [tile] })).toMatchObject({ tiles: [tile] });
-  });
-
-  it('rejects duplicate coordinates, a non-empty pristine world, and a foreign version', () => {
-    expect(parseWorldState({ ...emptyWorldState(), initialized: true, tiles: [tile, tile] })).toBeNull();
-    expect(parseWorldState({ ...emptyWorldState(), tiles: [tile] })).toBeNull();
-    expect(parseWorldState({ ...emptyWorldState(), version: WORLD_STATE_VERSION + 1 })).toBeNull();
-    expect(parseWorldState({ ...emptyWorldState(), revision: 0 })).toBeNull();
+  it('accepts entries inside the world', () => {
+    expect(tileEntriesSchema.safeParse([tile]).success).toBe(true);
   });
 
   it('rejects tiles outside the world', () => {
-    expect(parseWorldState({ ...emptyWorldState(), initialized: true, tiles: [{ ...tile, y: MAX_WORLD_ROW + 1 }] })).toBeNull();
-    expect(parseWorldState({ ...emptyWorldState(), initialized: true, tiles: [{ ...tile, x: -1 }] })).toBeNull();
+    expect(tileEntriesSchema.safeParse([{ ...tile, y: MAX_WORLD_ROW + 1 }]).success).toBe(false);
+    expect(tileEntriesSchema.safeParse([{ ...tile, x: -1 }]).success).toBe(false);
   });
 });

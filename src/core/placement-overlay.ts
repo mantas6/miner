@@ -3,8 +3,9 @@
 // Several carried things are put *onto* a tile of the mine — the survey scanner, a
 // stick of dynamite, a cargo container, the station devices (portal included) and
 // the decorations — and each answers the same five placement questions from
-// `placement.ts`, occupancy included. The rest (ore, the spent teleporter, the
-// toolkit) are never placed, so they never get a grid.
+// `placement.ts`, occupancy included. The rest — ore, upgrades, the teleporter
+// and repair kit (spent, not placed), and the toolkit (which lifts rather than
+// places) — never get a grid.
 //
 // This module is the read-only companion to those: given the armed kind and
 // a snapshot of the mine, it says which nearby tiles the device could be dropped
@@ -64,7 +65,7 @@ export interface PlacementOverlayCell {
 
 /** The station a `device:` kind sets down. */
 function stationKindFor(kind: InventoryItemKind): StationKind {
-  return kind === 'device:manufacturer' ? 'manufacturer' : kind === 'device:extractor' ? 'extractor' : 'portal';
+  return kind.slice('device:'.length) as StationKind;
 }
 
 /** Whether the mine already holds as many of this kind as it will take. */

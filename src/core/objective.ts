@@ -1,8 +1,7 @@
 import { FUEL } from './balance';
-import { ORES, START_Y } from '../../shared/constants';
+import { ORES, START_Y, rowDepthMeters } from '../../shared/constants';
 import { canCraft, RECIPES } from './crafting';
 import { isUpgradeKind, type Inventory } from './inventory';
-import { oreMinimumDepthMeters } from './prospecting';
 import type { Ore, Player } from './types';
 
 type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'cargoMax' | 'equipment'>;
@@ -23,14 +22,10 @@ export interface ObjectiveInput {
 const FIRST_UPGRADE = 'upgrade:tank:1';
 const FIRST_UPGRADE_LABEL = 'Fuel Tank Mk I';
 
-export function currentDepthMeters(playerY: number, startY = START_Y): number {
-  return Math.max(0, playerY - startY) * 10;
-}
-
 export function nextOreMilestone(depthMeters: number, ores: Ore[] = ORES, startY = START_Y): { name: string; depthMeters: number } | null {
-  const nextOre = ores.find(ore => oreMinimumDepthMeters(ore.min, startY) > depthMeters);
+  const nextOre = ores.find(ore => rowDepthMeters(ore.min, startY) > depthMeters);
   if (!nextOre) return null;
-  return { name: nextOre.name, depthMeters: oreMinimumDepthMeters(nextOre.min, startY) };
+  return { name: nextOre.name, depthMeters: rowDepthMeters(nextOre.min, startY) };
 }
 
 /** Whether any ship upgrade is fitted, in the bay, or stored at the station. */
@@ -66,7 +61,7 @@ export function formatExpeditionObjective({
     return `Objective: mine Iron and Copper for ${FIRST_UPGRADE_LABEL}.`;
   }
 
-  const depth = currentDepthMeters(player.y, startY);
+  const depth = rowDepthMeters(player.y, startY);
   const nextOre = nextOreMilestone(depth, ores, startY);
   if (nextOre) {
     return `Objective: dig toward ${nextOre.name} around ${nextOre.depthMeters} m while keeping fuel for the trip home.`;

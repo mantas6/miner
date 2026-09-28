@@ -37,7 +37,7 @@ export function formatExpeditionStats(stats: Partial<GameStats> = {}): Expeditio
     {
       label: 'Cash earned',
       value: money(totalCashEarned),
-      detail: totalCashEarned > 0 ? 'From tunnel-fiend bounties' : 'Destroy a tunnel fiend to begin'
+      detail: totalCashEarned > 0 ? 'From ore sales and fiend bounties' : 'Sell ore at a trading post to begin'
     },
     {
       label: 'Ore mined',

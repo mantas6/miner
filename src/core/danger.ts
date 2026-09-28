@@ -1,5 +1,5 @@
 import { ENEMY, FUEL, HULL } from './balance';
-import { DANGER, START_Y } from '../../shared/constants';
+import { DANGER, START_Y, rowDepthMeters } from '../../shared/constants';
 import { ENEMY_TYPES } from './enemy-types';
 
 export interface DangerGuideRow {
@@ -8,7 +8,7 @@ export interface DangerGuideRow {
 }
 
 function depthLabel(row: number, startY = START_Y): string {
-  return `≈${Math.max(0, row - startY) * 10} m`;
+  return `≈${rowDepthMeters(row, startY)} m`;
 }
 
 /** The one-line lead-in the Hazards guide opens with. */

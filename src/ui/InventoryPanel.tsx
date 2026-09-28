@@ -43,7 +43,7 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
   },
   'device:extractor': {
     buttonId: SLOT_BUTTON_IDS['device:extractor'],
-    idle: 'Set an Fuel Extractor down in the mine',
+    idle: 'Set a Fuel Extractor down in the mine',
     armed: 'Click a mapped tile to set it down · Esc cancels',
     toggle: () => uiCommands.toggleExtractorPlacement()
   },
@@ -55,8 +55,8 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
   },
   toolkit: {
     buttonId: SLOT_BUTTON_IDS.toolkit,
-    idle: 'Pick up an empty station or container',
-    armed: 'Click an empty station or container to pack it up · Esc cancels',
+    idle: 'Pack an empty station, portal or container back into the bay',
+    armed: 'Click an empty station, portal or container to pack it up · Esc cancels',
     toggle: () => uiCommands.toggleToolkit()
   },
   ...Object.fromEntries(DECOR_KINDS.map(kind => [kind, decorPlaceable(kind)]))

@@ -1,4 +1,4 @@
-// Placing the two stations: arming a carried device and setting it down in the mine.
+// Placing the stations: arming a carried device and setting it down in the mine.
 //
 // `core/stations.ts` holds the rules (which tiles take a station, how far its
 // screen opens from, the soft cap per kind); this is the part that touches the
@@ -21,6 +21,7 @@ import {
   createPortal,
   portals,
   stationDeviceItemKind,
+  stationLabel,
   stationPlacementRefusal,
   type PlacedStation,
   type StationKind
@@ -49,11 +50,6 @@ export interface StationDeviceDeps {
   saveProgress(): void;
   /** Paint the armed station onto the inventory slot, or clear it with `null`. */
   setArmedUi(kind: StationKind | null): void;
-}
-
-/** The player-facing name of a station kind, for the placement toasts. */
-function stationLabel(kind: StationKind): string {
-  return kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Fuel Extractor' : 'Portal';
 }
 
 /** Build a station of `kind` at a tile: a portal draws a fresh unused name. */

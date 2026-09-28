@@ -1,10 +1,12 @@
 // Player-initiated actions that resolve in a single press: the teleporter and
 // the repair kit.
 //
-// The two deployables — scanners and dynamite — arm and place themselves through
-// their own modules (`scanner-devices.ts`, `dynamite-sticks.ts`). The teleporter
-// is carried the same way but spent from here, because it resolves in one press
-// instead of being left behind in the mine. The repair kit is spent the same way.
+// Everything that is set down in the mine — scanners, dynamite, crates, stations,
+// decorations — arms and places itself through its own module
+// (`scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`,
+// `station-devices.ts`, `decor.ts`). The teleporter and the repair kit are carried
+// the same way but spent from here, because each resolves in one press instead of
+// being left behind in the mine.
 //
 // Each one is a small transaction — validate, mutate, toast, play a sound — so
 // they are grouped here rather than scattered through the loop code.

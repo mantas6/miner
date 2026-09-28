@@ -55,7 +55,7 @@ function harness(): Harness {
     inventory: addItem(
       addOre(addOre(createInventory(), ORES[0], 99)!, ORES[1], 99)!,
       TELEPORTER_ITEM
-    )!
+    )
   });
   applyEquipment(state.player);
   state.cash = 900;
@@ -186,11 +186,11 @@ describe('restarting after a death', () => {
     expect(h.enemies.resetExposure).toHaveBeenCalled();
   });
 
-  it('digs the solo tunnels back out of the regenerated terrain', () => {
+  it('digs the saved tunnels back out of the regenerated terrain', () => {
     const h = harness();
     const dug = {x: 40, y: 60, tile: {type: 'air'} as const};
     const cracked = {x: 41, y: 60, tile: {type: 'dirt', hp: 1, maxHp: 4} as const};
-    h.state.soloTileDiff = createTileDiff([dug, cracked]);
+    h.state.tileDiff = createTileDiff([dug, cracked]);
     // A tile the miner never touched, to prove the seed still drives the rest.
     expect(makeTile(dug.x, dug.y)).not.toEqual(dug.tile);
 
@@ -201,7 +201,7 @@ describe('restarting after a death', () => {
     expect(h.state.world[cracked.y][cracked.x]).toEqual(cracked.tile);
     expect(h.state.world[dug.y][dug.x + 2]).toEqual(makeTile(dug.x + 2, dug.y));
     // The diff outlives the death, so the next one restores the same tunnels.
-    expect(h.state.soloTileDiff).toEqual(createTileDiff([dug, cracked]));
+    expect(h.state.tileDiff).toEqual(createTileDiff([dug, cracked]));
   });
 
   it('stays quiet about a replacement when a live run is reset by hand', () => {
@@ -329,7 +329,7 @@ describe('wrecks dropped on restart', () => {
 describe('resuming a saved run', () => {
   it('parks the ship on the saved tile with a fresh tank, hull and cargo bay', () => {
     const h = harness();
-    h.state.soloTileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'air'}}]);
+    h.state.tileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'air'}}]);
 
     h.run.resume();
 
@@ -349,7 +349,7 @@ describe('resuming a saved run', () => {
   it('digs the saved tunnels back out before placing the ship in them', () => {
     const h = harness();
     const dug = {x: 40, y: 60, tile: {type: 'air'} as const};
-    h.state.soloTileDiff = createTileDiff([dug]);
+    h.state.tileDiff = createTileDiff([dug]);
 
     h.run.resume();
 
@@ -358,7 +358,7 @@ describe('resuming a saved run', () => {
 
   it('sends a ship parked inside a placed panel home', () => {
     const h = harness();
-    h.state.soloTileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48}}]);
+    h.state.tileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48}}]);
 
     h.run.resume();
 
@@ -414,10 +414,10 @@ describe('a full player reset', () => {
       x: 8, y: 80, drawX: 7, drawY: 79, facing: -1, bob: 1, drillAnim: 2,
       drillDx: 1, drillDy: 0, fuel: 2, hull: 3,
       inventory: addItem(
-        addItem(addOre(createInventory(), ORES[3], 80)!, DYNAMITE_ITEM, 2)!,
+        addItem(addOre(createInventory(), ORES[3], 80)!, DYNAMITE_ITEM, 2),
         TELEPORTER_ITEM,
         8
-      )!
+      )
     });
     h.state.gameOver = true;
     h.state.particles.push({x: 1, y: 1, vx: 1, vy: 1, life: 1, color: '#fff', size: 1});
@@ -460,13 +460,13 @@ describe('a full player reset', () => {
     const diff = createTileDiff([{x: 40, y: 60, tile: {type: 'air'}}]);
     const enemies = [{id: 9, kind: 'tunnelFiend' as const, x: 1, y: 2, drawX: 1, drawY: 2, hp: 3, maxHp: 4, alive: true, moveTick: 2, biteTick: 1, flash: 0, origin: {x: 1, y: 2}}];
     h.state.world = world;
-    h.state.soloTileDiff = diff;
+    h.state.tileDiff = diff;
     h.state.enemies = enemies;
 
     h.run.resetPlayer(true);
 
     expect(h.state.world).toBe(world);
-    expect(h.state.soloTileDiff).toBe(diff);
+    expect(h.state.tileDiff).toBe(diff);
     expect(h.state.enemies).toBe(enemies);
   });
 
@@ -526,7 +526,7 @@ describe('a shared-world reset', () => {
     expect(h.state.cash).toBe(900);
     expect(countOres(h.state.player.inventory)).toBe(2);
     expect(h.state.enemyIdCounter).toBe(1);
-    expect(h.state.soloTileDiff.size).toBe(0);
+    expect(h.state.tileDiff.size).toBe(0);
     // Reachable air is re-seeded from the ship's new home-base tile, and the fog
     // around it uncovered, as on a fresh run's first frame.
     expect(h.enemies.resetExposure).toHaveBeenCalled();
@@ -581,7 +581,7 @@ describe('a portal whose tile has gone solid', () => {
     h.run.restartGame();
     const onPick = vi.mocked(h.portals.openRespawn).mock.calls[0][0] as (at: {x: number; y: number}) => void;
     // The diff forgets the hole between the prompt and the pick.
-    h.state.soloTileDiff = createTileDiff();
+    h.state.tileDiff = createTileDiff();
 
     onPick({x: 50, y: 100});
 

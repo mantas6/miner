@@ -1,4 +1,4 @@
-// Placing the two stations: arming a carried device and setting it down in the mine.
+// Placing the stations: arming a carried device and setting it down in the mine.
 //
 // The rules themselves live in core/stations.ts; what is checked here is the
 // wiring — the cargo bay pays for a placement, the armed pointer follows the same

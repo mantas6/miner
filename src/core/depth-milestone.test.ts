@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { START_Y } from '../../shared/constants';
-import { formatDepthMilestone, formatDepthMilestoneReached, getDepthMilestone } from './depth-milestone';
+import { formatDepthMilestoneReached, getDepthMilestone } from './depth-milestone';
 
 describe('expedition depth milestone helper', () => {
   it('guides fresh miners through the Coal/Iron starter seam', () => {
@@ -10,7 +10,6 @@ describe('expedition depth milestone helper', () => {
       depthMeters: 30,
       remainingMeters: 30
     });
-    expect(formatDepthMilestone(START_Y)).toBe('Depth target: starter Coal/Iron seam — 30 m deeper.');
   });
 
   it('moves to the next locked ore band at the starter-seam boundary', () => {
@@ -31,8 +30,8 @@ describe('expedition depth milestone helper', () => {
       depthMeters: 9000,
       remainingMeters: 500
     });
-    expect(formatDepthMilestone(START_Y + 860)).toBe('Depth target: 9000 m depth record — 400 m deeper.');
-    expect(formatDepthMilestone(START_Y + 960)).toBe('Depth target: 10000 m depth record — 400 m deeper.');
+    expect(getDepthMilestone(START_Y + 860)).toMatchObject({target: '9000 m depth record', remainingMeters: 400});
+    expect(getDepthMilestone(START_Y + 960)).toMatchObject({target: '10000 m depth record', remainingMeters: 400});
   });
 
   it('announces a cleared landmark by depth, naming what the seam holds', () => {

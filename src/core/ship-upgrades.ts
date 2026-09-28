@@ -65,7 +65,7 @@ export interface DerivedStats {
 }
 
 /** The additive bonus one fitted upgrade contributes to its stat (0 for a booster). */
-function upgradeBonus(kind: UpgradeKind): number {
+export function upgradeBonus(kind: UpgradeKind): number {
   const {id, tier} = parseUpgradeKind(kind);
   return UPGRADE_EFFECTS[id].bonuses[tier - 1] ?? 0;
 }

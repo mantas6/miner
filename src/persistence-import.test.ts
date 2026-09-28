@@ -54,7 +54,7 @@ describe('Save export and import, from the Settings tab', () => {
         panel: document.getElementById('game-panel') as HTMLElement
       });
     });
-    act(() => { uiCommands.playSolo(); });
+    act(() => { uiCommands.beginRun(); });
     act(() => { uiCommands.openInfo(); });
     click('info-tab-settings');
   });

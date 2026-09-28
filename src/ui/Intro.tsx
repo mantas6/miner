@@ -34,7 +34,7 @@ export function Intro() {
       // the start button is left to the browser rather than answered twice.
       if (event.target instanceof HTMLElement && event.target.closest('button')) return;
       // A key press cannot unlock audio, so no event is forwarded here.
-      uiCommands.playSolo();
+      uiCommands.beginRun();
       event.preventDefault();
     }
     addEventListener('keydown', onKeyDown, {capture: true});
@@ -49,7 +49,7 @@ export function Intro() {
       className={styles.intro}
       // Cancelling the press keeps the touch-compatibility click from landing on
       // the HUD button that appears underneath the moment this card unmounts.
-      onPointerDown={event => { uiCommands.playSolo(event.nativeEvent); event.preventDefault(); }}
+      onPointerDown={event => { uiCommands.beginRun(event.nativeEvent); event.preventDefault(); }}
     >
       <div className={styles.card}>
         <div className={styles.emblem} aria-hidden="true">
@@ -74,7 +74,7 @@ export function Intro() {
               id="introStartBtn"
               className={styles.cta}
               type="button"
-              onClick={event => uiCommands.playSolo(event.nativeEvent)}
+              onClick={event => uiCommands.beginRun(event.nativeEvent)}
             >★ Press Enter to start ★</button>
           </div>
         </div>

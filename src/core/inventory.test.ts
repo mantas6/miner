@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ORES } from '../../shared/constants';
+import { STARTING } from './balance';
 import {
-  INVENTORY_CAPACITY,
   addItem,
   addOre,
   countItem,
@@ -36,11 +36,11 @@ describe('a fresh inventory', () => {
   it('starts empty with a positive item capacity', () => {
     const inventory = createInventory();
 
-    expect(INVENTORY_CAPACITY).toBeGreaterThan(0);
+    expect(STARTING.cargoMax).toBeGreaterThan(0);
     expect(inventory).toHaveLength(0);
     expect(totalItems(inventory)).toBe(0);
     expect(inventoryStacks(inventory)).toEqual([]);
-    expect(roomLeft(inventory, INVENTORY_CAPACITY)).toBe(INVENTORY_CAPACITY);
+    expect(roomLeft(inventory, STARTING.cargoMax)).toBe(STARTING.cargoMax);
   });
 });
 

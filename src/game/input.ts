@@ -7,7 +7,7 @@
 // handler there sees the key before any dialog or canvas listener.
 //
 // Nothing here reacts before the run is live: the store's `phase` gates the whole
-// module, so the splash and the lobby own their own keys and presses. Which
+// module, so the title splash owns its own keys and presses. Which
 // dialog is up is read from the same store rather than from class names, and Tab
 // containment is the modal `<dialog>`'s job now, not ours.
 
@@ -87,7 +87,7 @@ export interface GameInputDeps {
   cancelPlacement(): boolean;
   /** E: arm a carried stick of dynamite for planting, or stand it down again. */
   toggleDynamitePlacement(): void;
-  /** C: open the cargo container under or beside the ship, or shut the open one. */
+  /** C: open the nearest crate, wreck or chest under or beside the ship, or shut the open one. */
   toggleContainer(): void;
   /** Escape while the transfer menu is up. */
   closeContainer(): void;
@@ -235,7 +235,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     // Audio can still be enabled with the HUD buttons or any pointer/touch input.
     const key = e.key.toLowerCase();
     const ui = uiStore.getState();
-    // The splash and the lobby are React's; they handle their own keys.
+    // The title splash is React's; it handles its own keys.
     if (ui.phase !== 'playing') return;
     if (ui.activeOverlay !== null) {
       const overlay = OVERLAY_KEYS[ui.activeOverlay];

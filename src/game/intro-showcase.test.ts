@@ -105,14 +105,14 @@ describe('createIntroShowcase', () => {
     const intro = showcase({random: () => 0.5});
     expect(intro.state.stations?.length).toBeGreaterThan(0);
     expect(intro.state.world).toHaveLength(0);
-    expect(intro.state.soloTileDiff.size).toBe(0);
+    expect(intro.state.tileDiff.size).toBe(0);
     // The renderer reads the whole state: the same world, stations and containers.
     expect(intro.view.world).toBe(intro.state.world);
     expect(intro.view.stations).toBe(intro.state.stations);
     expect(intro.view.cargoContainers).toBe(intro.state.cargoContainers);
     intro.draw(1000);
     expect(intro.state.world.length).toBeGreaterThan(SHOWCASE_MIN_ROW);
-    expect(intro.state.soloTileDiff.size).toBe(0);
+    expect(intro.state.tileDiff.size).toBe(0);
   });
 
   it('paints a fog-free, ship-free slice of the mine', () => {

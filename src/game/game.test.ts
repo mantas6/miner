@@ -123,9 +123,8 @@ describe('booting the game', () => {
     expect(text('depth')).toBe('0 m');
     expect(text('cash')).toBe('$60');
     expect(text('fuelLabel')).toBe('100/100');
-    // Boot phase: the splash owns the screen alone, with no lobby behind it.
+    // Boot phase: the splash is up.
     expect(document.getElementById('intro')).not.toBeNull();
-    expect(document.getElementById('lobby-screen')).toBeNull();
   });
 
   it('walks the splash straight into the run on one press', () => {
@@ -139,9 +138,8 @@ describe('booting the game', () => {
 
     act(() => { fireEvent.pointerDown(document.getElementById('intro')!); });
 
-    // No mode picker in between: the press is the whole answer.
+    // The press is the whole answer: the splash is gone and the run is live.
     expect(document.getElementById('intro')).toBeNull();
-    expect(document.getElementById('lobby-screen')).toBeNull();
     expect(text('toast')).toContain('Drill ready');
     // The run takes the keyboard, and the canvas is the surface that holds it.
     expect(document.activeElement?.id).toBe('game');

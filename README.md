@@ -73,8 +73,8 @@ current `SAVE_VERSION` — older and newer saves alike (`parseImportedSave` in
 `src/persistence.ts`).
 
 Underground fog of war is persistent. Movement permanently reveals a fixed 3x3
-square around the ship. The indestructible bedrock ceiling above the home cavern
-is always visible.
+square around the ship; everything else — the unreachable band and bedrock cap
+above the home cavern included — stays fogged until something reveals it.
 
 ## Project structure
 
@@ -90,6 +90,7 @@ miner/
 ├── index.html
 ├── package.json
 ├── opencode.json
+├── .mcp.json
 ├── tsconfig.json
 ├── tsconfig.test.json
 ├── tsconfig.e2e.json
@@ -119,6 +120,7 @@ miner/
 ├── src/
 │   ├── main.tsx
 │   ├── persistence.ts
+│   ├── persistence-reset.ts
 │   ├── agent/
 │   ├── core/
 │   ├── world/
@@ -127,6 +129,7 @@ miner/
 │   ├── audio/
 │   │   ├── audio.ts
 │   │   ├── audio-permission.ts
+│   │   ├── audio-settings.ts
 │   │   ├── encoding.ts
 │   │   └── tracks.ts
 │   ├── ui/
@@ -134,6 +137,7 @@ miner/
 ├── agent/
 │   ├── chromium.ts
 │   ├── session.ts
+│   ├── targets.ts
 │   └── mcp-server.ts
 ├── e2e/
 │   ├── boot.spec.ts
@@ -154,11 +158,12 @@ miner/
 |---|---|
 | `AGENTS.md` | Working agreements for anyone changing the code: avoid UI clutter, keep the rules pure, verify with `./test.sh`. |
 | `index.html` | Main game page and root mount node; loaded by Vite. |
-| `shared/constants.ts` | World constants, the home-cavern layout and station positions, camera scale (36px tiles), persistence limits, and the ore table (Iron included). |
+| `shared/constants.ts` | World constants, the home-cavern layout and station positions, the depth scale (`METERS_PER_TILE`, `rowDepthMeters`), camera scale (36px tiles), persistence limits, the decoration ids, and the ore table (Iron included). |
 | `shared/exploration-codec.ts` | Fog-of-war index math and the run-length encoding used by persistence. |
-| `shared/world-schema.ts` | Zod schemas and derived types for tiles, enemies, and the persisted world state. |
+| `shared/world-schema.ts` | Zod schemas and derived types for tiles and the saved tile diff. |
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
+| `src/persistence-reset.ts` | The **Reset game** wipe: every key the game writes to `localStorage` (save, audio and zoom preferences, and the retired `moleload-*` keys). |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), the opened-chest ledger (`chestLedger`), and the world's tile diff (`localStorage`); plus the save export (`serializeProgress`) and import check (`parseImportedSave`). |
 | `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), chest loot and reach (`chest.ts`), grave epitaphs and reach (`grave.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
 | `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts, chests and graves in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
@@ -166,6 +171,7 @@ miner/
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection); `allowlist.test.ts` fails on any interactive `src/ui` control the harness allowlist cannot reach. |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
+| `src/audio/audio-settings.ts` | The remembered music/effects switches (`stalinload:audio-settings:v1`), kept outside the save file. |
 | `src/audio/tracks.ts` | Track registry for playback: the `TrackId` union, `TRACKS` (title plus mp3/ogg URLs), `DEFAULT_TRACK_ID`. |
 | `src/audio/encoding.ts` | `prefersMp3()`/`pickSource()`: the one place that decides mp3 or ogg for an asset that ships as both. |
 | `soundtrack/engine.py` | Track-agnostic synth/render/encode engine (stdlib only): oscillators, envelope, note names, event bucketing, 44.1 kHz stereo WAV mixdown, `tanh` saturation, loop-edge fades, and the ffmpeg mp3/ogg encode. |
@@ -185,7 +191,7 @@ miner/
 | `e2e/` | The Playwright suite — boot flow, keyboard mining, the modal dialogs and focus restoration, the `:focus-visible` ring, the runtime-failure notice, and the agent-harness smoke test — plus `support/game.ts`, the shared page fixtures. |
 | `opencode.json` | Registers the `miner` MCP server (`npx tsx agent/mcp-server.ts`) so an opencode agent can drive the game. See "Agent play". |
 | `.mcp.json` | The same `miner` MCP server registration at Claude Code's project scope. See "Agent play". |
-| `.oxlintrc.json` | Lint rules for `src/`, `shared/` and `e2e/` (oxlint), with the reason behind every disabled rule. |
+| `.oxlintrc.json` | Lint rules for `src/`, `shared/`, `e2e/`, `agent/` and the two root configs (oxlint), with the reason behind every disabled rule. |
 | `.oxfmtrc.json` | oxfmt configuration; `npm run fmt` formats every stylesheet under `src/`. |
 | `init.sh` | Installs dependencies and starts a background Vite dev server for smoke testing. |
 | `start.sh` | Builds, then runs the preview server. |
@@ -300,12 +306,12 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
 | Deploy a scanner | — | Scanner inventory slot, then a mine tile |
 | Set a cargo container down | — | Container inventory slot, then a mine tile |
-| Set a crafted station down (Manufacturing Station / Fuel Extractor) | — | Its inventory slot, then a mine tile |
-| Lift an empty station or container back aboard | — | Construction Toolkit inventory slot, then press the station/crate |
+| Set a crafted station down (Manufacturing Station / Fuel Extractor / Portal) | — | Its inventory slot, then a mine tile |
+| Lift an empty station, portal or container back aboard | — | Construction Toolkit inventory slot, then press the station/crate |
 | Set a decoration down | — | Decoration inventory slot, then a mine tile |
- | Open a placed cargo container — or wreck, or chest — (on it or beside it) | `C` | Press the crate, wreck or chest on the mine |
- | Move a stack between the crate and the bay | — | Press the stack in either column |
- | Salvage a wreck (its ore and fitted upgrades) or loot a chest | `C` | Press the wreck or chest, then a stack or Loot all |
+| Open a placed cargo container — or wreck, or chest — (on it or beside it) | `C` | Press the crate, wreck or chest on the mine |
+| Move a stack between the crate and the bay | — | Press the stack in either column |
+| Salvage a wreck (its ore and fitted upgrades) or loot a chest | `C` | Press the wreck or chest, then a stack or Loot all |
 | Cancel a placement | `Escape` | The armed slot again |
 | Open the portal list with a teleporter aboard (picking a destination spends one teleporter) | `T` | Teleport button |
 | Travel to a portal from the list | — | Press a portal row |
@@ -315,7 +321,7 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 | Redeploy mid-run | `R`, then `R` again within 3.5 s | — |
 | Restart after game over | `R` | Click/tap outside the dialogs |
 | Choose where to redeploy (with two or more portals; the prompt cannot be dismissed) | — | Press a portal row |
-| Toggle sound | — | 🔊 button; a trusted pointer/touch gesture may auto-enable |
+| Toggle the music / the sound effects | — | 🎵 / 🔊 HUD buttons, or Info / Cargo → Settings; a trusted pointer/touch gesture may auto-enable |
 | Reset world | — | Info / Cargo -> Settings -> cheats -> Reset World State |
 
 ## Accessibility
@@ -336,8 +342,8 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
   situation — at home base, in the mine, holds full, hull critical, ship lost. It is
   driven by thresholds, so the 60 Hz HUD sync never makes it talk.
 - **Native dialogs.** The intro prompt is a `<button>`; the ship, info,
-  Manufacturing Station, Fuel Extractor, cargo-container/wreck/chest, trading-post
-  and grave overlays are modal `<dialog>`s, so the browser contains Tab, makes the rest of the
+  Manufacturing Station, Fuel Extractor, cargo-container/wreck/chest, trading-post,
+  portal and grave overlays are modal `<dialog>`s, so the browser contains Tab, makes the rest of the
   page inert, and each close returns focus to the control that opened it.
 - **`prefers-reduced-motion`.** The looping start-prompt, low-fuel and HUD-alert
   animations stop; the alert colours stay.
@@ -501,8 +507,8 @@ eight around it, and only once it is explored.
   Anything taken back out still counts against the ship's cargo capacity, so a
   crate buys storage, never carrying capacity. Six may stand in the mine at once.
 - **Placeable stations** (`src/core/stations.ts`). The Manufacturing Station and
-  the Fuel Extractor are entities like a crate, not fixed world objects: two are
-  seeded on the home-cavern floor, and more can be crafted, carried, and set down
+  the Fuel Extractor are entities like a crate, not fixed world objects: one of each
+  is seeded on the home-cavern floor, and more can be crafted, carried, and set down
   on explored, cleared ground from their own inventory slots. Each manufacturer
   keeps its own stock; each extractor runs its own coal→fuel conversion. Up to four
   of each may stand in the mine. The **Construction Toolkit** (`src/game/toolkit.ts`)
@@ -522,8 +528,8 @@ eight around it, and only once it is explored.
 - **Trading posts** (`src/core/trading.ts`, `src/game/trading.ts`) stand in cleared
   air pockets deep in the mine, derived from their coordinate in `src/world/world.ts`
   rather than stored. Open one to sell ore for cash at the ore table's value, or buy
-   a small, limited stock of gear; only the drawn-down stock persists, in
-   `state.tradeLedger`.
+  a small, limited stock of gear; only the drawn-down stock persists, in
+  `state.tradeLedger`.
 - **Wrecks** (`src/core/wreck.ts`, `src/game/wrecks.ts`) are the corpse loot a lost
   run leaves behind. When a ship dies — or is scrapped by a hand `R`-reset — the ore
   it carried and the upgrades fitted to its hull do not survive the replacement, so
@@ -906,7 +912,7 @@ Playwright suite when a system Chromium is available):
 The individual commands, if you want them one at a time:
 
 ```bash
-npm run lint        # oxlint over src/, shared/, e2e/ and the config files
+npm run lint        # oxlint over src/, shared/, e2e/, agent/ and the config files
 npm run lint:fix    # same, applying the safe autofixes
 npm run fmt         # oxfmt over every stylesheet under src/
 npm run fmt:check   # same, failing instead of rewriting

@@ -1,4 +1,4 @@
-import { MAX_WORLD_ROW, ORES, START_Y } from '../../shared/constants';
+import { MAX_WORLD_ROW, ORES, START_Y, rowDepthMeters } from '../../shared/constants';
 import type { Ore } from './types';
 
 export interface ProspectingGuideRow {
@@ -8,10 +8,6 @@ export interface ProspectingGuideRow {
   depthLabel: string;
 }
 
-export function oreMinimumDepthMeters(oreMinRow: number, startY = START_Y): number {
-  return Math.max(0, (oreMinRow - startY) * 10);
-}
-
 /**
  * One player-facing depth band for a valuable's spawn rows. `MAX_WORLD_ROW` is a
  * sentinel for "the world does not end here", not a place anyone can dig to, so
@@ -19,9 +15,9 @@ export function oreMinimumDepthMeters(oreMinRow: number, startY = START_Y): numb
  * count.
  */
 export function formatDepthBandLabel(minRow: number, maxRow: number, startY = START_Y): string {
-  const minMeters = oreMinimumDepthMeters(minRow, startY);
+  const minMeters = rowDepthMeters(minRow, startY);
   if (maxRow >= MAX_WORLD_ROW) return `≈${minMeters} m and deeper`;
-  const maxMeters = oreMinimumDepthMeters(maxRow, startY);
+  const maxMeters = rowDepthMeters(maxRow, startY);
   return minMeters === 0 ? `starter–≈${maxMeters} m` : `≈${minMeters}–${maxMeters} m`;
 }
 

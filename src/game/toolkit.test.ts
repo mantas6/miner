@@ -52,7 +52,7 @@ describe('arming the toolkit', () => {
     h.toolkit.toggleArmed();
     expect(h.toolkit.armed).toBe(true);
     expect(h.armedUi).toEqual([true]);
-    expect(h.toasts.saw('press an empty station or a container')).toBe(true);
+    expect(h.toasts.saw('press an empty station, portal or container')).toBe(true);
 
     h.toolkit.toggleArmed();
     expect(h.toolkit.armed).toBe(false);

@@ -45,7 +45,7 @@ function depthMeters(): number {
   return uiStore.getState().hud.depthMeters;
 }
 
-describe('booting into a saved solo mine', () => {
+describe('booting into a saved mine', () => {
   let runtime: GameRuntime;
 
   beforeAll(async () => {
@@ -74,7 +74,7 @@ describe('booting into a saved solo mine', () => {
         panel: document.getElementById('game-panel') as HTMLElement
       });
     });
-    act(() => { uiCommands.playSolo(); });
+    act(() => { uiCommands.beginRun(); });
   });
 
   afterAll(() => {

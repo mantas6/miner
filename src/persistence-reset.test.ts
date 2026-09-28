@@ -96,7 +96,7 @@ describe('Reset game, from the Settings tab', () => {
         panel: document.getElementById('game-panel') as HTMLElement
       });
     });
-    act(() => { uiCommands.playSolo(); });
+    act(() => { uiCommands.beginRun(); });
   });
 
   afterAll(() => {

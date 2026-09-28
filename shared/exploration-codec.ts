@@ -39,10 +39,10 @@ export function revealFootprint(explored: Set<number>, x: number, y: number, siz
 
 /**
  * Whether an encoded payload is a well-formed, in-bounds, size-capped set of
- * ranges. This is the validation half of the codec, shared by the client's
- * message schema and the relay, so both reject exactly the same payloads.
+ * ranges: the validation half of the codec, which `mergeExploration` runs before
+ * it applies anything.
  */
-export function isEncodedExploration(encoded: string): boolean {
+function isEncodedExploration(encoded: string): boolean {
   if (!encoded) return true;
   let count = 0;
   for (const range of encoded.split(',')) {

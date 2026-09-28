@@ -9,13 +9,13 @@ import {
   collectPageFailures,
   openOverlayDirectly,
   seedSave,
-  startSoloRun
+  startRun
 } from './support/game';
 
 test.describe('ship dialog', () => {
   test('opens focused inside itself and Escape restores focus to the trigger', async ({page}) => {
     const failures = collectPageFailures(page);
-    await startSoloRun(page);
+    await startRun(page);
 
     await page.locator('#shipBtn').click();
     await expect(page.locator('#ship-screen')).toBeVisible();
@@ -30,7 +30,7 @@ test.describe('ship dialog', () => {
   });
 
   test('the × button closes it and restores focus too', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
     await page.locator('#shipBtn').click();
     await page.locator('#shipCloseBtn').click();
     await expect(page.locator('#ship-screen')).toBeHidden();
@@ -38,7 +38,7 @@ test.describe('ship dialog', () => {
   });
 
   test('a press on the dimmed area around the card closes it', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
     await page.locator('#shipBtn').click();
     await expect(page.locator('#ship-screen')).toBeVisible();
     // The very top-left of the dialog box is padding, never the card.
@@ -50,7 +50,7 @@ test.describe('ship dialog', () => {
     // Two upgrades in the bay give the screen more than its close button to
     // cycle, so the wrap is a real cycle rather than one control standing still.
     await seedSave(page, {bay: [{kind: 'upgrade:tank:1', count: 1}, {kind: 'upgrade:drill:1', count: 1}]});
-    await startSoloRun(page);
+    await startRun(page);
     await page.locator('#shipBtn').click();
     await expect(page.locator('#shipCloseBtn')).toBeFocused();
 
@@ -77,7 +77,7 @@ test.describe('station dialog', () => {
   test('Space opens it beside a station, focused inside, and Escape closes it', async ({page}) => {
     // Park the ship one tile from the manufacturing station so Space reaches it.
     await seedSave(page, {x: STATIONS.manufacturer.x - 1, y: HOME_ROW});
-    await startSoloRun(page);
+    await startRun(page);
 
     await page.keyboard.press(' ');
     await expect(page.locator('#station-screen')).toBeVisible();
@@ -92,7 +92,7 @@ test.describe('station dialog', () => {
 
 test.describe('info dialog', () => {
   test('opens focused inside itself and Escape restores focus to the trigger', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
 
     await page.locator('#infoBtn').click();
     await expect(page.locator('#info-screen')).toBeVisible();
@@ -106,7 +106,7 @@ test.describe('info dialog', () => {
   });
 
   test('the tablist swaps panels by click and moves focus with the arrow keys', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
     await page.locator('#infoBtn').click();
 
     await page.locator('#info-tab-controls').click();
@@ -129,7 +129,7 @@ test.describe('info dialog', () => {
 
 test.describe('overlay exclusivity', () => {
   test('requesting info while the ship screen is up hands the screen over', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
     await page.locator('#shipBtn').click();
     await expect(page.locator('#ship-screen')).toBeVisible();
 
@@ -147,7 +147,7 @@ test.describe('overlay exclusivity', () => {
   });
 
   test('requesting the ship screen while info is up hands the screen back', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
     await page.locator('#infoBtn').click();
     await expect(page.locator('#info-screen')).toBeVisible();
 
@@ -168,7 +168,7 @@ test.describe('keyboard and hover inside an open dialog', () => {
         {kind: 'extractor', ...STATIONS.extractor}
       ]
     });
-    await startSoloRun(page);
+    await startRun(page);
     await page.keyboard.press(' ');
     await expect(page.locator('#station-screen')).toBeVisible();
   }
@@ -236,7 +236,7 @@ test.describe('keyboard and hover inside an open dialog', () => {
         {kind: 'portal', x: STATIONS.portal.x, y: HOME_ROW + 4, name: 'Deep'}
       ]
     });
-    await startSoloRun(page);
+    await startRun(page);
     await page.keyboard.press(' ');
     await expect(page.locator('#portal-screen')).toBeVisible();
 

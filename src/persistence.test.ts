@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { SAVE_KEY, SAVE_VERSION, load, numeric, parseImportedSave, resetSavedTileBudget, save, savedTileBudget, serializeProgress } from './persistence';
-import { HOME_SPAWN_X, createInitialState } from './core/state';
+import { createInitialState } from './core/state';
 import { CARGO_CONTAINER, CARGO_CONTAINER_ITEM, createPlacedContainer } from './core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM, createPlacedDynamite } from './core/dynamite';
 import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKind } from './core/inventory';
@@ -11,7 +11,7 @@ import { STATION_DEVICE, createPortal, type PortalStation } from './core/station
 import { EXTRACTOR } from './core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, ORES, START_Y, WORLD_W } from '../shared/constants';
+import { DECOR_HP, HOME_X, MAX_SAVED_TILE_ENTRIES, ORES, START_Y, WORLD_W } from '../shared/constants';
 import { chestsInRange } from './world/world';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
@@ -193,7 +193,7 @@ describe('cargo bay persistence', () => {
   it('round-trips the non-ore stacks aboard and re-stacks them on load', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.inventory = addItem(addItem(state.player.inventory, TELEPORTER_ITEM, 2)!, DYNAMITE_ITEM, 3)!;
+    state.player.inventory = addItem(addItem(state.player.inventory, TELEPORTER_ITEM, 2), DYNAMITE_ITEM, 3);
 
     save(state);
 
@@ -211,7 +211,7 @@ describe('cargo bay persistence', () => {
   it('carries upgrade and decor stacks in the bay too', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.inventory = addItem(addItem(state.player.inventory, ITEM_CATALOG['upgrade:drill:2'], 1)!, ITEM_CATALOG['decor:lampPanel'], 4)!;
+    state.player.inventory = addItem(addItem(state.player.inventory, ITEM_CATALOG['upgrade:drill:2'], 1), ITEM_CATALOG['decor:lampPanel'], 4);
 
     save(state);
 
@@ -228,7 +228,7 @@ describe('cargo bay persistence', () => {
   it('never saves ore in the bay — it is lost with the run', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.inventory = addItem(addOre(createInventory(), GOLD, 5)!, SCANNER_ITEM, 1)!;
+    state.player.inventory = addItem(addOre(createInventory(), GOLD, 5)!, SCANNER_ITEM, 1);
 
     save(state);
 
@@ -325,7 +325,7 @@ describe('station persistence', () => {
   it('round-trips the manufacturer stock, the extractor buffers, and the portal', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    manufacturer(state)!.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20)!, ITEM_CATALOG.repairKit, 2)!;
+    manufacturer(state)!.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20), ITEM_CATALOG.repairKit, 2);
     Object.assign(extractor(state)!, {coal: 9, fuel: 40, progress: 120});
     const home = portalStations(state)[0]!;
 
@@ -466,7 +466,7 @@ describe('scanner persistence', () => {
   it('round-trips carried scanners in the bay and the devices left running', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.inventory = addItem(state.player.inventory, SCANNER_ITEM, 2)!;
+    state.player.inventory = addItem(state.player.inventory, SCANNER_ITEM, 2);
     state.scannerDevices = [createScannerDevice(12, 640), {x: 44, y: 700, timer: 123}];
 
     save(state);
@@ -516,7 +516,7 @@ describe('dynamite persistence', () => {
   it('round-trips carried sticks in the bay and the fuses still burning', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.inventory = addItem(state.player.inventory, DYNAMITE_ITEM, 3)!;
+    state.player.inventory = addItem(state.player.inventory, DYNAMITE_ITEM, 3);
     state.placedDynamite = [createPlacedDynamite(12, 640), {x: 44, y: 700, fuse: 42}];
 
     save(state);
@@ -567,9 +567,9 @@ describe('cargo container persistence', () => {
   it('round-trips carried crates in the bay and the placed ones with their contents', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.inventory = addItem(state.player.inventory, CARGO_CONTAINER_ITEM, 2)!;
+    state.player.inventory = addItem(state.player.inventory, CARGO_CONTAINER_ITEM, 2);
     const crate = createPlacedContainer(12, 640);
-    crate.inventory = addItem(addItem(crate.inventory, oreItem(GOLD), 4)!, DYNAMITE_ITEM, 3)!;
+    crate.inventory = addItem(addItem(crate.inventory, oreItem(GOLD), 4), DYNAMITE_ITEM, 3);
     state.cargoContainers = [crate, createPlacedContainer(44, 700)];
 
     save(state);
@@ -599,9 +599,9 @@ describe('cargo container persistence', () => {
     stubStorage();
     const state = createInitialState();
     const crate = createPlacedContainer(12, 640);
-    crate.inventory = addItem(crate.inventory, oreItem(GOLD), 7)!;
+    crate.inventory = addItem(crate.inventory, oreItem(GOLD), 7);
     state.cargoContainers = [crate];
-    state.player.inventory = addItem(state.player.inventory, oreItem(GOLD), 5)!;
+    state.player.inventory = addItem(state.player.inventory, oreItem(GOLD), 5);
 
     save(state);
 
@@ -671,7 +671,7 @@ describe('wreck persistence', () => {
     const stored = stubStorage();
     const state = createInitialState();
     const wreck = createWreck(20, 640);
-    wreck.inventory = addItem(addItem(wreck.inventory, oreItem(GOLD), 4)!, ITEM_CATALOG['upgrade:tank:1'], 1)!;
+    wreck.inventory = addItem(addItem(wreck.inventory, oreItem(GOLD), 4), ITEM_CATALOG['upgrade:tank:1'], 1);
     // An emptied wreck is retired the moment it is emptied; one left over is not saved.
     state.wrecks = [wreck, createWreck(44, 700)];
 
@@ -709,9 +709,9 @@ describe('wreck persistence', () => {
     stubStorage();
     const state = createInitialState();
     const wreck = createWreck(12, 640);
-    wreck.inventory = addItem(wreck.inventory, oreItem(GOLD), 7)!;
+    wreck.inventory = addItem(wreck.inventory, oreItem(GOLD), 7);
     state.wrecks = [wreck];
-    state.player.inventory = addItem(state.player.inventory, oreItem(GOLD), 5)!;
+    state.player.inventory = addItem(state.player.inventory, oreItem(GOLD), 5);
 
     save(state);
 
@@ -881,7 +881,7 @@ describe('ship position persistence', () => {
     ['a position outside the side walls', {x: -40, y: 30}, {x: 1, y: 30}],
     ['a position above the home row', {x: 12, y: -9}, {x: 12, y: START_Y}],
     ['a fractional position', {x: 12.7, y: 30.7}, {x: 12, y: 30}],
-    ['a nonsense position', {x: 'deep', y: null}, {x: HOME_SPAWN_X, y: START_Y}]
+    ['a nonsense position', {x: 'deep', y: null}, {x: HOME_X, y: START_Y}]
   ])('refuses to park a ship at %s', (_name, saved, expected) => {
     stubStorage({ version: SAVE_VERSION, ...saved });
     const state = createInitialState();
@@ -908,7 +908,7 @@ describe('fog exploration persistence', () => {
   });
 });
 
-describe('solo terrain persistence', () => {
+describe('terrain persistence', () => {
   const dug: TileEntry = { x: 44, y: 61, tile: { type: 'air' } };
   const cracked: TileEntry = { x: 45, y: 61, tile: { type: 'dirt', hp: 1, maxHp: 4 } };
   const mined: TileEntry = {
@@ -916,10 +916,10 @@ describe('solo terrain persistence', () => {
     tile: { type: 'ore', ore: { name: 'Gold', color: '#ffd65c', value: 70, min: 152, max: 602, chance: 0.04 }, hp: 2, maxHp: 5 }
   };
 
-  it('round-trips the tile diff in the relay world format', () => {
+  it('round-trips the tile diff as schema tile entries', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.soloTileDiff = createTileDiff([dug, cracked, mined]);
+    state.tileDiff = createTileDiff([dug, cracked, mined]);
 
     save(state);
 
@@ -930,20 +930,20 @@ describe('solo terrain persistence', () => {
 
     const restored = createInitialState();
     load(restored);
-    expect(restored.soloTileDiff).toEqual(state.soloTileDiff);
+    expect(restored.tileDiff).toEqual(state.tileDiff);
   });
 
   it('round-trips a placed decoration tile with its durability', () => {
     stubStorage();
     const decor: TileEntry = { x: 40, y: 61, tile: { type: 'decor', decor: 'lampPanel', hp: 12, maxHp: DECOR_HP } };
     const state = createInitialState();
-    state.soloTileDiff = createTileDiff([decor]);
+    state.tileDiff = createTileDiff([decor]);
 
     save(state);
     const restored = createInitialState();
     load(restored);
 
-    expect(tileDiffEntries(restored.soloTileDiff)).toEqual([decor]);
+    expect(tileDiffEntries(restored.tileDiff)).toEqual([decor]);
   });
 
   it('defaults durability on a decor tile saved before it existed', () => {
@@ -955,7 +955,7 @@ describe('solo terrain persistence', () => {
 
     load(state);
 
-    expect(tileDiffEntries(state.soloTileDiff)).toEqual([
+    expect(tileDiffEntries(state.tileDiff)).toEqual([
       { x: 40, y: 61, tile: { type: 'decor', decor: 'steelPlate', hp: DECOR_HP, maxHp: DECOR_HP } }
     ]);
   });
@@ -967,7 +967,7 @@ describe('solo terrain persistence', () => {
     load(state);
 
     expect(state.cash).toBe(90);
-    expect(state.soloTileDiff.size).toBe(0);
+    expect(state.tileDiff.size).toBe(0);
   });
 
   /** Storage that refuses any save carrying more than `limit` tile entries. */
@@ -991,7 +991,7 @@ describe('solo terrain persistence', () => {
     const state = createInitialState();
     state.cash = 4200;
     const entries = column(MAX_SAVED_TILE_ENTRIES);
-    state.soloTileDiff = createTileDiff(entries);
+    state.tileDiff = createTileDiff(entries);
 
     save(state);
 
@@ -1007,7 +1007,7 @@ describe('solo terrain persistence', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubQuota(MAX_SAVED_TILE_ENTRIES / 2);
     const state = createInitialState();
-    state.soloTileDiff = createTileDiff(column(MAX_SAVED_TILE_ENTRIES));
+    state.tileDiff = createTileDiff(column(MAX_SAVED_TILE_ENTRIES));
     save(state);
     expect(savedTileBudget()).toBe(MAX_SAVED_TILE_ENTRIES / 2);
 
@@ -1027,7 +1027,7 @@ describe('solo terrain persistence', () => {
     const stored = stubQuota(0);
     const state = createInitialState();
     state.cash = 4200;
-    state.soloTileDiff = createTileDiff([dug]);
+    state.tileDiff = createTileDiff([dug]);
 
     save(state);
 
@@ -1048,7 +1048,7 @@ describe('solo terrain persistence', () => {
     state.wrecks = [createWreck(32, 90, addItem(createInventory(), DYNAMITE_ITEM))];
     // The four oldest writes, then a budget's worth of newer digging.
     const newer = column(MAX_SAVED_TILE_ENTRIES);
-    state.soloTileDiff = createTileDiff([portalTile, crateTile, wreckTile, decor, ...newer]);
+    state.tileDiff = createTileDiff([portalTile, crateTile, wreckTile, decor, ...newer]);
 
     const tiles = serializeProgress(state).tiles as TileEntry[];
 
@@ -1063,13 +1063,13 @@ describe('solo terrain persistence', () => {
     const entries: TileEntry[] = Array.from({ length: MAX_SAVED_TILE_ENTRIES + 2 }, (_, index) => ({
       x: index % 90, y: 10 + index, tile: { type: 'air' }
     }));
-    state.soloTileDiff = createTileDiff(entries);
+    state.tileDiff = createTileDiff(entries);
 
     save(state);
 
     const restored = createInitialState();
     load(restored);
-    const kept = tileDiffEntries(restored.soloTileDiff);
+    const kept = tileDiffEntries(restored.tileDiff);
     expect(kept).toHaveLength(MAX_SAVED_TILE_ENTRIES);
     expect(kept[0]).toEqual(entries[2]);
     expect(kept.at(-1)).toEqual(entries.at(-1));

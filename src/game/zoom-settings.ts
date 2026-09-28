@@ -1,7 +1,7 @@
 // Remembered camera zoom.
 //
 // The framing a player picked is a preference, not run progress, so it lives
-// beside the audio switches and the relay URL rather than inside the save file:
+// beside the audio switches rather than inside the save file:
 // resetting player data, dying, or starting a fresh mine all keep the view the
 // player set up, and a save that fails to load cannot drag the zoom back to 1x.
 //

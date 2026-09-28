@@ -13,22 +13,20 @@
 // comparing one reference.
 //
 // Ores are the richest kind stored here, carrying their own label, colour and
-// unit price so selling and the cargo readouts never have to look a name up in a
-// table that a co-op peer's world might not agree with. `InventoryItemKind` is a
-// namespaced string union, so equipment kinds — 'dynamite', 'scanner',
-// 'teleporter', 'container' — sit beside the ore stacks and count toward the same
-// capacity: a bay full of dynamite has no room for ore, and vice versa.
+// unit price so selling and the cargo readouts never have to look a name up.
+// `InventoryItemKind` is a namespaced string union, so equipment kinds —
+// 'dynamite', 'scanner', 'teleporter', 'container', upgrades, decorations,
+// station devices — sit beside the ore stacks and count toward the same capacity:
+// a bay full of dynamite has no room for ore, and vice versa.
 //
 // The module is deliberately not "the ship's bay" in its types: a cargo container
 // left in the mine is another list of these stacks, obeying the same item-count
 // capacity, so `core/cargo-container.ts` reuses every helper here rather than
 // restating them.
 
-import { STARTING } from './balance';
+import type { DecorId } from '../../shared/world-schema';
+import type { StationKind } from './stations';
 import type { Ore } from './types';
-
-/** Total item count a fresh cargo bay can hold, before any Cargo Bay upgrade. */
-export const INVENTORY_CAPACITY = STARTING.cargoMax;
 
 /** Namespaces one ore type's stack; the suffix is the ore's own name. */
 const ORE_KIND_PREFIX = 'ore:';
@@ -50,19 +48,13 @@ export type UpgradeTier = 1 | 2 | 3;
  */
 export type UpgradeKind = `upgrade:${Exclude<UpgradeId, 'booster'>}:${UpgradeTier}` | 'upgrade:booster:1';
 
-/**
- * Placeable cosmetic tiles the player can craft, carry, and set down — every one,
- * in catalogue order. The one list the inventory slots and the agent harness's
- * click allowlist both derive their decoration controls from.
- */
-export const DECOR_IDS = ['steelPlate', 'stoneBlock', 'copperTrim', 'lampPanel'] as const;
-/** One placeable cosmetic tile. */
-export type DecorId = (typeof DECOR_IDS)[number];
+/** One placeable cosmetic tile (`DECOR_IDS` in `shared/constants.ts`). */
+export type { DecorId };
 /** One decoration's stack key, e.g. `decor:lampPanel`. */
 export type DecorKind = `decor:${DecorId}`;
 
 /** The placeable stations, carried as bay items until they are set down. */
-export type DeviceKind = 'device:manufacturer' | 'device:extractor' | 'device:portal';
+export type DeviceKind = `device:${StationKind}`;
 
 /** The durable Construction Toolkit that lifts empty stations and containers back aboard. */
 export type ToolkitKind = 'toolkit';
@@ -190,7 +182,7 @@ export function removeItem(inventory: Inventory, kind: InventoryItemKind, count 
 }
 
 /** Drop every stack whose kind matches. */
-export function removeMatching(inventory: Inventory, matches: (kind: InventoryItemKind) => boolean): Inventory {
+function removeMatching(inventory: Inventory, matches: (kind: InventoryItemKind) => boolean): Inventory {
   if (!inventory.some(stack => matches(stack.kind))) return inventory;
   return inventory.filter(stack => !matches(stack.kind));
 }

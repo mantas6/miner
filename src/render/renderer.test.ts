@@ -464,7 +464,7 @@ describe('terrain cache lifecycle', () => {
     expect(mocks.mainContext.shadowColor).not.toBe('#ffc857');
 
     vi.clearAllMocks();
-    container.inventory = addItem(container.inventory, DYNAMITE_ITEM, 1)!;
+    container.inventory = addItem(container.inventory, DYNAMITE_ITEM, 1);
     renderer.draw();
     expect(mocks.mainContext.shadowColor).toBe('#ffc857');
 

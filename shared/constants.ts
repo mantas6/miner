@@ -36,6 +36,12 @@ export const STATIONS = Object.freeze({
 });
 /** Reference row for depth measurement and world-generation offsets. */
 export const START_Y = HOME_ROW;
+/** Metres of depth one tile row stands for, as every depth readout counts them. */
+export const METERS_PER_TILE = 10;
+/** Metres below `startY` a tile row lies at; the home row and above read 0 m. */
+export function rowDepthMeters(row: number, startY = START_Y): number {
+  return Math.max(0, row - startY) * METERS_PER_TILE;
+}
 /**
  * Topmost cavern row. Above it sits a band of unreachable fogged terrain and,
  * higher still (rows 0..`BEDROCK_ROWS`-1), the indestructible bedrock cap.
@@ -49,7 +55,7 @@ export function isHomeCavern(x: number, y: number): boolean {
 
 /**
  * Fitting slots the ship carries its equipped upgrades in. Duplicates are allowed
- * and bonuses stack; Phase 3's `applyEquipment` reads these slots to derive the
+ * and bonuses stack; `applyEquipment` reads these slots to derive the
  * ship's stats. Persisted as a fixed-length `equipment` array.
  */
 export const SHIP_UPGRADE_SLOTS = 2;
@@ -57,27 +63,23 @@ export const SHIP_UPGRADE_SLOTS = 2;
 // Keep row-major exploration indexes exact within JavaScript's safe integers.
 export const MAX_WORLD_ROW = Math.floor(Number.MAX_SAFE_INTEGER / WORLD_W) - 1;
 
-// --- Protocol / persistence limits (shared by the client and the relay) -----
+// --- Persistence limits ------------------------------------------------------
 
-/** Schema version of the relay's persisted world-state file. */
-export const WORLD_STATE_VERSION = 1;
-/** Upper bound on persisted/transmitted tile mutations. */
-export const MAX_STATE_TILE_ENTRIES = 100_000;
 /**
- * Upper bound on tile mutations kept in the browser's solo save. Entries cost
- * roughly 40 bytes of JSON each, so this leaves the whole blob well inside the
- * ~5 MB `localStorage` budget; older mutations are dropped past it.
+ * Upper bound on tile mutations kept in the browser save. Entries cost roughly
+ * 40 bytes of JSON each, so this leaves the whole blob well inside the ~5 MB
+ * `localStorage` budget; older mutations are dropped past it.
  */
 export const MAX_SAVED_TILE_ENTRIES = 20_000;
-/** Upper bound on exploration indexes carried by one message. */
+/**
+ * Upper bound on tile mutations a save may hand back on load. Looser than
+ * `MAX_SAVED_TILE_ENTRIES`, because the entries under things the player owns are
+ * never capped away and can push a save past it; anything beyond this is junk.
+ */
+export const MAX_LOADED_TILE_ENTRIES = 100_000;
+/** Upper bound on explored tiles the fog records, and so on what a save may restore. */
 export const MAX_EXPLORED_TILES = WORLD_W * 1004;
-/** Upper bound on encoded exploration payload length. */
-export const MAX_EXPLORED_CHARS = MAX_STATE_TILE_ENTRIES * 8;
-/** Upper bound on replicated live enemies. */
-export const MAX_ENEMIES = 2048;
-/** Upper bound on the persisted world-state file and on a relay frame. */
-export const MAX_STATE_BYTES = 16 * 1024 * 1024;
-/** Highest value a valuable (ore/artifact) may declare. */
+/** Highest value an ore may declare. */
 export const MAX_VALUABLE_VALUE = 1_000_000;
 
 /**
@@ -89,6 +91,13 @@ export const MAX_VALUABLE_VALUE = 1_000_000;
 export const DECOR_HP = 48;
 
 export const ENEMY_KINDS = ['tunnelFiend', 'skitterling', 'ironback', 'abyssStalker'] as const;
+
+/**
+ * Placeable cosmetic tiles the player can craft, carry, and set down — every one,
+ * in catalogue order. The one list the tile schema, the inventory slots and the
+ * agent harness's click allowlist all derive their decorations from.
+ */
+export const DECOR_IDS = ['steelPlate', 'stoneBlock', 'copperTrim', 'lampPanel'] as const;
 
 // World-generation thresholds shared with player-facing danger guidance.
 // Rows are expressed as `START_Y + n` so the whole mine shifts with the home

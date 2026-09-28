@@ -4,21 +4,16 @@
 :root {
   color-scheme: dark;
   --bg: #080b12;
-  --panel: rgba(10, 15, 24, 0.62);
   --ink: #eef4ff;
   --muted: #99a8c3;
   --gold: #ffc857;
   --red: #ff5d73;
-  --green: #69db7c;
   --blue: #5cc8ff;
   /* radius scale: collapses drifted 9-26px values */
   --r-sm: 10px;
   --r-md: 13px;
   --r-lg: 18px;
   --r-xl: 22px;
-  /* The height of every HUD meter track, and of the text cells beside them, so
-     the three bars are one number rather than four literals that can drift. */
-  --bar-h: 18px;
   /* type scale: collapses drifted 9-25px values */
   --fs-3xs: 10px;
   --fs-2xs: 11px;
@@ -147,9 +142,6 @@ kbd {
   color: #fff;
 }
 @media (max-width: 760px) {
-  :root {
-    --bar-h: 15px;
-  }
   button {
     padding: 7px 6px;
     font-size: var(--fs-2xs);

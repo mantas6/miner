@@ -8,7 +8,7 @@
 //
 // Everything here is pure and DOM-free.
 
-import { START_Y } from '../../shared/constants';
+import { rowDepthMeters } from '../../shared/constants';
 import { GRAVE_MIN_ROW, graveAt, rand, type Grave } from '../world/world';
 
 /** What a gravestone says. */
@@ -93,11 +93,6 @@ function pick<T>(list: readonly T[], roll: number): T {
   return list[Math.min(list.length - 1, Math.floor(roll * list.length))];
 }
 
-/** Metres below the home row a grave lies at, as the depth readout counts them. */
-export function graveDepthMeters(y: number): number {
-  return Math.max(0, y - START_Y) * 10;
-}
-
 /**
  * The year a miner lying at this row died: the shallowest graves are the most
  * recent, the year falling steadily with depth to the earliest, with a little
@@ -121,7 +116,7 @@ export function epitaphFor(x: number, y: number): Epitaph {
   // One cause in every few is running out of fuel, at the depth the grave lies at.
   const causeRoll = rand(x + 887, y + 1999);
   const cause = causeRoll < 0.2
-    ? `Ran dry at ${graveDepthMeters(y)} m`
+    ? `Ran dry at ${rowDepthMeters(y)} m`
     : pick(CAUSES, (causeRoll - 0.2) / 0.8);
   return {name: `${first} ${surname.stem}${ending}`, born: died - age, died, cause};
 }

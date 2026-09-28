@@ -22,7 +22,7 @@ import { chestStandsAt } from './chest';
 import { isDecorKind, isDeviceKind, type InventoryItemKind } from './inventory';
 import type { ChestLedger } from './types';
 
-/** Inside the dug part of the world: not above the world, not the side walls. */
+/** Inside the world's grid: a real column, and a row the world can generate. */
 export function inMineBounds(x: number, y: number): boolean {
   return x >= 0 && x < WORLD_W && y >= 0 && y <= MAX_WORLD_ROW;
 }

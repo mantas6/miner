@@ -18,7 +18,7 @@
 
 import { expect, test } from '@playwright/test';
 import { HOME_CAVERN_TOP, HOME_ROW, STATIONS, WORLD_W } from '../shared/constants';
-import { collectPageFailures, drillDown, readDepth, readFuel, seedDirtUnderHome, seedSave, startSoloRun, type SaveSeed } from './support/game';
+import { collectPageFailures, drillDown, readDepth, readFuel, seedDirtUnderHome, seedSave, startRun, type SaveSeed } from './support/game';
 
 /**
  * A save that hollows out and surveys rows `HOME_CAVERN_TOP`–45 of the whole
@@ -35,7 +35,7 @@ function hollowMine(bay: SaveSeed['bay']): SaveSeed {
 test.describe('gameplay', () => {
   test('one keypress is charged exactly once and clears exactly one tile', async ({page}) => {
     await seedDirtUnderHome(page);
-    await startSoloRun(page);
+    await startRun(page);
     const depth = page.locator('#depth');
     const fuel = page.locator('#fuelLabel');
     await expect(depth).toHaveText('0 m');
@@ -56,7 +56,7 @@ test.describe('gameplay', () => {
   test('mining downward increases depth and burns fuel', async ({page}) => {
     const failures = collectPageFailures(page);
     await seedDirtUnderHome(page);
-    await startSoloRun(page);
+    await startRun(page);
 
     let fuel = await readFuel(page);
     // Ten hits are more than enough to get clear of the seeded dirt floor and into
@@ -74,7 +74,7 @@ test.describe('gameplay', () => {
 
   test('digging below home leaves the base and drops into the mine', async ({page}) => {
     await seedDirtUnderHome(page);
-    await startSoloRun(page);
+    await startRun(page);
     // The ship spawns on the home-cavern floor, so depth reads zero and the live
     // region says it is at the base. The Ship button is always available.
     await expect(page.locator('#depth')).toHaveText('0 m');
@@ -113,7 +113,7 @@ test.describe('gameplay', () => {
         {kind: 'extractor', ...STATIONS.extractor}
       ]
     });
-    await startSoloRun(page);
+    await startRun(page);
 
     // Space opens the station the ship is parked beside; its stock holds the
     // recipe's ore.
@@ -157,7 +157,7 @@ test.describe('gameplay', () => {
    */
   test('a press on the mine deploys the armed scanner and spends it', async ({page}) => {
     await seedSave(page, hollowMine([{kind: 'scanner', count: 1}]));
-    await startSoloRun(page);
+    await startRun(page);
 
     const slot = page.locator('#scannerSlotBtn');
     await slot.click();
@@ -185,7 +185,7 @@ test.describe('gameplay', () => {
    */
   test('a planted stick leaves the bay, burns its fuse, and blows on its own', async ({page}) => {
     await seedSave(page, hollowMine([{kind: 'dynamite', count: 2}]));
-    await startSoloRun(page);
+    await startRun(page);
 
     // E is the shortcut for the slot, and Escape stands it down again.
     const slot = page.locator('#dynamiteSlotBtn');
@@ -217,7 +217,7 @@ test.describe('gameplay', () => {
     // A plain dirt tile under the spawn, so one keypress drills something that
     // charges fuel rather than chipping free hits off the stone-paved floor.
     await seedDirtUnderHome(page);
-    await startSoloRun(page);
+    await startRun(page);
     await drillDown(page);
     await expect(page.locator('#game')).toBeFocused();
   });

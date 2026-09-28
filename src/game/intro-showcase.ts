@@ -69,7 +69,7 @@ export interface IntroShowcase {
 export function createIntroShowcase({canvas, ctx, reducedMotion = false, random = Math.random}: IntroShowcaseDeps): IntroShowcase {
   const state = createInitialState();
   state.reducedMotion = reducedMotion;
-  // A fresh solo world with no save: rows generate from the seed on first read,
+  // A fresh world with no save: rows generate from the seed on first read,
   // and nothing ever writes a tile, so the render-cache and diff hooks are no-ops.
   const grid = createWorldGrid({state, invalidateTerrain: () => {}, onTileSet: () => {}});
   const {camX, camY} = pickShowcaseCamera(random, viewport.tilesX);

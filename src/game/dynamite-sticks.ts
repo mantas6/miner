@@ -132,8 +132,6 @@ export function createDynamiteSticks(deps: DynamiteDeps): DynamiteSim {
     deps.wakeEnemiesNear(stick.x, stick.y);
     deps.spawnExplosion(stick.x, stick.y);
     audio.explosion();
-    // Only the local ship: a partner runs their own simulation and lights their
-    // own fuses, and the cleared tiles reach them as ordinary tile updates.
     const player = state.player;
     const hullDamage = state.gameOver ? 0 : dynamiteHullDamage(player.x - stick.x, player.y - stick.y);
     if (hullDamage > 0) {

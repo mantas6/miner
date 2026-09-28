@@ -1,4 +1,4 @@
-/* Sits in the HUD grid's middle row, under the sound/relay strip, so it never
+/* Sits in the HUD grid's middle row, under the sound strip, so it never
    competes with the depth readout on the right or the meters below. */
 .scanner {
   composes: glass from "./common.module.css";

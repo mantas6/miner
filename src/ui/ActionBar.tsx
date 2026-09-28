@@ -5,8 +5,9 @@ import styles from './ActionBar.module.css';
 /**
  * The surface/underground action buttons. Keyboard equivalents live in input.ts.
  *
- * Deployables are not here: a scanner and a stick of dynamite are placed from the
- * inventory slot that holds them. The teleporter is carried the same way but kept
+ * Placeables are not here: scanners, dynamite, crates, stations and decorations
+ * are placed from the inventory slot that holds them. The teleporter is carried
+ * the same way but kept
  * on the bar, because it is not aimed at a tile: it acts on the ship, and the bar
  * is where its state — deep enough, how many are left — is shown.
  */

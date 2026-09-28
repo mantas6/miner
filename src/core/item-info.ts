@@ -35,7 +35,7 @@ import {
 import { itemForKind } from './items';
 import { formatDepthBandLabel } from './prospecting';
 import { SCANNER_DEVICE } from './scanner-device';
-import { UPGRADE_EFFECTS } from './ship-upgrades';
+import { upgradeBonus } from './ship-upgrades';
 import { STATION_DEVICE } from './stations';
 
 /** A title and a few detail lines for one item kind. Never empty. */
@@ -47,11 +47,6 @@ export interface ItemInfo {
 /** Exhaustiveness guard: a kind reaching here has no description branch. */
 function assertNever(value: never): never {
   throw new Error(`Undescribed item kind: ${String(value)}`);
-}
-
-/** The bonus one fitted upgrade of `kind` adds to its stat (0 for the booster). */
-function upgradeBonus(id: UpgradeId, tier: number): number {
-  return UPGRADE_EFFECTS[id].bonuses[tier - 1] ?? 0;
 }
 
 /** How each upgrade family words the stat it grows. */
@@ -68,8 +63,8 @@ function upgradeEffectLine(id: UpgradeId, bonus: number): string {
 
 /** The fitted-ship upgrades, described from `UPGRADE_EFFECTS`. */
 function describeUpgrade(kind: UpgradeKind): ItemInfo {
-  const {id, tier} = parseUpgradeKind(kind);
-  const lines = [upgradeEffectLine(id, upgradeBonus(id, tier))];
+  const {id} = parseUpgradeKind(kind);
+  const lines = [upgradeEffectLine(id, upgradeBonus(kind))];
   lines.push('Fit it from the Ship screen; duplicates stack.');
   return {title: itemForKind(kind).label, lines};
 }

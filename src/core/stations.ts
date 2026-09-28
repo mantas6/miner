@@ -1,12 +1,13 @@
-// The mine's stations: the Manufacturing Station and the Fuel Extractor, now as
-// placed entities rather than fixed world objects.
+// The mine's stations: the Manufacturing Station, the Fuel Extractor and the
+// Portal, each a placed entity standing on a tile.
 //
 // A station is a thing standing on a tile, like a cargo container: it has a
 // position, and mutable contents. A manufacturer holds its own stock (the ore the
 // player stows and crafts from); an extractor holds queued coal, stored fuel, and
-// the tick progress of its coal → fuel conversion. Two of them are seeded on the
-// home-cavern floor at the old fixed positions, but any number can be crafted,
-// carried, set down, and lifted back with the Construction Toolkit.
+// the tick progress of its coal → fuel conversion; a portal holds only its name.
+// One of each is seeded on the home-cavern floor, and more can be crafted,
+// carried, set down, and lifted back with the Construction Toolkit (up to each
+// kind's `STATION_DEVICE` cap).
 //
 // This module owns the pure rules around that state: which station a parked ship
 // can reach, the transfers that move stacks between the ship's bay and a
@@ -21,6 +22,7 @@ import {
   findStack,
   removeItem,
   roomLeft,
+  type DeviceKind,
   type Inventory,
   type InventoryItemKind
 } from './inventory';
@@ -39,7 +41,7 @@ export interface ManufacturerStation {
   inventory: Inventory;
 }
 
-/** An fuel extractor standing in the mine, with its coal/fuel conversion buffer. */
+/** A fuel extractor standing in the mine, with its coal/fuel conversion buffer. */
 export interface ExtractorStation {
   kind: 'extractor';
   x: number;
@@ -75,18 +77,14 @@ export type PlacedStation = ManufacturerStation | ExtractorStation | PortalStati
 /** The extractor's buffer fields alone, for the pure `tickExtractor`. */
 export type ExtractorBuffer = Pick<ExtractorStation, 'coal' | 'fuel' | 'progress'>;
 
-/** The stackable items the stations are carried as; defined once in `items.ts`. */
-export const MANUFACTURER_ITEM = ITEM_CATALOG['device:manufacturer'];
-export const EXTRACTOR_ITEM = ITEM_CATALOG['device:extractor'];
-export const PORTAL_ITEM = ITEM_CATALOG['device:portal'];
-
 /** The item one station of `kind` is carried as. */
-export function stationDeviceItemKind(
-  kind: StationKind
-): 'device:manufacturer' | 'device:extractor' | 'device:portal' {
-  if (kind === 'manufacturer') return 'device:manufacturer';
-  if (kind === 'extractor') return 'device:extractor';
-  return 'device:portal';
+export function stationDeviceItemKind(kind: StationKind): DeviceKind {
+  return `device:${kind}`;
+}
+
+/** The player-facing name of a station kind, e.g. `Fuel Extractor` — its catalog label. */
+export function stationLabel(kind: StationKind): string {
+  return ITEM_CATALOG[stationDeviceItemKind(kind)].label;
 }
 
 /**
@@ -268,7 +266,7 @@ export function tickExtractor(extractor: ExtractorBuffer): ExtractorBuffer {
 
 /** How a station device words each of the shared placement refusals. */
 function stationPlacementCopy(kind: StationKind): PlacementCopy {
-  const label = kind === 'manufacturer' ? 'Manufacturing Station' : kind === 'extractor' ? 'Fuel Extractor' : 'Portal';
+  const label = stationLabel(kind);
   return {
     full: `Only ${STATION_DEVICE[kind].maxPlaced} ${label}s can stand in the mine at once.`,
     offMine: `A ${label} is set down underground, inside the mine.`,

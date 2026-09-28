@@ -5,9 +5,9 @@
 // module owns the DOM-free rules that hang off that network — how a fresh portal
 // is named, how a raw rename is sanitized, which portals a given tile can travel
 // to (and how far / how deep each is), and which portals a lost ship may respawn
-// at. The game sim and UI (later phases) read these; nothing here touches state.
+// at. The game sim and UI read these; nothing here touches state.
 
-import { currentDepthMeters } from './objective';
+import { rowDepthMeters } from '../../shared/constants';
 import { isStationReachable, portals, type PlacedStation, type PortalStation } from './stations';
 
 /** The longest a portal name may be, before sanitizing truncates it. */
@@ -110,7 +110,7 @@ export function portalDestinations(
       x: portal.x,
       y: portal.y,
       name: portal.name,
-      depthMeters: currentDepthMeters(portal.y),
+      depthMeters: rowDepthMeters(portal.y),
       distance: Math.abs(portal.x - from.x) + Math.abs(portal.y - from.y)
     });
   }

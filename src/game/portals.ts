@@ -16,9 +16,8 @@
 //   * `respawn`   — the no-close redeploy prompt a lost ship with two or more
 //                   portals answers, whose pick rebuilds the world at that portal.
 
-import { TILE, WORLD_W } from '../../shared/constants';
+import { TILE, WORLD_W, rowDepthMeters } from '../../shared/constants';
 import { removeItem } from '../core/inventory';
-import { currentDepthMeters } from '../core/objective';
 import {
   portalDestinations,
   respawnPortals,
@@ -133,7 +132,7 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
         x: portal.x,
         y: portal.y,
         name: portal.name,
-        depthMeters: currentDepthMeters(portal.y),
+        depthMeters: rowDepthMeters(portal.y),
         distance: Math.abs(portal.x - from.x) + Math.abs(portal.y - from.y)
       }))
       .sort((a, b) => a.distance - b.distance);

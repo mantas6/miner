@@ -1,5 +1,4 @@
-import { ORES, START_Y } from '../../shared/constants';
-import { oreMinimumDepthMeters } from './prospecting';
+import { ORES, START_Y, rowDepthMeters } from '../../shared/constants';
 import type { Ore } from './types';
 
 export type DepthMilestoneKind = 'starter' | 'ore' | 'deep';
@@ -27,9 +26,9 @@ export function getDepthMilestone(
   ores: Ore[] = ORES,
   startY = START_Y
 ): DepthMilestone {
-  const depthMeters = Math.max(0, playerY - startY) * 10;
+  const depthMeters = rowDepthMeters(playerY, startY);
   const starterOres = ores.slice(0, 2);
-  const starterDepth = Math.max(0, ...starterOres.map(ore => oreMinimumDepthMeters(ore.min, startY)));
+  const starterDepth = Math.max(0, ...starterOres.map(ore => rowDepthMeters(ore.min, startY)));
 
   if (starterOres.length > 0 && depthMeters < starterDepth) {
     return {
@@ -40,9 +39,9 @@ export function getDepthMilestone(
     };
   }
 
-  const nextOre = ores.slice(starterOres.length).find(ore => oreMinimumDepthMeters(ore.min, startY) > depthMeters);
+  const nextOre = ores.slice(starterOres.length).find(ore => rowDepthMeters(ore.min, startY) > depthMeters);
   if (nextOre) {
-    const targetDepth = oreMinimumDepthMeters(nextOre.min, startY);
+    const targetDepth = rowDepthMeters(nextOre.min, startY);
     return {
       kind: 'ore',
       target: nextOre.name,
@@ -75,10 +74,4 @@ export function formatDepthMilestoneReached(milestone: DepthMilestone): string {
     case 'deep':
       return `${depth} — new depth record. The mine keeps going; keep fuel for the climb home.`;
   }
-}
-
-/** Formats the compact, always-visible progress readout used by the HUD. */
-export function formatDepthMilestone(playerY: number, ores: Ore[] = ORES, startY = START_Y): string {
-  const milestone = getDepthMilestone(playerY, ores, startY);
-  return `Depth target: ${milestone.target} — ${milestone.remainingMeters} m deeper.`;
 }

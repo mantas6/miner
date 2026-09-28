@@ -1,10 +1,11 @@
-// The Construction Toolkit: lifting an empty station or container back into the bay.
+// The Construction Toolkit: lifting an empty station, portal or container back into the bay.
 //
 // It is the inverse of the placement gesture. The inventory slot arms the toolkit
 // (sharing the single `armedPlacement` slot with every other armed tool), and the
 // next press on a station or container the ship can reach packs it up: the entity
-// leaves the mine and its item lands in the cargo bay. The toolkit itself is durable — it is never consumed, so the same one lifts as many things
-// as the player has room to carry.
+// leaves the mine and its item lands in the cargo bay. The toolkit itself is
+// durable — it is never consumed, so the same one lifts as many things as the
+// player has room to carry.
 //
 // It refuses to pack anything that still holds cargo ("Empty it first"), and it
 // refuses when the bay has no room for the device it would hand back. Both
@@ -80,7 +81,7 @@ export function createToolkit(deps: ToolkitDeps): ToolkitSim {
     }
     setArmed(true);
     audio.arm();
-    toast('Toolkit ready — press an empty station or a container to pack it up. Escape cancels.');
+    toast('Toolkit ready — press an empty station, portal or container to pack it up. Escape cancels.');
   }
 
   /** Whether the emptied device would fit in the bay before we remove the entity. */

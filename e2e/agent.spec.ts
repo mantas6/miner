@@ -133,7 +133,7 @@ const seedChest = seedSaveScript({
 const seedGrave = seedSaveScript({x: 22, y: 33, stations: WORKBENCHES});
 
 /**
- * A plain solo save with $250 in the wallet — once per tab. Init scripts rerun on
+ * A plain save with $250 in the wallet — once per tab. Init scripts rerun on
  * every navigation, and the import under test reloads the page into the save it
  * just wrote, so an unguarded seed would overwrite the import on the way in.
  */

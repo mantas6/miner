@@ -6,7 +6,7 @@
 // is exhaustive over `Tile['type']`, so a new terrain type fails to compile until
 // its movement rule exists.
 
-import { START_Y, WORLD_W } from '../../shared/constants';
+import { WORLD_W, rowDepthMeters } from '../../shared/constants';
 import { FUEL, HULL } from '../core/balance';
 import { decorKindForId } from '../core/decor';
 import { addItem, addOre, isFull } from '../core/inventory';
@@ -226,7 +226,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     // writing — debounced, because a sprint down a tunnel is one step per frame.
     deps.scheduleSave();
     deps.revealAtPlayer();
-    state.stats.maxDepth = Math.max(state.stats.maxDepth, Math.max(0, p.y - START_Y) * 10);
+    state.stats.maxDepth = Math.max(state.stats.maxDepth, rowDepthMeters(p.y));
     enemies.wakeEnemiesNear(p.x, p.y);
     if (p.fuel < 0) p.fuel = 0;
     if (p.fuel <= 0) gameOver('Out of fuel — ship exploded. Tap anywhere to restart.');

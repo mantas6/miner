@@ -40,13 +40,11 @@ import { encodeExploration, mergeExploration } from '../shared/exploration-codec
 import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries, type TileDiff } from './world/tile-diff';
 import type { ChestLedger, GameState, GameStats } from './core/types';
 
-// Local save file for a solo miner: the wallet, the ship, the fog, and the mine
-// itself.
+// The local save file: the wallet, the ship, the fog, and the mine itself.
 //
 // Terrain is not stored tile by tile — it regenerates from its seed — so the
-// world is saved the way the relay saves the shared one: as the list of
-// `shared/world-schema.ts` tile entries that differ from the generated terrain
-// (see `src/world/tile-diff.ts`).
+// world is saved as the list of `shared/world-schema.ts` tile entries that
+// differ from the generated terrain (see `src/world/tile-diff.ts`).
 //
 // Breaking changes always deprecate the save rather than migrating it: when the
 // on-disk shape changes incompatibly, bump `SAVE_VERSION`, and the version gate in
@@ -61,7 +59,7 @@ import type { ChestLedger, GameState, GameStats } from './core/types';
 // The current shape's fields:
 //   * `x`/`y`     — the tile the ship parked on.
 //   * `cash`      — the wallet.
-//   * `tiles`     — the solo world's tile diff, in the relay world format.
+//   * `tiles`     — the world's tile diff, as `{x, y, tile}` entries.
 //   * `explored`  — run-length-encoded explored tiles.
 //   * `stats`     — the progress statistics.
 //   * `bay`       — the non-ore stacks aboard (equipment, upgrades, decor), as
@@ -71,7 +69,8 @@ import type { ChestLedger, GameState, GameStats } from './core/types';
 //     are derived from these, not stored.
 //   * `stations`  — the stations standing in the mine: each manufacturer with its
 //     own `{kind,count}` stock (ore included), each extractor with its queued coal,
-//     stored fuel, and tick progress. Two are seeded on the home-cavern floor.
+//     stored fuel, and tick progress, each portal with its name. One of each is
+//     seeded on the home-cavern floor.
 //   * `scannerDevices`/`dynamiteSticks`/`cargoContainers`/`wrecks` — the hardware
 //     and corpse loot left standing in the mine, crates and wrecks saved with their
 //     contents as `{kind, count}` stacks (prices and labels come from the ore table
@@ -461,7 +460,7 @@ export function load(state: GameState): void {
   // appears there instead of easing in from home.
   Object.assign(p, {x: staged.x, y: staged.y, drawX: staged.x, drawY: staged.y});
   for (const index of staged.explored) state.exploredTiles.add(index);
-  state.soloTileDiff = staged.tileDiff;
+  state.tileDiff = staged.tileDiff;
   state.stats = staged.stats;
 }
 
@@ -492,7 +491,7 @@ function savedTiles(state: GameState, cap: number): TileEntry[] {
   const standing = new Set<string>();
   for (const thing of [...state.stations, ...state.cargoContainers, ...state.wrecks]) standing.add(tileKey(thing.x, thing.y));
   return capTileEntries(
-    tileDiffEntries(state.soloTileDiff),
+    tileDiffEntries(state.tileDiff),
     cap,
     entry => entry.tile.type === 'decor' || standing.has(tileKey(entry.x, entry.y))
   );

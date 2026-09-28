@@ -68,7 +68,7 @@ function WreckCard() {
       title="Wreck"
       listId="wreckSlots"
       slots={wreckSlots}
-      note={'The corpse of your last ship: its ore and fitted upgrades, waiting to be salvaged. '
+      note={'A lost ship: the ore and fitted upgrades it went down with, waiting to be salvaged. '
         + 'Anything hauled aboard still obeys the cargo-bay limit, and the wreck is gone once emptied.'}
       close={() => uiCommands.closeWreck()}
       take={(kind, single) => uiCommands.takeFromWreck(kind, single)}

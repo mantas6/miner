@@ -56,13 +56,13 @@ export interface Player {
   /**
    * The cargo bay. Mined ore stacks here awaiting stowage at the Manufacturing
    * Station, capped by `cargoMax`. Crafted equipment — dynamite, scanners,
-   * teleporters, cargo containers, upgrades — rides here too.
+   * teleporters, cargo containers, upgrades, station devices, decorations, the
+   * toolkit — rides here too.
    */
   inventory: Inventory;
   /**
    * Ship-upgrade fitting slots, one entry per `SHIP_UPGRADE_SLOTS`. A slot holds
-   * an equipped upgrade kind or `null` when empty. Phase 3's `applyEquipment`
-   * derives `fuelMax`/`hullMax`/`cargoMax`/`drill` and `boost` from these.
+   * an equipped upgrade kind or `null` when empty. `applyEquipment` derives `fuelMax`/`hullMax`/`cargoMax`/`drill` and `boost` from these.
    */
   equipment: (UpgradeKind | null)[];
   /** Whether a Booster is fitted, enabling the Shift sprint. Derived from `equipment`. */
@@ -118,6 +118,7 @@ export interface TeleportEffect {
 
 export interface GameStats {
   maxDepth: number;
+  /** Every dollar credited to the wallet: trading-post ore sales and fiend bounties. */
   totalCashEarned: number;
   oreMined: number;
   enemiesDestroyed: number;
@@ -142,7 +143,7 @@ export interface GameState {
    * Tile mutations of the world, against the terrain `world.ts` regenerates.
    * Persisted to `localStorage` and re-applied on every restart.
    */
-  soloTileDiff: TileDiff;
+  tileDiff: TileDiff;
   cash: number;
   tick: number;
   gameOver: boolean;
@@ -157,7 +158,7 @@ export interface GameState {
   stats: GameStats;
   teleportEffect: TeleportEffect | null;
   reducedMotion: boolean;
-  /** Explored underground cells as row-major indexes; surface rows are implicitly visible. */
+  /** Explored cells as row-major indexes; every other tile is fogged. */
   exploredTiles: Set<number>;
   /** Scanner devices left in the mine, clearing fog around themselves. */
   scannerDevices: ScannerDevice[];
@@ -174,8 +175,9 @@ export interface GameState {
   wrecks: Wreck[];
   /**
    * Stations standing in the mine — manufacturers with their own stock, extractors
-   * with their coal/fuel buffers. Two are seeded on the home-cavern floor; the
-   * player can craft, place, and lift more with the Construction Toolkit.
+   * with their coal/fuel buffers, named portals. One of each is seeded on the
+   * home-cavern floor; the player can craft, place, and lift more with the
+   * Construction Toolkit.
    */
   stations: PlacedStation[];
   /**
@@ -196,11 +198,12 @@ export interface GameState {
    */
   chestLedger: ChestLedger;
   /**
-   * The carried device armed for placement, or `null` when nothing is. Only the
-   * placeable kinds (scanner, dynamite, container) ever appear here; it drives the
-   * canvas placement grid, and mirrors the same state the sims paint onto the HUD
-   * slot. Purely transient — never saved, since it is about what the player is
-   * doing this instant, not what they own.
+   * The carried item armed for a press on the mine, or `null` when nothing is:
+   * a deployable (scanner, dynamite, container), a station device, a decoration,
+   * or the Construction Toolkit. The placeable kinds drive the canvas placement
+   * grid, and it mirrors the same state the sims paint onto the inventory slot.
+   * Purely transient — never saved, since it is about what the player is doing
+   * this instant, not what they own.
    */
   armedPlacement: InventoryItemKind | null;
   /**

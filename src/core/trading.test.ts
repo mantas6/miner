@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { START_Y } from '../../shared/constants';
+import { tileKey } from '../../shared/tile-key';
 import { RECIPES } from './crafting';
 import { itemForKind } from './items';
 import { oreKind } from './inventory';
@@ -12,8 +13,7 @@ import {
   buyPrice,
   offersForPost,
   remainingStock,
-  sellPrice,
-  tradePostKey
+  sellPrice
 } from './trading';
 
 /** A row deep enough that every buy tier is eligible. */
@@ -94,7 +94,7 @@ describe('remainingStock', () => {
   });
 
   it('uses the ledger entry when its length matches, clamped to the rolled stock', () => {
-    const key = tradePostKey(40, DEEP);
+    const key = tileKey(40, DEEP);
     const saved = offers.map(() => 0);
     expect(remainingStock({[key]: saved}, 40, DEEP, offers)).toEqual(saved);
     // A hand-edited entry over the rolled stock is clamped down; a negative is floored to 0.
@@ -103,7 +103,7 @@ describe('remainingStock', () => {
   });
 
   it('ignores a ledger entry whose length no longer matches the offers', () => {
-    const key = tradePostKey(40, DEEP);
+    const key = tileKey(40, DEEP);
     expect(remainingStock({[key]: [5]}, 40, DEEP, offers)).toEqual(offers.map(o => o.stock));
   });
 });

@@ -10,8 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ORES } from '../../shared/constants';
 import { DYNAMITE_ITEM } from '../core/dynamite';
 import { addItem, addOre, createInventory } from '../core/inventory';
+import { ITEM_CATALOG } from '../core/items';
 import { SCANNER_ITEM } from '../core/scanner-device';
-import { PORTAL_ITEM } from '../core/stations';
 import { setUiCommands, uiCommands } from './commands';
 import common from './common.module.css';
 import { buildInventorySlots, uiStore, type HudSnapshot } from './store';
@@ -114,7 +114,7 @@ describe('app shell', () => {
     // A description that points nowhere is worse than none at all.
     const description = document.getElementById(canvas.getAttribute('aria-describedby')!);
     expect(description?.textContent).toContain('WASD');
-    expect(description?.textContent).toContain('Space uses the nearby home');
+    expect(description?.textContent).toContain('Space uses what the ship is');
   });
 
   /**
@@ -302,14 +302,14 @@ describe('boot phase machine', () => {
   });
 
   it('starts a run on a press anywhere, forwarding the gesture for audio unlock', () => {
-    const playSolo = vi.fn();
-    setUiCommands({playSolo});
+    const beginRun = vi.fn();
+    setUiCommands({beginRun});
     render(<MinerApp />);
 
     fireEvent.pointerDown(document.getElementById('intro')!);
 
-    expect(playSolo).toHaveBeenCalledTimes(1);
-    expect(playSolo.mock.calls[0][0]).toBeInstanceOf(Event);
+    expect(beginRun).toHaveBeenCalledTimes(1);
+    expect(beginRun.mock.calls[0][0]).toBeInstanceOf(Event);
   });
 
   /**
@@ -318,8 +318,8 @@ describe('boot phase machine', () => {
    * real button now, and a click is all it takes.
    */
   it('starts a run from the start button a screen reader can click', () => {
-    const playSolo = vi.fn();
-    setUiCommands({playSolo});
+    const beginRun = vi.fn();
+    setUiCommands({beginRun});
     render(<MinerApp />);
 
     const start = document.getElementById('introStartBtn') as HTMLButtonElement;
@@ -327,31 +327,31 @@ describe('boot phase machine', () => {
     expect(document.getElementById('intro')?.getAttribute('role')).toBeNull();
 
     fireEvent.click(start);
-    expect(playSolo).toHaveBeenCalledTimes(1);
+    expect(beginRun).toHaveBeenCalledTimes(1);
   });
 
   it('starts a run on Enter or Space wherever focus happens to be', () => {
-    const playSolo = vi.fn();
-    setUiCommands({playSolo});
+    const beginRun = vi.fn();
+    setUiCommands({beginRun});
     render(<MinerApp />);
 
     fireEvent.keyDown(document.body, {key: 'x'});
-    expect(playSolo).not.toHaveBeenCalled();
+    expect(beginRun).not.toHaveBeenCalled();
 
     fireEvent.keyDown(document.body, {key: 'Enter'});
     fireEvent.keyDown(document.body, {key: ' '});
-    expect(playSolo).toHaveBeenCalledTimes(2);
+    expect(beginRun).toHaveBeenCalledTimes(2);
   });
 
   it('stops listening for the intro keys once the run starts', () => {
-    const playSolo = vi.fn();
-    setUiCommands({playSolo});
+    const beginRun = vi.fn();
+    setUiCommands({beginRun});
     render(<MinerApp />);
 
     act(() => { uiStore.getState().setPhase('playing'); });
     fireEvent.keyDown(document.body, {key: 'Enter'});
 
-    expect(playSolo).not.toHaveBeenCalled();
+    expect(beginRun).not.toHaveBeenCalled();
   });
 });
 
@@ -645,7 +645,7 @@ describe('inventory panel', () => {
 
     act(() => {
       uiStore.getState().setInventorySlots(buildInventorySlots(
-        addItem(addItem(addOre(createInventory(), ORES[0], 99)!, SCANNER_ITEM, 2)!, DYNAMITE_ITEM, 3)!
+        addItem(addItem(addOre(createInventory(), ORES[0], 99)!, SCANNER_ITEM, 2), DYNAMITE_ITEM, 3)
       ));
     });
 
@@ -674,7 +674,7 @@ describe('inventory panel', () => {
     render(<MinerApp />);
 
     act(() => {
-      uiStore.getState().setInventorySlots(buildInventorySlots(addItem(createInventory(), PORTAL_ITEM, 1)!));
+      uiStore.getState().setInventorySlots(buildInventorySlots(addItem(createInventory(), ITEM_CATALOG['device:portal'], 1)));
     });
 
     const portal = document.getElementById('portalSlotBtn')!;

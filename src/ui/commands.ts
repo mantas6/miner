@@ -106,7 +106,7 @@ export interface UiCommands {
   toggleMusic(): void;
   toggleSfx(): void;
   /** Start the run. The splash's default: any press on the card lands here. */
-  playSolo(event?: Event): void;
+  beginRun(event?: Event): void;
   /** Grant a bundle of every ore into the bay and the station stock. */
   grantDeveloperOres(): void;
   /** Queue coal and fill the fuel extractor's stored fuel. */
@@ -183,7 +183,7 @@ function noopCommands(): UiCommands {
     closeInfo: noop,
     toggleMusic: noop,
     toggleSfx: noop,
-    playSolo: noop,
+    beginRun: noop,
     grantDeveloperOres: noop,
     fillExtractor: noop,
     resetPlayerData: noop,

@@ -27,7 +27,7 @@ interface Harness {
 /** A ship parked in cleared, explored ground with `carried` scanners aboard. */
 function harness(carried = 1, random = () => 0): Harness {
   const state = createInitialState();
-  if (carried > 0) state.player.inventory = addItem(createInventory(), SCANNER_ITEM, carried)!;
+  if (carried > 0) state.player.inventory = addItem(createInventory(), SCANNER_ITEM, carried);
   state.exploredTiles.add(explorationIndex(40, 100));
   const grid = createFakeGrid();
   const audio = createAudioStub();

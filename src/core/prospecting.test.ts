@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_WORLD_ROW, ORES, START_Y } from '../../shared/constants';
-import { buildProspectingGuideRows, formatDepthBandLabel, oreMinimumDepthMeters } from './prospecting';
+import { MAX_WORLD_ROW, ORES, START_Y, rowDepthMeters } from '../../shared/constants';
+import { buildProspectingGuideRows, formatDepthBandLabel } from './prospecting';
 
 describe('prospecting guide helpers', () => {
   it('converts ore minimum rows into player-facing depth labels from the start row', () => {
-    expect(oreMinimumDepthMeters(START_Y)).toBe(0);
+    expect(rowDepthMeters(START_Y)).toBe(0);
     expect(formatDepthBandLabel(START_Y, START_Y + 180)).toBe('starter–≈1800 m');
     expect(formatDepthBandLabel(START_Y + 5, START_Y + 320)).toBe('≈50–3200 m');
   });

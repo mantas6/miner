@@ -13,7 +13,7 @@ export function confirmWorldStateReset(confirmReset: (message: string) => boolea
  * Regenerate world-owned state while preserving every player-owned value.
  *
  * Clearing `world` is almost all it takes — tiles are generated lazily on first
- * access — but the solo diff has to go with it, or the next restart would layer
+ * access — but the tile diff has to go with it, or the next restart would layer
  * the old tunnels straight back onto the fresh terrain.
  *
  * Stations are player property (and the base's crafting, fuel and portal
@@ -23,12 +23,12 @@ export function confirmWorldStateReset(confirmReset: (message: string) => boolea
  */
 export function resetWorldTerrain(state: GameState): void {
   state.world = [];
-  state.soloTileDiff = new Map();
+  state.tileDiff = new Map();
   for (const station of state.stations) {
     if (makeTile(station.x, station.y).type === 'air') continue;
-    recordTileDiff(state.soloTileDiff, {x: station.x, y: station.y, tile: {type: 'air'}});
+    recordTileDiff(state.tileDiff, {x: station.x, y: station.y, tile: {type: 'air'}});
   }
-  applyTileEntries(state.world, tileDiffEntries(state.soloTileDiff));
+  applyTileEntries(state.world, tileDiffEntries(state.tileDiff));
   state.enemies = [];
   state.exploredTiles.clear();
   // Deployed scanners belong to the mine they were dropped into, and the fog they

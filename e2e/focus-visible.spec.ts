@@ -15,7 +15,7 @@
 // pinned here.
 
 import { expect, test, type Locator } from '@playwright/test';
-import { isFocusVisible, startSoloRun } from './support/game';
+import { isFocusVisible, startRun } from './support/game';
 
 /** The computed ring, so the assertions cover the CSS and not just the selector. */
 function outline(locator: Locator): Promise<{style: string; width: string; offset: string}> {
@@ -26,11 +26,11 @@ function outline(locator: Locator): Promise<{style: string; width: string; offse
 }
 
 /** Splash → run, without a single keystroke. */
-const startSoloRunByPointer = (page: Parameters<typeof startSoloRun>[0]) => startSoloRun(page, 'click');
+const startRunByPointer = (page: Parameters<typeof startRun>[0]) => startRun(page, 'click');
 
 test.describe('focus ring', () => {
   test('appears when Tab moves focus, on the HUD and back on the canvas', async ({page}) => {
-    await startSoloRunByPointer(page);
+    await startRunByPointer(page);
     const music = page.locator('#musicBtn');
     const canvas = page.locator('#game');
 
@@ -47,7 +47,7 @@ test.describe('focus ring', () => {
   });
 
   test('is gone from a HUD button that a mouse click focused', async ({page}) => {
-    await startSoloRunByPointer(page);
+    await startRunByPointer(page);
     const music = page.locator('#musicBtn');
 
     // Ring up, by keyboard.
@@ -63,7 +63,7 @@ test.describe('focus ring', () => {
   });
 
   test('is gone from the canvas that a mouse click focused', async ({page}) => {
-    await startSoloRunByPointer(page);
+    await startRunByPointer(page);
     const canvas = page.locator('#game');
 
     // Park the ring somewhere else first, so the click below is a real focus
@@ -81,7 +81,7 @@ test.describe('focus ring', () => {
   });
 
   test('is not drawn on the trigger a clicked-shut dialog hands focus back to', async ({page}) => {
-    await startSoloRunByPointer(page);
+    await startRunByPointer(page);
     const info = page.locator('#infoBtn');
 
     // Opened and closed entirely with the mouse, so the focus the dialog restores

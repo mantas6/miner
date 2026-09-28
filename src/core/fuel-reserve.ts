@@ -44,21 +44,3 @@ export function getFuelReserveForecast({ fuel, playerY, startY, atSurface = fals
     depthTiles
   };
 }
-
-/** Formats an always-visible, route-honest return-fuel forecast. */
-export function formatFuelReserveForecast(input: FuelReserveInput): string {
-  const forecast = getFuelReserveForecast(input);
-  if (input.gameOver) return 'Fuel reserve: URGENT — ship disabled; restart at home base.';
-  if (input.atSurface) return 'Fuel reserve: SAFE — at home base; refuel at the Fuel Extractor before the next descent.';
-
-  const reserve = Math.ceil(forecast.reserve);
-  const remaining = Math.floor(forecast.fuelAfterReturn);
-  const assumption = 'clear-shaft return + 2× detour reserve';
-  if (forecast.status === 'urgent') {
-    return `Fuel reserve: URGENT — turn back now; need ${reserve} fuel (${assumption}).`;
-  }
-  if (forecast.status === 'caution') {
-    return `Fuel reserve: CAUTION — about ${Math.max(0, remaining)} fuel after return (${assumption}).`;
-  }
-  return `Fuel reserve: SAFE — about ${remaining} fuel after return (${assumption}).`;
-}

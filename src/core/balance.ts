@@ -1,5 +1,4 @@
 // Central balance/config module. DOM-free. Pure data, no behavior.
-// All values ported verbatim from the previous inline literals.
 
 export const STARTING = Object.freeze({
   cash: 60,
@@ -19,21 +18,6 @@ export const STARTING = Object.freeze({
  */
 export const REVEAL_FOOTPRINT = 3;
 
-export const LIMITS = Object.freeze({
-  fuelMax: Object.freeze({ min: 100, max: 2000 }),
-  hullMax: Object.freeze({ min: 100, max: 2000 }),
-  cargoMax: Object.freeze({ min: STARTING.cargoMax, max: 1000 }),
-  drill: Object.freeze({ min: 1, max: 100 }),
-  /** Carried (not yet planted) sticks of dynamite; they live in the cargo bay. */
-  dynamite: Object.freeze({ min: 0, max: 999 }),
-  /** Carried (not yet used) teleporters; they live in the cargo bay. */
-  teleporters: Object.freeze({ min: 0, max: 999 }),
-  /** Carried (not yet deployed) scanner devices; they live in the cargo bay. */
-  scanners: Object.freeze({ min: 0, max: 999 }),
-  /** Carried (not yet placed) cargo containers; they live in the cargo bay. */
-  containers: Object.freeze({ min: 0, max: 999 })
-});
-
 export const FUEL = Object.freeze({
   baseMove: 0.25,
   vertical: 0.08,
@@ -42,7 +26,6 @@ export const FUEL = Object.freeze({
   dig: Object.freeze({
     enemy: 0.65,
     hazard: 1.15,
-    artifact: 1.4,
     dig: 0.9
   }),
   // Return forecast: a clear-shaft ascent with a deliberately generous detour allowance.
@@ -87,9 +70,9 @@ export const ENEMY = Object.freeze({
 });
 
 /**
- * The fuel extractor's timed coal → fuel conversion. Phase 4 stores coal and fuel
- * and wires the load/refuel transfers; Phase 5 uses `ticksPerCoal`/`fuelPerCoal`
- * to burn queued coal into stored fuel over time. `fuelCap` bounds the buffer.
+ * The fuel extractor's timed coal → fuel conversion: every `ticksPerCoal` steps
+ * it burns one queued coal into `fuelPerCoal` stored fuel. `fuelCap` bounds the
+ * buffer.
  */
 export const EXTRACTOR = Object.freeze({
   ticksPerCoal: 180,
@@ -97,4 +80,22 @@ export const EXTRACTOR = Object.freeze({
   fuelCap: 500
 });
 
-
+/**
+ * Terrain tuning for `makeTile` in `world/world.ts`. Rows are absolute tile rows,
+ * not `START_Y` offsets — these curves were balanced against raw `y` — and the
+ * golden worldgen hash pins every value, so a change here moves the whole mine.
+ */
+export const TERRAIN = Object.freeze({
+  /** Ore-spawn roll: `base × min(maxMultiplier, 1 + row / rowDivisor)`. */
+  oreChance: Object.freeze({ base: .10, rowDivisor: 90, maxMultiplier: 2.2 }),
+  /** Ore durability: `max(min, ceil(row / rowDivisor + base))`. */
+  oreHp: Object.freeze({ min: 3, rowDivisor: 28, base: 4 }),
+  /** Dirt durability: `max(min, ceil(row / rowDivisor) + base)`, plus `deepBonus` below `deepRow`. */
+  dirtHp: Object.freeze({ min: 2, rowDivisor: 42, base: 1, deepRow: 210, deepBonus: 2 }),
+  /** Undrillable rock: its roll doubles below `deepRow`. */
+  rock: Object.freeze({ chance: .018, deepChance: .036, deepRow: 190, hp: 999 }),
+  /** Magma: roll `min(chanceMax, chanceBase + row / chanceRowDivisor)`; hp `max(hpMin, ceil(hpBase + row / hpRowDivisor))`. */
+  hazard: Object.freeze({ chanceBase: .007, chanceRowDivisor: 13000, chanceMax: .026, hpMin: 4, hpBase: 3, hpRowDivisor: 55 }),
+  /** Dormant enemy: same shape as `hazard`; hp is the tunnel-fiend base the kind then scales. */
+  enemy: Object.freeze({ chanceBase: .008, chanceRowDivisor: 6500, chanceMax: .046, hpMin: 4, hpBase: 3, hpRowDivisor: 35 })
+});

@@ -49,7 +49,7 @@ interface Harness {
 /** A ship parked on cleared, explored ground with `carried` containers aboard. */
 function harness(carried = 1): Harness {
   const state = createInitialState();
-  if (carried > 0) state.player.inventory = addItem(createInventory(), CARGO_CONTAINER_ITEM, carried)!;
+  if (carried > 0) state.player.inventory = addItem(createInventory(), CARGO_CONTAINER_ITEM, carried);
   state.exploredTiles.add(explorationIndex(40, 100));
   Object.assign(state.player, {x: 40, y: 100});
   const grid = createFakeGrid();
@@ -294,7 +294,7 @@ describe('moving cargo across', () => {
   function opened(ore = 6): Harness {
     const h = harness();
     placed(h);
-    h.state.player.inventory = addItem(h.state.player.inventory, oreItem(COPPER), ore)!;
+    h.state.player.inventory = addItem(h.state.player.inventory, oreItem(COPPER), ore);
     h.containers.openAt(40, 100);
     h.saveProgress.mockClear();
     return h;
@@ -350,7 +350,7 @@ describe('moving cargo across', () => {
   it('refuses what the cargo-bay limit will not take, and keeps the rest stored', () => {
     const h = opened(0);
     h.state.player.cargoMax = 2;
-    h.state.cargoContainers[0].inventory = addItem(createInventory(), oreItem(COPPER), 5)!;
+    h.state.cargoContainers[0].inventory = addItem(createInventory(), oreItem(COPPER), 5);
 
     h.containers.take(oreItem(COPPER).kind);
 
@@ -391,7 +391,7 @@ describe('moving cargo across', () => {
 
   it('does nothing at all with no crate open', () => {
     const h = harness();
-    h.state.player.inventory = addItem(h.state.player.inventory, oreItem(COPPER), 3)!;
+    h.state.player.inventory = addItem(h.state.player.inventory, oreItem(COPPER), 3);
 
     h.containers.store(oreItem(COPPER).kind);
     h.containers.take(oreItem(COPPER).kind);

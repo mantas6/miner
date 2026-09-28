@@ -13,8 +13,7 @@
 // opening tags and their attributes, which is all it looks at.
 
 import { describe, expect, it } from 'vitest';
-import { decorIdSchema } from '../../shared/world-schema';
-import { DECOR_IDS } from '../core/inventory';
+import { DECOR_IDS } from '../../shared/constants';
 import { allSlotButtonIds } from '../ui/inventory-slot-ids';
 import { addressedAttributes, ATTR_TARGETS, FLAG_ATTR_TARGETS, ID_TARGETS, KIND_TARGETS } from '../../agent/targets';
 
@@ -193,8 +192,6 @@ describe('harness allowlist', () => {
   it('allowlists every inventory slot, decorations included, from the shared table', () => {
     for (const id of allSlotButtonIds()) expect(ID_TARGETS.has(id), id).toBe(true);
     for (const id of DECOR_IDS) expect(ID_TARGETS.has(`decor:${id}SlotBtn`), id).toBe(true);
-    // The save schema and the inventory agree on which decorations exist.
-    expect([...decorIdSchema.options]).toEqual([...DECOR_IDS]);
   });
 
   it('keeps every exclusion live: nothing listed that the tree no longer renders or already reaches', () => {

@@ -27,14 +27,14 @@ describe('world state reset', () => {
     const state = createInitialState();
     Object.assign(state.player, { fuel: 17, hull: 23, fuelMax: 400, hullMax: 300, cargoMax: 80, drill: 40 });
     state.player.inventory = addItem(
-      addItem(state.player.inventory, DYNAMITE_ITEM, 2)!,
+      addItem(state.player.inventory, DYNAMITE_ITEM, 2),
       TELEPORTER_ITEM,
       8
-    )!;
+    );
     state.cash = 9999;
     state.stats.maxDepth = 900;
     state.world = [[{type:'air'}]];
-    state.soloTileDiff = createTileDiff([{x:1, y:60, tile:{type:'air'}}]);
+    state.tileDiff = createTileDiff([{x:1, y:60, tile:{type:'air'}}]);
     state.enemies = [{id:1,kind:'tunnelFiend',x:1,y:1,drawX:1,drawY:1,hp:2,maxHp:2,alive:true,moveTick:0,biteTick:0,flash:0,origin:{x:1,y:1}}];
     state.exploredTiles.add(400);
     state.cargoContainers = [createPlacedContainer(12, 300)];
@@ -49,7 +49,7 @@ describe('world state reset', () => {
     expect(state.world).toEqual([]);
     // The dug-out blocks go with the terrain, or the next restart would put the
     // old tunnels back into the fresh mine.
-    expect(state.soloTileDiff.size).toBe(0);
+    expect(state.tileDiff.size).toBe(0);
     expect(state.enemies).toEqual([]);
     expect(state.exploredTiles.size).toBe(0);
     // A crate belongs to the mine it was left in, not to the ship.
@@ -73,7 +73,7 @@ describe('world state reset', () => {
 
     expect(state.wrecks).toEqual([]);
     expect(state.stations).toHaveLength(seeded + 1);
-    expect(tileDiffEntries(state.soloTileDiff)).toEqual([{x: 30, y: 200, tile: {type: 'air'}}]);
+    expect(tileDiffEntries(state.tileDiff)).toEqual([{x: 30, y: 200, tile: {type: 'air'}}]);
     // The carve is live at once, not only after the next restart rebuilds the world.
     expect(ensureWorldRow(state.world, 200)?.[30]).toEqual({type: 'air'});
   });

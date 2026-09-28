@@ -5,8 +5,8 @@ import { ENEMY_TYPES, enemyBiteCooldown, enemyBiteDamage, enemyHealth, enemyKind
 import { makeTile } from '../world/world';
 
 describe('enemy variants', () => {
-  const sampledKinds = (depth: number) => new Set(
-    Array.from({length: 1000}, (_, index) => enemyKindForDepthRoll(depth, (index + .5) / 1000))
+  const sampledKinds = (row: number) => new Set(
+    Array.from({length: 1000}, (_, index) => enemyKindForDepthRoll(row, (index + .5) / 1000))
   );
 
   it('keeps shallow enemies approachable and gates variety by depth', () => {
@@ -17,8 +17,8 @@ describe('enemy variants', () => {
   });
 
   it('shifts unlimited-world encounters toward stronger deep variants after 20 km', () => {
-    const count = (depth: number, kind: string) => Array.from({length: 1000}, (_, index) =>
-      enemyKindForDepthRoll(depth, (index + .5) / 1000)
+    const count = (row: number, kind: string) => Array.from({length: 1000}, (_, index) =>
+      enemyKindForDepthRoll(row, (index + .5) / 1000)
     ).filter(candidate => candidate === kind).length;
 
     expect(count(2002, 'tunnelFiend')).toBeLessThan(count(1002, 'tunnelFiend'));
@@ -39,16 +39,16 @@ describe('enemy variants', () => {
   });
 
   it('gives each variant a distinct health, movement, and attack profile while preserving fiend bites', () => {
-    const depth = 420;
+    const row = 420;
     expect(enemyHealth('skitterling', 10)).toBeLessThan(enemyHealth('tunnelFiend', 10));
     expect(enemyHealth('ironback', 10)).toBeGreaterThan(enemyHealth('abyssStalker', 10));
-    expect(enemyMoveDelay('skitterling', depth)).toBeLessThan(enemyMoveDelay('tunnelFiend', depth));
-    expect(enemyMoveDelay('ironback', depth)).toBeGreaterThan(enemyMoveDelay('tunnelFiend', depth));
+    expect(enemyMoveDelay('skitterling', row)).toBeLessThan(enemyMoveDelay('tunnelFiend', row));
+    expect(enemyMoveDelay('ironback', row)).toBeGreaterThan(enemyMoveDelay('tunnelFiend', row));
     expect(enemyMoveDelay('tunnelFiend', 10_000)).toBe(7);
     expect(enemyBiteCooldown('skitterling')).toBeLessThan(enemyBiteCooldown('tunnelFiend'));
-    expect(enemyBiteDamage('ironback', depth)).toBeGreaterThan(enemyBiteDamage('abyssStalker', depth));
-    expect(enemyBiteDamage('tunnelFiend', depth)).toBe(
-      HULL.enemyBite.base + Math.floor(depth / HULL.enemyBite.perDepth) * HULL.enemyBite.step
+    expect(enemyBiteDamage('ironback', row)).toBeGreaterThan(enemyBiteDamage('abyssStalker', row));
+    expect(enemyBiteDamage('tunnelFiend', row)).toBe(
+      HULL.enemyBite.base + Math.floor(row / HULL.enemyBite.perDepth) * HULL.enemyBite.step
     );
   });
 });

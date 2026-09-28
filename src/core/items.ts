@@ -3,9 +3,9 @@
 // Every stackable thing the bay can hold that is not ore is described here, once,
 // so persistence, crafting, and the UI can resolve any `InventoryItemKind` to the
 // `InventoryItem` that names, colours, and prices it. Ore is the deliberate
-// exception: an ore stack carries its own record (mined from a table a co-op peer
-// might not share), so `itemForKind` resolves ore kinds through `ORES` instead of
-// this catalog.
+// exception: an ore stack carries its own record straight off the tile it was
+// mined from, so `itemForKind` resolves ore kinds through `ORES` instead of this
+// catalog.
 //
 // The consumable entries are the single source of truth for the four devices and
 // the repair kit; `dynamite.ts`, `scanner-device.ts`, `teleporter.ts`, and

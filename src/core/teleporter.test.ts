@@ -17,7 +17,7 @@ import type { Player } from './types';
 
 /** Load the bay with `count` teleporters, the only place a charge lives. */
 function carrying(player: Player, count: number): void {
-  player.inventory = addItem(player.inventory, TELEPORTER_ITEM, count) ?? player.inventory;
+  player.inventory = addItem(player.inventory, TELEPORTER_ITEM, count);
 }
 
 describe('teleporters carried', () => {

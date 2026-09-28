@@ -3,12 +3,10 @@
 // game/decor.test.ts; this covers only the DOM-free helpers.
 
 import { describe, expect, it } from 'vitest';
+import { DECOR_IDS } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { decorIdForKind, decorKindForId, decorPlacementRefusal } from './decor';
-import type { DecorId } from './inventory';
 import type { Occupant } from './placement';
-
-const DECOR_IDS: DecorId[] = ['steelPlate', 'stoneBlock', 'copperTrim', 'lampPanel'];
 
 describe('decor kind mapping', () => {
   it('round-trips every decoration id through its stack kind', () => {

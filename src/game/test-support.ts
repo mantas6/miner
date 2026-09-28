@@ -194,6 +194,6 @@ export function createToastLog() {
 export function dugPortal(state: GameState, x: number, y: number, name: string): PortalStation {
   const row = ensureWorldRow(state.world, y);
   if (row) row[x] = {type: 'air'};
-  recordTileDiff(state.soloTileDiff, {x, y, tile: {type: 'air'}});
+  recordTileDiff(state.tileDiff, {x, y, tile: {type: 'air'}});
   return createPortal(x, y, name);
 }

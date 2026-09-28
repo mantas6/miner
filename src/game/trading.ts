@@ -21,8 +21,9 @@ import {
   roomLeft,
   type InventoryItemKind
 } from '../core/inventory';
+import { tileKey } from '../../shared/tile-key';
 import { itemForKind } from '../core/items';
-import { offersForPost, remainingStock, sellPrice, tradePostKey } from '../core/trading';
+import { offersForPost, remainingStock, sellPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
 import { tradingPostAt, type TradingPost } from '../world/world';
 
@@ -187,7 +188,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
     state.player.inventory = addItem(state.player.inventory, itemForKind(offer.kind), 1);
     const next = [...remaining];
     next[index] -= 1;
-    state.tradeLedger[tradePostKey(post.x, post.y)] = next;
+    state.tradeLedger[tileKey(post.x, post.y)] = next;
     repaint();
     saveProgress();
     audio.buy();

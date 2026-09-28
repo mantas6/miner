@@ -125,7 +125,7 @@ describe('zoom across a reload', () => {
         panel: document.getElementById('game-panel') as HTMLElement
       });
     });
-    act(() => { uiCommands.playSolo(); });
+    act(() => { uiCommands.beginRun(); });
   });
 
   afterAll(() => {

@@ -3,7 +3,7 @@
 // from the browser along the way.
 
 import { expect, test } from '@playwright/test';
-import { activeElementId, collectPageFailures, openIntro, startSoloRun } from './support/game';
+import { activeElementId, collectPageFailures, openIntro, startRun } from './support/game';
 
 test.describe('boot', () => {
   test('renders the title card with its start prompt', async ({page}) => {
@@ -19,15 +19,15 @@ test.describe('boot', () => {
   });
 
   test('Enter starts the run straight from the splash', async ({page}) => {
-    await startSoloRun(page, 'keyboard');
+    await startRun(page, 'keyboard');
   });
 
   test('a press anywhere on the card starts it too', async ({page}) => {
-    await startSoloRun(page, 'click');
+    await startRun(page, 'click');
   });
 
   test('the press starts the run, focuses the canvas and shows the HUD', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
     await expect(page.locator('#intro')).toHaveCount(0);
     // The chrome the run needs: meters, readouts, and the home-base actions.
     await expect(page.locator('#cash')).toHaveText('$60');
@@ -47,7 +47,7 @@ test.describe('boot', () => {
   });
 
   test('the canvas is the game surface\'s only tab stop', async ({page}) => {
-    await startSoloRun(page);
+    await startRun(page);
     // One Tab leaves the mine for the HUD; the panel around the canvas is layout
     // and must not have collected a tab stop of its own.
     await page.keyboard.press('Tab');
@@ -58,7 +58,7 @@ test.describe('boot', () => {
 
   test('the whole flow is free of console errors and page errors', async ({page}) => {
     const failures = collectPageFailures(page);
-    await startSoloRun(page);
+    await startRun(page);
     // Wait for the loop to have drawn and synced at least once, so anything that
     // only throws from inside a frame has had its chance.
     await expect(page.locator('#scanner')).toContainText('decoration');

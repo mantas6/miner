@@ -6,8 +6,9 @@
 // the component, so the harness's allowlist (`agent/targets.ts`) derives the same
 // ids from the same source instead of keeping a hand-copied list in step.
 
+import { DECOR_IDS } from '../../shared/constants';
 import { decorKindForId } from '../core/decor';
-import { DECOR_IDS, type DecorKind, type DeviceKind, type InventoryItemKind } from '../core/inventory';
+import type { DecorKind, DeviceKind, InventoryItemKind } from '../core/inventory';
 
 /** Every placeable decoration's stack kind, in catalogue order. */
 export const DECOR_KINDS: readonly DecorKind[] = DECOR_IDS.map(decorKindForId);

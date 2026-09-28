@@ -367,7 +367,7 @@ describe('the boost gate', () => {
 });
 
 describe('the cargo container key', () => {
-  it('opens the crate under the ship on C, once per press, and only during a run', () => {
+  it('opens the nearest crate, wreck or chest on C, once per press, and only during a run', () => {
     const h = harness();
 
     press('c');

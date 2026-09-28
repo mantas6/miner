@@ -30,7 +30,7 @@ export function seedSaveScript(partial: SaveSeed = {}, options: {once?: boolean}
   return `if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); ${write} }`;
 }
 
-/** Seed a save for `page` before it loads; call before `startSoloRun`. */
+/** Seed a save for `page` before it loads; call before `startRun`. */
 export async function seedSave(page: Page, partial: SaveSeed = {}, options: {once?: boolean} = {}): Promise<void> {
   await page.addInitScript(seedSaveScript(partial, options));
 }
@@ -105,10 +105,10 @@ export async function openIntro(page: Page): Promise<void> {
 }
 
 /**
- * Seed a solo save that replaces the stone-paved cavern floor directly under the
+ * Seed a save that replaces the stone-paved cavern floor directly under the
  * spawn with a plain 2-hp dirt tile, so a test can dig straight down without first
  * drilling through the ~5 s stone slab the generator now lays there. Call before
- * `startSoloRun`, since the save has to be in place before the page loads.
+ * `startRun`, since the save has to be in place before the page loads.
  */
 export async function seedDirtUnderHome(page: Page): Promise<void> {
   await seedSave(page, {tiles: [DIRT_UNDER_HOME]});
@@ -120,7 +120,7 @@ export async function seedDirtUnderHome(page: Page): Promise<void> {
  * A press is the whole flow. The corner of the card is deliberate for the pointer
  * variant — it is the backdrop, well clear of the start button.
  */
-export async function startSoloRun(page: Page, how: 'keyboard' | 'click' = 'keyboard'): Promise<void> {
+export async function startRun(page: Page, how: 'keyboard' | 'click' = 'keyboard'): Promise<void> {
   await openIntro(page);
   if (how === 'keyboard') await page.keyboard.press('Enter');
   else await page.locator('#intro').click({position: {x: 8, y: 8}});

@@ -32,7 +32,7 @@ interface Harness {
 /** A ship parked in cleared, explored ground with `carried` sticks aboard. */
 function harness(carried = 1): Harness {
   const state = createInitialState();
-  if (carried > 0) state.player.inventory = addItem(createInventory(), DYNAMITE_ITEM, carried)!;
+  if (carried > 0) state.player.inventory = addItem(createInventory(), DYNAMITE_ITEM, carried);
   state.exploredTiles.add(explorationIndex(40, 100));
   // Far enough from the target tile that a blast cannot reach the ship unless a
   // test moves it in deliberately.

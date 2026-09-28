@@ -48,7 +48,7 @@ export interface ScannerDeviceDeps {
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
-  /** Explore these tiles: the fog cache, the peer and the save all follow. */
+  /** Explore these tiles: the fog cache and the save both follow. */
   revealTiles(indexes: number[]): void;
   /** Paint the armed state onto the inventory slot. */
   setArmedUi(armed: boolean): void;
@@ -131,7 +131,7 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
     const devices = state.scannerDevices;
     if (devices.length === 0) return;
     // Collected rather than revealed one at a time: two devices that fire on the
-    // same step should cost one fog invalidation and one message to the peer.
+    // same step should cost one fog invalidation and one save.
     let revealed: number[] | null = null;
     let fired: ScannerDevice[] | null = null;
     for (const device of devices) {

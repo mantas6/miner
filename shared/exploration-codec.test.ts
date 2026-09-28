@@ -29,7 +29,7 @@ describe('persistent fog exploration', () => {
     expect(isTileExplored(five, 22, 22)).toBe(true);
   });
 
-  it('range-encodes sparse paths compactly and unions peer exploration', () => {
+  it('range-encodes sparse paths compactly and unions merged exploration', () => {
     const indexes = [explorationIndex(10, 10), explorationIndex(11, 10), explorationIndex(12, 10), explorationIndex(10, 11)];
     const encoded = encodeExploration(indexes);
     expect(encoded).toBe(`${10 * WORLD_W + 10}-${10 * WORLD_W + 12},${11 * WORLD_W + 10}`);

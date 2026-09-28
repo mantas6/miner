@@ -5,9 +5,6 @@ import { createInitialStations } from './stations';
 import { applyEquipment } from './ship-upgrades';
 import type { GameState, GameStats, Player } from './types';
 
-/** Tile column of the home cavern where every ship starts or returns. */
-export const HOME_SPAWN_X = HOME_X;
-
 type PlaceablePlayer = Pick<Player, 'x' | 'y' | 'drawX' | 'drawY'>;
 
 /** Move a ship to the home cavern floor, keeping its render position in sync. */
@@ -61,7 +58,7 @@ export function createDefaultStats(): GameStats {
 export function createInitialState(): GameState {
   const state: GameState = {
     world: [],
-    soloTileDiff: new Map(),
+    tileDiff: new Map(),
     cash: STARTING.cash,
     tick: 0,
     gameOver: false,
