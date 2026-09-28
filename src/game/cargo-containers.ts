@@ -141,7 +141,8 @@ export function createCargoContainers(deps: CargoContainerDeps): CargoContainerS
       explored: state.exploredTiles,
       open: inMineBounds(x, y) && grid.get(x, y).type === 'air',
       containers: state.cargoContainers,
-      wrecks: state.wrecks
+      wrecks: state.wrecks,
+      chestLedger: state.chestLedger
     });
     if (refusal) {
       audio.alarm();

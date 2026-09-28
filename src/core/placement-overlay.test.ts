@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { STATIONS, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
-import { CARGO_CONTAINER, createPlacedContainer } from './cargo-container';
+import { CARGO_CONTAINER, containerPlacementRefusal, createPlacedContainer } from './cargo-container';
 import { DYNAMITE, createPlacedDynamite } from './dynamite';
 import { oreKind } from './inventory';
 import {
@@ -20,9 +20,9 @@ import {
   type PlacementOverlayWorld
 } from './placement-overlay';
 import { createScannerDevice } from './scanner-device';
-import { createManufacturer } from './stations';
+import { createManufacturer, stationPlacementRefusal } from './stations';
 import { HOME_ROW } from '../../shared/constants';
-import { tradingPostAt } from '../world/world';
+import { chestsInRange, tradingPostAt } from '../world/world';
 
 /** The first trading post in the interior band, for the occupancy check. */
 function findPost(): {x: number; y: number} {
@@ -137,6 +137,23 @@ describe('isPlacementValid', () => {
     expect(isPlacementValid('container', post.x, post.y, seen)).toBe(false);
     expect(isPlacementValid('device:manufacturer', post.x, post.y, seen)).toBe(false);
     expect(isPlacementValid('device:extractor', post.x, post.y, seen)).toBe(false);
+  });
+
+  it('never places a container or station on a chest still lying there, but frees the tile once looted bare', () => {
+    const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+    const explored = new Set([explorationIndex(chest.x, chest.y)]);
+    const lying = world({explored});
+    expect(isPlacementValid('container', chest.x, chest.y, lying)).toBe(false);
+    expect(isPlacementValid('device:manufacturer', chest.x, chest.y, lying)).toBe(false);
+    expect(containerPlacementRefusal(chest.x, chest.y, {explored, open: true, containers: []})).toContain('already stands');
+    expect(stationPlacementRefusal(chest.x, chest.y, 'extractor', {explored, open: true, occupied: false, count: 0})).toContain('already stands');
+
+    const looted = {[`${chest.x},${chest.y}`]: []};
+    const bare = world({explored, chestLedger: looted});
+    expect(isPlacementValid('container', chest.x, chest.y, bare)).toBe(true);
+    expect(isPlacementValid('device:manufacturer', chest.x, chest.y, bare)).toBe(true);
+    expect(containerPlacementRefusal(chest.x, chest.y, {explored, open: true, containers: [], chestLedger: looted})).toBeNull();
+    expect(stationPlacementRefusal(chest.x, chest.y, 'extractor', {explored, open: true, occupied: false, count: 0, chestLedger: looted})).toBeNull();
   });
 });
 

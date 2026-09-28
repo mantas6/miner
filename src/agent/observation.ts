@@ -25,7 +25,8 @@ import { isScannerDone } from '../core/scanner-device';
 import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
 import { sellPrice } from '../core/trading';
-import { tradingPostAt } from '../world/world';
+import { chestAt, tradingPostAt } from '../world/world';
+import { chestContents, isChestLooted } from '../core/chest';
 import {
   addItem,
   createInventory,
@@ -62,6 +63,7 @@ export const VIEW_LEGEND: Readonly<Record<string, string>> = Object.freeze({
   T: 'trading post',
   C: 'container',
   W: 'wreck',
+  H: 'chest',
   S: 'scanner',
   '*': 'dynamite',
   '@': 'ship',
@@ -81,7 +83,7 @@ export interface AgentSlot {
   count: number;
   /**
    * The `describeItem` lines a human reads off the row's tooltip. Present only on
-   * slots inside an overlay (station stock/bay, container, wreck, ship fittable);
+   * slots inside an overlay (station stock/bay, container, wreck, chest, ship fittable);
    * the top-level `bay` stays lean and omits it.
    */
   info?: string[];
@@ -121,14 +123,14 @@ export interface AgentShipSlot {
  * decoration that hangs in open space (the ship flies through it, the toolkit
  * lifts it) is, so a `D` the ship can pass is told apart from a solid panel.
  */
-export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'wreck' | 'scanner' | 'dynamite' | 'station' | 'tradingPost' | 'decor';
+export type NotableKind = 'ore' | 'hazard' | 'enemy' | 'container' | 'wreck' | 'chest' | 'scanner' | 'dynamite' | 'station' | 'tradingPost' | 'decor';
 
 /** One thing worth the agent's attention, at a world coordinate. */
 export interface NotableTile {
   x: number;
   y: number;
   what: NotableKind;
-  /** Human detail: ore/enemy/station/decoration name, crate/scanner state, or fuse seconds. */
+  /** Human detail: ore/enemy/station/decoration name, crate/scanner state, wreck/chest item count, or fuse seconds. */
   detail?: string;
 }
 
@@ -139,6 +141,7 @@ export type AgentOverlay =
   | {kind: 'ship'; slots: AgentShipSlot[]; fittable: AgentSlot[]}
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
   | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]}
+  | {kind: 'chest'; ship: AgentSlot[]; chest: AgentSlot[]}
   | {
       kind: 'trade';
       cash: number;
@@ -285,6 +288,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       return {kind: 'container', ship: toSlotsWithInfo(ui.inventorySlots), container: toSlotsWithInfo(ui.containerSlots)};
     case 'wreck':
       return {kind: 'wreck', ship: toSlotsWithInfo(ui.inventorySlots), wreck: toSlotsWithInfo(ui.wreckSlots)};
+    case 'chest':
+      return {kind: 'chest', ship: toSlotsWithInfo(ui.inventorySlots), chest: toSlotsWithInfo(ui.chestSlots)};
     case 'trade':
       return {
         kind: 'trade',
@@ -407,6 +412,13 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       if (tradingPostAt(x, y)) {
         row += 'T';
         notable.push({x, y, what: 'tradingPost'});
+        continue;
+      }
+      // A chest looted bare is gone; before its first open it holds its rolled loot.
+      if (chestAt(x, y) && !isChestLooted(state.chestLedger, x, y)) {
+        row += 'H';
+        const items = totalItems(chestContents(state.chestLedger, x, y));
+        notable.push({x, y, what: 'chest', detail: `${items} item${items === 1 ? '' : 's'}`});
         continue;
       }
       const tile = get(x, y);

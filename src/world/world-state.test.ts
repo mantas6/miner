@@ -31,6 +31,7 @@ describe('world state reset', () => {
     state.enemies = [{id:1,kind:'tunnelFiend',x:1,y:1,drawX:1,drawY:1,hp:2,maxHp:2,alive:true,moveTick:0,biteTick:0,flash:0}];
     state.exploredTiles.add(400);
     state.cargoContainers = [createPlacedContainer(12, 300)];
+    state.chestLedger = {'41,44': []};
     const playerBefore = structuredClone(state.player);
     const statsBefore = structuredClone(state.stats);
 
@@ -45,6 +46,8 @@ describe('world state reset', () => {
     // A crate belongs to the mine it was left in, not to the ship.
     expect(state.cargoContainers).toEqual([]);
     expect(state.cash).toBe(9999);
+    // A chest looted bare stays looted: it is player history, like the trade ledger.
+    expect(state.chestLedger).toEqual({'41,44': []});
     expect(state.stats).toEqual(statsBefore);
     expect(state.player).toMatchObject({ ...playerBefore, x:HOME_X, y:HOME_ROW, drawX:HOME_X, drawY:HOME_ROW });
   });

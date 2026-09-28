@@ -43,13 +43,19 @@ export const WRECK = Object.freeze({
   reach: 1
 });
 
-/** One wrecked ship standing in the mine, and everything it still holds. */
-export interface Wreck {
+/**
+ * Anything standing on a tile with a take-only inventory: a wreck, or an opened
+ * chest (`core/chest.ts`). The salvage transfers below work on either.
+ */
+export interface Lootable {
   x: number;
   y: number;
   /** Its own slots. Immutable, like the ship's: a transfer replaces the array. */
   inventory: Inventory;
 }
+
+/** One wrecked ship standing in the mine, and everything it still holds. */
+export type Wreck = Lootable;
 
 export function createWreck(x: number, y: number, inventory: Inventory = createInventory()): Wreck {
   return {x, y, inventory};
@@ -114,60 +120,63 @@ export function dropWreck(wrecks: Wreck[], player: Pick<Player, 'x' | 'y' | 'inv
 }
 
 /**
- * The outcome of one press on a stack in the salvage menu: the two inventories as
- * they now stand, or the line to show the player instead.
+ * The outcome of one press on a stack in a take-only salvage menu — a wreck's or a
+ * chest's: the two inventories as they now stand, or the line to show the player
+ * instead.
  */
-export type WreckTransfer =
-  | {ok: true; ship: Inventory; wreck: Inventory; moved: number; label: string}
+export type LootTransfer =
+  | {ok: true; ship: Inventory; loot: Inventory; moved: number; label: string}
   | {ok: false; refusal: string};
 
 /**
- * Wreck → bay, capped by the cargo-bay upgrade. Room is measured against every item
+ * Loot → bay, capped by the cargo-bay upgrade. Room is measured against every item
  * already aboard, so equipment counts the same as ore. A partial haul is a success:
  * taking two of the ten ore a wreck holds is what a ship two short of `cargoMax`
- * should be able to do, and the rest stays in the wreck. `maxUnits` caps the move
- * below the whole stack — a single-unit press asks for exactly one.
+ * should be able to do, and the rest stays behind. `maxUnits` caps the move below
+ * the whole stack — a single-unit press asks for exactly one. `holder` names what is
+ * being looted in the refusal ("wreck", "chest").
  */
-export function takeFromWreck(
+export function takeLoot(
   ship: Inventory,
-  wreck: Inventory,
+  loot: Inventory,
   kind: InventoryItemKind,
   cargoMax: number,
-  maxUnits = Infinity
-): WreckTransfer {
+  maxUnits = Infinity,
+  holder = 'wreck'
+): LootTransfer {
   const room = roomLeft(ship, cargoMax);
   if (room <= 0) {
     return {ok: false, refusal: `Cargo bay is full at ${cargoMax} items. Stow or unload before salvaging more.`};
   }
-  const stack = findStack(wreck, kind);
-  if (!stack) return {ok: false, refusal: 'Nothing of that kind is in the wreck.'};
+  const stack = findStack(loot, kind);
+  const nothing = `Nothing of that kind is in the ${holder}.`;
+  if (!stack) return {ok: false, refusal: nothing};
   const moved = Math.min(stack.count, room, maxUnits);
-  if (moved <= 0) return {ok: false, refusal: 'Nothing of that kind is in the wreck.'};
+  if (moved <= 0) return {ok: false, refusal: nothing};
   return {
     ok: true,
     ship: addItem(ship, stack.item, moved),
-    wreck: removeItem(wreck, kind, moved),
+    loot: removeItem(loot, kind, moved),
     moved,
     label: stack.item.label
   };
 }
 
 /**
- * Loot everything the bay will take, in one press, and report the wreck's new
- * contents. A partial haul is honest: a ship near full takes what fits and the
- * rest stays in the wreck.
+ * Loot everything the bay will take, in one press, and report what is left behind.
+ * A partial haul is honest: a ship near full takes what fits and the rest stays put.
  */
-export function lootAll(ship: Inventory, wreck: Inventory, cargoMax: number): {ship: Inventory; wreck: Inventory; moved: number} {
+export function lootAll(ship: Inventory, loot: Inventory, cargoMax: number): {ship: Inventory; loot: Inventory; moved: number} {
   let nextShip = ship;
-  let nextWreck = wreck;
+  let nextLoot = loot;
   let moved = 0;
-  for (const stack of wreck) {
+  for (const stack of loot) {
     const room = roomLeft(nextShip, cargoMax);
     if (room <= 0) break;
     const take = Math.min(stack.count, room);
     nextShip = addItem(nextShip, stack.item, take);
-    nextWreck = removeItem(nextWreck, stack.kind, take);
+    nextLoot = removeItem(nextLoot, stack.kind, take);
     moved += take;
   }
-  return {ship: nextShip, wreck: nextWreck, moved};
+  return {ship: nextShip, loot: nextLoot, moved};
 }

@@ -5,7 +5,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { explorationIndex } from '../../shared/exploration-codec';
-import { addItem, createInventory, oreItem, oreKind } from '../core/inventory';
+import { addItem, createInventory, oreItem, oreKind, totalItems } from '../core/inventory';
+import { chestLoot } from '../core/chest';
 import { createInitialState } from '../core/state';
 import { createPlacedContainer } from '../core/cargo-container';
 import { createWreck } from '../core/wreck';
@@ -14,7 +15,7 @@ import { createPlacedDynamite } from '../core/dynamite';
 import { uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
 import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
-import { tradingPostAt } from '../world/world';
+import { chestsInRange, tradingPostAt } from '../world/world';
 import { appendToast, buildObservation, VIEW_LEGEND } from './observation';
 
 /** A tile grid backed by a map; anything unset reads as plain dirt. */
@@ -156,6 +157,60 @@ describe('buildObservation', () => {
     expect(overlay.ship).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
     // Overlay slots carry the tooltip lines a human would read off the row.
     expect(overlay.wreck[0].info?.length).toBeGreaterThan(0);
+  });
+
+  it('draws a chest as H in view and notable, counting its loot, until it is looted bare', () => {
+    const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+    const state = createInitialState();
+    state.player.x = chest.x + 1;
+    state.player.y = chest.y;
+    revealRect(state, chest.x - 1, chest.y - 1, chest.x + 1, chest.y + 1);
+    const items = totalItems(chestLoot(chest.x, chest.y));
+    // origin is (x+1-7, y-5): the chest sits at row 5, column 6.
+    const glyph = (obs: ReturnType<typeof buildObservation>) => obs.view.rows[5][6];
+
+    // Never opened: it holds its rolled loot.
+    let obs = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(glyph(obs)).toBe('H');
+    expect(obs.notable).toContainEqual({x: chest.x, y: chest.y, what: 'chest', detail: `${items} items`});
+    expect(VIEW_LEGEND.H).toBe('chest');
+
+    // Opened and part-looted: the ledger's count.
+    state.chestLedger[`${chest.x},${chest.y}`] = [{kind: 'dynamite', count: 1}];
+    obs = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(obs.notable.find(n => n.what === 'chest')?.detail).toBe('1 item');
+
+    // Looted bare: gone from the view and notable, the tile reads as what lies under it.
+    state.chestLedger[`${chest.x},${chest.y}`] = [];
+    obs = buildObservation({state, ui: ui(), get: tileSource({[`${chest.x},${chest.y}`]: {type: 'air'}})});
+    expect(glyph(obs)).toBe('.');
+    expect(obs.notable.some(n => n.what === 'chest')).toBe(false);
+
+    // And one under fog is never shown.
+    state.chestLedger = {};
+    state.exploredTiles.clear();
+    obs = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(glyph(obs)).toBe('?');
+    expect(obs.notable.some(n => n.what === 'chest')).toBe(false);
+  });
+
+  it('mirrors the chest overlay only while it is open', () => {
+    const state = createInitialState();
+    const chestSlots: InventorySlotView[] = [oreSlot('Coal', 3)];
+
+    expect(buildObservation({state, ui: ui({activeOverlay: null, chestSlots}), get: tileSource({})}).overlay).toBeNull();
+
+    const overlay = buildObservation({
+      state,
+      ui: ui({activeOverlay: 'chest', chestSlots, inventorySlots: [oreSlot('Iron', 1)]}),
+      get: tileSource({})
+    }).overlay;
+
+    expect(overlay?.kind).toBe('chest');
+    if (overlay?.kind !== 'chest') throw new Error('expected chest overlay');
+    expect(overlay.chest).toMatchObject([{kind: oreKind('Coal'), label: 'Coal', count: 3}]);
+    expect(overlay.ship).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
+    expect(overlay.chest[0].info?.length).toBeGreaterThan(0);
   });
 
   it('names the home stations in view and notable', () => {

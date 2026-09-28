@@ -19,7 +19,7 @@ import {
   isWreckReachable,
   lootAll,
   reachableWreck,
-  takeFromWreck,
+  takeLoot,
   wreckAt,
   type Wreck
 } from '../core/wreck';
@@ -115,13 +115,13 @@ export function createWrecks(deps: WreckDeps): WreckSim {
     // A reset can take the mine out from under an open wreck; hauling out of one
     // the world no longer contains would quietly delete it.
     if (!state.wrecks.includes(wreck)) return close();
-    const result = takeFromWreck(state.player.inventory, wreck.inventory, kind, state.player.cargoMax, single ? 1 : Infinity);
+    const result = takeLoot(state.player.inventory, wreck.inventory, kind, state.player.cargoMax, single ? 1 : Infinity);
     if (!result.ok) {
       audio.alarm();
       return toast(result.refusal);
     }
     state.player.inventory = result.ship;
-    wreck.inventory = result.wreck;
+    wreck.inventory = result.loot;
     repaint();
     saveProgress();
     audio.take();
@@ -139,7 +139,7 @@ export function createWrecks(deps: WreckDeps): WreckSim {
       return toast(`Cargo bay is full at ${state.player.cargoMax} items. Stow or unload before salvaging more.`);
     }
     state.player.inventory = result.ship;
-    wreck.inventory = result.wreck;
+    wreck.inventory = result.loot;
     repaint();
     saveProgress();
     audio.take();

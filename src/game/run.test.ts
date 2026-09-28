@@ -161,11 +161,14 @@ describe('restarting after a death', () => {
   it('keeps the drawn-down trading stock through a death', () => {
     const h = harness();
     h.state.tradeLedger = {'40,120': [0, 1]};
+    h.state.chestLedger = {'41,44': []};
     h.run.gameOver();
 
     h.run.restartGame();
 
     expect(h.state.tradeLedger).toEqual({'40,120': [0, 1]});
+    // A looted chest stays looted through a death, too.
+    expect(h.state.chestLedger).toEqual({'41,44': []});
   });
 
   it('regenerates the whole world and re-seeds enemy exposure', () => {
@@ -415,10 +418,12 @@ describe('a full player reset', () => {
   it('clears the trading stock ledger, which a plain death would have kept', () => {
     const h = harness();
     h.state.tradeLedger = {'40,120': [0, 1]};
+    h.state.chestLedger = {'41,44': []};
 
     h.run.resetPlayer(true);
 
     expect(h.state.tradeLedger).toEqual({});
+    expect(h.state.chestLedger).toEqual({});
   });
 });
 

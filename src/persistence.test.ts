@@ -11,7 +11,8 @@ import { STATION_DEVICE, type PortalStation } from './core/stations';
 import { EXTRACTOR } from './core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, ORES, START_Y } from '../shared/constants';
+import { DECOR_HP, MAX_SAVED_TILE_ENTRIES, ORES, START_Y, WORLD_W } from '../shared/constants';
+import { chestsInRange } from './world/world';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
 import { createTileDiff, tileDiffEntries } from './world/tile-diff';
@@ -665,6 +666,59 @@ describe('trading ledger persistence', () => {
     expect(countItem(crate, 'scanner')).toBe(1);
     expect(countItem(crate, 'dynamite')).toBe(0);
     expect(crate.filter(slot => slot !== null)).toHaveLength(2);
+  });
+});
+
+describe('chest ledger persistence', () => {
+  const [first, second] = chestsInRange(0, 0, WORLD_W - 1, 400);
+  const firstKey = `${first.x},${first.y}`, secondKey = `${second.x},${second.y}`;
+
+  it('round-trips an opened chest and one looted bare', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.chestLedger = {[firstKey]: [{kind: 'ore:Coal', count: 3}, {kind: 'dynamite', count: 1}], [secondKey]: []};
+
+    save(state);
+    const restored = createInitialState();
+    load(restored);
+
+    expect(restored.chestLedger).toEqual(state.chestLedger);
+    expect(readSave(stored).chestLedger).toEqual(state.chestLedger);
+  });
+
+  it('loads a save written before chests existed with every chest still full', () => {
+    stubStorage({version: SAVE_VERSION});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.chestLedger).toEqual({});
+  });
+
+  it('drops keys that are not chests, junk kinds and empty stacks, and clamps the counts', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      chestLedger: {
+        bad: [],
+        // A coordinate with no chest on it cannot be conjured into one.
+        [`${first.x + 1},${first.y}`]: [{kind: 'dynamite', count: 1}],
+        [secondKey]: 'not a list',
+        [firstKey]: [
+          {kind: 'cash', count: 500},
+          {kind: 'dynamite', count: 0},
+          {kind: 'dynamite', count: -2},
+          {kind: 'scanner', count: 1e9},
+          {kind: 'ore:Iron', count: '2'},
+          {kind: 'ore:Iron', count: 1},
+          'not a stack'
+        ]
+      }
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.chestLedger).toEqual({[firstKey]: [{kind: 'scanner', count: 9999}, {kind: 'ore:Iron', count: 3}]});
   });
 });
 

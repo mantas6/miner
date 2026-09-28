@@ -25,11 +25,13 @@ import { useItemTooltip } from './Tooltip';
 import styles from './CargoScreen.module.css';
 
 export function CargoScreen() {
-  // One `<dialog>` serves both the crate's two-way transfer menu and the wreck's
-  // take-only salvage menu: they never coexist (one `activeOverlay` at a time), and
-  // sharing the shell keeps a second near-identical modal out of the tree.
-  const mode = useUiStore(state =>
-    state.activeOverlay === 'container' ? 'container' : state.activeOverlay === 'wreck' ? 'wreck' : null);
+  // One `<dialog>` serves the crate's two-way transfer menu and the take-only menus
+  // of a wreck and a chest: they never coexist (one `activeOverlay` at a time), and
+  // sharing the shell keeps near-identical modals out of the tree.
+  const mode = useUiStore(state => {
+    const overlay = state.activeOverlay;
+    return overlay === 'container' || overlay === 'wreck' || overlay === 'chest' ? overlay : null;
+  });
   const open = mode !== null;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -46,8 +48,12 @@ export function CargoScreen() {
   }, [open]);
 
   // A native close request (Escape reaching the UA, a form submit) must not leave
-  // the game thinking the crate or wreck is still open.
-  const close = () => { if (mode === 'wreck') uiCommands.closeWreck(); else uiCommands.closeContainer(); };
+  // the game thinking the crate, wreck or chest is still open.
+  const close = () => {
+    if (mode === 'wreck') uiCommands.closeWreck();
+    else if (mode === 'chest') uiCommands.closeChest();
+    else uiCommands.closeContainer();
+  };
 
   return (
     <dialog
@@ -60,48 +66,94 @@ export function CargoScreen() {
     >
       {mode === 'container' && <CargoCard closeRef={closeRef} />}
       {mode === 'wreck' && <WreckCard closeRef={closeRef} />}
+      {mode === 'chest' && <ChestCard closeRef={closeRef} />}
     </dialog>
   );
+}
+
+/** What one take-only menu — the wreck's, or a chest's — lists and dispatches to. */
+interface LootCardProps {
+  closeRef: RefObject<HTMLButtonElement | null>;
+  title: string;
+  /** Id stem for the slot list and its heading, e.g. `wreckSlots`. */
+  listId: string;
+  slots: InventorySlotView[];
+  note: string;
+  close(): void;
+  take(kind: InventoryItemKind, single: boolean): void;
+  lootAll(): void;
 }
 
 /** The wreck's salvage menu: one take-only column, plus a loot-all shortcut. */
 function WreckCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
   const wreckSlots = useUiStore(state => state.wreckSlots);
-  const used = wreckSlots.reduce((count, slot) => count + slot.count, 0);
+  return (
+    <LootCard
+      closeRef={closeRef}
+      title="Wreck"
+      listId="wreckSlots"
+      slots={wreckSlots}
+      note={'The corpse of your last ship: its ore and fitted upgrades, waiting to be salvaged. '
+        + 'Anything hauled aboard still obeys the cargo-bay limit, and the wreck is gone once emptied.'}
+      close={() => uiCommands.closeWreck()}
+      take={(kind, single) => uiCommands.takeFromWreck(kind, single)}
+      lootAll={() => uiCommands.lootAll()}
+    />
+  );
+}
+
+/** A buried chest's menu: the wreck's layout, dispatching to the chest commands. */
+function ChestCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) {
+  const chestSlots = useUiStore(state => state.chestSlots);
+  return (
+    <LootCard
+      closeRef={closeRef}
+      title="Chest"
+      listId="chestSlots"
+      slots={chestSlots}
+      note={'Buried loot, waiting to be claimed. Anything hauled aboard still obeys the cargo-bay limit, '
+        + 'and the chest is gone once emptied.'}
+      close={() => uiCommands.closeChest()}
+      take={(kind, single) => uiCommands.takeFromChest(kind, single)}
+      lootAll={() => uiCommands.lootAllChest()}
+    />
+  );
+}
+
+/** One take-only column headed by its item count, plus a loot-all shortcut. */
+function LootCard({closeRef, title, listId, slots, note, close, take, lootAll}: LootCardProps) {
+  const used = slots.reduce((count, slot) => count + slot.count, 0);
 
   return (
     <div id="cargo-card" className={styles.card}>
       <div className={styles.header}>
-        <h2 id="cargo-title">Wreck</h2>
+        <h2 id="cargo-title">{title}</h2>
         <button
           id="cargoCloseBtn"
           ref={closeRef}
           className={styles.closeBtn}
-          aria-label="Close wreck"
-          onClick={event => { event.stopPropagation(); uiCommands.closeWreck(); }}
+          aria-label={`Close ${title.toLowerCase()}`}
+          onClick={event => { event.stopPropagation(); close(); }}
         >×</button>
       </div>
       <div className={styles.body}>
-        <section className={styles.column} aria-labelledby="wreckSlots-title">
+        <section className={styles.column} aria-labelledby={`${listId}-title`}>
           <div className={styles.columnHeading}>
-            <h3 id="wreckSlots-title">Salvage <span className={styles.count}>{used}</span></h3>
+            <h3 id={`${listId}-title`}>Salvage <span className={styles.count}>{used}</span></h3>
             <span>Press a stack to haul it aboard, or 1 for a single unit</span>
           </div>
           <button
             id="lootAllBtn"
             type="button"
             className={styles.lootAll}
-            onClick={() => uiCommands.lootAll()}
-            disabled={wreckSlots.length === 0}
+            onClick={() => lootAll()}
+            disabled={slots.length === 0}
           >Loot all</button>
-          <ul id="wreckSlots" className={styles.slots}>
-            {wreckSlots.length === 0 && <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>}
-            {wreckSlots.map(slot => <WreckRow key={slot.index} slot={slot} />)}
+          <ul id={listId} className={styles.slots}>
+            {slots.length === 0 && <li className={styles.empty}><span className={styles.emptyLabel}>Empty</span></li>}
+            {slots.map(slot => <LootRow key={slot.index} slot={slot} take={take} />)}
           </ul>
-          <p className={styles.note}>
-            The corpse of your last ship: its ore and fitted upgrades, waiting to be salvaged.
-            Anything hauled aboard still obeys the cargo-bay limit, and the wreck is gone once emptied.
-          </p>
+          <p className={styles.note}>{note}</p>
         </section>
       </div>
     </div>
@@ -109,7 +161,7 @@ function WreckCard({closeRef}: {closeRef: RefObject<HTMLButtonElement | null>}) 
 }
 
 /** One salvage stack: a take-the-stack button and a single-unit "1", both take-only. */
-function WreckRow({slot}: {slot: InventorySlotView}) {
+function LootRow({slot, take}: {slot: InventorySlotView; take(kind: InventoryItemKind, single: boolean): void}) {
   const tooltip = useItemTooltip(slot.kind);
   return (
     <li>
@@ -118,7 +170,7 @@ function WreckRow({slot}: {slot: InventorySlotView}) {
         className={styles.slot}
         data-cargo-action="take"
         data-cargo-kind={slot.kind}
-        onClick={() => uiCommands.takeFromWreck(slot.kind, false)}
+        onClick={() => take(slot.kind, false)}
         {...tooltip}
       >
         <span className={styles.icon} style={{background: slot.color}} aria-hidden="true" />
@@ -131,7 +183,7 @@ function WreckRow({slot}: {slot: InventorySlotView}) {
         data-cargo-action="take-one"
         data-cargo-kind={slot.kind}
         aria-label={`Salvage one ${slot.label}`}
-        onClick={() => uiCommands.takeFromWreck(slot.kind, true)}
+        onClick={() => take(slot.kind, true)}
       >1</button>
     </li>
   );

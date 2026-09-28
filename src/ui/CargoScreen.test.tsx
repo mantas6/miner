@@ -206,3 +206,53 @@ describe('wreck salvage dialog', () => {
     expect(closeWreck).toHaveBeenCalledTimes(3);
   });
 });
+
+function openChest(): HTMLDialogElement {
+  const rendered = render(<CargoScreen />);
+  act(() => {
+    const store = uiStore.getState();
+    store.setChestSlots(buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 3)));
+    store.setActiveOverlay('chest');
+  });
+  return rendered.container.querySelector('dialog')!;
+}
+
+describe('chest dialog', () => {
+  it('opens as the take-only menu titled Chest, routing every press to the chest commands', () => {
+    const takeFromChest = vi.fn();
+    const lootAllChest = vi.fn();
+    const takeFromWreck = vi.fn();
+    const lootAll = vi.fn();
+    setUiCommands({takeFromChest, lootAllChest, takeFromWreck, lootAll});
+    const dialog = openChest();
+
+    expect(dialog.open).toBe(true);
+    expect(document.getElementById('cargo-title')?.textContent).toBe('Chest');
+    expect(document.querySelectorAll('#chestSlots > li')).toHaveLength(1);
+    expect(document.querySelector('[data-cargo-action="store"]')).toBeNull();
+
+    fireEvent.click(document.querySelector('[data-cargo-action="take"][data-cargo-kind="ore:Copper"]')!);
+    expect(takeFromChest).toHaveBeenCalledWith('ore:Copper', false);
+    fireEvent.click(document.querySelector('[data-cargo-action="take-one"][data-cargo-kind="ore:Copper"]')!);
+    expect(takeFromChest).toHaveBeenCalledWith('ore:Copper', true);
+    fireEvent.click(document.getElementById('lootAllBtn')!);
+    expect(lootAllChest).toHaveBeenCalledOnce();
+    // Nothing leaks into the wreck's commands.
+    expect(takeFromWreck).not.toHaveBeenCalled();
+    expect(lootAll).not.toHaveBeenCalled();
+  });
+
+  it('dispatches close from the close button, the backdrop, and the browser', () => {
+    const closeChest = vi.fn();
+    const closeWreck = vi.fn();
+    setUiCommands({closeChest, closeWreck});
+    const dialog = openChest();
+
+    fireEvent.click(document.getElementById('cargoCloseBtn')!);
+    fireEvent.pointerDown(dialog);
+    act(() => { dialog.close(); });
+
+    expect(closeChest).toHaveBeenCalledTimes(3);
+    expect(closeWreck).not.toHaveBeenCalled();
+  });
+});

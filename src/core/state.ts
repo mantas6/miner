@@ -80,6 +80,7 @@ export function createInitialState(): GameState {
     wrecks: [],
     stations: createInitialStations(),
     tradeLedger: {},
+    chestLedger: {},
     armedPlacement: null,
     hoverTile: null,
     input: {

@@ -65,6 +65,7 @@ import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
 import { createDynamiteSticks, type DynamiteSim } from './dynamite-sticks';
 import { createCargoContainers, type CargoContainerSim } from './cargo-containers';
 import { createWrecks, type WreckSim } from './wrecks';
+import { createChests, type ChestSim } from './chests';
 import { reachableContainer } from '../core/cargo-container';
 import { reachableWreck } from '../core/wreck';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
@@ -121,6 +122,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   let dynamite: DynamiteSim;
   let containers: CargoContainerSim;
   let wrecks: WreckSim;
+  let chests: ChestSim;
   let homeStations: HomeStationsSim;
   let portals: PortalsSim;
   let trading: TradingSim;
@@ -255,6 +257,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeWreck: () => wrecks.close(),
       takeFromWreck: (kind, single) => wrecks.take(kind, single),
       lootAll: () => wrecks.lootAll(),
+      closeChest: () => chests.close(),
+      takeFromChest: (kind, single) => chests.take(kind, single),
+      lootAllChest: () => chests.lootAll(),
       closeTrade: () => trading.close(),
       sellToPost: (kind, single) => trading.sell(kind, single),
       buyFromPost: kind => trading.buy(kind),
@@ -340,11 +345,12 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   }
   /**
    * Raise an overlay, playing the open cue only on the transition: a repaint of a
-   * screen already up republishes through here too and must stay silent.
+   * screen already up republishes through here too and must stay silent. `cue`
+   * false is for a screen whose module plays its own opening sound (a chest's lid).
    */
-  function raiseOverlay(overlay: OverlayId){
+  function raiseOverlay(overlay: OverlayId, cue = true){
     const store = uiStore.getState();
-    if (store.activeOverlay !== overlay) audio.open();
+    if (store.activeOverlay !== overlay && cue) audio.open();
     store.setActiveOverlay(overlay);
   }
   /**
@@ -428,21 +434,25 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     else openNearestStation();
   }
   /**
-   * The `c` key, weighing a cargo container against a wreck: open whichever
-   * salvageable stash is nearest, a container breaking a tie. Toggles the open one
-   * shut first, and stands any placement down before covering the mine.
+   * The `c` key, weighing a cargo container against a wreck and a chest: open
+   * whichever stash is nearest, a container breaking a tie, then a wreck. Toggles
+   * the open one shut first, and stands any placement down before covering the mine.
    */
   function openNearestContainerOrWreck(){
     if (containers.open) return containers.close();
     if (wrecks.open) return wrecks.close();
+    if (chests.open) return chests.close();
     disarmPlacements();
     const {x, y} = state.player;
     const container = reachableContainer(state.cargoContainers, x, y);
     const wreck = reachableWreck(state.wrecks, x, y);
-    if (!container && !wreck) return void containers.openNearest();
+    const chest = chests.nearest();
+    if (!container && !wreck && !chest) return void containers.openNearest();
     const containerDistance = container ? Math.abs(container.x - x) + Math.abs(container.y - y) : Infinity;
     const wreckDistance = wreck ? Math.abs(wreck.x - x) + Math.abs(wreck.y - y) : Infinity;
-    if (wreck && wreckDistance < containerDistance) wrecks.openNearest();
+    const chestDistance = chest ? chest.distance : Infinity;
+    if (chest && chestDistance < containerDistance && chestDistance < wreckDistance) chests.openNearest();
+    else if (wreck && wreckDistance < containerDistance) wrecks.openNearest();
     else containers.openNearest();
   }
   /** The slot a fit lands in when none is given: the first empty one, else slot 0. */
@@ -615,6 +625,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       dynamite.tick();
       containers.tick();
       wrecks.tick();
+      chests.tick();
       stationDevices.tick();
       toolkit.tick();
       decor.tick();
@@ -855,6 +866,19 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
         raiseOverlay('wreck');
       }
     });
+    chests = createChests({
+      state,
+      audio,
+      toast,
+      saveProgress,
+      setOpenUi: (contents, quiet) => {
+        const store = uiStore.getState();
+        if (!contents) return dropOverlay('chest', quiet);
+        store.setChestSlots(buildInventorySlots(contents));
+        // The lid's own creak (`chestOpen`, played by the sim) is the open cue.
+        raiseOverlay('chest', false);
+      }
+    });
     decor = createDecor({
       state,
       grid,
@@ -923,9 +947,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toggleDynamitePlacement: () => { standDownExcept('dynamite'); dynamite.toggleArmed(); },
       // A crate's or wreck's menu covers the mine, so nothing may be left waiting
       // for a press on it — including the two deployables this module does not own.
-      toggleContainer: () => { if (!containers.open && !wrecks.open) disarmPlacements(); openNearestContainerOrWreck(); },
+      toggleContainer: () => { if (!containers.open && !wrecks.open && !chests.open) disarmPlacements(); openNearestContainerOrWreck(); },
       closeContainer: () => containers.close(),
       closeWreck: () => wrecks.close(),
+      closeChest: () => chests.close(),
       // Space opens whichever station-like thing is in reach — a home station or a
       // trading post; a placement pointer has nothing left to aim at once its screen
       // covers the mine.
@@ -981,10 +1006,10 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     else if (toolkit.armed) toolkit.liftAt(point.x, point.y);
     else if (decor.armed) decor.placeAt(point.x, point.y);
     // An unarmed press opens a station tile the ship can reach, a trading post, the
-    // crate, or the wreck on the tile; a press on bare rock is not a refusal, it was
-    // about none of them.
+    // crate, the wreck or the chest on the tile; a press on bare rock is not a
+    // refusal, it was about none of them.
     else if (!homeStations.openAt(point.x, point.y) && !trading.openAt(point.x, point.y)
-      && !containers.openAt(point.x, point.y)) wrecks.openAt(point.x, point.y);
+      && !containers.openAt(point.x, point.y) && !wrecks.openAt(point.x, point.y)) chests.openAt(point.x, point.y);
   }
 
   /**
@@ -1036,6 +1061,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     uiStore.getState().setArmedPlacement(null);
     uiStore.getState().closeOverlay('container');
     uiStore.getState().closeOverlay('wreck');
+    uiStore.getState().closeOverlay('chest');
     uiStore.getState().closeOverlay('station');
     uiStore.getState().closeOverlay('extractor');
     uiStore.getState().closeOverlay('trade');

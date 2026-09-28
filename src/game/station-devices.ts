@@ -132,7 +132,8 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
       explored: state.exploredTiles,
       open: inMineBounds(x, y) && grid.get(x, y).type === 'air',
       occupied: occupied(x, y),
-      count: count(kind)
+      count: count(kind),
+      chestLedger: state.chestLedger
     });
     if (refusal) {
       audio.alarm();

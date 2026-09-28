@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TILE } from '../../shared/constants';
+import { TILE, WORLD_W } from '../../shared/constants';
+import { chestsInRange } from '../world/world';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { createPlacedContainer } from '../core/cargo-container';
 import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
@@ -469,6 +470,46 @@ describe('terrain cache lifecycle', () => {
 
     // And a crate out in the fog is not drawn at all, like everything else there.
     vi.clearAllMocks();
+    state.exploredTiles = new Set<number>();
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(false);
+  });
+
+  /**
+   * A chest is derived from the coordinate, so nothing in the state lists it: it
+   * paints once its tile is explored, with the brass clasp's glint, and not at all
+   * under fog or once it has been looted bare.
+   */
+  it('paints an explored chest with its brass clasp, and skips it under fog or looted bare', () => {
+    const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+    const state = {
+      world: [], camX: chest.x - 6, camY: chest.y - 4, tick: 4, gameOver: false, reducedMotion: false,
+      exploredTiles: new Set([explorationIndex(chest.x, chest.y)]), teleportEffect: null,
+      particles: [], enemies: [], chestLedger: {} as Record<string, {kind: 'dynamite'; count: number}[]>,
+      player: {x: chest.x - 3, y: chest.y, drawX: chest.x - 3, drawY: chest.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1}
+    };
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    const at = (call: unknown[]) => call[0] === TILE*6.5 && call[1] === TILE*4.5;
+
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(true);
+    expect(mocks.mainContext.quadraticCurveTo).toHaveBeenCalled();
+
+    // Part-looted, it still lies there.
+    vi.clearAllMocks();
+    state.chestLedger = {[`${chest.x},${chest.y}`]: [{kind: 'dynamite', count: 1}]};
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(true);
+
+    // Looted bare, it is gone.
+    vi.clearAllMocks();
+    state.chestLedger = {[`${chest.x},${chest.y}`]: []};
+    renderer.draw();
+    expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(false);
+
+    // And one out in the fog is never drawn.
+    vi.clearAllMocks();
+    state.chestLedger = {};
     state.exploredTiles = new Set<number>();
     renderer.draw();
     expect(mocks.mainContext.translate.mock.calls.some(at)).toBe(false);

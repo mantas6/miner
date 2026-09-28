@@ -61,6 +61,12 @@ export interface UiCommands {
   takeFromWreck(kind: InventoryItemKind, single?: boolean): void;
   /** Haul everything that fits from the open wreck into the bay in one press. */
   lootAll(): void;
+  /** Shut the chest menu; also what the dialog's own close request reports. */
+  closeChest(): void;
+  /** Take a stack of this kind out of the open chest into the bay; `single` takes one. */
+  takeFromChest(kind: InventoryItemKind, single?: boolean): void;
+  /** Haul everything that fits from the open chest into the bay in one press. */
+  lootAllChest(): void;
   /** Open the ship equipment screen, from anywhere. */
   openShip(): void;
   /** Shut the ship equipment screen; also what its dialog's close request reports. */
@@ -142,6 +148,9 @@ function noopCommands(): UiCommands {
     closeWreck: noop,
     takeFromWreck: noop,
     lootAll: noop,
+    closeChest: noop,
+    takeFromChest: noop,
+    lootAllChest: noop,
     openShip: noop,
     closeShip: noop,
     equipUpgrade: noop,

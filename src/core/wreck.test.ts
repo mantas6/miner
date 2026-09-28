@@ -13,7 +13,7 @@ import {
   isWreckReachable,
   lootAll,
   reachableWreck,
-  takeFromWreck,
+  takeLoot,
   wreckAt,
   type Wreck
 } from './wreck';
@@ -108,43 +108,43 @@ describe('wreck reach', () => {
   });
 });
 
-describe('takeFromWreck', () => {
+describe('takeLoot', () => {
   it('hauls a whole stack up to the cargo-bay limit', () => {
     const wreck = addItem(createInventory(), oreItem(COPPER), 6);
-    const result = takeFromWreck(createInventory(), wreck, oreItem(COPPER).kind, 10);
+    const result = takeLoot(createInventory(), wreck, oreItem(COPPER).kind, 10);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(countOres(result.ship)).toBe(6);
-    expect(countOres(result.wreck)).toBe(0);
+    expect(countOres(result.loot)).toBe(0);
     expect(result.moved).toBe(6);
   });
 
   it('takes a single unit, leaving the rest in the wreck', () => {
     const wreck = addItem(createInventory(), oreItem(COPPER), 6);
-    const result = takeFromWreck(createInventory(), wreck, oreItem(COPPER).kind, 10, 1);
+    const result = takeLoot(createInventory(), wreck, oreItem(COPPER).kind, 10, 1);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(countOres(result.ship)).toBe(1);
-    expect(countOres(result.wreck)).toBe(5);
+    expect(countOres(result.loot)).toBe(5);
   });
 
   it('takes only what the cargo bay can still hold', () => {
     const ship = addOre(createInventory(), COPPER, 10)!; // bay holds 8, one short of cargoMax? use explicit
     const wreck = addItem(createInventory(), oreItem(IRON), 5);
-    const result = takeFromWreck(ship, wreck, oreItem(IRON).kind, countOres(ship) + 2);
+    const result = takeLoot(ship, wreck, oreItem(IRON).kind, countOres(ship) + 2);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.moved).toBe(2);
-    expect(countItem(result.wreck, oreItem(IRON).kind)).toBe(3);
+    expect(countItem(result.loot, oreItem(IRON).kind)).toBe(3);
   });
 
   it('refuses when the bay is already full', () => {
     const ship = addItem(createInventory(), oreItem(COPPER), 5);
     const wreck = addItem(createInventory(), oreItem(IRON), 3);
-    const result = takeFromWreck(ship, wreck, oreItem(IRON).kind, 5);
+    const result = takeLoot(ship, wreck, oreItem(IRON).kind, 5);
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -152,7 +152,7 @@ describe('takeFromWreck', () => {
   });
 
   it('refuses a kind the wreck does not hold', () => {
-    const result = takeFromWreck(createInventory(), createInventory(), oreItem(COPPER).kind, 10);
+    const result = takeLoot(createInventory(), createInventory(), oreItem(COPPER).kind, 10);
     expect(result.ok).toBe(false);
   });
 });
@@ -163,7 +163,7 @@ describe('lootAll', () => {
     const result = lootAll(createInventory(), wreck, 20);
 
     expect(result.moved).toBe(7);
-    expect(result.wreck).toEqual([]);
+    expect(result.loot).toEqual([]);
     expect(countOres(result.ship)).toBe(7);
   });
 
@@ -172,6 +172,6 @@ describe('lootAll', () => {
     const result = lootAll(createInventory(), wreck, 4);
 
     expect(result.moved).toBe(4);
-    expect(countOres(result.wreck)).toBe(6);
+    expect(countOres(result.loot)).toBe(6);
   });
 });

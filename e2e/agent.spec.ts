@@ -139,6 +139,25 @@ function seedPortalRespawn(): void {
   }));
 }
 
+/**
+ * Seed the ship one tile east of a buried chest. Worldgen is deterministic, so the
+ * first chest below the home cavern always lies at (41, 44) in its own one-tile air
+ * pocket (see `chestAt` in `src/world/world.ts`) holding 1 Dynamite, 3 Coal and
+ * 2 Iron (`chestLoot` in `src/core/chest.ts`). The tile diff digs out the ship's
+ * own tile, (42, 44), with dirt beneath it so the ship sits still.
+ */
+function seedChest(): void {
+  localStorage.setItem('moleload-progress-v1', JSON.stringify({
+    version: 18,
+    x: 42, y: 44,
+    tiles: [{x: 42, y: 44, tile: {type: 'air'}}],
+    stations: [
+      {kind: 'manufacturer', x: 44, y: 20, items: []},
+      {kind: 'extractor', x: 46, y: 20}
+    ]
+  }));
+}
+
 /** Units of `kind` in a slot list, or 0 when none. */
 function countKind(slots: {kind: string; count: number}[], kind: string): number {
   return slots.find(slot => slot.kind === kind)?.count ?? 0;
@@ -291,6 +310,52 @@ test('a hand reset leaves a wreck whose fitted upgrade can be salvaged back aboa
     // is gone — its overlay closed with it.
     expect(countKind(obs.bay, 'upgrade:drill:1')).toBe(1);
     expect(obs.activeOverlay).toBeNull();
+  } finally {
+    await s.close();
+  }
+});
+
+test('a buried chest opens with c or a tile press, and loot-all hauls it aboard until it is gone', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedChest});
+  try {
+    await s.startRun();
+    let obs = await s.observe();
+    expect(obs.ship.x).toBe(42);
+    expect(obs.ship.y).toBe(44);
+    // The chest beside the ship paints as H and is notable with its loot count.
+    expect(obs.notable).toContainEqual({x: 41, y: 44, what: 'chest', detail: '6 items'});
+    expect(obs.view.rows[obs.ship.y - obs.view.origin.y][41 - obs.view.origin.x]).toBe('H');
+
+    // `c` alongside opens it, and `c` again shuts it.
+    obs = await s.press('c');
+    expect(obs.overlay?.kind).toBe('chest');
+    obs = await s.press('c');
+    expect(obs.activeOverlay).toBeNull();
+    await s.page.locator('#game').focus();
+
+    // A press on its tile opens the take-only menu with the rolled loot.
+    obs = await s.pressTile(41, 44);
+    expect(obs.overlay?.kind).toBe('chest');
+    if (obs.overlay?.kind !== 'chest') throw new Error('chest overlay expected');
+    expect(countKind(obs.overlay.chest, 'ore:Coal')).toBe(3);
+    expect(countKind(obs.overlay.chest, 'ore:Iron')).toBe(2);
+    expect(countKind(obs.overlay.chest, 'dynamite')).toBe(1);
+
+    // One unit first: the chest stays, one item lighter.
+    obs = await s.click({target: 'data-cargo', value: 'take-one', kind: 'ore:Coal'});
+    if (obs.overlay?.kind !== 'chest') throw new Error('chest overlay expected');
+    expect(countKind(obs.overlay.chest, 'ore:Coal')).toBe(2);
+    expect(countKind(obs.bay, 'ore:Coal')).toBe(1);
+
+    // Then everything: the bay grows by the rest, the menu closes, the chest is gone.
+    const cargoBefore = obs.ship.cargo;
+    obs = await s.click('lootAllBtn');
+    expect(obs.ship.cargo).toBe(cargoBefore + 5);
+    expect(countKind(obs.bay, 'ore:Coal')).toBe(3);
+    expect(countKind(obs.bay, 'dynamite')).toBe(1);
+    expect(obs.activeOverlay).toBeNull();
+    expect(obs.notable.some(n => n.what === 'chest')).toBe(false);
+    expect(obs.view.rows[obs.ship.y - obs.view.origin.y][41 - obs.view.origin.x]).toBe('.');
   } finally {
     await s.close();
   }

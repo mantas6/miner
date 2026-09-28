@@ -22,6 +22,8 @@ import { SCANNER_DEVICE, type ScannerDevice } from './scanner-device';
 import { STATION_DEVICE, isStationTile, stationAt, type PlacedStation } from './stations';
 import { type Wreck } from './wreck';
 import { tradingPostAt } from '../world/world';
+import { chestStandsAt } from './chest';
+import type { ChestLedger } from './types';
 
 /**
  * How far around the ship the placement grid reaches. A device may legally go on
@@ -53,18 +55,21 @@ export interface PlacementOverlayWorld {
   cargoContainers: readonly PlacedContainer[];
   wrecks: readonly Wreck[];
   stations: readonly PlacedStation[];
+  /** The opened-chest ledger; absent counts every generated chest as still lying there. */
+  chestLedger?: ChestLedger;
   /** Whether the tile is cleared open space a device can be dropped into. */
   isOpen(x: number, y: number): boolean;
 }
 
-/** Whether any placed entity — a station, container, wreck, scanner, dynamite, or trading post — sits on this tile. */
+/** Whether any placed entity — a station, container, wreck, scanner, dynamite, trading post, or chest — sits on this tile. */
 function isTileOccupied(x: number, y: number, world: PlacementOverlayWorld): boolean {
   return stationAt(world.stations, x, y) !== null
     || world.cargoContainers.some(container => container.x === x && container.y === y)
     || world.wrecks.some(wreck => wreck.x === x && wreck.y === y)
     || world.scannerDevices.some(device => device.x === x && device.y === y)
     || world.placedDynamite.some(stick => stick.x === x && stick.y === y)
-    || tradingPostAt(x, y) !== null;
+    || tradingPostAt(x, y) !== null
+    || chestStandsAt(x, y, world.chestLedger) !== null;
 }
 
 /** One tile of the preview grid: where it is, and whether the device fits. */
@@ -129,7 +134,8 @@ function placementSiteFor(
         open,
         occupied: world.cargoContainers.some(container => container.x === x && container.y === y)
           || world.wrecks.some(wreck => wreck.x === x && wreck.y === y)
-          || tradingPostAt(x, y) !== null,
+          || tradingPostAt(x, y) !== null
+          || chestStandsAt(x, y, world.chestLedger) !== null,
         full: world.cargoContainers.length >= CARGO_CONTAINER.maxPlaced
       };
     default:

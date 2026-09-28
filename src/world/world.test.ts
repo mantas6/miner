@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
+  CHEST_CHUNK,
+  CHEST_MIN_ROW,
   HOME_PORTRAITS,
   PORTRAIT_CHUNK,
   TRADING_POST_CHUNK,
   TRADING_POST_MIN_ROW,
+  chestAt,
+  chestsInRange,
   ensureWorldRow,
   homePortraitAt,
   rand,
@@ -265,6 +269,55 @@ describe('mine portraits', () => {
       }
     }
     expect(nearestMinePortrait(45, 0, 0)).toBeNull();
+  });
+});
+
+describe('chests', () => {
+  const chests = chestsInRange(0, 0, WORLD_W - 1, 1199);
+
+  it('buries roughly one per four 16-tile chunks, derived the same every time', () => {
+    expect(CHEST_CHUNK).toBe(16);
+    // ~0.25 per chunk, fewer at the walls, above the depth gate and beside the
+    // fixtures: 1200 rows × 90 columns ≈ 400 qualifying chunks.
+    expect(chests.length).toBeGreaterThan(65);
+    expect(chests.length).toBeLessThan(130);
+    expect(chestsInRange(0, 0, WORLD_W - 1, 1199)).toEqual(chests);
+    for (const {x, y} of chests.slice(0, 20)) expect(chestAt(x, y)).toEqual({x, y});
+  });
+
+  it('agrees tile by tile with chestAt over a scanned band', () => {
+    const scanned: {x: number; y: number}[] = [];
+    for (let y = 0; y < 300; y++) for (let x = 0; x < WORLD_W; x++) if (chestAt(x, y)) scanned.push({x, y});
+    const ranged = chestsInRange(0, 0, WORLD_W - 1, 299);
+    const order = (a: {x: number; y: number}, b: {x: number; y: number}) => a.y - b.y || a.x - b.x;
+    expect(ranged.sort(order)).toEqual(scanned.sort(order));
+    // A sub-rectangle keeps only what lies inside it.
+    const inner = chestsInRange(20, 40, 60, 120);
+    expect(inner.every(c => c.x >= 20 && c.x <= 60 && c.y >= 40 && c.y <= 120)).toBe(true);
+    expect(inner.length).toBe(scanned.filter(c => c.x >= 20 && c.x <= 60 && c.y >= 40 && c.y <= 120).length);
+  });
+
+  it('clears just its own tile, below the depth gate and clear of the side walls', () => {
+    for (const {x, y} of chests) {
+      expect(makeTile(x, y)).toEqual({type: 'air'});
+      expect(y).toBeGreaterThanOrEqual(CHEST_MIN_ROW);
+      expect(x).toBeGreaterThanOrEqual(2);
+      expect(x).toBeLessThanOrEqual(WORLD_W - 3);
+    }
+    for (let y = 0; y < CHEST_MIN_ROW; y++) for (let x = 0; x < WORLD_W; x++) expect(chestAt(x, y)).toBeNull();
+  });
+
+  it('never shares — or touches — a trading post or mine portrait pocket', () => {
+    for (const {x, y} of chests) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          expect(tradingPostPocket(x + dx, y + dy)).toBe(false);
+          expect(minePortraitPocket(x + dx, y + dy)).toBe(false);
+        }
+      }
+      expect(tradingPostAt(x, y)).toBeNull();
+      expect(minePortraitAt(x, y)).toBe(false);
+    }
   });
 });
 

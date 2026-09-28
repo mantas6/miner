@@ -92,6 +92,8 @@ export function createRun(deps: GameRunDeps): GameRun {
       // A full player wipe drops the drawn-down trading stock too; a plain death
       // (`full` false) leaves it, so a post the player emptied stays emptied.
       state.tradeLedger = {};
+      // Likewise every chest the player opened comes back full.
+      state.chestLedger = {};
       state.exploredTiles.clear();
       state.stats = createDefaultStats();
       saveProgress();

@@ -37,6 +37,7 @@ interface Harness {
   toggleContainer: ReturnType<typeof vi.fn>;
   closeContainer: ReturnType<typeof vi.fn>;
   closeWreck: ReturnType<typeof vi.fn>;
+  closeChest: ReturnType<typeof vi.fn>;
   openNearest: ReturnType<typeof vi.fn>;
   closeStation: ReturnType<typeof vi.fn>;
   closeExtractor: ReturnType<typeof vi.fn>;
@@ -65,6 +66,7 @@ function harness(): Harness {
     toggleContainer: vi.fn(),
     closeContainer: vi.fn(),
     closeWreck: vi.fn(),
+    closeChest: vi.fn(),
     openNearest: vi.fn(),
     closeStation: vi.fn(),
     closeExtractor: vi.fn(),
@@ -277,6 +279,21 @@ describe('the cargo container key', () => {
     h.input.tick();
 
     expect(h.closeContainer).toHaveBeenCalledOnce();
+    expect(h.toggleContainer).not.toHaveBeenCalled();
+    expect(h.move).not.toHaveBeenCalled();
+  });
+
+  it('shuts an open chest on C or Escape, and keeps the keys off the mine', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    uiStore.getState().setActiveOverlay('chest');
+
+    press('c');
+    press('Escape');
+    press('d');
+    h.input.tick();
+
+    expect(h.closeChest).toHaveBeenCalledTimes(2);
     expect(h.toggleContainer).not.toHaveBeenCalled();
     expect(h.move).not.toHaveBeenCalled();
   });

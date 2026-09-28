@@ -27,6 +27,8 @@ import {
 import { ITEM_CATALOG } from './items';
 import { placementRefusal, type PlacementCopy } from './placement';
 import { tradingPostAt } from '../world/world';
+import { chestStandsAt } from './chest';
+import type { ChestLedger } from './types';
 
 /** Which kind of station this is. */
 export type StationKind = 'manufacturer' | 'extractor' | 'portal';
@@ -293,6 +295,8 @@ export interface StationPlacementContext {
   occupied: boolean;
   /** How many stations of this kind already stand in the mine. */
   count: number;
+  /** The opened-chest ledger; absent counts every generated chest as still lying there. */
+  chestLedger?: ChestLedger;
 }
 
 /** Why this tile cannot take a station device, or `null` when it can. */
@@ -305,9 +309,10 @@ export function stationPlacementRefusal(
   return placementRefusal(x, y, {
     explored: context.explored,
     open: context.open,
-    // A trading post stands in a derived air pocket, not in `state.stations`, so it
-    // is checked here from the coordinate rather than through `context.occupied`.
-    occupied: context.occupied || tradingPostAt(x, y) !== null,
+    // A trading post or a chest stands in a derived air pocket, not in
+    // `state.stations`, so each is checked here from the coordinate rather than
+    // through `context.occupied`.
+    occupied: context.occupied || tradingPostAt(x, y) !== null || chestStandsAt(x, y, context.chestLedger) !== null,
     full: context.count >= STATION_DEVICE[kind].maxPlaced
   }, stationPlacementCopy(kind));
 }

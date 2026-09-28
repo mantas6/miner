@@ -28,6 +28,15 @@ export type {
 
 export type Direction = [number, number];
 
+/** One stack left in an opened chest: just the kind and how many, resolved through the catalog. */
+export interface ChestLedgerStack {
+  kind: InventoryItemKind;
+  count: number;
+}
+
+/** The opened chests, keyed `"x,y"`; `[]` is a chest looted bare. */
+export type ChestLedger = Record<string, ChestLedgerStack[]>;
+
 export interface Player {
   x: number;
   y: number;
@@ -171,6 +180,15 @@ export interface GameState {
    * death and reload, and clears only on a full player-data reset.
    */
   tradeLedger: Record<string, number[]>;
+  /**
+   * What is left in each chest the player has opened, keyed by `"x,y"`. Chests and
+   * their loot are derived from the world (`world.ts`, `core/chest.ts`), so an
+   * absent key is a chest still holding its freshly rolled loot; an entry is written
+   * the first time one is opened, and an empty array is a chest looted bare — gone
+   * from the canvas and the observation. It survives death, reload and a world
+   * reset, and clears only on a full player-data reset.
+   */
+  chestLedger: ChestLedger;
   /**
    * The carried device armed for placement, or `null` when nothing is. Only the
    * placeable kinds (scanner, dynamite, container) ever appear here; it drives the

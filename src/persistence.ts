@@ -20,6 +20,8 @@ import {
 import { isCatalogKind, itemForKind } from './core/items';
 import { SCANNER_DEVICE, type ScannerDevice } from './core/scanner-device';
 import { WRECK, createWreck, type Wreck } from './core/wreck';
+import { chestKey, ledgerStacks } from './core/chest';
+import { chestAt } from './world/world';
 import { applyEquipment } from './core/ship-upgrades';
 import { createDefaultStats } from './core/state';
 import {
@@ -33,7 +35,7 @@ import {
 import { defaultPortalName, sanitizePortalName } from './core/portal';
 import { encodeExploration, mergeExploration } from '../shared/exploration-codec';
 import { capTileEntries, createTileDiff, parseTileEntries, tileDiffEntries } from './world/tile-diff';
-import type { GameState, GameStats } from './core/types';
+import type { ChestLedger, GameState, GameStats } from './core/types';
 
 // Local save file for a solo miner: the wallet, the ship, the fog, and the mine
 // itself.
@@ -66,6 +68,9 @@ import type { GameState, GameStats } from './core/types';
 //     and corpse loot left standing in the mine, crates and wrecks saved with their
 //     contents.
 //   * `tradeLedger` — the drawn-down buy stock per trading post, keyed `"x,y"`.
+//   * `chestLedger` — what is left in each opened chest, keyed `"x,y"`, as
+//     `{kind, count}` stacks; `[]` is a chest looted bare. Optional: a save without
+//     it loads with every chest still full.
 
 /** The persisted save file. Every field is re-validated on load. */
 interface SavedProgress {
@@ -82,6 +87,7 @@ interface SavedProgress {
   cargoContainers?: unknown;
   wrecks?: unknown;
   tradeLedger?: unknown;
+  chestLedger?: unknown;
   explored?: unknown;
   stats?: Partial<Record<keyof GameStats, unknown>>;
 }
@@ -323,6 +329,26 @@ function parseTradeLedger(value: unknown): Record<string, number[]> {
   return ledger;
 }
 
+/**
+ * Rebuild the opened-chest ledger. Only a key naming a real generated chest is
+ * kept, and its stacks go back through the catalog and `addItem`, so junk kinds
+ * drop, duplicate kinds merge and every count is clamped — a hand-edited save can
+ * never conjure a chest the mine does not hold, or loot it could never have held.
+ * An empty list is kept verbatim: it is a chest looted bare.
+ */
+export function parseChestLedger(value: unknown): ChestLedger {
+  const ledger: ChestLedger = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ledger;
+  for (const [key, stacks] of Object.entries(value as Record<string, unknown>)) {
+    const match = /^(\d+),(\d+)$/.exec(key);
+    if (!match || !Array.isArray(stacks)) continue;
+    const x = Number(match[1]), y = Number(match[2]);
+    if (!chestAt(x, y)) continue;
+    ledger[chestKey(x, y)] = ledgerStacks(parseKindCountStacks(stacks, isStationKind));
+  }
+  return ledger;
+}
+
 /** One station, flattened: where it stands and either its stock or its buffers. */
 function serializeStation(station: PlacedStation): Record<string, unknown> {
   if (station.kind === 'manufacturer') {
@@ -392,6 +418,7 @@ export function load(state: GameState): void {
     state.cargoContainers = parseCargoContainers(save.cargoContainers);
     state.wrecks = parseWrecks(save.wrecks);
     state.tradeLedger = parseTradeLedger(save.tradeLedger);
+    state.chestLedger = parseChestLedger(save.chestLedger);
     // The ship resumes on the tile it parked on, render position included so it
     // appears there instead of easing in from home. The clamps are the ones
     // `movementDestination` enforces, so no save can park a miner in a wall.
@@ -428,6 +455,7 @@ export function save(state: GameState): void {
     cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializePlacedInventory),
     wrecks: state.wrecks.slice(0, WRECK.maxPlaced).map(serializePlacedInventory),
     tradeLedger: state.tradeLedger,
+    chestLedger: state.chestLedger,
     explored: encodeExploration(state.exploredTiles),
     tiles: capTileEntries(tileDiffEntries(state.soloTileDiff)),
     stats: state.stats,

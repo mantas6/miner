@@ -66,9 +66,10 @@ function instructions(): string {
     '    portals out of reach); picking a destination spends one teleporter and moves',
     '    the ship there. `hud.teleport` reports how many charges are aboard and',
     '    whether pressing t would open the list right now.',
-    '  c — open/close the cargo container — or the wreck — under or beside the ship,',
-    '    whichever is nearest. A wreck opens a take-only salvage menu; click lootAllBtn',
-    '    to haul everything that fits aboard.',
+    '  c — open/close the cargo container, wreck or chest under or beside the ship,',
+    '    whichever is nearest. A wreck or chest opens a take-only menu',
+    '    (`overlay.kind` "wreck"/"chest"); click lootAllBtn to haul everything that',
+    '    fits aboard, or the data-cargo take / take-one controls for one stack.',
     '  Construction gear is placed and lifted from inventory slots (click controls,',
     '    then a tile press): manufacturerSlotBtn / extractorSlotBtn / portalSlotBtn arm',
     '    a crafted Manufacturing Station / Fuel Extractor / Portal to set down;',
@@ -82,10 +83,10 @@ function instructions(): string {
     '    more portals built, a lost or reset ship raises a portal overlay in `mode',
     '    "respawn"` that cannot be dismissed (Escape/Space are ignored) — pick a',
     '    `data-portal` row to redeploy the ship at that portal.',
-    '  Escape — cancel an armed placement, or close the ship/info/container overlay.',
+    '  Escape — cancel an armed placement, or close the ship/info/container/wreck/chest overlay.',
     '  Enter — start the run from the title splash (use the `start_run` tool).',
     '  Click a tile with `press_tile` to move/drill toward it, plant an armed device,',
-    '    or open a station, trading post, or wreck. Click named UI controls with `click`.',
+    '    or open a station, trading post, wreck, or chest. Click named UI controls with `click`.',
     '',
     'VIEW LEGEND (the `view.rows` ASCII grid, ~15x11 around the ship @):',
     `  ${legendText()}`,
@@ -106,7 +107,11 @@ function instructions(): string {
     '    ore and fitted upgrades that did not survive — up to 5 stand at once, oldest',
     '    dropped. Fly back, press its tile (or `c` alongside it), and salvage with',
     '    lootAllBtn or the take controls; the wreck vanishes once emptied.',
-    '  - Station stock, extractor buffers, container and wreck contents are only in the',
+    '  - Chests (H) lie buried throughout the mine, each in a one-tile pocket: dig to',
+    '    one, press its tile (or `c` beside it), and loot ore, tools, decorations and',
+    '    now and then a ship upgrade — never cash. `notable` counts what one holds',
+    '    ("3 items"); a chest emptied bare is gone for good.',
+    '  - Station stock, extractor buffers, container, wreck and chest contents are only in the',
     '    observation while that overlay is open (`overlay`) — open it to see them.',
     '  - Every item row inside an open overlay carries `info: string[]` — the hover',
     '    tooltip lines describing that item; a recipe\'s `info` also lists each input\'s',
@@ -232,7 +237,8 @@ server.registerTool(
       'attribute controls (e.g. target "data-craft", value "upgrade:drill:1"); the ' +
       'transfer controls also need `kind` — the station (target "data-station", value ' +
       '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal"), the cargo container ' +
-      '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"), ' +
+      '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"; ' +
+      'a wreck or chest menu takes only "take"|"take-one", and lootAllBtn hauls it all), ' +
       'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +
       '"ore:Iron" to sell or "repairKit" to buy). A portal travel/respawn row is target ' +
       '"data-portal", value the destination "x,y" (e.g. "48,20"). A wrong target is refused with the full allowed list.',
@@ -251,7 +257,7 @@ server.registerTool(
 server.registerTool(
   'press_tile',
   {
-    description: 'Press a mine tile by world coordinate (clicks its centre on the canvas). Moves/drills toward it, plants an armed device, or opens a station.',
+    description: 'Press a mine tile by world coordinate (clicks its centre on the canvas). Moves/drills toward it, plants an armed device, or opens a station, trading post, wreck or chest beside the ship.',
     inputSchema: {
       x: z.number().int().describe('Tile world x-coordinate.'),
       y: z.number().int().describe('Tile world y-coordinate.')

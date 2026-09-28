@@ -150,7 +150,7 @@ export type UiPhase = 'intro' | 'playing';
 export type RuntimeStatus = 'booting' | 'ready' | 'failed';
 
 /** The modal overlays that cover the mine. Exactly one of them, or none. */
-export type OverlayId = 'info' | 'container' | 'wreck' | 'ship' | 'station' | 'extractor' | 'trade' | 'portal';
+export type OverlayId = 'info' | 'container' | 'wreck' | 'chest' | 'ship' | 'station' | 'extractor' | 'trade' | 'portal';
 
 /** One portal the travel/teleporter/respawn overlay lists as a destination. */
 export interface PortalDestinationView {
@@ -237,6 +237,11 @@ export interface UiState {
    */
   wreckSlots: InventorySlotView[];
   /**
+   * The open chest's contents, in the same shape. Written only while its menu is
+   * up: the game pushes them on open and after every haul, like the wreck's.
+   */
+  chestSlots: InventorySlotView[];
+  /**
    * The ship's fitting slots, painted by the Ship screen. Written when the screen
    * opens and after each equip/unequip, so the menu never reads the simulation.
    */
@@ -293,6 +298,7 @@ export interface UiState {
   setInventorySlots(slots: InventorySlotView[]): void;
   setContainerSlots(slots: InventorySlotView[]): void;
   setWreckSlots(slots: InventorySlotView[]): void;
+  setChestSlots(slots: InventorySlotView[]): void;
   setShipEquipment(slots: ShipSlotView[]): void;
   setStationSlots(slots: InventorySlotView[]): void;
   setExtractor(view: ExtractorView): void;
@@ -422,6 +428,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   inventorySlots: buildInventorySlots(createInventory()),
   containerSlots: [],
   wreckSlots: [],
+  chestSlots: [],
   shipEquipment: buildShipSlots(initialState.player.equipment),
   stationSlots: [],
   extractor: {coal: 0, fuel: 0, progress: 0},
@@ -470,6 +477,11 @@ export const uiStore = createStore<UiState>((set, get) => ({
   setWreckSlots(slots) {
     if (sameInventorySlots(get().wreckSlots, slots)) return;
     set({wreckSlots: slots});
+  },
+
+  setChestSlots(slots) {
+    if (sameInventorySlots(get().chestSlots, slots)) return;
+    set({chestSlots: slots});
   },
 
   setShipEquipment(slots) {

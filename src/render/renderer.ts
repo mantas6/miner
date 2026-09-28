@@ -10,9 +10,11 @@ import { isDynamiteFuseLit, type PlacedDynamite } from '../core/dynamite';
 import { totalItems, type InventoryItemKind } from '../core/inventory';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells } from '../core/placement-overlay';
 import { isScannerDone, scannerTileProgress, type ScannerDevice } from '../core/scanner-device';
-import { tradingPostAt } from '../world/world';
+import { chestsInRange, tradingPostAt } from '../world/world';
+import { isChestLooted } from '../core/chest';
 import { TERRAIN_CHUNK_TILES, terrainCacheScale, terrainChunkCoordinate, terrainChunkKeyForTile } from './terrain-cache-policy';
 import type {
+  ChestLedger,
   Direction,
   Enemy,
   EnemyKind,
@@ -53,6 +55,8 @@ export interface RendererState {
   cargoContainers?: readonly PlacedContainer[];
   /** Wrecks standing in the mine. Absent or empty means none is left behind. */
   wrecks?: readonly Wreck[];
+  /** Opened chests' contents; a `[]` entry is a chest looted bare. Absent means none opened. */
+  chestLedger?: ChestLedger;
   /** Stations standing in the mine; a manufacturer or an extractor per entry. */
   stations?: readonly PlacedStation[];
   teleportEffect?: TeleportEffect | null;
@@ -261,6 +265,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     drawTerrainBlendOverlay(camY);
     drawHomeStations(camX, camY);
     drawTradingPosts(camX, camY);
+    drawChests(camX, camY);
     drawCargoContainers(camX, camY);
     drawWrecks(camX, camY);
     drawScannerDevices(camX, camY);
@@ -315,6 +320,7 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       cargoContainers: state.cargoContainers ?? [],
       wrecks: state.wrecks ?? [],
       stations: state.stations ?? [],
+      chestLedger: state.chestLedger ?? {},
       isOpen: (x: number, y: number) => get(x, y).type === 'air'
     };
     const cells = placementOverlayCells(kind, state.player.x, state.player.y, world);
@@ -565,6 +571,47 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     ctx.fillText('$', 0, -TILE * .31);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  }
+  /**
+   * Buried chests, as a small wooden chest with a brass clasp. Derived from the
+   * coordinate like the trading posts, so the visible range is walked chunk by chunk
+   * (`chestsInRange`) rather than read off a list; a chest under fog, or one looted
+   * bare, is not painted.
+   */
+  function drawChests(camX: number, camY: number) {
+    const range = getVisibleTileRange(camX, camY, viewport.tilesX, viewport.tilesY, WORLD_W);
+    const ledger = state.chestLedger;
+    for (const chest of chestsInRange(range.startX, range.startY, range.endX, range.endY)) {
+      if (!isExplored(chest.x, chest.y)) continue;
+      if (ledger && isChestLooted(ledger, chest.x, chest.y)) continue;
+      drawChestBody((chest.x - camX) * TILE, (chest.y - camY) * TILE);
+    }
+  }
+  function drawChestBody(sx: number, sy: number) {
+    ctx.save();
+    ctx.translate(sx + TILE * .5, sy + TILE * .5);
+    // Body: dark planks sitting on the tile floor.
+    ctx.fillStyle = '#6b4424';
+    ctx.fillRect(-TILE * .28, -TILE * .02, TILE * .56, TILE * .32);
+    ctx.fillStyle = 'rgba(0,0,0,.30)';
+    ctx.fillRect(-TILE * .28, TILE * .20, TILE * .56, TILE * .10);
+    // Domed lid, a shade lighter.
+    ctx.fillStyle = '#8a5a30';
+    ctx.beginPath();
+    ctx.moveTo(-TILE * .30, -TILE * .02);
+    ctx.lineTo(-TILE * .30, -TILE * .10);
+    ctx.quadraticCurveTo(0, -TILE * .26, TILE * .30, -TILE * .10);
+    ctx.lineTo(TILE * .30, -TILE * .02);
+    ctx.closePath();
+    ctx.fill();
+    // Brass bands down both ends and a clasp on the seam.
+    ctx.fillStyle = '#c9a23a';
+    ctx.fillRect(-TILE * .24, -TILE * .16, TILE * .05, TILE * .46);
+    ctx.fillRect(TILE * .19, -TILE * .16, TILE * .05, TILE * .46);
+    ctx.fillStyle = '#ffd65c';
+    ctx.shadowColor = '#e0b040'; ctx.shadowBlur = 6;
+    ctx.fillRect(-TILE * .05, -TILE * .06, TILE * .10, TILE * .10);
     ctx.restore();
   }
   /**

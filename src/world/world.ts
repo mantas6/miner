@@ -213,6 +213,76 @@ export function nearestMinePortrait(fromX: number, fromY: number, maxChunks: num
   return best;
 }
 
+// --- Chests ------------------------------------------------------------------
+//
+// Small loot chests lie buried throughout the mine. Like trading posts and mine
+// portraits they are derived from the coordinate, never stored: per square chunk
+// one roll decides whether the chunk holds a chest, two more pick its cell, and the
+// chest clears only its own tile — a one-tile pocket the ship drills into like any
+// other. What the chest holds is rolled from the same coordinate (`core/chest.ts`);
+// `state.chestLedger` records only what the player has taken out of it.
+
+/** One chest lying in the mine, derived from its coordinate. */
+export interface Chest {
+  x: number;
+  y: number;
+}
+
+/** Side of the square chunk chest placement is rolled per. */
+export const CHEST_CHUNK = 16;
+/** Chance a chunk holds a chest — about one per thousand tiles. */
+export const CHEST_CHANCE = 0.25;
+/** No chest lies above this row, keeping the home cavern and its starter seam clear. */
+export const CHEST_MIN_ROW = START_Y + 8;
+
+/** The chunk a coordinate falls in, on the square chest grid. */
+function chestChunk(v: number): number {
+  return Math.floor(v / CHEST_CHUNK);
+}
+
+/**
+ * The chest a chunk holds, or `null`. The cell is kept one tile in from the chunk
+ * edges and two clear of the side walls, and a chunk whose chest would sit in — or
+ * right beside — a trading post's or mine portrait's pocket holds nothing, so a
+ * chest never shares a fixture's cleared space.
+ */
+function chestInChunk(chunkX: number, chunkY: number): Chest | null {
+  if (chunkX < 0 || chunkY < 0) return null;
+  if (rand(chunkX + 2131, chunkY + 1471) >= CHEST_CHANCE) return null;
+  const x = chunkX * CHEST_CHUNK + 1 + Math.floor(rand(chunkX + 571, chunkY + 1933) * (CHEST_CHUNK - 2));
+  const y = chunkY * CHEST_CHUNK + 1 + Math.floor(rand(chunkX + 1777, chunkY + 389) * (CHEST_CHUNK - 2));
+  if (x < 2 || x > WORLD_W - 3) return null;
+  if (y < CHEST_MIN_ROW) return null;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (tradingPostPocket(x + dx, y + dy) || minePortraitPocket(x + dx, y + dy)) return null;
+    }
+  }
+  return {x, y};
+}
+
+/** The chest lying exactly on this tile, or `null`. Looted or not — see `core/chest.ts`. */
+export function chestAt(x: number, y: number): Chest | null {
+  const chest = chestInChunk(chestChunk(x), chestChunk(y));
+  return chest && chest.x === x && chest.y === y ? chest : null;
+}
+
+/**
+ * Every chest inside an inclusive tile rectangle, walking the chunks that overlap
+ * it rather than every tile — one chunk roll each, which is what keeps the renderer's
+ * per-frame scan cheap.
+ */
+export function chestsInRange(startX: number, startY: number, endX: number, endY: number): Chest[] {
+  const chests: Chest[] = [];
+  for (let cy = chestChunk(startY); cy <= chestChunk(endY); cy++) {
+    for (let cx = chestChunk(startX); cx <= chestChunk(endX); cx++) {
+      const chest = chestInChunk(cx, cy);
+      if (chest && chest.x >= startX && chest.x <= endX && chest.y >= startY && chest.y <= endY) chests.push(chest);
+    }
+  }
+  return chests;
+}
+
 /** Generate the tile at a world coordinate. Deterministic for a given (x,y). */
 export function makeTile(x: number, y: number): Tile {
   // An indestructible bedrock cap seals the top of the world. Below it, the rows
@@ -235,6 +305,9 @@ export function makeTile(x: number, y: number): Tile {
   // the coordinate like a trading post.
   if (y > HOME_ROW + 1 && minePortraitAt(x,y)) return {type:'decor', decor:'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP};
   if (y > HOME_ROW + 1 && minePortraitPocket(x,y)) return {type:'air'};
+  // A buried chest clears just its own tile: a one-tile pocket drilled into like
+  // any other, derived from the coordinate like a trading post.
+  if (chestAt(x,y)) return {type:'air'};
   // Natural cave seams only open up below the cavern's immediate floor.
   if (y > HOME_ROW + 1 && naturalAirPocket(x,y)) return {type:'air'};
   const r = rand(x,y), depth = y;
