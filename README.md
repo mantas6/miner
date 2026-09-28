@@ -44,9 +44,19 @@ starts fresh. What the save keeps: the parked tile, cash, the tile diff, explore
 tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the placed
 stations (each Manufacturing Station's stock, each Fuel Extractor's coal/fuel, and
 each Portal's name),
-the drawn-down trading-post stock (`tradeLedger`), and the hardware left standing
-in the mine (scanners, dynamite, crates and wrecks with their contents). Ore
-aboard the ship is never saved — it is lost with the run.
+the drawn-down trading-post stock (`tradeLedger`), what is left in each opened
+chest (`chestLedger` — optional, so a save without it loads with every chest
+full), and the hardware left standing in the mine (scanners, dynamite, crates and
+wrecks with their contents). Ore aboard the ship is never saved — it is lost with
+the run.
+
+The save can be carried between browsers from **Info → Settings → Save data**.
+**Export save** downloads it as `moleload-save.json` and shows the same JSON in a
+read-only text box. **Import save…** takes a file from the picker or a paste into
+the import box, asks inline before replacing the run, then reloads the page into
+it. Import refuses anything that is not JSON, not an object, or not exactly the
+current `SAVE_VERSION` — older and newer saves alike (`parseImportedSave` in
+`src/persistence.ts`).
 
 Underground fog of war is persistent. Movement permanently reveals a fixed 3x3
 square around the ship. The indestructible bedrock ceiling above the home cavern
@@ -135,10 +145,10 @@ miner/
 | `shared/world-schema.ts` | Zod schemas and derived types for tiles, enemies, and the persisted world state. |
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
-| `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), and the world's tile diff (`localStorage`). |
-| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
-| `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
-| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations), `intro-showcase.ts` (the title screen's drifting mine backdrop: a fresh game state drawn by the game's renderer with fog and ship off, framed on a nearby cave portrait when one is within a few chunks) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
+| `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), the opened-chest ledger (`chestLedger`), and the world's tile diff (`localStorage`); plus the save export (`serializeProgress`) and import check (`parseImportedSave`). |
+| `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), chest loot and reach (`chest.ts`), grave epitaphs and reach (`grave.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
+| `src/world/` | World generation (terrain, ore bands, and coordinate-derived trading posts, chests and graves in `world.ts`), the tile diff that turns a saved world back into terrain (`tile-diff.ts`), world-state reset, and visible tile range. |
+| `src/game/` | Gameplay orchestration (`game.ts`, the `createGameRuntime()` factory) plus its feature modules — `enemies.ts`, `actions.ts`, `move.ts`, `run.ts`, `input.ts`, `world-grid.ts`, `viewport.ts`, `zoom.ts` (wheel/pinch camera zoom maths), `zoom-settings.ts` (the remembered zoom level), `readouts.ts`, `scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`, `wrecks.ts` (opening and salvaging the wrecks a lost run leaves behind), `chests.ts` (opening and looting buried chests), `graves.ts` (reading a grave's stone), `home-stations.ts` (the Manufacturing Station and Fuel Extractor sim), `portals.ts` (the portal travel, teleporter and respawn overlay sim), `trading.ts` (buying and selling at a trading post), `station-devices.ts` (placing crafted stations in the mine), `toolkit.ts` (the Construction Toolkit that lifts empty stations and containers back aboard), `decor.ts` (placing decorations), `intro-showcase.ts` (the title screen's drifting mine backdrop: a fresh game state drawn by the game's renderer with fog and ship off, framed on a nearby cave portrait when one is within a few chunks) — the canvas surface factory (`dom.ts`) and the teardown registry every side effect registers with (`disposal.ts`). |
 | `src/agent/` | The programmatic-play seam inside the game: `observation.ts` builds the fog-respecting `AgentObservation` (ASCII view, notable list, HUD and the one open overlay) an LLM reads instead of the screen, and `bridge.ts` is the `agentBridge` singleton — mirroring `commands.ts` — a harness reaches the running game through (observe, pause, tile→screen projection). |
 | `src/render/` | Canvas drawing, and the terrain/fog chunk cache policy. |
 | `src/audio/` | Web Audio graph, sound effects, soundtrack playback, and autoplay permission. |
@@ -149,7 +159,7 @@ miner/
 | `soundtrack/tracks/__init__.py` | Generator-side registry: the `TRACKS` dict keyed by slug and `get_track()`. |
 | `soundtrack/render.py` | CLI that renders registered tracks into `public/assets/music/`. |
 | `public/assets/music/` | The shipped soundtrack assets (`golden-signal.mp3`, `golden-signal.ogg`) — build products of `soundtrack/render.py`, copied verbatim into `dist/` by Vite. |
-| `src/ui/` | React components — including the trading-post screen (`TradeScreen.tsx`), the portal travel/teleporter/respawn screen (`PortalScreen.tsx`) and the shared hover popup driven by the item-description registry (`Tooltip.tsx`) — the zustand UI store (`store.ts`), the command table the buttons dispatch into (`commands.ts`), the effect that owns the runtime's lifetime (`useGameRuntime.ts`), the boot/crash notices (`Failure.tsx`), and co-located CSS modules. |
+| `src/ui/` | React components — including the trading-post screen (`TradeScreen.tsx`), the portal travel/teleporter/respawn screen (`PortalScreen.tsx`), a grave's stone (`GraveScreen.tsx`) and the shared hover popup driven by the item-description registry (`Tooltip.tsx`) — the zustand UI store (`store.ts`), the command table the buttons dispatch into (`commands.ts`), the effect that owns the runtime's lifetime (`useGameRuntime.ts`), the boot/crash notices (`Failure.tsx`), and co-located CSS modules. |
 | `src/styles/base.css` | Design tokens plus element-level styling (`button`, `ul`, `kbd`, `meter`, `canvas`, `#shell`, `#game-panel`) and the app-wide `:focus-visible` ring. |
 | `src/styles/icons.css` | Global equipment sprite sheet (`icon-*`), addressed by name from the item catalog. |
 | `src/styles/intro-art.css` | Global intro badge art. |
@@ -269,6 +279,8 @@ zooming the camera with the wheel or a trackpad.
 | Open a station in reach (Manufacturing Station / Fuel Extractor) | `Space` | Press the station tile on the mine |
 | Open a trading post in reach | `Space` | Press the post tile on the mine |
 | Open a portal in reach (its travel list of the other portals) | `Space` | Press the portal tile on the mine |
+| Read a grave in reach (on it or beside it) | `Space` | Press the grave on the mine |
+| Put a grave's stone away | `Space`, `Enter` or `Escape` | OK button |
 | Ship equipment (fit/unfit upgrades) | — | Ship button |
 | Use a repair kit (patch the hull) | — | Repair Kit inventory slot |
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
@@ -277,9 +289,9 @@ zooming the camera with the wheel or a trackpad.
 | Set a crafted station down (Manufacturing Station / Fuel Extractor) | — | Its inventory slot, then a mine tile |
 | Lift an empty station, container or hanging decoration back aboard | — | Construction Toolkit inventory slot, then press the station/crate/portrait |
 | Set a decoration down | — | Decoration inventory slot, then a mine tile |
- | Open a placed cargo container — or wreck — (on it or beside it) | `C` | Press the crate or wreck on the mine |
+ | Open a placed cargo container — or wreck, or chest — (on it or beside it) | `C` | Press the crate, wreck or chest on the mine |
  | Move a stack between the crate and the bay | — | Press the stack in either column |
- | Salvage a wreck (its ore and fitted upgrades) | `C` | Press the wreck, then a stack or Loot all |
+ | Salvage a wreck (its ore and fitted upgrades) or loot a chest | `C` | Press the wreck or chest, then a stack or Loot all |
 | Cancel a placement | `Escape` | The armed slot again |
 | Open the portal list with a teleporter aboard (picking a destination spends one teleporter) | `T` | Teleport button |
 | Travel to a portal from the list | — | Press a portal row |
@@ -310,8 +322,8 @@ zooming the camera with the wheel or a trackpad.
   situation — at home base, in the mine, holds full, hull critical, ship lost. It is
   driven by thresholds, so the 60 Hz HUD sync never makes it talk.
 - **Native dialogs.** The intro prompt is a `<button>`; the ship, info,
-  Manufacturing Station, Fuel Extractor, cargo-container/wreck and trading-post
-  overlays are modal `<dialog>`s, so the browser contains Tab, makes the rest of the
+  Manufacturing Station, Fuel Extractor, cargo-container/wreck/chest, trading-post
+  and grave overlays are modal `<dialog>`s, so the browser contains Tab, makes the rest of the
   page inert, and each close returns focus to the control that opened it.
 - **`prefers-reduced-motion`.** The looping start-prompt, low-fuel and HUD-alert
   animations stop; the alert colours stay.
@@ -409,6 +421,32 @@ open it.
   ore-value marked up ×1.5 (`TRADING_MARKUP` in `src/core/trading.ts`), so it is
   always sane against the ore you sell to afford it. A buy is refused when the wallet
   is short, the offer is sold out, or the bay is full.
+
+### Chests and graves
+
+Two more fixtures are derived from the coordinate like trading posts (`chestAt`,
+`graveAt` in `src/world/world.ts`): at most one per 16×16 chunk, never in or beside
+a post's or portrait's pocket. The ship flies through both, and both count as
+occupied ground for placement. Either one opens from its own tile or any of the
+eight around it, and only once it is explored.
+
+- **Chests** (`H`; `src/core/chest.ts`, `src/game/chests.ts`) lie buried in a
+  one-tile pocket in about a quarter of chunks below `START_Y + 8`. Press one — or
+  `C` on or beside it — for a take-only menu like a wreck's: press a stack (or its
+  "1" button), or **Loot all**. A chest holds 2–4 stacks rolled from its
+  coordinate: ore from its depth's band, consumables (repair kit, dynamite, scanner,
+  a rare teleporter), decorations, and about one time in fourteen a ship upgrade
+  whose mark rises with depth (Mk I shallow, Mk II from 150 rows, Mk III or the
+  Booster from 400). Never cash. Only what the player has taken is stored, in
+  `state.chestLedger`; a chest emptied bare is gone for good. The ledger survives
+  death, reload and world reset, and clears only on a full player-data reset.
+- **Graves** (`+`; `src/core/grave.ts`, `src/game/graves.ts`) lie on the floor of
+  a 3×2 nook in about one chunk in seven below `START_Y + 6`. Press one — or
+  `Space` beside it — to raise its stone with a bell: a Russian name (surname
+  ending agreeing with the miner's gender), the years they lived, and a mining
+  cause of death ("Crushed under rock", "Ran dry at 340 m", …). The deeper the
+  grave, the older it is — death years run from 1990 in the shallows back to 1890.
+  OK, `Enter`, `Space` or `Escape` puts it away. Nothing about a grave is saved.
 
 ### Crafting & ship equipment
 
@@ -620,6 +658,12 @@ restarts playback from that track's beginning if music was already running.
   `sfxEnabled` are the player's two switches. Pressing either button while the
   context is still locked retries the unlock, so a blocked autoplay recovers.
 - Pointer/touch input can also trigger audio startup; a key press cannot.
+- Each player action has its own named cue in `src/audio/audio.ts`, built from
+  small `blip`/`noise` voices: `refuel`, `craft`, `sell`, `buy`, `stow`, `take`,
+  `place`, `lift`, `portal`, `upgradeFit`, `upgradeRemove`, `repair`, `open`,
+  `close`, `arm`, `disarm`, `respawn`, `bounty`, `milestone`, `surveyDone`,
+  `chestOpen` and `grave`, plus a soft `click` for pure-UI switches. Every cue is
+  silent while the effects are muted.
 - Sound effects and the soundtrack are independent: the effects run on Web Audio,
   the music on an `<audio>` element, and a rejected autoplay only downgrades the
   music to the synth fallback.
@@ -701,7 +745,7 @@ only to stderr (stdout is the MCP transport).
 | `type` | `text` (string) | Type text into the focused input (e.g. after clicking `portalNameInput`), then return the observation. |
 | `hold` | `key` (string), `ms` (int), `shift?` (bool) | Hold a key for `ms` wall-clock (the sim runs during the hold); `shift` sprints if a Booster is fitted. |
 | `click` | `target` (string), `value?` (string), `kind?` (string) | Click one allowlisted UI control (below). |
-| `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station, portal or trading post. |
+| `press_tile` | `x` (int), `y` (int) | Press a mine tile by world coordinate (clicks its canvas centre): move/drill toward it, plant an armed device, or open a station, portal, trading post, wreck, chest or grave. |
 | `wait` | `ms` (int) | Let the sim run for `ms` wall-clock, then return the observation. |
 | `screenshot` | — | A PNG of the window, as image content. |
 | `set_realtime` | `enabled` (bool) | Switch the pause model (below). |
@@ -723,13 +767,22 @@ with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
 `data-craft`, `stationCloseBtn`), the fuel extractor (`loadCoalBtn`, `refuelBtn`,
 `extractorCloseBtn`), the cargo container (`data-cargo` with values
 `store`/`store-one`/`take`/`take-one` and a `data-cargo-kind`, `cargoCloseBtn`), the
-wreck salvage menu (`data-cargo` with values `take`/`take-one` and a `data-cargo-kind`,
-`lootAllBtn`, `cargoCloseBtn`), the
+wreck salvage and chest menus (`data-cargo` with values `take`/`take-one` and a
+`data-cargo-kind`, `lootAllBtn`, `cargoCloseBtn`), the grave stone (`graveOkBtn`), the
 trading post (`data-trade` with values `sell`/`sell-one`/`buy` and a `data-trade-kind`
 — an `ore:*` kind to sell, a catalog item kind to buy — `tradeCloseBtn`), the
 portal travel/teleporter/respawn screen (`data-portal` with the destination `"x,y"`
 as its value, `portalNameInput`, `portalNameSaveBtn`, `portalCloseBtn`), the
-info tabs (`data-info-section`, `infoCloseBtn`), and the intro (`introStartBtn`).
+info tabs (`data-info-section`, `infoCloseBtn`), the Settings tab
+(`data-info-section=info-settings`: `settingsMusicBtn`, `settingsSfxBtn`,
+`cheatsToggleBtn`, `resetPlayerDataBtn`, `resetWorldStateBtn`, `exportSaveBtn`,
+`importSaveText`, `importSaveBtn`, `importSaveConfirmBtn`, `importSaveCancelBtn`,
+`resetGameBtn`, `resetGameCancelBtn`, `resetGameConfirmBtn`), and the intro
+(`introStartBtn`). Importing a save is `click importSaveText`, `type` the JSON,
+then `importSaveBtn` and `importSaveConfirmBtn`. A click that reloads the page
+(`importSaveConfirmBtn`, `resetGameConfirmBtn`) returns once the game is back on
+the title splash, and the session answers the cheat resets' native `confirm()`
+with yes.
 
 ### The observation
 
@@ -742,21 +795,22 @@ what a sighted player sees, as JSON. The top-level shape:
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, alerts{fuel, hull, cargo}, announcement}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now
 - `view`: `{origin:{x, y}, rows:[…], legend}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship
-- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | decor | container | wreck | scanner | dynamite | station | tradingPost`
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `trade` (cash, sell offers, buy offers), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (tab) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | decor | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a grave has none)
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (tab, plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
 `notable`, using the same `isTileExplored` gate the renderer paints fog with.
-Station stock, extractor buffers, and container and wreck contents only appear
-while that overlay is open — open it to see them.
+Station stock, extractor buffers, and container, wreck and chest contents only
+appear while that overlay is open — open it to see them. A chest looted bare
+leaves both the view and `notable`.
 
 The `view.rows` legend (`VIEW_LEGEND`):
 
 ```text
 . air   # dirt   R rock   o ore   ! hazard   E enemy   D decor
-M manufacturer   X fuel extractor   P portal   T trading post   C container   W wreck   S scanner
-* dynamite   @ ship   ? fogged
+M manufacturer   X fuel extractor   P portal   T trading post   C container   W wreck   H chest
++ grave   S scanner   * dynamite   @ ship   ? fogged
 ```
 
 ### Pause / real-time model
@@ -851,7 +905,7 @@ the boot flow gets from the splash to a live run without the browser complaining
 | `e2e/dialogs.spec.ts` | Ship, station and info dialogs opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the ship and info overlays handing the screen over rather than stacking. |
 | `e2e/focus-visible.spec.ts` | The ring drawn for `Tab` (3px, and inset on the canvas) and gone for a click that moves focus, including the focus a clicked-shut dialog restores. |
 | `e2e/failure.spec.ts` | A refused 2D context — stubbed with an init script — surfacing as the "Mine offline" notice with its detail line, its `role="alert"` and a working Reload, while the crash boundary stays out of it. |
-| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down. |
+| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; plus the trading, wreck, chest, grave, portal, toolkit and save export/import flows. |
 
 Two notes on how the suite is wired:
 
