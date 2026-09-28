@@ -13,6 +13,7 @@ import { DYNAMITE_ITEM } from '../core/dynamite';
 import { CargoScreen } from './CargoScreen';
 import { setUiCommands, uiCommands } from './commands';
 import { buildInventorySlots, uiStore } from './store';
+import { nth } from '../test-narrowing';
 
 const pristine = {...uiStore.getState()};
 const pristineCommands = {...uiCommands};
@@ -137,7 +138,7 @@ describe('cargo transfer dialog', () => {
     // Empty now: no stacks, just the one "Empty" placeholder row.
     const rows = [...document.querySelectorAll('#containerSlots > li')];
     expect(rows).toHaveLength(1);
-    expect(rows[0].textContent).toBe('Empty');
+    expect(nth(rows, 0).textContent).toBe('Empty');
   });
 });
 
@@ -188,7 +189,7 @@ describe('wreck salvage dialog', () => {
     expect((document.getElementById('lootAllBtn') as HTMLButtonElement).disabled).toBe(true);
     const rows = [...document.querySelectorAll('#wreckSlots > li')];
     expect(rows).toHaveLength(1);
-    expect(rows[0].textContent).toBe('Empty');
+    expect(nth(rows, 0).textContent).toBe('Empty');
   });
 
   it('dispatches close from the close button, the backdrop, and the browser', () => {

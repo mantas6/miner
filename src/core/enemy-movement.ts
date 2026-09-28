@@ -26,8 +26,9 @@ export function findEnemyPathStep(
   const visited = new Set([key(from.x, from.y)]);
   const queue = [{...from, distance: 0, firstStep: null as EnemyPosition | null}];
 
-  for (let index = 0; index < queue.length; index++) {
-    const current = queue[index];
+  // An array iterator re-reads the length on every step, so this also visits the
+  // tiles pushed onto the queue below: a breadth-first walk without index maths.
+  for (const current of queue) {
     if (current.distance >= maxDistance) continue;
     for (const [dx, dy] of directions) {
       const x = current.x + dx;

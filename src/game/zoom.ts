@@ -70,8 +70,10 @@ export function zoomAfterKey(zoom: number, direction: 1 | -1): number {
   const current = clampZoom(zoom);
   const epsilon = 1e-6;
   if (direction > 0) return ZOOM_KEY_LEVELS.find(level => level > current + epsilon) ?? current;
-  const lower = ZOOM_KEY_LEVELS.filter(level => level < current - epsilon);
-  return lower.length > 0 ? lower[lower.length - 1] : current;
+  // Ascending, so the last level below the current one is the nearest step down.
+  let lower = current;
+  for (const level of ZOOM_KEY_LEVELS) if (level < current - epsilon) lower = level;
+  return lower;
 }
 
 /**

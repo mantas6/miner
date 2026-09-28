@@ -16,6 +16,7 @@ import { chestsInRange } from './world/world';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
 import { createTileDiff, tileDiffEntries } from './world/tile-diff';
+import { nth } from './test-narrowing';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -325,7 +326,7 @@ describe('station persistence', () => {
   it('round-trips the manufacturer stock, the extractor buffers, and the portal', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    manufacturer(state)!.inventory = addItem(addItem(createInventory(), oreItem(ORES[0]), 20), ITEM_CATALOG.repairKit, 2);
+    manufacturer(state)!.inventory = addItem(addItem(createInventory(), oreItem(nth(ORES, 0)), 20), ITEM_CATALOG.repairKit, 2);
     Object.assign(extractor(state)!, {coal: 9, fuel: 40, progress: 120});
     const home = portalStations(state)[0]!;
 
@@ -583,7 +584,7 @@ describe('cargo container persistence', () => {
         {x: 44, y: 700, items: []}
       ]
     });
-    expect((readSave(stored).cargoContainers as {items: object[]}[])[0].items[0]).toEqual({kind: 'ore:Gold', count: 4});
+    expect(nth(nth(readSave(stored).cargoContainers as {items: object[]}[], 0).items, 0)).toEqual({kind: 'ore:Gold', count: 4});
 
     const restored = createInitialState();
     load(restored);
@@ -608,8 +609,8 @@ describe('cargo container persistence', () => {
     const restored = createInitialState();
     load(restored);
     expect(countOres(restored.player.inventory)).toBe(0);
-    expect(countOres(restored.cargoContainers[0].inventory)).toBe(7);
-    expect(restored.cargoContainers[0].inventory[0]?.item).toEqual(oreItem(GOLD));
+    expect(countOres(nth(restored.cargoContainers, 0).inventory)).toBe(7);
+    expect(nth(restored.cargoContainers, 0).inventory[0]?.item).toEqual(oreItem(GOLD));
   });
 
   it.each([
@@ -648,7 +649,7 @@ describe('cargo container persistence', () => {
 
     load(state);
 
-    const crate = state.cargoContainers[0].inventory;
+    const crate = nth(state.cargoContainers, 0).inventory;
     expect(countOres(crate)).toBe(CARGO_CONTAINER.capacity - 5);
     expect(countItem(crate, 'dynamite')).toBe(5);
   });
@@ -662,7 +663,7 @@ describe('cargo container persistence', () => {
 
     load(state);
 
-    expect(state.cargoContainers[0].inventory[0].item).toEqual(oreItem(ORES.find(ore => ore.name === 'Gold')!));
+    expect(nth(nth(state.cargoContainers, 0).inventory, 0).item).toEqual(oreItem(ORES.find(ore => ore.name === 'Gold')!));
   });
 });
 
@@ -702,7 +703,7 @@ describe('wreck persistence', () => {
 
     load(state);
 
-    expect(countOres(state.wrecks[0].inventory)).toBe(WRECK.capacity);
+    expect(countOres(nth(state.wrecks, 0).inventory)).toBe(WRECK.capacity);
   });
 
   it('keeps a wreck through a reload that empties the bay, ore intact', () => {
@@ -718,7 +719,7 @@ describe('wreck persistence', () => {
     const restored = createInitialState();
     load(restored);
     expect(countOres(restored.player.inventory)).toBe(0);
-    expect(countOres(restored.wrecks[0].inventory)).toBe(7);
+    expect(countOres(nth(restored.wrecks, 0).inventory)).toBe(7);
   });
 
   it.each([
@@ -801,7 +802,7 @@ describe('trading ledger persistence', () => {
 
     load(state);
 
-    const crate = state.cargoContainers[0].inventory;
+    const crate = nth(state.cargoContainers, 0).inventory;
     expect(countOres(crate)).toBe(2);
     expect(countItem(crate, 'scanner')).toBe(1);
     expect(countItem(crate, 'dynamite')).toBe(0);
@@ -810,7 +811,8 @@ describe('trading ledger persistence', () => {
 });
 
 describe('chest ledger persistence', () => {
-  const [first, second] = chestsInRange(0, 0, WORLD_W - 1, 400);
+  const chests = chestsInRange(0, 0, WORLD_W - 1, 400);
+  const first = nth(chests, 0), second = nth(chests, 1);
   const firstKey = `${first.x},${first.y}`, secondKey = `${second.x},${second.y}`;
 
   it('round-trips an opened chest and one looted bare', () => {

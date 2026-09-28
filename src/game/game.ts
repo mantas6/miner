@@ -243,7 +243,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     for (let i=0;i<70;i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = .035 + Math.random() * .16;
-      state.particles.push({x:x+0.5,y:y+0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-.04,life:34+Math.random()*34,color:colors[i%colors.length],size:.045+Math.random()*.085});
+      state.particles.push({x:x+0.5,y:y+0.5,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-.04,life:34+Math.random()*34,color:colors[i%colors.length] ?? '#ffec8b',size:.045+Math.random()*.085});
     }
   }
   // --- Cheat menu -----------------------------------------------------------

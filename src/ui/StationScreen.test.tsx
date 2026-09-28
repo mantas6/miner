@@ -11,6 +11,7 @@ import { addItem, createInventory, oreItem } from '../core/inventory';
 import { StationScreen } from './StationScreen';
 import { setUiCommands, uiCommands } from './commands';
 import { buildInventorySlots, uiStore } from './store';
+import { nth } from '../test-narrowing';
 
 const pristine = {...uiStore.getState()};
 const pristineCommands = {...uiCommands};
@@ -48,12 +49,12 @@ describe('manufacturing station dialog', () => {
     expect(document.activeElement?.id).toBe('stationCloseBtn');
 
     const stock = [...document.querySelectorAll('#stationStock > li')];
-    expect(stock[0].textContent).toContain('Iron');
-    expect(stock[0].textContent).toContain('×3');
+    expect(nth(stock, 0).textContent).toContain('Iron');
+    expect(nth(stock, 0).textContent).toContain('×3');
 
     const bay = [...document.querySelectorAll('#stationBay > li')];
-    expect(bay[0].textContent).toContain('Coal');
-    expect(bay[0].textContent).toContain('×2');
+    expect(nth(bay, 0).textContent).toContain('Coal');
+    expect(nth(bay, 0).textContent).toContain('×2');
   });
 
   it('routes Take/Stow, their single-unit "1" buttons, Stow all, and Craft to their commands', () => {

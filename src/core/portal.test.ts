@@ -9,6 +9,7 @@ import {
   sanitizePortalName
 } from './portal';
 import { createExtractor, createManufacturer, createPortal, type PlacedStation } from './stations';
+import { nth } from '../test-narrowing';
 
 describe('sanitizePortalName', () => {
   it('collapses whitespace, trims, and caps the length', () => {
@@ -32,7 +33,7 @@ describe('defaultPortalName', () => {
   it('picks an unused preset, skipping the ones already taken', () => {
     // random → 0 would pick index 0 of the free list; with the first preset used,
     // the free list starts at the second preset.
-    const used = [PORTAL_NAMES[0]];
+    const used = [nth(PORTAL_NAMES, 0)];
     expect(defaultPortalName(used, () => 0)).toBe(PORTAL_NAMES[1]);
   });
 
@@ -42,7 +43,7 @@ describe('defaultPortalName', () => {
   });
 
   it('accepts portal stations as the existing set', () => {
-    const existing = [createPortal(1, 1, PORTAL_NAMES[0])];
+    const existing = [createPortal(1, 1, nth(PORTAL_NAMES, 0))];
     const name = defaultPortalName(existing, () => 0);
     expect(name).toBe(PORTAL_NAMES[1]);
   });
@@ -62,7 +63,7 @@ describe('portalDestinations', () => {
     expect(destinations.map(d => d.name)).toEqual(['Depot', 'Abyss']);
     expect(destinations[0]).toMatchObject({x: 46, y: START_Y, name: 'Depot', distance: 1, depthMeters: 0});
     expect(destinations[1]).toMatchObject({name: 'Abyss', depthMeters: 1000});
-    expect(destinations[1].distance).toBe(Math.abs(20 - 45) + Math.abs(START_Y + 100 - START_Y));
+    expect(nth(destinations, 1).distance).toBe(Math.abs(20 - 45) + Math.abs(START_Y + 100 - START_Y));
   });
 
   it('excludes portals within reach when asked', () => {

@@ -14,6 +14,7 @@ import type { GameState, Ore } from '../core/types';
 import { tradingPostAt, type TradingPost } from '../world/world';
 import { createTrading, type TradingSim } from './trading';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
+import { nth } from '../test-narrowing';
 
 const IRON: Ore = {name: 'Iron', color: '#8a7f75', value: 12, min: 0, max: 900, chance: 1};
 
@@ -138,7 +139,7 @@ describe('buying gear', () => {
   it('buys an offered item, spending cash, filling the bay, and drawing down the stock', () => {
     const h = harness();
     h.trading.openAt(h.post.x, h.post.y);
-    const offer = offersForPost(h.post.x, h.post.y)[0];
+    const offer = nth(offersForPost(h.post.x, h.post.y), 0);
     const cashBefore = h.state.cash;
 
     h.trading.buy(offer.kind);
@@ -155,7 +156,7 @@ describe('buying gear', () => {
   it('keeps the drawn-down stock across a close and reopen', () => {
     const h = harness();
     h.trading.openAt(h.post.x, h.post.y);
-    const offer = offersForPost(h.post.x, h.post.y)[0];
+    const offer = nth(offersForPost(h.post.x, h.post.y), 0);
     h.trading.buy(offer.kind);
     h.trading.close();
 
@@ -170,9 +171,9 @@ describe('buying gear', () => {
     h.state.tradeLedger[tileKey(h.post.x, h.post.y)] = offers.map(() => 0);
     h.trading.openAt(h.post.x, h.post.y);
 
-    h.trading.buy(offers[0].kind);
+    h.trading.buy(nth(offers, 0).kind);
 
-    expect(countItem(h.state.player.inventory, offers[0].kind)).toBe(0);
+    expect(countItem(h.state.player.inventory, nth(offers, 0).kind)).toBe(0);
     expect(h.toasts.saw('sold out')).toBe(true);
     expect(h.audio.played).toContain('alarm');
   });
@@ -180,7 +181,7 @@ describe('buying gear', () => {
   it('refuses when the wallet cannot cover the price', () => {
     const h = harness(0);
     h.trading.openAt(h.post.x, h.post.y);
-    const offer = offersForPost(h.post.x, h.post.y)[0];
+    const offer = nth(offersForPost(h.post.x, h.post.y), 0);
 
     h.trading.buy(offer.kind);
 
@@ -194,7 +195,7 @@ describe('buying gear', () => {
     h.state.player.cargoMax = 4;
     h.state.player.inventory = addItem(createInventory(), oreItem(IRON), 4);
     h.trading.openAt(h.post.x, h.post.y);
-    const offer = offersForPost(h.post.x, h.post.y)[0];
+    const offer = nth(offersForPost(h.post.x, h.post.y), 0);
 
     h.trading.buy(offer.kind);
 

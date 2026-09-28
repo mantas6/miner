@@ -101,7 +101,8 @@ export function createDisposalScope(): DisposalScope {
       const pending = teardowns.splice(0);
       for (let index = pending.length - 1; index >= 0; index--) {
         try {
-          pending[index]();
+          // In range by the loop bound; `?.` only satisfies the checker.
+          pending[index]?.();
         } catch (error) {
           console.error('Game runtime teardown failed', error);
         }

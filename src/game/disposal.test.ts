@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDisposalScope } from './disposal';
+import { nth } from '../test-narrowing';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -52,7 +53,7 @@ describe('disposal scope', () => {
     expect(onFrame).toHaveBeenCalledTimes(1);
     expect(frames.size).toBe(1);
 
-    const queued = [...frames.values()][0];
+    const queued = nth([...frames.values()], 0);
     scope.dispose();
 
     expect(frames.size).toBe(0);

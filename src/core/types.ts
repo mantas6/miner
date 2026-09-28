@@ -28,6 +28,13 @@ export type {
 
 export type Direction = [number, number];
 
+/**
+ * A list with at least one entry. Indexing past the end still reads as possibly
+ * `undefined`, but element 0 does not, so a constant table typed this way always
+ * has an entry to fall back on.
+ */
+export type NonEmpty<T> = readonly [T, ...T[]];
+
 /** One stack left in an opened chest: just the kind and how many, resolved through the catalog. */
 export interface ChestLedgerStack {
   kind: InventoryItemKind;

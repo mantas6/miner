@@ -441,8 +441,11 @@ export function createAudio(toast: ToastFn): AudioController {
         if (!this.enabled || !this.ctx) return;
         const i = this.step++;
         const now = this.ctx.currentTime;
+        // Both indexes are taken modulo the array's length, so they never miss:
+        // `if (root)` only satisfies the checker, while `if (f)` skips the rests
+        // (the zeros) in the lead line.
         const root = bass[i % bass.length];
-        this.musicNote(root, 0.28, 'sine', 0.026, now);
+        if (root) this.musicNote(root, 0.28, 'sine', 0.026, now);
         if (i % 2 === 0) {
           const f = lead[(i/2) % lead.length | 0];
           if (f) this.musicNote(f, 0.16, 'triangle', 0.018, now + 0.02);

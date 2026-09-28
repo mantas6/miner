@@ -102,7 +102,8 @@ export function createTrading(deps: TradingDeps): TradingSim {
       label: offer.label,
       color: itemForKind(offer.kind).color,
       price: offer.price,
-      stock: remaining[index]
+      // `remainingStock` is always as long as `offers`; a gap would read sold out.
+      stock: remaining[index] ?? 0
     }));
   }
 
@@ -169,10 +170,13 @@ export function createTrading(deps: TradingDeps): TradingSim {
     if (!post || state.gameOver) return;
     const offers = offersForPost(post.x, post.y);
     const index = offers.findIndex(offer => offer.kind === kind);
-    if (index < 0) return;
+    // A miss is index -1, which reads back `undefined`.
     const offer = offers[index];
+    if (!offer) return;
     const remaining = remainingStock(state.tradeLedger, post.x, post.y, offers);
-    if (remaining[index] <= 0) {
+    // Always as long as `offers`; a gap would read sold out.
+    const left = remaining[index] ?? 0;
+    if (left <= 0) {
       audio.alarm();
       return toast(`${offer.label} is sold out.`);
     }
@@ -187,7 +191,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
     deps.addCash(-offer.price);
     state.player.inventory = addItem(state.player.inventory, itemForKind(offer.kind), 1);
     const next = [...remaining];
-    next[index] -= 1;
+    next[index] = left - 1;
     state.tradeLedger[tileKey(post.x, post.y)] = next;
     repaint();
     saveProgress();

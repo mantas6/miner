@@ -12,6 +12,7 @@ import {
   isGraveReachable,
   reachableGrave
 } from './grave';
+import { nth } from '../test-narrowing';
 
 const GRAVES = gravesInRange(0, 0, WORLD_W - 1, 1199);
 const EPITAPHS = GRAVES.map(grave => ({grave, epitaph: epitaphFor(grave.x, grave.y)}));
@@ -40,7 +41,8 @@ describe('epitaphFor', () => {
   it('agrees a surname with its first name: -ov/-ev/-in/-sky for men, -ova/-eva/-ina/-skaya for women', () => {
     let men = 0, women = 0;
     for (const {name} of SAMPLE) {
-      const [first, surname] = name.split(' ');
+      // A missing first name reads as '', which the female branch then rejects.
+      const [first = '', surname] = name.split(' ');
       if (MALE_FIRST_NAMES.includes(first)) {
         men++;
         expect(surname).toMatch(/(ov|ev|in|sky)$/);
@@ -73,7 +75,7 @@ describe('epitaphFor', () => {
 });
 
 describe('reaching a grave', () => {
-  const grave = GRAVES[0];
+  const grave = nth(GRAVES, 0);
   const everywhere = () => true;
 
   it('reads from its own tile and the eight around it', () => {

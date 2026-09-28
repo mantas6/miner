@@ -23,6 +23,7 @@ import {
 } from './world';
 import { BEDROCK_ROWS, DANGER, DECOR_HP, HOME_CAVERN, HOME_CAVERN_TOP, HOME_ROW, HOME_X, MAX_WORLD_ROW, ORES, START_Y, WORLD_CHUNK_ROWS, WORLD_W, isHomeCavern } from '../../shared/constants';
 import type { Tile } from '../core/types';
+import { nth } from '../test-narrowing';
 
 describe('rand', () => {
   it('is deterministic for the same coordinate', () => {
@@ -32,7 +33,7 @@ describe('rand', () => {
   });
 
   it('returns values within [0, 1)', () => {
-    const coords = [[0, 0], [3, 7], [42, 199], [89, 318], [13, 256], [1, 1]];
+    const coords: [number, number][] = [[0, 0], [3, 7], [42, 199], [89, 318], [13, 256], [1, 1]];
     for (const [x, y] of coords) {
       const v = rand(x, y);
       expect(v).toBeGreaterThanOrEqual(0);
@@ -92,10 +93,10 @@ describe('ore depth distribution', () => {
 
   it('keeps mineral bands ordered by tier and reaches the bottom of the mine', () => {
     for (let index = 1; index < ORES.length; index++) {
-      expect(ORES[index].min).toBeGreaterThan(ORES[index - 1].min);
-      expect(ORES[index].value).toBeGreaterThan(ORES[index - 1].value);
+      expect(nth(ORES, index).min).toBeGreaterThan(nth(ORES, index - 1).min);
+      expect(nth(ORES, index).value).toBeGreaterThan(nth(ORES, index - 1).value);
     }
-    expect(ORES[0].min).toBeLessThanOrEqual(START_Y);
+    expect(nth(ORES, 0).min).toBeLessThanOrEqual(START_Y);
     expect(Math.max(...ORES.map(ore => ore.max))).toBe(MAX_WORLD_ROW);
 
     for (let depth = START_Y; depth <= START_Y + 950; depth++) {

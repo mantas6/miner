@@ -12,6 +12,7 @@ import { AUDIO_SETTINGS_KEY, loadAudioSettings, saveAudioSettings } from './audi
 import type { AudioController } from '../core/types';
 import type { TrackId } from './tracks';
 import { uiStore } from '../ui/store';
+import { nth } from '../test-narrowing';
 
 /** The build ships one track; a second one lets the swap path run. */
 const SECOND_TRACK = 'second-track' as TrackId;
@@ -431,7 +432,7 @@ describe('audio lifecycle', () => {
 
   it('reports a refused unlock and keeps both sides silent', async () => {
     class BlockedAudioContext extends FakeAudioContext {
-      resume = vi.fn(async () => { throw new DOMException('gesture required', 'NotAllowedError'); });
+      override resume = vi.fn(async () => { throw new DOMException('gesture required', 'NotAllowedError'); });
     }
     vi.stubGlobal('AudioContext', BlockedAudioContext);
     const audio = makeAudio();
@@ -455,7 +456,7 @@ describe('audio lifecycle', () => {
 
     audio.respawn();
 
-    const starts = ctx.oscillatorNodes.slice(first).map(node => node.start.mock.calls[0][0] as number);
+    const starts = ctx.oscillatorNodes.slice(first).map(node => nth(node.start.mock.calls, 0)[0] as number);
     expect(starts.map(t => t.toFixed(2))).toEqual(['5.00', '5.18', '5.26']);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -485,7 +486,7 @@ describe('audio lifecycle', () => {
     const first = ctx.oscillatorNodes.length;
     audio.chestOpen();
     const voices = ctx.oscillatorNodes.slice(first);
-    voices[0].stop.mockImplementation(() => { throw new DOMException('already stopped', 'InvalidStateError'); });
+    nth(voices, 0).stop.mockImplementation(() => { throw new DOMException('already stopped', 'InvalidStateError'); });
 
     await expect(audio.toggleSfx()).resolves.toBeUndefined();
 

@@ -13,6 +13,7 @@
 import { expect, test } from '@playwright/test';
 import { HOME_ROW, STATIONS } from '../shared/constants';
 import { openGameSession, type GameSession } from '../agent/session';
+import { nth } from '../src/test-narrowing';
 import { DIRT_UNDER_HOME, SAVE_VERSION, firstTradingPost, seedSaveScript } from './support/game';
 
 /** The port the Playwright config's webServer serves the game on. */
@@ -293,7 +294,7 @@ test.describe.serial('agent harness', () => {
       'info-hazards': 'hazards', 'info-controls': 'controls', 'info-settings': 'settings'
     } as const;
     for (let index = sections.length - 1; index >= 0; index--) {
-      const section = sections[index];
+      const section = nth(sections, index);
       obs = await session.click({target: 'data-info-section', value: section.id});
       if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
       expect(obs.overlay.tab).toBe(section.id);
@@ -513,11 +514,11 @@ test('a trading post buys ore for cash and sells its stock into the bay', async 
 
     // Buy an offered item; it lands in the bay and its stock drops.
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
-    const offer = obs.overlay.buy[0];
+    const offer = nth(obs.overlay.buy, 0);
     obs = await s.click({target: 'data-trade', value: 'buy', kind: offer.kind});
     expect(countKind(obs.bay, offer.kind)).toBeGreaterThanOrEqual(1);
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
-    expect(obs.overlay.buy[0].stock).toBe(offer.stock - 1);
+    expect(obs.overlay.buy[0]?.stock).toBe(offer.stock - 1);
   } finally {
     await s.close();
   }
@@ -563,7 +564,7 @@ test('a buried chest opens with c or a tile press, and loot-all hauls it aboard 
     expect(obs.ship.y).toBe(44);
     // The chest beside the ship paints as H and is notable with its loot count.
     expect(obs.notable).toContainEqual({x: 41, y: 44, what: 'chest', detail: '6 items'});
-    expect(obs.view.rows[obs.ship.y - obs.view.origin.y][41 - obs.view.origin.x]).toBe('H');
+    expect(obs.view.rows[obs.ship.y - obs.view.origin.y]?.[41 - obs.view.origin.x]).toBe('H');
 
     // `c` alongside opens it, and `c` again shuts it.
     obs = await s.press('c');
@@ -593,7 +594,7 @@ test('a buried chest opens with c or a tile press, and loot-all hauls it aboard 
     expect(countKind(obs.bay, 'dynamite')).toBe(1);
     expect(obs.activeOverlay).toBeNull();
     expect(obs.notable.some(n => n.what === 'chest')).toBe(false);
-    expect(obs.view.rows[obs.ship.y - obs.view.origin.y][41 - obs.view.origin.x]).toBe('.');
+    expect(obs.view.rows[obs.ship.y - obs.view.origin.y]?.[41 - obs.view.origin.x]).toBe('.');
   } finally {
     await s.close();
   }
@@ -608,7 +609,7 @@ test('a grave reads with Space or a tile press, and OK, Enter or Escape put it a
     expect(obs.ship.y).toBe(33);
     // The grave beside the ship paints as + and is notable.
     expect(obs.notable).toContainEqual({x: 21, y: 33, what: 'grave'});
-    expect(obs.view.rows[obs.ship.y - obs.view.origin.y][21 - obs.view.origin.x]).toBe('+');
+    expect(obs.view.rows[obs.ship.y - obs.view.origin.y]?.[21 - obs.view.origin.x]).toBe('+');
     expect(obs.view.legend['+']).toBe('grave');
 
     // Space beside it raises the stone, with every field filled in.
@@ -708,7 +709,7 @@ test('a carried teleporter opens the portal list and a pick spends one charge', 
     expect(obs.overlay?.kind).toBe('portal');
     if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
     expect(obs.overlay.mode).toBe('teleporter');
-    const target = obs.overlay.destinations[0];
+    const target = nth(obs.overlay.destinations, 0);
     if (!target) throw new Error('a portal out of reach should be listed');
 
     // Picking one moves the ship there and consumes a single charge.
@@ -745,7 +746,7 @@ test('a hand reset with two portals raises the no-close respawn prompt', async (
 
     // Pick the nearest portal: the ship redeploys there, alive, and the scrapped
     // ship's wreck stands on the tile it died on.
-    const target = obs.overlay.destinations[0];
+    const target = nth(obs.overlay.destinations, 0);
     obs = await s.click({target: 'data-portal', value: `${target.x},${target.y}`});
     expect(obs.gameOver).toBe(false);
     expect(obs.ship.x).toBe(target.x);

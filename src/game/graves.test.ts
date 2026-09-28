@@ -13,8 +13,9 @@ import type { GameState } from '../core/types';
 import { gravesInRange } from '../world/world';
 import { createGraves, type GraveSim } from './graves';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
+import { nth } from '../test-narrowing';
 
-const GRAVE = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+const GRAVE = nth(gravesInRange(0, 0, WORLD_W - 1, 400), 0);
 const EPITAPH = epitaphFor(GRAVE.x, GRAVE.y);
 
 interface Harness {

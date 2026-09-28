@@ -123,10 +123,10 @@ describe('applying entries to a world', () => {
 
     applyTileEntries(world, [{x: 8, y: 1205, tile: air}]);
 
-    expect(world[1205][8]).toEqual(air);
+    expect(world[1205]?.[8]).toEqual(air);
     // Only the containing chunk was generated, and its untouched tiles are the
     // deterministic terrain the seed produces.
-    expect(world[1205][9]).toEqual(makeTile(9, 1205));
+    expect(world[1205]?.[9]).toEqual(makeTile(9, 1205));
     expect(world[1205 - WORLD_CHUNK_ROWS]).toBeUndefined();
   });
 
@@ -135,7 +135,7 @@ describe('applying entries to a world', () => {
 
     applyTileEntries(world, [{x: 200, y: 40, tile: air}, {x: 1, y: -3, tile: air}]);
 
-    expect(world[40][1]).toEqual(makeTile(1, 40));
+    expect(world[40]?.[1]).toEqual(makeTile(1, 40));
     expect(world.some(row => row?.includes(air))).toBe(false);
   });
 });

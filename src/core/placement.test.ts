@@ -26,6 +26,7 @@ import {
 import { createScannerDevice, scannerPlacementRefusal } from './scanner-device';
 import { createManufacturer, stationPlacementRefusal } from './stations';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
+import { nth } from '../test-narrowing';
 
 /** The first trading post in the interior band. */
 function findPost(): {x: number; y: number} {
@@ -75,12 +76,12 @@ describe('occupantsAt', () => {
   it('derives trading posts and graves from the coordinate', () => {
     const post = findPost();
     expect(occupantsAt(mine(), post.x, post.y)).toEqual(new Set(['tradingPost']));
-    const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+    const grave = nth(gravesInRange(0, 0, WORLD_W - 1, 400), 0);
     expect(occupantsAt(mine(), grave.x, grave.y)).toEqual(new Set(['grave']));
   });
 
   it('counts a chest until it is looted bare', () => {
-    const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+    const chest = nth(chestsInRange(0, 0, WORLD_W - 1, 400), 0);
     expect(occupantsAt(mine(), chest.x, chest.y)).toEqual(new Set(['chest']));
     expect(occupantsAt(mine({chestLedger: {[`${chest.x},${chest.y}`]: [{kind: 'dynamite', count: 1}]}}), chest.x, chest.y))
       .toEqual(new Set(['chest']));

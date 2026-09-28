@@ -19,7 +19,11 @@
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
-/** Binaries that are a stock Chromium as far as this project is concerned. */
+/**
+ * Binaries that are a stock Chromium as far as this project is concerned.
+ * `test.sh` probes the same names (and `PLAYWRIGHT_CHROMIUM_PATH`) to decide
+ * whether to run the e2e suite; keep the two in step.
+ */
 export const CHROMIUM_BINARIES = ['chromium', 'chromium-browser', 'google-chrome-stable', 'google-chrome', 'chrome'];
 
 function isExecutable(path: string): boolean {

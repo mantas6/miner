@@ -17,6 +17,7 @@ import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 import { appendToast, buildObservation, MAX_VIEW_RADIUS, VIEW_LEGEND } from './observation';
+import { nth } from '../test-narrowing';
 
 /** A tile grid backed by a map; anything unset reads as plain dirt. */
 function tileSource(overrides: Record<string, Tile>) {
@@ -62,8 +63,8 @@ describe('buildObservation', () => {
 
     // origin is (38, 95); the ship sits at (45,100) → row 5, col 7.
     expect(obs.view.origin).toEqual({x: 38, y: 95});
-    expect(obs.view.rows[5][43 - 38]).toBe('o');
-    expect(obs.view.rows[5][47 - 38]).toBe('?');
+    expect(obs.view.rows[5]?.[43 - 38]).toBe('o');
+    expect(obs.view.rows[5]?.[47 - 38]).toBe('?');
     expect(obs.notable.some(n => n.x === 43 && n.y === 100 && n.what === 'ore')).toBe(true);
     expect(obs.notable.some(n => n.x === 47)).toBe(false);
   });
@@ -77,7 +78,7 @@ describe('buildObservation', () => {
     // 15 wide by 11 tall, ship dead centre.
     expect(obs.view.rows).toHaveLength(11);
     expect(obs.view.rows[0]).toHaveLength(15);
-    expect(obs.view.rows[5][7]).toBe('@');
+    expect(obs.view.rows[5]?.[7]).toBe('@');
     expect(obs.view.legend).toBe(VIEW_LEGEND);
     expect(obs.view.legend['@']).toBe('ship');
   });
@@ -105,7 +106,7 @@ describe('buildObservation', () => {
     const get = tileSource({[`${WORLD_W - 1},99`]: oreTile('Gold'), [`${WORLD_W - 1},100`]: oreTile('Gold')});
 
     const obs = buildObservation({state, ui: ui(), get});
-    const shipRow = obs.view.rows[100 - obs.view.origin.y];
+    const shipRow = nth(obs.view.rows, 100 - obs.view.origin.y);
     // origin.x is -5: columns -5..-1 are off-world wall, column 0 is the first real one.
     expect(obs.view.origin.x).toBe(-5);
     expect(shipRow.slice(0, 5)).toBe('RRRRR');
@@ -115,7 +116,7 @@ describe('buildObservation', () => {
     // The far edge, too.
     state.player.x = WORLD_W - 2;
     const east = buildObservation({state, ui: ui(), get});
-    const eastRow = east.view.rows[100 - east.view.origin.y];
+    const eastRow = nth(east.view.rows, 100 - east.view.origin.y);
     // Ship at column 88: columns 90..95 are wall, and 89 is the real ore.
     expect(eastRow.slice(-7)).toBe('oRRRRRR');
     expect(east.notable.filter(n => n.what === 'ore').every(n => n.x === WORLD_W - 1)).toBe(true);
@@ -142,8 +143,8 @@ describe('buildObservation', () => {
     expect(kinds).toContain('scanner');
     expect(kinds).toContain('dynamite');
     expect(obs.notable.find(n => n.what === 'enemy')?.detail).toBe('Tunnel Fiend');
-    expect(obs.view.rows[5][42 - 38]).toBe('E');
-    expect(obs.view.rows[6][46 - 38]).toBe('*');
+    expect(obs.view.rows[5]?.[42 - 38]).toBe('E');
+    expect(obs.view.rows[6]?.[46 - 38]).toBe('*');
   });
 
   it('draws decor as D, never listing it in notable', () => {
@@ -158,8 +159,8 @@ describe('buildObservation', () => {
 
     const obs = buildObservation({state, ui: ui(), get});
 
-    expect(obs.view.rows[5][43 - 38]).toBe('D');
-    expect(obs.view.rows[5][47 - 38]).toBe('D');
+    expect(obs.view.rows[5]?.[43 - 38]).toBe('D');
+    expect(obs.view.rows[5]?.[47 - 38]).toBe('D');
     expect(obs.notable.filter(n => n.x === 43 || n.x === 47)).toEqual([]);
   });
 
@@ -173,7 +174,7 @@ describe('buildObservation', () => {
 
     const obs = buildObservation({state, ui: ui(), get: tileSource({})});
 
-    expect(obs.view.rows[6][43 - 38]).toBe('W');
+    expect(obs.view.rows[6]?.[43 - 38]).toBe('W');
     expect(obs.notable.find(n => n.what === 'wreck')?.detail).toBe('3 items');
     expect(VIEW_LEGEND.W).toBe('wreck');
   });
@@ -195,18 +196,18 @@ describe('buildObservation', () => {
     expect(overlay.wreck).toMatchObject([{kind: oreKind('Gold'), label: 'Gold', count: 4}]);
     expect(overlay.ship).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
     // Overlay slots carry the tooltip lines a human would read off the row.
-    expect(overlay.wreck[0].info?.length).toBeGreaterThan(0);
+    expect(nth(overlay.wreck, 0).info?.length).toBeGreaterThan(0);
   });
 
   it('draws a chest as H in view and notable, counting its loot, until it is looted bare', () => {
-    const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+    const chest = nth(chestsInRange(0, 0, WORLD_W - 1, 400), 0);
     const state = createInitialState();
     state.player.x = chest.x + 1;
     state.player.y = chest.y;
     revealRect(state, chest.x - 1, chest.y - 1, chest.x + 1, chest.y + 1);
     const items = totalItems(chestLoot(chest.x, chest.y));
     // origin is (x+1-7, y-5): the chest sits at row 5, column 6.
-    const glyph = (obs: ReturnType<typeof buildObservation>) => obs.view.rows[5][6];
+    const glyph = (obs: ReturnType<typeof buildObservation>) => nth(obs.view.rows, 5)[6];
 
     // Never opened: it holds its rolled loot.
     let obs = buildObservation({state, ui: ui(), get: tileSource({})});
@@ -249,17 +250,17 @@ describe('buildObservation', () => {
     if (overlay?.kind !== 'chest') throw new Error('expected chest overlay');
     expect(overlay.chest).toMatchObject([{kind: oreKind('Coal'), label: 'Coal', count: 3}]);
     expect(overlay.ship).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
-    expect(overlay.chest[0].info?.length).toBeGreaterThan(0);
+    expect(nth(overlay.chest, 0).info?.length).toBeGreaterThan(0);
   });
 
   it('draws a grave as + in view and notable once explored', () => {
-    const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+    const grave = nth(gravesInRange(0, 0, WORLD_W - 1, 400), 0);
     const state = createInitialState();
     state.player.x = grave.x + 1;
     state.player.y = grave.y;
     revealRect(state, grave.x - 1, grave.y - 1, grave.x + 1, grave.y);
     // origin is (x+1-7, y-5): the grave sits at row 5, column 6.
-    const glyph = (obs: ReturnType<typeof buildObservation>) => obs.view.rows[5][6];
+    const glyph = (obs: ReturnType<typeof buildObservation>) => nth(obs.view.rows, 5)[6];
 
     let obs = buildObservation({state, ui: ui(), get: tileSource({})});
     expect(glyph(obs)).toBe('+');
@@ -317,7 +318,7 @@ describe('buildObservation', () => {
     expect(objective.sections.map(section => section.id)).toEqual([
       'info-objective', 'info-stats', 'info-prospecting', 'info-hazards', 'info-controls', 'info-settings'
     ]);
-    expect(objective.sections[0].label).toBe('Objective & Cargo');
+    expect(nth(objective.sections, 0).label).toBe('Objective & Cargo');
     expect(objective.objective).toEqual({status: 'Dig deeper', cargo: [{name: 'Iron', count: 3, value: 45}]});
     // Only the visible tab is mirrored.
     expect(objective.stats).toBeUndefined();
@@ -372,7 +373,7 @@ describe('buildObservation', () => {
     const onWreck = buildObservation({state, ui: ui(), get: tileSource({'45,100': {type: 'air'}})});
     expect(onWreck.ship.on).toEqual({tile: 'air', what: 'wreck', detail: '2 items'});
     // The ship's own cell stays `@` in the view, and out of notable.
-    expect(onWreck.view.rows[5][7]).toBe('@');
+    expect(onWreck.view.rows[5]?.[7]).toBe('@');
     expect(onWreck.notable.some(n => n.x === 45 && n.y === 100)).toBe(false);
   });
 
@@ -418,8 +419,8 @@ describe('buildObservation', () => {
     expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Manufacturer')).toBe(true);
     expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Fuel Extractor')).toBe(true);
     // Ship at (45,20) → row 5; manufacturer at col 6, extractor at col 8.
-    expect(obs.view.rows[5][44 - 38]).toBe('M');
-    expect(obs.view.rows[5][46 - 38]).toBe('X');
+    expect(obs.view.rows[5]?.[44 - 38]).toBe('M');
+    expect(obs.view.rows[5]?.[46 - 38]).toBe('X');
   });
 
   it('names the seeded Home portal in view and notable', () => {
@@ -428,7 +429,7 @@ describe('buildObservation', () => {
     const obs = buildObservation({state, ui: ui(), get: tileSource({})});
 
     // The Home portal is seeded at (48,20); ship at (45,20) → row 5, col 10.
-    expect(obs.view.rows[5][48 - 38]).toBe('P');
+    expect(obs.view.rows[5]?.[48 - 38]).toBe('P');
     expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Portal "Home"')).toBe(true);
     expect(VIEW_LEGEND.P).toBe('portal');
   });
@@ -530,7 +531,7 @@ describe('buildObservation', () => {
 
     // A stock slot and every recipe carry non-empty tooltip lines; the recipe's
     // include a have/need line for each input read against the station stock.
-    expect(overlay.stock[0].info?.length).toBeGreaterThan(0);
+    expect(nth(overlay.stock, 0).info?.length).toBeGreaterThan(0);
     const repairKit = overlay.recipes.find(r => r.output === 'repairKit');
     expect(repairKit?.info.length).toBeGreaterThan(0);
     expect(repairKit?.info.some(line => line.includes('Iron 3/3'))).toBe(true);
@@ -544,7 +545,7 @@ describe('buildObservation', () => {
       get: tileSource({})
     });
     expect(obs.bay).toEqual([{kind: oreKind('Iron'), label: 'Iron', count: 2}]);
-    expect(obs.bay[0].info).toBeUndefined();
+    expect(nth(obs.bay, 0).info).toBeUndefined();
   });
 
   it('draws a trading post as T in view and notable, and carries the wallet in hud.cash', () => {
@@ -585,7 +586,7 @@ describe('buildObservation', () => {
     const obs = buildObservation({state, ui: ui(), get: tileSource({})});
     const originX = obs.view.origin.x;
     const originY = obs.view.origin.y;
-    expect(obs.view.rows[post.y - originY][post.x - originX]).toBe('T');
+    expect(obs.view.rows[post.y - originY]?.[post.x - originX]).toBe('T');
     expect(VIEW_LEGEND.T).toBe('trading post');
   });
 
@@ -610,8 +611,8 @@ describe('buildObservation', () => {
     expect(overlay.cash).toBe(200);
     expect(overlay.sell).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 5, price: 12}]);
     expect(overlay.buy).toMatchObject([{kind: 'repairKit', label: 'Repair Kit', price: 54, stock: 2}]);
-    expect(overlay.sell[0].info.length).toBeGreaterThan(0);
-    expect(overlay.buy[0].info.length).toBeGreaterThan(0);
+    expect(nth(overlay.sell, 0).info.length).toBeGreaterThan(0);
+    expect(nth(overlay.buy, 0).info.length).toBeGreaterThan(0);
   });
 
   it('mirrors the extractor overlay with the refuel amount the screen would show', () => {

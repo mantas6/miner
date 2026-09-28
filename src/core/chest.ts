@@ -31,7 +31,7 @@ import {
   type UpgradeKind
 } from './inventory';
 import { itemForKind } from './items';
-import type { ChestLedger, ChestLedgerStack } from './types';
+import type { ChestLedger, ChestLedgerStack, NonEmpty } from './types';
 
 export const CHEST = Object.freeze({
   /** How far the lid opens from: the chest's own tile and the eight around it. */
@@ -118,7 +118,7 @@ interface PoolEntry<K extends InventoryItemKind> {
 }
 
 /** Consumables: the everyday tools, and a rare teleporter charge. */
-const CONSUMABLES: readonly PoolEntry<InventoryItemKind>[] = [
+const CONSUMABLES: NonEmpty<PoolEntry<InventoryItemKind>> = [
   {kind: 'repairKit', weight: 0.34, max: 2},
   {kind: 'dynamite', weight: 0.34, max: 3},
   {kind: 'scanner', weight: 0.26, max: 1},
@@ -126,7 +126,7 @@ const CONSUMABLES: readonly PoolEntry<InventoryItemKind>[] = [
 ];
 
 /** Decorations, the lamp panel the scarcest. */
-const DECOR: readonly PoolEntry<DecorKind>[] = [
+const DECOR: NonEmpty<PoolEntry<DecorKind>> = [
   {kind: 'decor:steelPlate', weight: 1, max: 3},
   {kind: 'decor:stoneBlock', weight: 1, max: 3},
   {kind: 'decor:copperTrim', weight: 1, max: 3},
@@ -139,7 +139,7 @@ export const CHEST_MID_DEPTH = 150;
 export const CHEST_DEEP_DEPTH = 400;
 
 /** The upgrades a chest at row `y` can hold: the mark rises with depth. */
-export function chestUpgradePool(y: number): readonly UpgradeKind[] {
+export function chestUpgradePool(y: number): NonEmpty<UpgradeKind> {
   const depth = y - START_Y;
   if (depth >= CHEST_DEEP_DEPTH) return ['upgrade:tank:3', 'upgrade:cargo:3', 'upgrade:drill:3', 'upgrade:hull:3', 'upgrade:booster:1'];
   if (depth >= CHEST_MID_DEPTH) return ['upgrade:tank:2', 'upgrade:cargo:2', 'upgrade:drill:2', 'upgrade:hull:2'];
@@ -147,14 +147,15 @@ export function chestUpgradePool(y: number): readonly UpgradeKind[] {
 }
 
 /** Pick an entry of a weighted pool with a roll in [0,1). */
-function pickWeighted<K extends InventoryItemKind>(pool: readonly PoolEntry<K>[], roll: number): PoolEntry<K> {
+function pickWeighted<K extends InventoryItemKind>(pool: NonEmpty<PoolEntry<K>>, roll: number): PoolEntry<K> {
   const total = pool.reduce((sum, entry) => sum + entry.weight, 0);
   let target = roll * total;
   for (const entry of pool) {
     target -= entry.weight;
     if (target < 0) return entry;
   }
-  return pool[pool.length - 1];
+  // Float rounding can leave a sliver of `target` over: the last entry absorbs it.
+  return pool[pool.length - 1] ?? pool[0];
 }
 
 /** One rolled stack for attempt `n` of the chest at `x`/`y`. */
@@ -181,7 +182,8 @@ export function chestLoot(x: number, y: number): Inventory {
   const wanted = 2 + Math.floor(rand(x + 3301, y + 1709) * 3); // 2–4
   if (rand(x + 1291, y + 577) < CHEST.upgradeChance) {
     const pool = chestUpgradePool(y);
-    const kind = pool[Math.floor(rand(x + 947, y + 2203) * pool.length)];
+    // `rand` is in [0,1), so the index is always in range.
+    const kind = pool[Math.floor(rand(x + 947, y + 2203) * pool.length)] ?? pool[0];
     loot = addItem(loot, itemForKind(kind), 1);
   }
   // A roll that lands on a kind already in the chest is re-rolled, so the chest

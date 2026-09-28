@@ -20,6 +20,7 @@ import { createCargoContainers, type CargoContainerSim } from './cargo-container
 import { createAudioStub, createFakeGrid, createToastLog, type AudioStub, type FakeGrid } from './test-support';
 import { HOME_ROW, WORLD_W } from '../../shared/constants';
 import { tradingPostAt } from '../world/world';
+import { nth } from '../test-narrowing';
 
 /** The first trading post in the interior band, for the occupancy check. */
 function findPost(): {x: number; y: number} {
@@ -211,7 +212,7 @@ describe('opening a container', () => {
 
     expect(h.containers.openAt(40, 100)).toBe(true);
     expect(h.containers.open).toBe(h.state.cargoContainers[0]);
-    expect(h.openUi.at(-1)).toBe(h.state.cargoContainers[0].inventory);
+    expect(h.openUi.at(-1)).toBe(nth(h.state.cargoContainers, 0).inventory);
   });
 
   it('says nothing at all about a press on bare rock', () => {
@@ -306,9 +307,9 @@ describe('moving cargo across', () => {
     h.containers.store(oreItem(COPPER).kind);
 
     expect(countOres(h.state.player.inventory)).toBe(0);
-    expect(countOres(h.state.cargoContainers[0].inventory)).toBe(6);
+    expect(countOres(nth(h.state.cargoContainers, 0).inventory)).toBe(6);
     // The UI is handed the crate's *new* contents, not the array it opened with.
-    expect(h.openUi.at(-1)).toBe(h.state.cargoContainers[0].inventory);
+    expect(h.openUi.at(-1)).toBe(nth(h.state.cargoContainers, 0).inventory);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Stored 6 × Copper')).toBe(true);
     expect(h.audio.played).toContain('stow');
@@ -320,7 +321,7 @@ describe('moving cargo across', () => {
     h.containers.store(oreItem(COPPER).kind, true);
 
     expect(countOres(h.state.player.inventory)).toBe(5);
-    expect(countOres(h.state.cargoContainers[0].inventory)).toBe(1);
+    expect(countOres(nth(h.state.cargoContainers, 0).inventory)).toBe(1);
     expect(h.toasts.saw('Stored 1 × Copper')).toBe(true);
   });
 
@@ -331,7 +332,7 @@ describe('moving cargo across', () => {
     h.containers.take(oreItem(COPPER).kind, true);
 
     expect(countOres(h.state.player.inventory)).toBe(1);
-    expect(countOres(h.state.cargoContainers[0].inventory)).toBe(5);
+    expect(countOres(nth(h.state.cargoContainers, 0).inventory)).toBe(5);
     expect(h.toasts.saw('Took 1 × Copper aboard')).toBe(true);
   });
 
@@ -342,7 +343,7 @@ describe('moving cargo across', () => {
     h.containers.take(oreItem(COPPER).kind);
 
     expect(countOres(h.state.player.inventory)).toBe(6);
-    expect(countOres(h.state.cargoContainers[0].inventory)).toBe(0);
+    expect(countOres(nth(h.state.cargoContainers, 0).inventory)).toBe(0);
     expect(h.toasts.saw('Took 6 × Copper aboard')).toBe(true);
     expect(h.audio.played.at(-1)).toBe('take');
   });
@@ -350,12 +351,12 @@ describe('moving cargo across', () => {
   it('refuses what the cargo-bay limit will not take, and keeps the rest stored', () => {
     const h = opened(0);
     h.state.player.cargoMax = 2;
-    h.state.cargoContainers[0].inventory = addItem(createInventory(), oreItem(COPPER), 5);
+    nth(h.state.cargoContainers, 0).inventory = addItem(createInventory(), oreItem(COPPER), 5);
 
     h.containers.take(oreItem(COPPER).kind);
 
     expect(countOres(h.state.player.inventory)).toBe(2);
-    expect(countOres(h.state.cargoContainers[0].inventory)).toBe(3);
+    expect(countOres(nth(h.state.cargoContainers, 0).inventory)).toBe(3);
 
     // And the next press, with the bay already at its limit, is a plain refusal.
     h.containers.take(oreItem(COPPER).kind);
@@ -369,7 +370,7 @@ describe('moving cargo across', () => {
     const h = opened(0);
     h.state.player.inventory = addItem(h.state.player.inventory, DYNAMITE_ITEM, 2);
     // The crate is already holding its whole item capacity.
-    h.state.cargoContainers[0].inventory = addItem(createInventory(), oreItem(COPPER), CARGO_CONTAINER.capacity);
+    nth(h.state.cargoContainers, 0).inventory = addItem(createInventory(), oreItem(COPPER), CARGO_CONTAINER.capacity);
 
     h.containers.store(DYNAMITE_ITEM.kind);
 

@@ -50,7 +50,8 @@ export function formatShipStatusAnnouncement({
   hullCritical
 }: ShipStatusInput): string {
   if (gameOver) return SHIP_LOST;
+  // Three flag bits index the eight-entry table, so every index is present.
   return STATUS_BY_FLAGS[
     (atSurface ? SURFACE : 0) | (cargoFull ? CARGO_FULL : 0) | (hullCritical ? HULL_CRITICAL : 0)
-  ];
+  ]!;
 }

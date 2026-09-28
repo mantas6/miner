@@ -57,17 +57,17 @@ interface BoundaryState {
  * leaving it running against a HUD that is no longer there.
  */
 export class AppErrorBoundary extends Component<{children: ReactNode}, BoundaryState> {
-  state: BoundaryState = {message: null};
+  override state: BoundaryState = {message: null};
 
   static getDerivedStateFromError(error: unknown): BoundaryState {
     return {message: error instanceof Error ? error.message : String(error)};
   }
 
-  componentDidCatch(error: unknown, info: ErrorInfo): void {
+  override componentDidCatch(error: unknown, info: ErrorInfo): void {
     console.error('Interface crashed', error, info.componentStack);
   }
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (this.state.message === null) return this.props.children;
     return (
       <FailureNotice

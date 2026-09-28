@@ -114,9 +114,9 @@ export function tickScannerDevice(
   if (++device.timer < SCANNER_DEVICE.intervalTicks) return null;
   device.timer = 0;
   const pending = scannerPendingTiles(device, explored);
-  if (pending.length === 0) return null;
   const pick = Math.floor(random() * pending.length);
-  return pending[Math.min(pending.length - 1, Math.max(0, pick))];
+  // Clamped into range, so only an empty list comes back `null`.
+  return pending[Math.min(pending.length - 1, Math.max(0, pick))] ?? null;
 }
 
 export interface ScannerPlacementContext {

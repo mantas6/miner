@@ -62,14 +62,14 @@ export function encodeExploration(explored: Iterable<number>): string {
   const indexes = [...new Set(explored)]
     .filter(index => Number.isSafeInteger(index) && index >= MIN_INDEX && index <= MAX_INDEX)
     .sort((a, b) => a - b);
-  const ranges: string[] = [];
-  for (let i = 0; i < indexes.length; i++) {
-    const start = indexes[i];
-    let end = start;
-    while (i + 1 < indexes.length && indexes[i + 1] === end + 1) end = indexes[++i];
-    ranges.push(start === end ? `${start}` : `${start}-${end}`);
+  // Sorted and deduplicated, so each index either extends the last run or opens one.
+  const runs: [start: number, end: number][] = [];
+  for (const index of indexes) {
+    const last = runs.at(-1);
+    if (last && index === last[1] + 1) last[1] = index;
+    else runs.push([index, index]);
   }
-  return ranges.join(',');
+  return runs.map(([start, end]) => (start === end ? `${start}` : `${start}-${end}`)).join(',');
 }
 
 /**

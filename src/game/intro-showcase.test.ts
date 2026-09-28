@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { START_Y, WORLD_W } from '../../shared/constants';
+import { nth } from '../test-narrowing';
 
 // The same canvas stubbing as `renderer.test.ts`: there is no raster under
 // vitest, so every drawing call lands on a spy.
@@ -88,7 +89,7 @@ describe('pickShowcaseCamera', () => {
       expect(camY).toBeGreaterThanOrEqual(SHOWCASE_MIN_ROW);
       expect(camY).toBeLessThanOrEqual(SHOWCASE_MAX_ROW);
     }
-    const sequence = () => { const values = [0.25, 0.75]; let i = 0; return () => values[i++ % values.length]; };
+    const sequence = () => { const values = [0.25, 0.75]; let i = 0; return () => nth(values, i++ % values.length); };
     expect(pickShowcaseCamera(sequence(), 15)).toEqual(pickShowcaseCamera(sequence(), 15));
   });
 });

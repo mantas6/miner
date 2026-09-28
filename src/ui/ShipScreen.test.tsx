@@ -12,6 +12,7 @@ import { itemForKind } from '../core/items';
 import { ShipScreen } from './ShipScreen';
 import { setUiCommands, uiCommands } from './commands';
 import { buildInventorySlots, buildShipSlots, uiStore } from './store';
+import { nth } from '../test-narrowing';
 
 const pristine = {...uiStore.getState()};
 const pristineCommands = {...uiCommands};
@@ -52,8 +53,8 @@ describe('ship equipment dialog', () => {
 
     const slots = [...document.querySelectorAll('#shipSlots > li')];
     expect(slots).toHaveLength(2);
-    expect(slots[0].textContent).toContain('Fuel Tank Mk I');
-    expect(slots[1].textContent).toContain('Empty');
+    expect(nth(slots, 0).textContent).toContain('Fuel Tank Mk I');
+    expect(nth(slots, 1).textContent).toContain('Empty');
   });
 
   it('lists only the upgrade stacks aboard, never the ore', () => {
@@ -61,8 +62,8 @@ describe('ship equipment dialog', () => {
 
     const bay = [...document.querySelectorAll('#shipBay > li')];
     expect(bay).toHaveLength(1);
-    expect(bay[0].textContent).toContain('Cargo Hold Mk II');
-    expect(bay[0].textContent).toContain('×3');
+    expect(nth(bay, 0).textContent).toContain('Cargo Hold Mk II');
+    expect(nth(bay, 0).textContent).toContain('×3');
   });
 
   it('disables Unfit on an empty slot and enables it on a fitted one', () => {

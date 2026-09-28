@@ -144,7 +144,8 @@ function bayAfterEquip(inventory: Inventory, kind: UpgradeKind, previous: Upgrad
 export function equip(player: Player, slot: number, kind: UpgradeKind): EquipResult {
   if (slot < 0 || slot >= player.equipment.length) return {ok: false, reason: 'No such upgrade slot.'};
   if (countItem(player.inventory, kind) <= 0) return {ok: false, reason: 'That upgrade is not in the cargo bay.'};
-  const previous = player.equipment[slot];
+  // `slot` was bounds-checked above, so the fallback only reads an empty slot as one.
+  const previous = player.equipment[slot] ?? null;
   const nextEquipment = player.equipment.slice();
   nextEquipment[slot] = kind;
   const cargoMax = computeStats(nextEquipment).cargoMax;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatExpeditionStats } from './stats';
+import { nth } from '../test-narrowing';
 
 const PROGRESSED = {
   maxDepth: 1230,
@@ -38,7 +39,7 @@ describe('expedition stats formatting', () => {
     const progressed = formatExpeditionStats(PROGRESSED);
 
     for (const [index, row] of progressed.entries()) {
-      expect(row.detail).not.toBe(zero[index].detail);
+      expect(row.detail).not.toBe(nth(zero, index).detail);
       expect(row.detail.length).toBeGreaterThan(0);
     }
   });
@@ -46,8 +47,8 @@ describe('expedition stats formatting', () => {
   it('coerces invalid or negative saved values to zero', () => {
     const rows = formatExpeditionStats({ maxDepth: -5, totalCashEarned: Number.NaN, oreMined: 1.9 });
 
-    expect(rows[0].value).toBe('0 m');
-    expect(rows[1].value).toBe('$0');
-    expect(rows[2].value).toBe('1 ore');
+    expect(nth(rows, 0).value).toBe('0 m');
+    expect(nth(rows, 1).value).toBe('$0');
+    expect(nth(rows, 2).value).toBe('1 ore');
   });
 });

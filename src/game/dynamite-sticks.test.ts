@@ -15,6 +15,7 @@ import { createInitialState } from '../core/state';
 import type { GameState, Tile } from '../core/types';
 import { createDynamiteSticks, type DynamiteSim } from './dynamite-sticks';
 import { createAudioStub, createFakeGrid, createToastLog, type AudioStub, type FakeGrid } from './test-support';
+import { nth } from '../test-narrowing';
 
 interface Harness {
   state: GameState;
@@ -176,7 +177,7 @@ describe('a burning stick', () => {
     // The blast reads terrain out of the raw world rows, not the tile cache, so
     // the one destructible block in range has to be laid into the rows directly.
     for (let y = 98; y <= 102; y++) h.grid.world[y] = Array.from({length: WORLD_W}, (): Tile => ({type: 'air'}));
-    h.grid.world[101][40] = {type: 'dirt', hp: 3, maxHp: 3};
+    nth(h.grid.world, 101)[40] = {type: 'dirt', hp: 3, maxHp: 3};
 
     for (let step = 0; step < DYNAMITE.fuseTicks - 1; step++) h.dynamite.tick();
     expect(h.state.placedDynamite).toHaveLength(1);
@@ -226,7 +227,7 @@ describe('a burning stick', () => {
     burnDown(h.dynamite);
 
     expect(h.damagePlayer).toHaveBeenCalledWith(dynamiteHullDamage(1, 0));
-    expect(h.damagePlayer.mock.calls[0][0]).toBeLessThan(HULL.dynamiteBlast);
+    expect(nth(h.damagePlayer.mock.calls, 0)[0]).toBeLessThan(HULL.dynamiteBlast);
   });
 
   it('costs nothing at all while nothing is planted', () => {

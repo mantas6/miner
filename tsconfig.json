@@ -9,6 +9,13 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "noUnusedLocals": true,
+    // `list[i]` and `record[key]` read as possibly `undefined`, as they can be at
+    // runtime. Narrow, fall back with `??`, or — where the index is provably in
+    // range — assert with `!` and say why. Tests use `nth()`/`defined()` from
+    // `src/test-narrowing.ts`, which fail with a readable message instead.
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",

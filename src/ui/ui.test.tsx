@@ -16,6 +16,7 @@ import { setUiCommands, uiCommands } from './commands';
 import common from './common.module.css';
 import { buildInventorySlots, uiStore, type HudSnapshot } from './store';
 import { MinerApp } from './ui';
+import { defined, nth } from '../test-narrowing';
 
 /** Ids the game runtime, the keyboard layer, and the tests address directly. */
 const DOM_CONTRACT = [
@@ -309,7 +310,7 @@ describe('boot phase machine', () => {
     fireEvent.pointerDown(document.getElementById('intro')!);
 
     expect(beginRun).toHaveBeenCalledTimes(1);
-    expect(beginRun.mock.calls[0][0]).toBeInstanceOf(Event);
+    expect(nth(beginRun.mock.calls, 0)[0]).toBeInstanceOf(Event);
   });
 
   /**
@@ -365,7 +366,7 @@ describe('store-driven HUD', () => {
     expect(document.getElementById('depth')?.textContent).toBe('420 m');
     expect(document.getElementById('fuelLabel')?.textContent).toBe('13/200');
     // The fuel number is a visible readout now, not hidden behind the dial.
-    expect(document.getElementById('fuelLabel')?.className).not.toMatch(common.srOnly);
+    expect(document.getElementById('fuelLabel')?.className).not.toMatch(defined(common.srOnly, 'the srOnly class'));
     expect(document.getElementById('fuel')?.getAttribute('aria-valuenow')).toBe('12.2');
     // The LED, not a bar tint, is the low-fuel alarm on the analog gauge.
     expect(document.getElementById('fuelLed')?.className).toMatch(/on/);
@@ -596,7 +597,7 @@ describe('inventory panel', () => {
 
     act(() => {
       uiStore.getState().setInventorySlots(buildInventorySlots(
-        addOre(addOre(addOre(createInventory(), ORES[0], 99)!, ORES[0], 99)!, ORES[1], 99)!
+        addOre(addOre(addOre(createInventory(), nth(ORES, 0), 99)!, nth(ORES, 0), 99)!, nth(ORES, 1), 99)!
       ));
     });
 
@@ -645,7 +646,7 @@ describe('inventory panel', () => {
 
     act(() => {
       uiStore.getState().setInventorySlots(buildInventorySlots(
-        addItem(addItem(addOre(createInventory(), ORES[0], 99)!, SCANNER_ITEM, 2), DYNAMITE_ITEM, 3)
+        addItem(addItem(addOre(createInventory(), nth(ORES, 0), 99)!, SCANNER_ITEM, 2), DYNAMITE_ITEM, 3)
       ));
     });
 

@@ -89,6 +89,7 @@ miner/
 ├── AGENTS.md
 ├── index.html
 ├── package.json
+├── .nvmrc
 ├── opencode.json
 ├── .mcp.json
 ├── tsconfig.json
@@ -121,6 +122,7 @@ miner/
 │   ├── main.tsx
 │   ├── persistence.ts
 │   ├── persistence-reset.ts
+│   ├── test-narrowing.ts
 │   ├── agent/
 │   ├── core/
 │   ├── world/
@@ -150,7 +152,6 @@ miner/
 │       └── game.ts
 └── .github/
     └── workflows/
-        ├── build.yml
         └── deploy-pages.yml
 ```
 
@@ -163,6 +164,7 @@ miner/
 | `shared/world-schema.ts` | Zod schemas and derived types for tiles and the saved tile diff. |
 | `shared/tile-key.ts` | Canonical `"x,y"` coordinate key used by tile maps. |
 | `src/main.tsx` | Vite entry point: imports global styles and renders the app inside `<StrictMode>` and an error boundary, handing the game-runtime factory to it. |
+| `src/test-narrowing.ts` | Test-only `nth()`/`defined()`: index or unwrap a fixture and fail with a readable message when it is missing, the tests' answer to `noUncheckedIndexedAccess`. Shared by the Vitest suites and the Playwright specs. |
 | `src/persistence-reset.ts` | The **Reset game** wipe: every key the game writes to `localStorage` (save, audio and zoom preferences, and the retired `moleload-*` keys). |
 | `src/persistence.ts` | Local save/load of player progress, the ship's parked tile, explored tiles, the drawn-down trading-post stock (`tradeLedger`), the opened-chest ledger (`chestLedger`), and the world's tile diff (`localStorage`); plus the save export (`serializeProgress`) and import check (`parseImportedSave`). |
 | `src/core/` | Pure gameplay rules and types: balance, the item catalog (`items.ts`), the item-description registry the tooltips and overlay `info` read from (`item-info.ts`), ship upgrades (`ship-upgrades.ts`), crafting recipes (`crafting.ts`), the placeable stations — Manufacturing Station, Fuel Extractor and Portal — with their reach, transfers and coal/fuel conversion (`stations.ts`), the portal travel-network rules — naming, sanitizing, destinations and respawn candidates (`portal.ts`), trading-post offers and pricing (`trading.ts`), decorations (`decor.ts`), movement, dynamite, teleporter, cargo containers, wrecks (`wreck.ts`), chest loot and reach (`chest.ts`), grave epitaphs and reach (`grave.ts`), enemies, objectives, scanner, fuel reserve, depth milestones, spoken ship status, stats, danger, fixed-step clock, developer tools. |
@@ -184,20 +186,21 @@ miner/
 | `src/styles/icons.css` | Global equipment sprite sheet (`icon-*`), addressed by name from the item catalog. |
 | `src/styles/intro-art.css` | Global intro badge art. |
 | `vite.config.ts` | Vite build config (relative `base`, React Fast Refresh) and Vitest test config. Vitest only collects `src/**` and `shared/**`, so `e2e/` is never picked up by `npm test`. |
+| `tsconfig.json` | The production pass of `npm run typecheck` (`src/`, `shared/`, `vite.config.ts`, no ambient globals), and the options both other passes extend: `strict` plus `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch`, `noImplicitOverride` and `noUnusedLocals`. |
 | `tsconfig.test.json` | The test half of `npm run typecheck`: the same strict options plus `vitest/globals`, which `tsconfig.json` withholds from production source. |
-| `tsconfig.e2e.json` | The third `npm run typecheck` pass: `e2e/` and `playwright.config.ts`, which run in Node and so need those globals rather than Vitest's. |
+| `tsconfig.e2e.json` | The third `npm run typecheck` pass: `e2e/`, `agent/` and `playwright.config.ts`, which run in Node and so need those globals rather than Vitest's. |
 | `playwright.config.ts` | End-to-end config: one Chromium project, the Vite dev server started as a `webServer`, and the local/CI browser resolution described under "End-to-end tests". |
 | `agent/` | The Node-side programmatic-play harness (no React, no test runner): `chromium.ts` resolves the Chromium to drive (shared with `playwright.config.ts`), `session.ts` (`openGameSession`) starts/reuses a Vite server, launches a headed Chromium, and drives the game with real key/mouse events plus the pause model, `targets.ts` is its click allowlist (plain data, so the Vitest guard can import it), and `mcp-server.ts` is the stdio MCP server that exposes it to an LLM agent. See "Agent play". |
 | `e2e/` | The Playwright suite — boot flow, keyboard mining, the modal dialogs and focus restoration, the `:focus-visible` ring, the runtime-failure notice, and the agent-harness smoke test — plus `support/game.ts`, the shared page fixtures. |
 | `opencode.json` | Registers the `miner` MCP server (`npx tsx agent/mcp-server.ts`) so an opencode agent can drive the game. See "Agent play". |
 | `.mcp.json` | The same `miner` MCP server registration at Claude Code's project scope. See "Agent play". |
 | `.oxlintrc.json` | Lint rules for `src/`, `shared/`, `e2e/`, `agent/` and the two root configs (oxlint), with the reason behind every disabled rule. |
-| `.oxfmtrc.json` | oxfmt configuration; `npm run fmt` formats every stylesheet under `src/`. |
+| `.oxfmtrc.json` | oxfmt configuration. oxfmt is CSS-only: `npm run fmt` / `fmt:check` pass it `src/**/*.css`, and nothing else in the repo goes through a formatter. |
 | `init.sh` | Installs dependencies and starts a background Vite dev server for smoke testing. |
 | `start.sh` | Builds, then runs the preview server. |
 | `test.sh` | Full check sequence: lint, CSS format check, unit tests, typecheck, production build, and the Playwright suite when a system Chromium is available. |
-| `.github/workflows/build.yml` | CI: lint, CSS format check, typecheck, unit tests and production build, plus a parallel job that installs Chromium and runs the Playwright suite. |
-| `.github/workflows/deploy-pages.yml` | Manually triggered GitHub Pages deployment of `dist/`. |
+| `.github/workflows/deploy-pages.yml` | The only workflow, manual-only (`workflow_dispatch`): lint, CSS format check, typecheck, unit tests and production build, a parallel job that installs Chromium and runs the Playwright suite, and a GitHub Pages deployment of `dist/` gated on both. |
+| `.nvmrc` | The Node major the project targets (22, matching `engines` in `package.json` and the workflow's `setup-node`). |
 
 ## Runtime lifecycle
 
@@ -950,7 +953,8 @@ Two notes on how the suite is wired:
 
 - **The dev server, not `vite preview`.** React only double-invokes `<StrictMode>`
   effects in a development build, so the runtime's `dispose()` is only exercised
-  there. `playwright.config.ts` starts `npm run dev` on port 5199 itself.
+  there. `playwright.config.ts` starts the Vite dev server itself on
+  `127.0.0.1:5199` (loopback only, unlike `npm run dev`'s `0.0.0.0`).
 - **One deliberate white box.** `openOverlayDirectly()` in `e2e/support/game.ts`
   imports the app's own `src/ui/commands.ts` through the dev server to request an
   overlay. It exists because "ship and info at once" has no pointer path — while one
@@ -969,8 +973,10 @@ npx playwright install --with-deps chromium && npm run test:e2e   # the pinned d
 `playwright.config.ts` prefers `PLAYWRIGHT_CHROMIUM_PATH`, then falls back to
 `chromium`/`chromium-browser`/`google-chrome-stable`/`google-chrome`/`chrome` on
 `PATH`. In CI (`CI` set) it uses neither, so the pinned download installed by the
-workflow is the browser under test. `./test.sh` runs the suite only when one of
-those system binaries exists and says so when it skips.
+workflow is the browser under test. `./test.sh` probes the same way: it runs the
+suite when `PLAYWRIGHT_CHROMIUM_PATH` is set (failing if that path is not
+executable) or one of those system binaries is on `PATH`, and says so when it
+skips.
 
 When touching the audio TypeScript (`src/audio/`):
 
@@ -1004,15 +1010,18 @@ march means autoplay was rejected and the synth fallback took over.
 
 ## Deployment
 
-Two GitHub Actions workflows cover the client.
+One GitHub Actions workflow, `.github/workflows/deploy-pages.yml`, and it only
+runs when triggered manually (`workflow_dispatch`) — nothing runs on pushes or
+pull requests, so `./test.sh` is the gate before pushing. It has three jobs, all
+on Node 22:
 
-- `.github/workflows/build.yml` runs `npm ci`, then lint, CSS format check,
-  typecheck, unit tests and `npm run build` on pushes to `main`, on pull requests,
-  and on demand. A second job in the same workflow installs Chromium
-  (`npx playwright install --with-deps chromium`) and runs the end-to-end suite
-  beside it, uploading the HTML report when it fails.
-- `.github/workflows/deploy-pages.yml` builds and publishes `dist/` to GitHub
-  Pages when triggered manually.
+- `build` runs `npm ci`, then lint, CSS format check, typecheck, unit tests and
+  `npm run build`, and uploads `dist/` as the Pages artifact.
+- `e2e` runs beside it: `npm ci`, `npx playwright install --with-deps chromium`
+  and the end-to-end suite, uploading the HTML report when it fails.
+- `deploy` needs both, so a red check or end-to-end run blocks the deployment,
+  then publishes the artifact to GitHub Pages. Deployments never overlap
+  (`concurrency: pages`, a newer run waits rather than cancelling).
 
 `vite.config.ts` sets a relative `base`, so the same build works at a domain
 root and under the `/miner/` Pages project subpath.

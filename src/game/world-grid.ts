@@ -68,8 +68,9 @@ export function createWorldGrid({state, invalidateTerrain, onTileSet}: WorldGrid
     },
     set(x, y, tile, {record = true} = {}) {
       const row = ensureWorldRow(state.world, y);
-      if (!row || x < 0 || x >= row.length) return;
-      const previousType = row[x].type;
+      const previous = row?.[x];
+      if (!row || !previous) return;
+      const previousType = previous.type;
       row[x] = tile;
       if (previousType !== tile.type) invalidateTerrain(x, y);
       if (record) onTileSet(x, y, tile);

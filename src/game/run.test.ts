@@ -25,6 +25,7 @@ import {
   type EnemySimStub,
   type PortalsSimStub
 } from './test-support';
+import { nth } from '../test-narrowing';
 
 interface Harness {
   state: GameState;
@@ -53,7 +54,7 @@ function harness(): Harness {
     equipment: ['upgrade:tank:1', 'upgrade:cargo:1'],
     // Ore to lose with the ship, and equipment that survives it.
     inventory: addItem(
-      addOre(addOre(createInventory(), ORES[0], 99)!, ORES[1], 99)!,
+      addOre(addOre(createInventory(), nth(ORES, 0), 99)!, nth(ORES, 1), 99)!,
       TELEPORTER_ITEM
     )
   });
@@ -197,9 +198,9 @@ describe('restarting after a death', () => {
     h.run.gameOver();
     h.run.restartGame();
 
-    expect(h.state.world[dug.y][dug.x]).toEqual(dug.tile);
-    expect(h.state.world[cracked.y][cracked.x]).toEqual(cracked.tile);
-    expect(h.state.world[dug.y][dug.x + 2]).toEqual(makeTile(dug.x + 2, dug.y));
+    expect(h.state.world[dug.y]?.[dug.x]).toEqual(dug.tile);
+    expect(h.state.world[cracked.y]?.[cracked.x]).toEqual(cracked.tile);
+    expect(h.state.world[dug.y]?.[dug.x + 2]).toEqual(makeTile(dug.x + 2, dug.y));
     // The diff outlives the death, so the next one restores the same tunnels.
     expect(h.state.tileDiff).toEqual(createTileDiff([dug, cracked]));
   });
@@ -256,7 +257,7 @@ describe('redeploying at a portal after a restart', () => {
     expect(h.state.wrecks).toEqual([]);
 
     // Invoke the stored pick callback, as the overlay would on a choice.
-    const onPick = vi.mocked(h.portals.openRespawn).mock.calls[0][0] as (at: {x: number; y: number}) => void;
+    const onPick = nth(vi.mocked(h.portals.openRespawn).mock.calls, 0)[0] as (at: {x: number; y: number}) => void;
     onPick({x: 50, y: 100});
 
     expect(h.state.player).toMatchObject({
@@ -280,7 +281,7 @@ describe('wrecks dropped on restart', () => {
     h.run.restartGame();
 
     expect(h.state.wrecks).toHaveLength(1);
-    const wreck = h.state.wrecks[0];
+    const wreck = nth(h.state.wrecks, 0);
     expect(wreck).toMatchObject({x: 12, y: 60});
     expect(countOres(wreck.inventory)).toBe(2);
     expect(countItem(wreck.inventory, 'upgrade:tank:1')).toBe(1);
@@ -353,7 +354,7 @@ describe('resuming a saved run', () => {
 
     h.run.resume();
 
-    expect(h.state.world[dug.y][dug.x]).toEqual(dug.tile);
+    expect(h.state.world[dug.y]?.[dug.x]).toEqual(dug.tile);
   });
 
   it('sends a ship parked inside a placed panel home', () => {
@@ -414,7 +415,7 @@ describe('a full player reset', () => {
       x: 8, y: 80, drawX: 7, drawY: 79, facing: -1, bob: 1, drillAnim: 2,
       drillDx: 1, drillDy: 0, fuel: 2, hull: 3,
       inventory: addItem(
-        addItem(addOre(createInventory(), ORES[3], 80)!, DYNAMITE_ITEM, 2),
+        addItem(addOre(createInventory(), nth(ORES, 3), 80)!, DYNAMITE_ITEM, 2),
         TELEPORTER_ITEM,
         8
       )
@@ -424,7 +425,7 @@ describe('a full player reset', () => {
     h.state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4};
     h.state.scannerDevices = [{x: 3, y: 40, timer: 9}];
     h.state.cargoContainers = [{x: 4, y: 40, inventory: createInventory()}];
-    h.state.wrecks = [{x: 5, y: 40, inventory: addOre(createInventory(), ORES[0], 1)!}];
+    h.state.wrecks = [{x: 5, y: 40, inventory: addOre(createInventory(), nth(ORES, 0), 1)!}];
     h.state.stations = [createPortal(50, 100, 'Deep')];
     h.state.input.resetConfirmUntil = 999;
 
@@ -539,13 +540,13 @@ describe('a shared-world reset', () => {
   it('drops the wrecks and keeps a tunnel portal reachable by carving its tile', () => {
     const h = harness();
     h.state.stations = [dugPortal(h.state, 30, 80, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
-    h.state.wrecks = [{x: 12, y: 60, inventory: addOre(createInventory(), ORES[0], 3)!}];
+    h.state.wrecks = [{x: 12, y: 60, inventory: addOre(createInventory(), nth(ORES, 0), 3)!}];
 
     h.run.clearWorldRuntime();
 
     expect(h.state.wrecks).toEqual([]);
     expect(h.state.stations).toHaveLength(2);
-    for (const {x, y} of h.state.stations) expect(h.state.world[y][x]).toEqual({type: 'air'});
+    for (const {x, y} of h.state.stations) expect(h.state.world[y]?.[x]).toEqual({type: 'air'});
   });
 });
 
@@ -579,7 +580,7 @@ describe('a portal whose tile has gone solid', () => {
     h.state.stations = [dugPortal(h.state, 30, 80, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
     h.run.gameOver();
     h.run.restartGame();
-    const onPick = vi.mocked(h.portals.openRespawn).mock.calls[0][0] as (at: {x: number; y: number}) => void;
+    const onPick = nth(vi.mocked(h.portals.openRespawn).mock.calls, 0)[0] as (at: {x: number; y: number}) => void;
     // The diff forgets the hole between the prompt and the pick.
     h.state.tileDiff = createTileDiff();
 

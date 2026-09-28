@@ -164,17 +164,19 @@ export function isFull(inventory: Inventory, capacity: number): boolean {
 export function addItem(inventory: Inventory, item: InventoryItem, count = 1): Inventory {
   if (count <= 0) return inventory;
   const index = inventory.findIndex(stack => stack.kind === item.kind);
+  // A miss is index -1, which reads back `undefined` like any other gap.
+  const stack = inventory[index];
+  if (!stack) return [...inventory, {kind: item.kind, count, item}];
   const next = [...inventory];
-  if (index === -1) next.push({kind: item.kind, count, item});
-  else next[index] = {...next[index], count: next[index].count + count};
+  next[index] = {...stack, count: stack.count + count};
   return next;
 }
 
 /** Take up to `count` units out; a stack drained to zero drops out of the list. */
 export function removeItem(inventory: Inventory, kind: InventoryItemKind, count = 1): Inventory {
   const index = inventory.findIndex(stack => stack.kind === kind);
-  if (index === -1 || count <= 0) return inventory;
   const stack = inventory[index];
+  if (!stack || count <= 0) return inventory;
   if (stack.count <= count) return inventory.filter((_, i) => i !== index);
   const next = [...inventory];
   next[index] = {...stack, count: stack.count - count};

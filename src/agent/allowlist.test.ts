@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { DECOR_IDS } from '../../shared/constants';
 import { allSlotButtonIds } from '../ui/inventory-slot-ids';
 import { addressedAttributes, ATTR_TARGETS, FLAG_ATTR_TARGETS, ID_TARGETS, KIND_TARGETS } from '../../agent/targets';
+import { nth } from '../test-narrowing';
 
 /** Every component source, keyed by its path relative to this file. */
 const SOURCES = import.meta.glob<string>(['../ui/**/*.tsx', '!../ui/**/*.test.tsx'], {query: '?raw', import: 'default', eager: true});
@@ -97,7 +98,8 @@ function openingTags(file: string, source: string): JsxElement[] {
     const attributes: JsxAttribute[] = [];
     let i = match.index + match[0].length;
     while (i < source.length) {
-      const char = source[i];
+      // In range by the loop bound; `charAt` just says so to the checker.
+      const char = source.charAt(i);
       if (char === '>' || (char === '/' && source[i + 1] === '>')) break;
       if (/\s/.test(char)) { i++; continue; }
       if (char === '{') { i = skipBraces(source, i); continue; } // a spread
@@ -117,7 +119,7 @@ function openingTags(file: string, source: string): JsxElement[] {
       }
     }
     const line = source.slice(0, match.index).split('\n').length;
-    elements.push({file, tag: match[1], line, attributes});
+    elements.push({file, tag: nth(match, 1), line, attributes});
   }
   return elements;
 }

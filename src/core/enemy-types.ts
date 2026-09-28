@@ -1,6 +1,6 @@
 import { HULL } from './balance';
 import { DANGER, START_Y } from '../../shared/constants';
-import type { EnemyKind } from './types';
+import type { EnemyKind, NonEmpty } from './types';
 
 export interface EnemyTypeDefinition {
   kind: EnemyKind;
@@ -41,7 +41,9 @@ export const ENEMY_TYPES: Record<EnemyKind, EnemyTypeDefinition> = {
 
 // The mix of dormant kinds by row: each band opens where its newest kind first
 // appears, and the deepest band a row reaches decides.
-const DEPTH_BANDS: ReadonlyArray<{minRow: number; weights: ReadonlyArray<readonly [EnemyKind, number]>}> = [
+type DepthBand = {minRow: number; weights: ReadonlyArray<readonly [EnemyKind, number]>};
+// Non-empty by type, so the shallowest band is always there to fall back on.
+const DEPTH_BANDS: NonEmpty<DepthBand> = [
   {minRow: DANGER.enemyMinRow, weights: [['tunnelFiend', 1]]},
   {minRow: ENEMY_TYPES.skitterling.minRow, weights: [['tunnelFiend', .7], ['skitterling', .3]]},
   {minRow: ENEMY_TYPES.ironback.minRow, weights: [['tunnelFiend', .45], ['skitterling', .3], ['ironback', .25]]},

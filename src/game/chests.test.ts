@@ -16,8 +16,9 @@ import type { GameState } from '../core/types';
 import { chestsInRange } from '../world/world';
 import { createChests, type ChestSim } from './chests';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
+import { nth } from '../test-narrowing';
 
-const CHEST = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+const CHEST = nth(chestsInRange(0, 0, WORLD_W - 1, 400), 0);
 const KEY = chestKey(CHEST.x, CHEST.y);
 const LOOT = chestLoot(CHEST.x, CHEST.y);
 
@@ -145,7 +146,7 @@ describe('looting a chest', () => {
 
   it('takes a single unit, rewriting the ledger and keeping the menu up', () => {
     const h = opened();
-    const first = LOOT[0];
+    const first = nth(LOOT, 0);
 
     h.chests.take(first.kind, true);
 
@@ -192,7 +193,7 @@ describe('looting a chest', () => {
     h.state.player.inventory = addItem(createInventory(), {kind: 'dynamite', label: 'Dynamite', color: '#e04a2f', value: 0}, 1);
 
     h.chests.lootAll();
-    h.chests.take(LOOT[0].kind);
+    h.chests.take(nth(LOOT, 0).kind);
 
     expect(h.toasts.saw('Cargo bay is full')).toBe(true);
     expect(h.audio.played).toEqual(['alarm', 'alarm']);
@@ -213,7 +214,7 @@ describe('looting a chest', () => {
   it('does nothing at all with no chest open', () => {
     const h = harness();
 
-    h.chests.take(LOOT[0].kind);
+    h.chests.take(nth(LOOT, 0).kind);
     h.chests.lootAll();
 
     expect(totalItems(h.state.player.inventory)).toBe(0);

@@ -12,6 +12,7 @@ import { createWreck } from '../core/wreck';
 import type { GameState, Ore } from '../core/types';
 import { createWrecks, type WreckSim } from './wrecks';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
+import { nth } from '../test-narrowing';
 
 const COPPER: Ore = {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1};
 
@@ -54,7 +55,7 @@ describe('opening a wreck', () => {
 
     expect(h.wrecks.openAt(40, 100)).toBe(true);
     expect(h.wrecks.open).toBe(h.state.wrecks[0]);
-    expect(h.openUi.at(-1)).toBe(h.state.wrecks[0].inventory);
+    expect(h.openUi.at(-1)).toBe(nth(h.state.wrecks, 0).inventory);
   });
 
   it('says nothing at all about a press on bare rock', () => {
@@ -140,10 +141,10 @@ describe('salvaging a wreck', () => {
     h.wrecks.take(oreItem(COPPER).kind, true);
 
     expect(countOres(h.state.player.inventory)).toBe(1);
-    expect(countOres(h.state.wrecks[0].inventory)).toBe(5);
+    expect(countOres(nth(h.state.wrecks, 0).inventory)).toBe(5);
     // Still holding something, so the wreck stays and the menu with it.
     expect(h.wrecks.open).toBe(h.state.wrecks[0]);
-    expect(h.openUi.at(-1)).toBe(h.state.wrecks[0].inventory);
+    expect(h.openUi.at(-1)).toBe(nth(h.state.wrecks, 0).inventory);
   });
 
   it('loots everything that fits in one press and removes the emptied wreck', () => {
@@ -175,12 +176,12 @@ describe('salvaging a wreck', () => {
   it('leaves the overflow behind when the bay fills mid-loot, keeping the wreck', () => {
     const h = opened(0);
     h.state.player.cargoMax = 2;
-    h.state.wrecks[0].inventory = addItem(createInventory(), oreItem(COPPER), 5);
+    nth(h.state.wrecks, 0).inventory = addItem(createInventory(), oreItem(COPPER), 5);
 
     h.wrecks.lootAll();
 
     expect(countOres(h.state.player.inventory)).toBe(2);
-    expect(countOres(h.state.wrecks[0].inventory)).toBe(3);
+    expect(countOres(nth(h.state.wrecks, 0).inventory)).toBe(3);
     expect(h.wrecks.open).toBe(h.state.wrecks[0]);
   });
 
@@ -188,7 +189,7 @@ describe('salvaging a wreck', () => {
     const h = opened(0);
     h.state.player.inventory = addOre(createInventory(), COPPER, 2)!; // bay at cargoMax? force full
     h.state.player.cargoMax = 1;
-    h.state.wrecks[0].inventory = addItem(createInventory(), oreItem(COPPER), 3);
+    nth(h.state.wrecks, 0).inventory = addItem(createInventory(), oreItem(COPPER), 3);
 
     h.wrecks.take(oreItem(COPPER).kind);
 

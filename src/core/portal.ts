@@ -61,10 +61,9 @@ export function defaultPortalName(
 ): string {
   const used = usedNames(existing);
   const free = PORTAL_NAMES.filter(name => !used.has(name));
-  if (free.length > 0) {
-    const index = Math.min(free.length - 1, Math.floor(random() * free.length));
-    return free[index];
-  }
+  // Clamped into range, so a free name is found whenever there is one.
+  const pick = free[Math.max(0, Math.min(free.length - 1, Math.floor(random() * free.length)))];
+  if (pick !== undefined) return pick;
   let n = 1;
   while (used.has(`Portal ${n}`)) n++;
   return `Portal ${n}`;

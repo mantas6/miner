@@ -13,6 +13,7 @@ import {
 } from './dynamite';
 import type { Occupant } from './placement';
 import type { Tile } from './types';
+import { nth } from '../test-narrowing';
 
 function dirt(): Tile {
   return {type: 'dirt', hp: 2, maxHp: 2};
@@ -31,8 +32,8 @@ describe('dynamite blast targets', () => {
 
   it('destroys ore and hazards without returning cargo or rewards', () => {
     const world: Tile[][] = Array.from({length: 10}, () => Array.from({length: 10}, dirt));
-    world[6][5] = {type: 'ore', ore: {name: 'Gold', color: '#fc0', value: 70, min: 152, max: 602, chance: .04}, hp: 5, maxHp: 5};
-    world[5][6] = {type: 'hazard', hp: 8, maxHp: 8};
+    nth(world, 6)[5] = {type: 'ore', ore: {name: 'Gold', color: '#fc0', value: 70, min: 152, max: 602, chance: .04}, hp: 5, maxHp: 5};
+    nth(world, 5)[6] = {type: 'hazard', hp: 8, maxHp: 8};
 
     const targets = getDynamiteBlastTargets(world, 5, 5, 2);
 
@@ -44,40 +45,40 @@ describe('dynamite blast targets', () => {
 
   it('removes ordinary undrillable rock', () => {
     const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
-    world[5][4] = {type: 'rock', hp: 999};
+    nth(world, 5)[4] = {type: 'rock', hp: 999};
 
     const targets = getDynamiteBlastTargets(world, 5, 5, 2);
-    for (const {x, y} of targets) world[y][x] = {type: 'air'};
+    for (const {x, y} of targets) nth(world, y)[x] = {type: 'air'};
 
     expect(targets).toContainEqual({x: 4, y: 5});
-    expect(world[5][4]).toEqual({type: 'air'});
+    expect(world[5]?.[4]).toEqual({type: 'air'});
   });
 
   it('destroys placed decorations, which are never returned by a blast', () => {
     const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
-    world[5][6] = {type: 'decor', decor: 'copperTrim', hp: DECOR_HP, maxHp: DECOR_HP};
+    nth(world, 5)[6] = {type: 'decor', decor: 'copperTrim', hp: DECOR_HP, maxHp: DECOR_HP};
 
     const targets = getDynamiteBlastTargets(world, 5, 5, 2);
-    for (const {x, y} of targets) world[y][x] = {type: 'air'};
+    for (const {x, y} of targets) nth(world, y)[x] = {type: 'air'};
 
     expect(targets).toContainEqual({x: 6, y: 5});
-    expect(world[5][6]).toEqual({type: 'air'});
+    expect(world[5]?.[6]).toEqual({type: 'air'});
   });
 
   it('includes directly hit dormant enemies among destroyed terrain', () => {
     const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
-    world[5][6] = {type: 'enemy', kind:'tunnelFiend', hp: 4, maxHp: 4};
+    nth(world, 5)[6] = {type: 'enemy', kind:'tunnelFiend', hp: 4, maxHp: 4};
 
     const targets = getDynamiteBlastTargets(world, 5, 5, 2);
-    for (const {x, y} of targets) world[y][x] = {type: 'air'};
+    for (const {x, y} of targets) nth(world, y)[x] = {type: 'air'};
 
     expect(targets).toContainEqual({x: 6, y: 5});
-    expect(world[5][6]).toEqual({type: 'air'});
+    expect(world[5]?.[6]).toEqual({type: 'air'});
   });
 
   it('protects the side-wall columns without inventing a bottom boundary', () => {
     const world: Tile[][] = Array.from({length: 9}, () => Array.from({length: 9}, dirt));
-    world[8][5] = {type: 'rock', hp: 999};
+    nth(world, 8)[5] = {type: 'rock', hp: 999};
     const edgeTargets = getDynamiteBlastTargets(world, 1, 4, 2);
     const bottomTargets = getDynamiteBlastTargets(world, 5, 7, 2);
 

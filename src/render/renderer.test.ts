@@ -7,6 +7,7 @@ import { DYNAMITE, DYNAMITE_ITEM } from '../core/dynamite';
 import { addItem } from '../core/inventory';
 import { createInitialStations } from '../core/stations';
 import type { Direction } from '../core/types';
+import { nth } from '../test-narrowing';
 
 const mocks = vi.hoisted(() => {
   const gradient = {addColorStop: vi.fn()};
@@ -481,7 +482,7 @@ describe('terrain cache lifecycle', () => {
    * under fog or once it has been looted bare.
    */
   it('paints an explored chest with its brass clasp, and skips it under fog or looted bare', () => {
-    const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+    const chest = nth(chestsInRange(0, 0, WORLD_W - 1, 400), 0);
     const state = {
       world: [], camX: chest.x - 6, camY: chest.y - 4, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(chest.x, chest.y)]), teleportEffect: null,
@@ -520,7 +521,7 @@ describe('terrain cache lifecycle', () => {
    * paints as a mound (an ellipse) under a two-bar cross, and not at all under fog.
    */
   it('paints an explored grave as a mound and a cross, and skips it under fog', () => {
-    const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+    const grave = nth(gravesInRange(0, 0, WORLD_W - 1, 400), 0);
     const state = {
       world: [], camX: grave.x - 6, camY: grave.y - 4, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(grave.x, grave.y)]), teleportEffect: null,

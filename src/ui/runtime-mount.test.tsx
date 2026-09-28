@@ -12,6 +12,7 @@ import { AppErrorBoundary } from './Failure';
 import { uiStore, useUiStore } from './store';
 import { MinerApp } from './ui';
 import type { GameRuntimeSurface } from './useGameRuntime';
+import { nth } from '../test-narrowing';
 
 const pristine = {...uiStore.getState()};
 
@@ -29,8 +30,8 @@ describe('mounting the runtime', () => {
     render(<MinerApp createRuntime={surface => { mounted.push(surface); return {dispose}; }} />);
 
     expect(mounted).toHaveLength(1);
-    expect(mounted[0].canvas).toBe(document.getElementById('game'));
-    expect(mounted[0].panel).toBe(document.getElementById('game-panel'));
+    expect(nth(mounted, 0).canvas).toBe(document.getElementById('game'));
+    expect(nth(mounted, 0).panel).toBe(document.getElementById('game-panel'));
     expect(uiStore.getState().runtimeStatus).toBe('ready');
     expect(document.getElementById('runtime-failure')).toBeNull();
     expect(dispose).not.toHaveBeenCalled();

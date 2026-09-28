@@ -31,8 +31,9 @@ export function expandReachableAir(
     queue.push(seed);
   }
 
-  for (let index = 0; index < queue.length; index++) {
-    const current = queue[index];
+  // An array iterator re-reads the length on every step, so this also visits the
+  // tiles pushed onto the queue below: a breadth-first walk without index maths.
+  for (const current of queue) {
     for (const [dx, dy] of DIRECTIONS) {
       const x = current.x + dx;
       const y = current.y + dy;

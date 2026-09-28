@@ -23,6 +23,7 @@ import {
 } from './chest';
 import { isCatalogKind } from './items';
 import { isOreKind, isUpgradeKind, parseUpgradeKind, totalItems } from './inventory';
+import { nth } from '../test-narrowing';
 
 /** A spread of coordinates across the mine's depth bands. */
 function sample(rows: [number, number], count = 400): {x: number; y: number}[] {
@@ -94,7 +95,7 @@ describe('chestLoot', () => {
 });
 
 describe('the chest ledger', () => {
-  const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+  const chest = nth(chestsInRange(0, 0, WORLD_W - 1, 400), 0);
 
   it('holds rolled loot until first opened, then whatever the ledger says', () => {
     expect(chestContents({}, chest.x, chest.y)).toEqual(chestLoot(chest.x, chest.y));

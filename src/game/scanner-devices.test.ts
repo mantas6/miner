@@ -12,6 +12,7 @@ import { createInitialState } from '../core/state';
 import type { GameState } from '../core/types';
 import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
 import { createAudioStub, createFakeGrid, createToastLog, type AudioStub, type FakeGrid } from './test-support';
+import { nth } from '../test-narrowing';
 
 interface Harness {
   state: GameState;
@@ -181,14 +182,14 @@ describe('a deployed scanner at work', () => {
 
     h.scanners.tick();
     expect(h.revealTiles).toHaveBeenCalledTimes(1);
-    expect(scannerFootprint(h.state.scannerDevices[0])).toContain(h.revealTiles.mock.calls[0][0][0]);
+    expect(scannerFootprint(nth(h.state.scannerDevices, 0))).toContain(nth(h.revealTiles.mock.calls, 0)[0][0]);
   });
 
   it('maps its whole square, then announces that it has gone inert', () => {
     const h = harness();
     h.scanners.toggleArmed();
     h.scanners.placeAt(40, 100);
-    const footprint = scannerFootprint(h.state.scannerDevices[0]);
+    const footprint = scannerFootprint(nth(h.state.scannerDevices, 0));
 
     for (let reveal = 0; reveal < footprint.length; reveal++) runInterval(h.scanners);
 
@@ -214,7 +215,7 @@ describe('a deployed scanner at work', () => {
     runInterval(h.scanners);
 
     expect(h.revealTiles).toHaveBeenCalledTimes(1);
-    expect(h.revealTiles.mock.calls[0][0]).toHaveLength(2);
+    expect(nth(h.revealTiles.mock.calls, 0)[0]).toHaveLength(2);
   });
 
   it('costs nothing at all while the mine holds no devices', () => {

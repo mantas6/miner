@@ -20,10 +20,11 @@ import {
   totalItems,
   type Inventory
 } from './inventory';
+import { nth } from '../test-narrowing';
 
-const coal = ORES[0];
-const copper = ORES[2];
-const silver = ORES[3];
+const coal = nth(ORES, 0);
+const copper = nth(ORES, 2);
+const silver = nth(ORES, 3);
 
 /** Fill the bay with one unit of each of the first `count` ore types. */
 function withOreTypes(count: number, capacity = 99): Inventory {

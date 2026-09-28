@@ -10,6 +10,7 @@
 
 import { rowDepthMeters } from '../../shared/constants';
 import { GRAVE_MIN_ROW, graveAt, rand, type Grave } from '../world/world';
+import type { NonEmpty } from './types';
 
 /** What a gravestone says. */
 export interface Epitaph {
@@ -34,13 +35,13 @@ export const GRAVE = Object.freeze({
   maxAge: 70
 });
 
-export const MALE_FIRST_NAMES: readonly string[] = Object.freeze([
+export const MALE_FIRST_NAMES: NonEmpty<string> = Object.freeze([
   'Ivan', 'Pyotr', 'Aleksei', 'Dmitri', 'Nikolai', 'Sergei', 'Mikhail', 'Vasily',
   'Grigori', 'Fyodor', 'Yakov', 'Boris', 'Anatoly', 'Leonid', 'Yuri', 'Viktor',
   'Konstantin', 'Stepan', 'Semyon', 'Arkady', 'Gennady', 'Timofei'
 ]);
 
-export const FEMALE_FIRST_NAMES: readonly string[] = Object.freeze([
+export const FEMALE_FIRST_NAMES: NonEmpty<string> = Object.freeze([
   'Anna', 'Maria', 'Olga', 'Tatiana', 'Yelena', 'Natalia', 'Irina', 'Svetlana',
   'Lyudmila', 'Galina', 'Vera', 'Nadezhda', 'Zoya', 'Valentina', 'Yekaterina',
   'Nina', 'Raisa', 'Klavdia', 'Darya', 'Praskovya'
@@ -57,7 +58,7 @@ export const SURNAME_ENDINGS = Object.freeze({
 type SurnameEnding = keyof typeof SURNAME_ENDINGS;
 
 /** Surname stems, each with the ending it takes. */
-const SURNAME_STEMS: readonly {stem: string; ending: SurnameEnding}[] = Object.freeze([
+const SURNAME_STEMS: NonEmpty<{stem: string; ending: SurnameEnding}> = Object.freeze([
   {stem: 'Petr', ending: 'ov'}, {stem: 'Ivan', ending: 'ov'}, {stem: 'Smirn', ending: 'ov'},
   {stem: 'Kuznets', ending: 'ov'}, {stem: 'Pop', ending: 'ov'}, {stem: 'Volk', ending: 'ov'},
   {stem: 'Moroz', ending: 'ov'}, {stem: 'Kozl', ending: 'ov'}, {stem: 'Sokol', ending: 'ov'},
@@ -73,7 +74,7 @@ const SURNAME_STEMS: readonly {stem: string; ending: SurnameEnding}[] = Object.f
 ]);
 
 /** How the mine took them. The depth-free ones; `ran dry` names the grave's own depth. */
-const CAUSES: readonly string[] = Object.freeze([
+const CAUSES: NonEmpty<string> = Object.freeze([
   'Struck a magma pocket',
   'Crushed under rock',
   'Bitten by a burrower',
@@ -89,8 +90,9 @@ const CAUSES: readonly string[] = Object.freeze([
 ]);
 
 /** Pick one entry of a list from a roll in [0,1). */
-function pick<T>(list: readonly T[], roll: number): T {
-  return list[Math.min(list.length - 1, Math.floor(roll * list.length))];
+function pick<T>(list: NonEmpty<T>, roll: number): T {
+  // Clamped into range, so only a roll outside [0,1) could reach the fallback.
+  return list[Math.max(0, Math.min(list.length - 1, Math.floor(roll * list.length)))] ?? list[0];
 }
 
 /**

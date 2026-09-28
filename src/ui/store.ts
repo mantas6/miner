@@ -423,7 +423,7 @@ function sameInventorySlots(a: InventorySlotView[], b: InventorySlotView[]): boo
   if (a.length !== b.length) return false;
   return a.every((slot, index) => {
     const other = b[index];
-    return slot.kind === other.kind && slot.count === other.count && slot.label === other.label && slot.color === other.color;
+    return other !== undefined && slot.kind === other.kind && slot.count === other.count && slot.label === other.label && slot.color === other.color;
   });
 }
 
@@ -431,7 +431,7 @@ function sameTradeOffers(a: TradeOfferView[], b: TradeOfferView[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((offer, index) => {
     const other = b[index];
-    return offer.kind === other.kind && offer.price === other.price && offer.stock === other.stock;
+    return other !== undefined && offer.kind === other.kind && offer.price === other.price && offer.stock === other.stock;
   });
 }
 
@@ -439,7 +439,7 @@ function sameCargoRows(a: CargoRow[], b: CargoRow[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((row, index) => {
     const other = b[index];
-    return row.name === other.name && row.count === other.count && row.value === other.value && row.color === other.color;
+    return other !== undefined && row.name === other.name && row.count === other.count && row.value === other.value && row.color === other.color;
   });
 }
 
@@ -447,7 +447,7 @@ function sameStatRows(a: ExpeditionStatRow[], b: ExpeditionStatRow[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((row, index) => {
     const other = b[index];
-    return row.label === other.label && row.value === other.value && row.detail === other.detail;
+    return other !== undefined && row.label === other.label && row.value === other.value && row.detail === other.detail;
   });
 }
 

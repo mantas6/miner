@@ -14,6 +14,7 @@ import {
   type EnemySimStub,
   type FakeGrid
 } from './test-support';
+import { nth } from '../test-narrowing';
 
 const DIG_COST = (extra: number, dy: number) => (FUEL.baseMove + Math.abs(dy)*FUEL.vertical + extra) * FUEL.digMult;
 
@@ -275,7 +276,7 @@ describe('digging', () => {
   it('stacks mined ore in the inventory, counts it, and saves', () => {
     const h = harness();
     h.state.player.drill = 5;
-    h.grid.put(10, 41, {type: 'ore', ore: ORES[0], hp: 1, maxHp: 1});
+    h.grid.put(10, 41, {type: 'ore', ore: nth(ORES, 0), hp: 1, maxHp: 1});
 
     h.movement.move(0, 1);
 
@@ -291,8 +292,8 @@ describe('digging', () => {
     const h = harness();
     h.state.player.drill = 5;
     h.state.player.cargoMax = 1;
-    h.state.player.inventory = addOre(createInventory(), ORES[0], 1)!;
-    h.grid.put(10, 41, {type: 'ore', ore: ORES[1], hp: 1, maxHp: 1});
+    h.state.player.inventory = addOre(createInventory(), nth(ORES, 0), 1)!;
+    h.grid.put(10, 41, {type: 'ore', ore: nth(ORES, 1), hp: 1, maxHp: 1});
 
     h.movement.move(0, 1);
 
@@ -310,7 +311,7 @@ describe('digging', () => {
     let inventory = createInventory();
     for (const ore of ORES.slice(0, 6)) inventory = addOre(inventory, ore, 99)!;
     h.state.player.inventory = inventory;
-    h.grid.put(10, 41, {type: 'ore', ore: ORES[6], hp: 1, maxHp: 1});
+    h.grid.put(10, 41, {type: 'ore', ore: nth(ORES, 6), hp: 1, maxHp: 1});
 
     h.movement.move(0, 1);
 
@@ -348,7 +349,7 @@ describe('drilling out a decoration', () => {
     const h = harness();
     h.state.player.drill = 1;
     h.state.player.cargoMax = 1;
-    h.state.player.inventory = addOre(createInventory(), ORES[0], 1)!;
+    h.state.player.inventory = addOre(createInventory(), nth(ORES, 0), 1)!;
     h.grid.put(10, 41, {type: 'decor', decor: 'lampPanel', hp: 2, maxHp: DECOR_HP});
 
     // A non-final hit lands even with a full bay: the panel is only chipped.

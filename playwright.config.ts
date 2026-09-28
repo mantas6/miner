@@ -51,8 +51,12 @@ export default defineConfig({
     // `--strictPort` because Vite would otherwise hop to the next free port and
     // serve the suite from a URL it is not watching. Locally an already-running
     // server on this port is reused; in CI there is never one to reuse, and a busy
-    // port should fail rather than be worked around.
-    command: `npm run dev -- --port ${PORT} --strictPort`,
+    // port should fail rather than be worked around. `--host 127.0.0.1` because the
+    // suite only ever talks to loopback, so the server it starts is not exposed on
+    // the network; Vite is invoked directly rather than through `npm run dev`,
+    // whose own `--host 0.0.0.0` would otherwise be overridden only by relying on
+    // a repeated flag's last value winning.
+    command: `npx vite --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

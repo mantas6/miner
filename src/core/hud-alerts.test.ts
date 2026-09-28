@@ -10,6 +10,7 @@ import {
   shouldFuelBarFlash,
   shouldHullBarFlash
 } from './hud-alerts';
+import { nth } from '../test-narrowing';
 
 function alertState(overrides = {}) {
   const state = createInitialState();
@@ -20,7 +21,7 @@ function alertState(overrides = {}) {
 /** One stack holding `count` units of the same ore. */
 function oreLoad(count: number) {
   let inventory = createInventory();
-  for (let i = 0; i < count; i++) inventory = addOre(inventory, ORES[0], count)!;
+  for (let i = 0; i < count; i++) inventory = addOre(inventory, nth(ORES, 0), count)!;
   return inventory;
 }
 
@@ -50,10 +51,10 @@ describe('HUD alert flashing thresholds', () => {
     state.player.inventory = oreLoad(9);
     expect(shouldCargoBarFlash(state)).toBe(false);
 
-    state.player.inventory = addOre(state.player.inventory, ORES[1], 10)!;
+    state.player.inventory = addOre(state.player.inventory, nth(ORES, 1), 10)!;
     expect(shouldCargoBarFlash(state)).toBe(true);
 
-    state.player.inventory = removeItem(state.player.inventory, oreKind(ORES[1].name));
+    state.player.inventory = removeItem(state.player.inventory, oreKind(nth(ORES, 1).name));
     expect(shouldCargoBarFlash(state)).toBe(false);
   });
 

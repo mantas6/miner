@@ -129,6 +129,9 @@ export function remainingStock(
   offers: readonly BuyOffer[]
 ): number[] {
   const saved = ledger[tileKey(x, y)];
-  if (saved && saved.length === offers.length) return saved.map((n, i) => Math.max(0, Math.min(offers[i].stock, Math.floor(n))));
+  if (saved && saved.length === offers.length) {
+    // Same length as `offers`, checked just above, so every offer is there.
+    return offers.map((offer, i) => Math.max(0, Math.min(offer.stock, Math.floor(saved[i] ?? 0))));
+  }
   return offers.map(offer => offer.stock);
 }

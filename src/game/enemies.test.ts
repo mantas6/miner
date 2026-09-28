@@ -208,7 +208,7 @@ describe('a cocoon hatching', () => {
     // The dug neighbour is a real change and survives; the hatch does not.
     expect(ensureWorldRow(loaded.world, cocoon.y)![cocoon.x - 1]).toEqual({type: 'air'});
     expect(ensureWorldRow(loaded.world, cocoon.y)![cocoon.x]).toEqual(makeTile(cocoon.x, cocoon.y));
-    expect(loaded.world[cocoon.y][cocoon.x].type).toBe('enemy');
+    expect(loaded.world[cocoon.y]?.[cocoon.x]?.type).toBe('enemy');
 
     // Booted with the ship where it parked, the regrown cocoon hatches again.
     const reloaded = reload(state);
@@ -226,7 +226,7 @@ describe('a cocoon hatching', () => {
 
     const reloaded = reload(state);
 
-    expect(reloaded.world[cocoon.y][cocoon.x]).toEqual({type: 'air'});
+    expect(reloaded.world[cocoon.y]?.[cocoon.x]).toEqual({type: 'air'});
     expect(reloaded.enemies.some(e => e.origin.x === cocoon.x && e.origin.y === cocoon.y)).toBe(false);
   });
 });

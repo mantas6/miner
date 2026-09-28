@@ -17,6 +17,7 @@ import {
   wreckAt,
   type Wreck
 } from './wreck';
+import { nth } from '../test-narrowing';
 
 const COPPER: Ore = {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1};
 const IRON: Ore = {name: 'Iron', color: '#b7c3d0', value: 5, min: 0, max: 900, chance: 1};
@@ -94,8 +95,8 @@ describe('wreck reach', () => {
     const wrecks = [createWreck(10, 10)];
     expect(wreckAt(wrecks, 10, 10)).toBe(wrecks[0]);
     expect(wreckAt(wrecks, 11, 10)).toBeNull();
-    expect(isWreckReachable(wrecks[0], 11, 11)).toBe(true);  // one tile diagonal
-    expect(isWreckReachable(wrecks[0], 12, 10)).toBe(false); // two tiles away
+    expect(isWreckReachable(nth(wrecks, 0), 11, 11)).toBe(true);  // one tile diagonal
+    expect(isWreckReachable(nth(wrecks, 0), 12, 10)).toBe(false); // two tiles away
   });
 
   it('opens the nearest wreck in reach, the one under the ship winning', () => {

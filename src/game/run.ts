@@ -192,7 +192,8 @@ export function createRun(deps: GameRunDeps): GameRun {
       deps.portals().openRespawn(at => completeRestart(at));
       return;
     }
-    completeRestart(spawns.length === 1 ? {x: spawns[0].x, y: spawns[0].y} : undefined);
+    const only = spawns.length === 1 ? spawns[0] : undefined;
+    completeRestart(only ? {x: only.x, y: only.y} : undefined);
   }
 
   /** Drop the wreck at the death tile, rebuild the world, and redeploy at `at`. */

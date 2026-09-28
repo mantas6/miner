@@ -1,4 +1,10 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  // oxfmt formats CSS only. `npm run fmt` / `fmt:check` hand it exactly
+  // "src/**/*.css", and that glob — not this file — is what scopes it. The
+  // TypeScript/TSX, JSON and Markdown are hand-formatted and not run through any
+  // formatter (oxlint lints them, it does not format them), so a bare `oxfmt`
+  // over the repo would rewrite code nobody has agreed to reformat. Widen the
+  // scripts' glob deliberately, in its own change, if that is ever wanted.
   "ignorePatterns": []
 }

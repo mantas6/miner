@@ -139,7 +139,8 @@ export function getDynamiteBlastTargets(
       const dx = x - centerX;
       const dy = y - centerY;
       if (dx * dx + dy * dy > radius * radius) continue;
-      if (isDynamiteDestructible(row[x])) targets.push({x, y});
+      const tile = row[x];
+      if (tile && isDynamiteDestructible(tile)) targets.push({x, y});
     }
   }
   return targets;

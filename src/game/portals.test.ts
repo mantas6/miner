@@ -17,6 +17,7 @@ import type { GameState } from '../core/types';
 import type { PortalView } from '../ui/store';
 import { createPortalsSim, type PortalsSim } from './portals';
 import { createAudioStub, createToastLog, dugPortal, type AudioStub } from './test-support';
+import { nth } from '../test-narrowing';
 
 interface Harness {
   state: GameState;
@@ -168,7 +169,7 @@ describe('a portal whose tile has gone solid', () => {
     h.state.stations = [dugPortal(h.state, 50, 100, 'Deep')];
     h.sim.openTeleporter();
 
-    h.state.world[100][50] = {type: 'dirt', hp: 2, maxHp: 2};
+    nth(h.state.world, 100)[50] = {type: 'dirt', hp: 2, maxHp: 2};
 
     expect(h.sim.travelTo(50, 100)).toBe(false);
     expect(h.state.player).toMatchObject({x: 5, y: 5});

@@ -25,6 +25,7 @@ import { createScannerDevice, scannerPlacementRefusal } from './scanner-device';
 import { STATION_DEVICE, createManufacturer, createPortal, stationPlacementRefusal } from './stations';
 import { HOME_ROW } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
+import { nth } from '../test-narrowing';
 
 /** The first trading post in the interior band, for the occupancy check. */
 function findPost(): {x: number; y: number} {
@@ -166,7 +167,7 @@ describe('isPlacementValid', () => {
   });
 
   it('never places a container or station on a chest still lying there, but frees the tile once looted bare', () => {
-    const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
+    const chest = nth(chestsInRange(0, 0, WORLD_W - 1, 400), 0);
     const explored = new Set([explorationIndex(chest.x, chest.y)]);
     const lying = world({explored});
     expect(isPlacementValid('container', chest.x, chest.y, lying)).toBe(false);
@@ -181,7 +182,7 @@ describe('isPlacementValid', () => {
 
 describe('graves and placement', () => {
   it('never places a container or station on a grave, but leaves the rest of its nook open', () => {
-    const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+    const grave = nth(gravesInRange(0, 0, WORLD_W - 1, 400), 0);
     const explored = new Set([explorationIndex(grave.x, grave.y), explorationIndex(grave.x + 1, grave.y)]);
     const w = world({explored});
     expect(isPlacementValid('container', grave.x, grave.y, w)).toBe(false);
@@ -257,8 +258,8 @@ describe('placementOverlayCells', () => {
 
 describe('the overlay and the refusals agree for every kind and occupant', () => {
   const post = findPost();
-  const chest = chestsInRange(0, 0, WORLD_W - 1, 400)[0];
-  const grave = gravesInRange(0, 0, WORLD_W - 1, 400)[0];
+  const chest = nth(chestsInRange(0, 0, WORLD_W - 1, 400), 0);
+  const grave = nth(gravesInRange(0, 0, WORLD_W - 1, 400), 0);
   const x = 40, y = 100;
 
   /** A mine with one `occupant` standing on a tile, and where that tile is. */

@@ -6,6 +6,7 @@ import { addItem, addOre, countItem, countOres, createInventory } from './invent
 import { applyEquipment } from './ship-upgrades';
 import { createInitialState, respawnPlayer } from './state';
 import { TELEPORTER_ITEM } from './teleporter';
+import { nth } from '../test-narrowing';
 
 describe('initial game state', () => {
   it('starts a new game with starting capacities, no consumables, and no progress', () => {
@@ -41,7 +42,7 @@ describe('player respawn', () => {
     player.hull = 0;
     // Ore and equipment share the bay, and only the ore is lost with the ship.
     player.inventory = addItem(
-      addItem(addOre(createInventory(), ORES[0], player.cargoMax)!, DYNAMITE_ITEM, 2),
+      addItem(addOre(createInventory(), nth(ORES, 0), player.cargoMax)!, DYNAMITE_ITEM, 2),
       TELEPORTER_ITEM
     );
 
