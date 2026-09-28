@@ -23,7 +23,7 @@ const PORT = 5199;
  */
 function seedDirtUnderHome(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     tiles: [{x: 45, y: 21, tile: {type: 'dirt', hp: 2, maxHp: 2}}],
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: [{kind: 'ore:Coal', count: 3}]},
@@ -39,7 +39,7 @@ function seedDirtUnderHome(): void {
  */
 function seedToolkitScenario(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     bay: [{kind: 'toolkit', count: 1}],
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: []},
@@ -56,7 +56,7 @@ function seedToolkitScenario(): void {
  */
 function seedTradingPost(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     x: 43, y: 67,
     cash: 100,
     stations: [{kind: 'manufacturer', x: 44, y: 67, items: [{kind: 'ore:Iron', count: 10}]}]
@@ -72,7 +72,7 @@ function seedTradingPost(): void {
  */
 function seedFittedUpgrade(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     equipment: ['upgrade:drill:1', null],
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: []},
@@ -90,7 +90,7 @@ function seedFittedUpgrade(): void {
  */
 function seedPortalTravel(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     x: 49, y: 20,
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: []},
@@ -108,7 +108,7 @@ function seedPortalTravel(): void {
  */
 function seedPortalTeleporter(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     bay: [{kind: 'teleporter', count: 2}],
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: []},
@@ -127,7 +127,7 @@ function seedPortalTeleporter(): void {
  */
 function seedPortalRespawn(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     x: 47, y: 20,
     equipment: ['upgrade:drill:1', null],
     stations: [
@@ -148,7 +148,7 @@ function seedPortalRespawn(): void {
  */
 function seedChest(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     x: 42, y: 44,
     tiles: [{x: 42, y: 44, tile: {type: 'air'}}],
     stations: [
@@ -167,7 +167,7 @@ function seedChest(): void {
  */
 function seedGrave(): void {
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     x: 22, y: 33,
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: []},
@@ -185,7 +185,7 @@ function seedSaveOnce(): void {
   if (sessionStorage.getItem('seeded')) return;
   sessionStorage.setItem('seeded', '1');
   localStorage.setItem('moleload-progress-v1', JSON.stringify({
-    version: 18,
+    version: 19,
     cash: 250,
     stations: [
       {kind: 'manufacturer', x: 44, y: 20, items: []},
@@ -593,7 +593,7 @@ test('Settings exports the save into the observation and imports an edited one a
     expect(obs.overlay).toEqual({kind: 'info', tab: 'info-settings'});
     obs = await s.click('exportSaveBtn');
     if (obs.overlay?.kind !== 'info' || !obs.overlay.saveExport) throw new Error('an exported save expected');
-    expect(obs.overlay.saveExport).toContain('"version":18');
+    expect(obs.overlay.saveExport).toContain('"version":19');
     const exported = JSON.parse(obs.overlay.saveExport) as {cash: number};
     expect(exported.cash).toBe(250);
 

@@ -61,8 +61,7 @@ const PLACEABLE: Partial<Record<InventoryItemKind, {
   ...decorPlaceable('decor:steelPlate', 'Steel Plate'),
   ...decorPlaceable('decor:stoneBlock', 'Stone Block'),
   ...decorPlaceable('decor:copperTrim', 'Copper Trim'),
-  ...decorPlaceable('decor:lampPanel', 'Lamp Panel'),
-  ...decorPlaceable('decor:leninPortrait', 'Lenin Portrait')
+  ...decorPlaceable('decor:lampPanel', 'Lamp Panel')
 };
 
 /** One decoration's placeable slot: armed, it writes the panel onto the next tile pressed. */

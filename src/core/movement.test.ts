@@ -5,7 +5,6 @@ import type { Tile } from './types';
 
 const AIR: Tile = {type: 'air'};
 const DIRT: Tile = {type: 'dirt', hp: 2, maxHp: 2};
-const PORTRAIT: Tile = {type: 'decor', decor: 'leninPortrait', hp: 48, maxHp: 48};
 /** Everything the ship has to drill (or cannot pass): no flying through these. */
 const SOLID_TILES: Tile[] = [
   DIRT,
@@ -17,15 +16,14 @@ const SOLID_TILES: Tile[] = [
 ];
 
 describe('traversable tiles', () => {
-  it('treats air and a hanging decoration as open space, and nothing else', () => {
+  it('treats air as open space, and nothing else', () => {
     expect(isTraversableTile(AIR)).toBe(true);
-    expect(isTraversableTile(PORTRAIT)).toBe(true);
     for (const tile of SOLID_TILES) expect(isTraversableTile(tile)).toBe(false);
     expect(isTraversableTile(undefined)).toBe(false);
   });
 
-  it('lets the ship sprint through a portrait like air', () => {
-    const destinationOpen = isOpenSpaceDestination(true, PORTRAIT, false);
+  it('lets the ship sprint through air', () => {
+    const destinationOpen = isOpenSpaceDestination(true, AIR, false);
     expect(destinationOpen).toBe(true);
     expect(keyboardMovementRepeatMs(100, true, destinationOpen)).toBeCloseTo(55);
   });

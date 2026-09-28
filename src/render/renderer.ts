@@ -513,22 +513,58 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     if (active) { ctx.shadowColor = '#5cc8ff'; ctx.shadowBlur = 10; }
     ctx.beginPath(); ctx.arc(-TILE*.22, TILE*.06, TILE*.05, 0, Math.PI*2); ctx.fill();
   }
-  /** Portal: a glowing ring you step through to travel between built portals. */
+  /**
+   * Portal: a gate machine — two emitter pylons bolted to a control plinth, a
+   * crossbar bridging their tops, and the blue field they hold between them, a
+   * scan line sweeping down it. Still under reduced motion.
+   */
   function drawPortalBody(_active: boolean) {
-    // Footing the ring stands on.
-    ctx.fillStyle = '#1c3a48';
-    ctx.fillRect(-TILE*.26, TILE*.20, TILE*.52, TILE*.10);
-    // Outer ring, glowing in the portal blue.
-    ctx.strokeStyle = '#72d9ff'; ctx.shadowColor = '#72d9ff'; ctx.shadowBlur = 12;
-    ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(0, -TILE*.02, TILE*.26, 0, Math.PI*2); ctx.stroke();
-    // Inner ring, a lighter second stroke for depth.
-    ctx.strokeStyle = '#b7f3ff'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, -TILE*.02, TILE*.17, 0, Math.PI*2); ctx.stroke();
-    // Subtle inner glow filling the mouth.
+    const sweep = state.reducedMotion ? .5 : (state.tick * .02) % 1;
+    // Plinth the machine stands on, with a dark lower lip.
+    ctx.fillStyle = '#39434e';
+    ctx.fillRect(-TILE*.34, TILE*.16, TILE*.68, TILE*.14);
+    ctx.fillStyle = 'rgba(0,0,0,.32)';
+    ctx.fillRect(-TILE*.34, TILE*.25, TILE*.68, TILE*.05);
+    // Contained field between the pylons: a blue gradient fading at its edges.
+    const field = ctx.createLinearGradient(-TILE*.20, 0, TILE*.20, 0);
+    field.addColorStop(0, 'rgba(114,217,255,.22)');
+    field.addColorStop(.5, 'rgba(170,238,255,.62)');
+    field.addColorStop(1, 'rgba(114,217,255,.22)');
+    ctx.fillStyle = field;
+    ctx.fillRect(-TILE*.20, -TILE*.22, TILE*.40, TILE*.38);
+    // Scan line sweeping down the field.
+    ctx.fillStyle = 'rgba(225,250,255,.75)';
+    ctx.shadowColor = '#72d9ff'; ctx.shadowBlur = 8;
+    ctx.fillRect(-TILE*.20, -TILE*.22 + TILE*.36*sweep, TILE*.40, TILE*.02);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(114,217,255,.18)';
-    ctx.beginPath(); ctx.arc(0, -TILE*.02, TILE*.15, 0, Math.PI*2); ctx.fill();
+    // Pylons: riveted steel columns either side of the field.
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = '#6d7d8c';
+      ctx.fillRect(side*TILE*.27 - TILE*.07, -TILE*.26, TILE*.14, TILE*.42);
+      ctx.fillStyle = 'rgba(255,255,255,.18)';
+      ctx.fillRect(side*TILE*.27 - TILE*.07, -TILE*.26, TILE*.03, TILE*.42);
+      ctx.fillStyle = '#2a333c';
+      ctx.fillRect(side*TILE*.27 - TILE*.025, -TILE*.14, TILE*.05, TILE*.20);
+      // Emitter node facing into the field.
+      ctx.fillStyle = '#b7f3ff';
+      ctx.shadowColor = '#72d9ff'; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(side*TILE*.20, -TILE*.03, TILE*.035, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // Crossbar bridging the pylon tops, with a status lamp at its middle.
+    ctx.fillStyle = '#4f5d6b';
+    ctx.fillRect(-TILE*.34, -TILE*.31, TILE*.68, TILE*.07);
+    ctx.fillStyle = '#72d9ff';
+    ctx.shadowColor = '#72d9ff'; ctx.shadowBlur = 8;
+    ctx.fillRect(-TILE*.05, -TILE*.295, TILE*.10, TILE*.04);
+    ctx.shadowBlur = 0;
+    // Control panel on the plinth: a small readout and a green ready LED.
+    ctx.fillStyle = '#12303a';
+    ctx.fillRect(-TILE*.12, TILE*.185, TILE*.16, TILE*.06);
+    ctx.fillStyle = '#5cc8ff';
+    ctx.fillRect(-TILE*.105, TILE*.20, TILE*.09, TILE*.02);
+    ctx.fillStyle = '#7dff9a';
+    ctx.beginPath(); ctx.arc(TILE*.10, TILE*.215, TILE*.025, 0, Math.PI*2); ctx.fill();
   }
   /**
    * Trading posts, as a lit kiosk with a coin sign. Derived from the tile
@@ -955,13 +991,12 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     }
   }
   /**
-   * A placed decoration: a flat panel, one of five looks. Steel is a riveted grey
-   * plate, stone a grey-brown masonry slab, copper trim a warm bordered panel, the
-   * lamp panel a dark plate with a glowing strip, and the Lenin portrait a round
-   * gold-ringed red disc with a stylised bald, goateed head. Deliberately simple and static
+   * A placed decoration: a flat panel, one of four looks. Steel is a riveted grey
+   * plate, stone a grey-brown masonry slab, copper trim a warm bordered panel, and
+   * the lamp panel a dark plate with a glowing strip. Deliberately simple and static
    * — no `state.tick` — so it caches with the terrain like every other tile.
    */
-  function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel' | 'leninPortrait', sx: number, sy: number) {
+  function drawDecorTile(ctx: CanvasRenderingContext2D, decor: 'steelPlate' | 'stoneBlock' | 'copperTrim' | 'lampPanel', sx: number, sy: number) {
     const x = sx + TILE*.10, y = sy + TILE*.10, w = TILE*.80, h = TILE*.80;
     if (decor === 'steelPlate') {
       ctx.fillStyle = '#8fa2b5'; ctx.fillRect(x, y, w, h);
@@ -992,19 +1027,6 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       ctx.strokeStyle = '#c47b45'; ctx.lineWidth = TILE*.08;
       ctx.strokeRect(x + TILE*.05, y + TILE*.05, w - TILE*.10, h - TILE*.10);
       ctx.fillStyle = 'rgba(255,208,150,.35)'; ctx.fillRect(x + TILE*.14, y + TILE*.14, w - TILE*.28, TILE*.08);
-      return;
-    }
-    if (decor === 'leninPortrait') {
-      // A round portrait: a gold ring around a deep red disc, a pale bald head with a
-      // dark moustache and goatee, and a dark collar, all fitted inside the disc.
-      const cx = sx + TILE*.5, cy = sy + TILE*.5, r = TILE*.40;
-      ctx.fillStyle = '#d9a441'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#8e1c18'; ctx.beginPath(); ctx.arc(cx, cy, r*.80, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#26221f'; ctx.beginPath(); ctx.ellipse(cx, cy + r*.62, r*.42, r*.20, 0, Math.PI, 0); ctx.fill();
-      ctx.fillStyle = '#e8d3b4'; ctx.beginPath(); ctx.ellipse(cx, cy - r*.08, r*.27, r*.36, 0, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#3a2a1e';
-      ctx.fillRect(cx - r*.15, cy + r*.08, r*.30, r*.06);
-      ctx.fillRect(cx - r*.08, cy + r*.14, r*.16, r*.16);
       return;
     }
     // lampPanel: a dark plate with a warm glowing strip down its middle.

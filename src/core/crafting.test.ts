@@ -23,11 +23,6 @@ describe('the recipe table', () => {
     expect(upgrades).toHaveLength(13);
   });
 
-  it('crafts a Lenin Portrait from one Iron and one Copper, after the Lamp Panel', () => {
-    const index = RECIPES.findIndex(recipe => recipe.output === 'decor:leninPortrait');
-    expect(RECIPES[index]).toEqual({output: 'decor:leninPortrait', count: 1, inputs: [{kind: oreKind('Iron'), count: 1}, {kind: oreKind('Copper'), count: 1}]});
-    expect(RECIPES[index - 1].output).toBe('decor:lampPanel');
-  });
 });
 
 describe('checking a recipe', () => {

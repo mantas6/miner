@@ -125,13 +125,12 @@ const CONSUMABLES: readonly PoolEntry<InventoryItemKind>[] = [
   {kind: 'teleporter', weight: 0.06, max: 1}
 ];
 
-/** Decorations, the portrait the scarcest. */
+/** Decorations, the lamp panel the scarcest. */
 const DECOR: readonly PoolEntry<DecorKind>[] = [
   {kind: 'decor:steelPlate', weight: 1, max: 3},
   {kind: 'decor:stoneBlock', weight: 1, max: 3},
   {kind: 'decor:copperTrim', weight: 1, max: 3},
-  {kind: 'decor:lampPanel', weight: 1, max: 2},
-  {kind: 'decor:leninPortrait', weight: 0.4, max: 1}
+  {kind: 'decor:lampPanel', weight: 1, max: 2}
 ];
 
 /** Below this depth (rows under the home row) a chest's upgrade is Mk II. */

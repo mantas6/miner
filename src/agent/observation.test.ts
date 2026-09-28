@@ -107,13 +107,13 @@ describe('buildObservation', () => {
     expect(obs.view.rows[6][46 - 38]).toBe('*');
   });
 
-  it('draws decor as D, listing only a hanging decoration in notable', () => {
+  it('draws decor as D, never listing it in notable', () => {
     const state = createInitialState();
     state.player.x = 45;
     state.player.y = 100;
     revealRect(state, 38, 95, 52, 105);
     const get = tileSource({
-      '43,100': {type: 'decor', decor: 'leninPortrait', hp: 48, maxHp: 48},
+      '43,100': {type: 'decor', decor: 'lampPanel', hp: 48, maxHp: 48},
       '47,100': {type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48}
     });
 
@@ -121,7 +121,7 @@ describe('buildObservation', () => {
 
     expect(obs.view.rows[5][43 - 38]).toBe('D');
     expect(obs.view.rows[5][47 - 38]).toBe('D');
-    expect(obs.notable.filter(n => n.what === 'decor')).toEqual([{x: 43, y: 100, what: 'decor', detail: 'Lenin Portrait'}]);
+    expect(obs.notable.filter(n => n.x === 43 || n.x === 47)).toEqual([]);
   });
 
   it('draws a wreck as W in view and notable, counting the items it holds', () => {

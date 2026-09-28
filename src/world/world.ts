@@ -112,111 +112,10 @@ export function oreForDepthRoll(depth: number, roll: number) {
   return eligible.at(-1) || null;
 }
 
-/**
- * The two Lenin Portraits hung in the home cavern, on its second level either side
- * of the middle column. Deterministic decor like the stone floor: not stored in the
- * diff. They hang in open space (`isPassableDecor`): the ship flies through them and
- * the Construction Toolkit lifts them back aboard.
- */
-export const HOME_PORTRAITS: readonly {readonly x: number; readonly y: number}[] = Object.freeze([
-  Object.freeze({x: HOME_X - 1, y: HOME_ROW - 1}),
-  Object.freeze({x: HOME_X + 1, y: HOME_ROW - 1})
-]);
-
-/** Whether a coordinate is one of the home cavern's two hung portraits. */
-export function homePortraitAt(x: number, y: number): boolean {
-  return HOME_PORTRAITS.some(p => p.x === x && p.y === y);
-}
-
-// --- Mine portraits ----------------------------------------------------------
-//
-// Rare Lenin Portraits also hang in small cave pockets throughout the mine. Like
-// trading posts they are derived from the coordinate, never stored in the diff:
-// per square chunk one roll decides whether the chunk holds a portrait, two more
-// pick its cell, and the portrait clears its own 3×3 so it always hangs in open
-// space the ship can reach once it breaks in. At 16-tile chunks and a 0.35 chance
-// that is roughly one portrait per ~730 tiles — a screenful usually holds at most one.
-
-/** Side of the square chunk mine-portrait placement is rolled per. */
-export const PORTRAIT_CHUNK = 16;
-/** Chance a chunk holds a portrait. */
-export const PORTRAIT_CHANCE = 0.35;
-
-/** The chunk a coordinate falls in, on the square portrait grid. */
-function portraitChunk(v: number): number {
-  return Math.floor(v / PORTRAIT_CHUNK);
-}
-
-/**
- * The portrait a chunk holds, or `null`. The cell is kept one tile in from the
- * chunk edges so its 3×3 pocket never spills into a neighbouring chunk (letting
- * the lookups answer from a tile's own chunk), and two tiles clear of the world's
- * side walls. The whole pocket sits below the cavern floor (`HOME_ROW + 1`), and a
- * chunk whose pocket would touch a trading post's pocket holds nothing.
- */
-function minePortraitInChunk(chunkX: number, chunkY: number): {x: number; y: number} | null {
-  if (chunkX < 0 || chunkY < 0) return null;
-  if (rand(chunkX + 1543, chunkY + 719) >= PORTRAIT_CHANCE) return null;
-  const x = chunkX * PORTRAIT_CHUNK + 1 + Math.floor(rand(chunkX + 331, chunkY + 1187) * (PORTRAIT_CHUNK - 2));
-  const y = chunkY * PORTRAIT_CHUNK + 1 + Math.floor(rand(chunkX + 887, chunkY + 263) * (PORTRAIT_CHUNK - 2));
-  if (x - 1 < 2 || x + 1 > WORLD_W - 3) return null;
-  if (y - 1 <= HOME_ROW + 1) return null;
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      if (tradingPostPocket(x + dx, y + dy)) return null;
-    }
-  }
-  return {x, y};
-}
-
-/** Whether this exact tile is a Lenin Portrait hung in a mine cave pocket. */
-export function minePortraitAt(x: number, y: number): boolean {
-  const portrait = minePortraitInChunk(portraitChunk(x), portraitChunk(y));
-  return portrait !== null && portrait.x === x && portrait.y === y;
-}
-
-/** Whether this tile falls within a mine portrait's cleared 3×3 pocket (portrait or a neighbour). */
-export function minePortraitPocket(x: number, y: number): boolean {
-  const portrait = minePortraitInChunk(portraitChunk(x), portraitChunk(y));
-  return portrait !== null && Math.abs(portrait.x - x) <= 1 && Math.abs(portrait.y - y) <= 1;
-}
-
-/**
- * The mine portrait nearest (by straight-line distance) to a point, searching at
- * most `maxChunks` square rings of portrait chunks outward from the point's own
- * chunk (ring 0), or `null` when none hangs that close. Deterministic: rings are
- * walked in a fixed order and a tie keeps the smaller y, then the smaller x. The
- * search runs past the first ring with a hit only while a farther ring could still
- * hold something closer. Home-cavern portraits are not mine portraits.
- */
-export function nearestMinePortrait(fromX: number, fromY: number, maxChunks: number): {x: number; y: number} | null {
-  const cx = portraitChunk(fromX), cy = portraitChunk(fromY);
-  let best: {x: number; y: number} | null = null;
-  let bestDistance = Infinity;
-  for (let ring = 0; ring <= maxChunks; ring++) {
-    // Every tile of a ring-k chunk is more than (k-1)·chunk tiles away on some axis.
-    if (best && (ring - 1) * PORTRAIT_CHUNK >= bestDistance) break;
-    for (let chunkY = cy - ring; chunkY <= cy + ring; chunkY++) {
-      for (let chunkX = cx - ring; chunkX <= cx + ring; chunkX++) {
-        if (Math.max(Math.abs(chunkX - cx), Math.abs(chunkY - cy)) !== ring) continue;
-        const portrait = minePortraitInChunk(chunkX, chunkY);
-        if (!portrait) continue;
-        const distance = Math.hypot(portrait.x - fromX, portrait.y - fromY);
-        if (distance < bestDistance
-          || (distance === bestDistance && best && (portrait.y < best.y || (portrait.y === best.y && portrait.x < best.x)))) {
-          best = portrait;
-          bestDistance = distance;
-        }
-      }
-    }
-  }
-  return best;
-}
-
 // --- Chests ------------------------------------------------------------------
 //
-// Small loot chests lie buried throughout the mine. Like trading posts and mine
-// portraits they are derived from the coordinate, never stored: per square chunk
+// Small loot chests lie buried throughout the mine. Like trading posts they are
+// derived from the coordinate, never stored: per square chunk
 // one roll decides whether the chunk holds a chest, two more pick its cell, and the
 // chest clears only its own tile — a one-tile pocket the ship drills into like any
 // other. What the chest holds is rolled from the same coordinate (`core/chest.ts`);
@@ -243,8 +142,8 @@ function chestChunk(v: number): number {
 /**
  * The chest a chunk holds, or `null`. The cell is kept one tile in from the chunk
  * edges and two clear of the side walls, and a chunk whose chest would sit in — or
- * right beside — a trading post's or mine portrait's pocket holds nothing, so a
- * chest never shares a fixture's cleared space.
+ * right beside — a trading post's pocket holds nothing, so a chest never shares a
+ * fixture's cleared space.
  */
 function chestInChunk(chunkX: number, chunkY: number): Chest | null {
   if (chunkX < 0 || chunkY < 0) return null;
@@ -255,7 +154,7 @@ function chestInChunk(chunkX: number, chunkY: number): Chest | null {
   if (y < CHEST_MIN_ROW) return null;
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
-      if (tradingPostPocket(x + dx, y + dy) || minePortraitPocket(x + dx, y + dy)) return null;
+      if (tradingPostPocket(x + dx, y + dy)) return null;
     }
   }
   return {x, y};
@@ -315,8 +214,7 @@ function graveChunk(v: number): number {
  * side edges and at least one row below its top, so the whole nook (the grave's
  * row and the one above, a column either side) stays inside the chunk and the
  * lookups can answer from a tile's own chunk. A chunk whose nook would sit in — or
- * right beside — a trading post's, mine portrait's or chest's pocket, or the starter
- * seam, holds nothing; nor does one whose grave would hang over a natural cave.
+ * right beside — a trading post's or chest's pocket, or the starter seam, holds nothing; nor does one whose grave would hang over a natural cave.
  */
 function graveInChunk(chunkX: number, chunkY: number): Grave | null {
   if (chunkX < 0 || chunkY < 0) return null;
@@ -328,7 +226,7 @@ function graveInChunk(chunkX: number, chunkY: number): Grave | null {
   for (let dy = -2; dy <= 1; dy++) {
     for (let dx = -2; dx <= 2; dx++) {
       const tx = x + dx, ty = y + dy;
-      if (tradingPostPocket(tx, ty) || minePortraitPocket(tx, ty) || chestAt(tx, ty) || starterOreForCoordinate(tx, ty)) return null;
+      if (tradingPostPocket(tx, ty) || chestAt(tx, ty) || starterOreForCoordinate(tx, ty)) return null;
     }
   }
   if (naturalAirPocket(x, y + 1)) return null;
@@ -365,10 +263,7 @@ export function makeTile(x: number, y: number): Tile {
   // between the cap and the cavern ceiling generate as ordinary terrain: they are
   // unreachable (upward digging is blocked), so they stay a fogged dark band.
   if (y < BEDROCK_ROWS) return {type:'rock', hp:999};
-  // Two Lenin Portraits hang in the cavern, flanking its middle column one row
-  // above the floor: deterministic decor checked before the cavern's air.
-  if (homePortraitAt(x, y)) return {type:'decor', decor:'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP};
-  // The rest of the home cavern is deterministic air, never stored in the tile diff.
+  // The home cavern is deterministic air, never stored in the tile diff.
   if (isHomeCavern(x, y)) return {type:'air'};
   // The cavern floor is a stone-paved base: deterministic decor tiles the player
   // can drill out (~5 s) for Stone Blocks. Like the cavern it is not stored in the
@@ -377,10 +272,6 @@ export function makeTile(x: number, y: number): Tile {
   // A trading post carves a cleared 3×3 air pocket for its kiosk, derived from the
   // coordinate like the cavern rather than stored in the diff.
   if (y > HOME_ROW + 1 && tradingPostPocket(x,y)) return {type:'air'};
-  // A rare Lenin Portrait hangs in its own cleared 3×3 cave pocket, derived from
-  // the coordinate like a trading post.
-  if (y > HOME_ROW + 1 && minePortraitAt(x,y)) return {type:'decor', decor:'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP};
-  if (y > HOME_ROW + 1 && minePortraitPocket(x,y)) return {type:'air'};
   // A buried chest clears just its own tile: a one-tile pocket drilled into like
   // any other, derived from the coordinate like a trading post.
   if (chestAt(x,y)) return {type:'air'};

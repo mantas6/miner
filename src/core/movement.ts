@@ -1,5 +1,4 @@
 import { HULL, SPRINT } from './balance';
-import { isPassableDecor } from './decor';
 import type { Direction, Tile } from './types';
 
 export function movementDestination(x: number, y: number, dx: number, dy: number, worldWidth: number): {x: number; y: number} {
@@ -12,13 +11,12 @@ export function movementDestination(x: number, y: number, dx: number, dy: number
 }
 
 /**
- * Whether a tile is open space the ship (and an enemy) moves through: air, or a
- * decoration that hangs in open space (`isPassableDecor`). Such a tile is also
- * never ground and never drilled. A missing tile (off the loaded world) is not.
+ * Whether a tile is open space the ship (and an enemy) moves through: air. Such a
+ * tile is also never ground and never drilled. A missing tile (off the loaded
+ * world) is not.
  */
 export function isTraversableTile(tile: Tile | undefined): boolean {
-  if (!tile) return false;
-  return tile.type === 'air' || (tile.type === 'decor' && isPassableDecor(tile.decor));
+  return tile?.type === 'air';
 }
 
 export function isOpenSpaceDestination(destinationChanged: boolean, tile: Tile, activeEnemy: boolean): boolean {

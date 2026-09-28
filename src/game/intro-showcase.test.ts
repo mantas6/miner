@@ -37,9 +37,6 @@ const mocks = vi.hoisted(() => {
   });
 
   return {
-    // The portrait search, answered per test so framing is checked without
-    // depending on where generation happens to hang one.
-    nearestMinePortrait: vi.fn((_x: number, _y: number, _maxChunks: number): {x: number; y: number} | null => null),
     mainContext: createContext(),
     chunkContext: createContext(),
     canvas: {width: 1920, height: 1280},
@@ -56,18 +53,11 @@ vi.mock('./viewport', () => ({
   viewport: mocks.viewport
 }));
 
-vi.mock('../world/world', async importOriginal => ({
-  ...await importOriginal<typeof import('../world/world')>(),
-  nearestMinePortrait: mocks.nearestMinePortrait
-}));
-
 import {
   createIntroShowcase,
-  frameShowcaseCamera,
   pickShowcaseCamera,
   SHOWCASE_MAX_ROW,
-  SHOWCASE_MIN_ROW,
-  SHOWCASE_PORTRAIT_SEARCH_CHUNKS
+  SHOWCASE_MIN_ROW
 } from './intro-showcase';
 
 function showcase(options: {reducedMotion?: boolean; random?: () => number} = {}) {
@@ -103,44 +93,9 @@ describe('pickShowcaseCamera', () => {
   });
 });
 
-describe('frameShowcaseCamera', () => {
-  const pick = {camX: 3, camY: SHOWCASE_MIN_ROW};
-  const inView = (cam: {camX: number; camY: number}, p: {x: number; y: number}, tilesX: number, tilesY: number) =>
-    p.x >= cam.camX && p.x < cam.camX + tilesX && p.y >= cam.camY && p.y < cam.camY + tilesY;
-
-  it('keeps the random pick when no portrait is near', () => {
-    expect(frameShowcaseCamera(pick, null, 15, 10)).toBe(pick);
-  });
-
-  it('hangs a portrait on the centre column, in the band above the title card', () => {
-    const portrait = {x: Math.floor(WORLD_W / 2), y: SHOWCASE_MIN_ROW + 40};
-    const framed = frameShowcaseCamera(pick, portrait, 15, 10);
-    expect(framed).toEqual({camX: portrait.x - 7, camY: portrait.y - 2});
-    expect(inView(framed, portrait, 15, 10)).toBe(true);
-    // An even extent puts it on the right of the two middle columns; the row is a
-    // fifth of the way down, rounded down.
-    expect(frameShowcaseCamera(pick, portrait, 16, 22)).toEqual({camX: portrait.x - 8, camY: portrait.y - 4});
-  });
-
-  it('clamps at the left and right world walls and at the top of the world', () => {
-    const left = {x: 1, y: 200};
-    const right = {x: WORLD_W - 2, y: 200};
-    const top = {x: 20, y: 2};
-    expect(frameShowcaseCamera(pick, left, 15, 10).camX).toBe(0);
-    expect(frameShowcaseCamera(pick, right, 15, 10).camX).toBe(WORLD_W - 15);
-    expect(frameShowcaseCamera(pick, top, 15, 10).camY).toBe(0);
-    for (const portrait of [left, right, top]) {
-      expect(inView(frameShowcaseCamera(pick, portrait, 15, 10), portrait, 15, 10)).toBe(true);
-    }
-    // A view wider than the world pins to the left wall.
-    expect(frameShowcaseCamera(pick, right, WORLD_W + 10, 10).camX).toBe(0);
-  });
-});
-
 describe('createIntroShowcase', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.nearestMinePortrait.mockImplementation(() => null);
     vi.stubGlobal('document', {
       createElement: vi.fn(() => ({width: 0, height: 0, getContext: vi.fn(() => mocks.chunkContext)}))
     });
@@ -173,15 +128,6 @@ describe('createIntroShowcase', () => {
     expect(intro.state.exploredTiles).toBeInstanceOf(Set);
     expect('hideShip' in intro.state).toBe(false);
     expect(intro.view.tick).toBe(1);
-  });
-
-  it('searches near the random pick and frames the portrait it finds', () => {
-    const portrait = {x: 30, y: SHOWCASE_MIN_ROW + 90};
-    mocks.nearestMinePortrait.mockImplementation(() => portrait);
-    const intro = showcase({random: () => 0});
-    expect(mocks.nearestMinePortrait).toHaveBeenCalledWith(7, SHOWCASE_MIN_ROW + 5, SHOWCASE_PORTRAIT_SEARCH_CHUNKS);
-    expect(SHOWCASE_PORTRAIT_SEARCH_CHUNKS).toBe(4);
-    expect({camX: intro.view.camX, camY: intro.view.camY}).toEqual({camX: 23, camY: portrait.y - 2});
   });
 
   it('drifts the camera down by elapsed time', () => {

@@ -352,18 +352,7 @@ describe('resuming a saved run', () => {
     expect(h.state.world[dug.y][dug.x]).toEqual(dug.tile);
   });
 
-  it('leaves a ship parked on a hanging portrait where it is — that is open space', () => {
-    const h = harness();
-    const portrait = {type: 'decor', decor: 'leninPortrait', hp: 48, maxHp: 48} as const;
-    h.state.soloTileDiff = createTileDiff([{x: 12, y: 60, tile: portrait}]);
-
-    h.run.resume();
-
-    expect(h.state.player).toMatchObject({x: 12, y: 60});
-    expect(h.state.world[60][12]).toEqual(portrait);
-  });
-
-  it('still sends a ship parked inside a solid panel home', () => {
+  it('sends a ship parked inside a placed panel home', () => {
     const h = harness();
     h.state.soloTileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48}}]);
 

@@ -27,9 +27,7 @@ describe('terrain scanner helper', () => {
       .toBe('Scanner ←: active fiend — drill it before it chews hull.');
   });
 
-  it('reads a hanging decoration as open and a solid one as drillable', () => {
-    expect(formatTerrainScanner({ tile: { type: 'decor', decor: 'leninPortrait', hp: 48, maxHp: 48 }, direction: [1, 0] }))
-      .toBe('Scanner →: decoration — open, the ship flies through; the toolkit lifts it.');
+  it('reads a decoration as drillable', () => {
     expect(formatTerrainScanner({ tile: { type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48 }, direction: [0, 1] }))
       .toBe('Scanner ↓: decoration — drill to recover it.');
   });

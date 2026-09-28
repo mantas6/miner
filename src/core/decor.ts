@@ -23,18 +23,6 @@ export function decorIdForKind(kind: DecorKind): DecorId {
   return kind.slice('decor:'.length) as DecorId;
 }
 
-/**
- * Whether a decoration hangs in open space rather than filling its tile: the ship
- * flies straight through it, it is never ground, and the drill cannot bite it —
- * the Construction Toolkit lifts it instead, like a station. Every other
- * decoration is a solid panel drilled out as usual. This is the one rule every
- * "is this open air for the ship" decision routes through (via
- * `isTraversableTile` in movement.ts).
- */
-export function isPassableDecor(id: DecorId): boolean {
-  return id === 'leninPortrait';
-}
-
 /** How a decoration words each of the shared placement refusals. */
 const DECOR_PLACEMENT_COPY: PlacementCopy = {
   // Decorations have no soft cap, so "full" can never fire; the others do.

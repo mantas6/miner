@@ -54,16 +54,7 @@ export function Intro() {
       <div className={styles.card}>
         <div className={styles.emblem} aria-hidden="true">
           <div className="soviet-badge">
-            <div className="lenin-face">
-              <div className="lenin-hair"></div>
-              <div className="lenin-brow left"></div><div className="lenin-brow right"></div>
-              <div className="lenin-eye left"></div><div className="lenin-eye right"></div>
-              <div className="lenin-nose"></div>
-              <div className="lenin-moustache"></div>
-              <div className="lenin-beard"></div>
-            </div>
             <div className="badge-star">★</div>
-            <div className="badge-sickle">☭</div>
           </div>
           <div className="soviet-ribbon">СССР</div>
         </div>

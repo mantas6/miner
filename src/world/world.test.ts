@@ -4,8 +4,6 @@ import {
   CHEST_MIN_ROW,
   GRAVE_CHUNK,
   GRAVE_MIN_ROW,
-  HOME_PORTRAITS,
-  PORTRAIT_CHUNK,
   TRADING_POST_CHUNK,
   TRADING_POST_MIN_ROW,
   chestAt,
@@ -14,13 +12,9 @@ import {
   graveAt,
   gravePocket,
   gravesInRange,
-  homePortraitAt,
   rand,
   naturalAirPocket,
   makeTile,
-  minePortraitAt,
-  minePortraitPocket,
-  nearestMinePortrait,
   oreForDepthRoll,
   oreSpawnChanceAtDepth,
   starterOreForCoordinate,
@@ -203,80 +197,6 @@ describe('trading posts', () => {
   });
 });
 
-/** Every mine portrait in rows [y0, y1), scanning the whole world width. */
-function minePortraitsIn(y0: number, y1: number): {x: number; y: number}[] {
-  const found: {x: number; y: number}[] = [];
-  for (let y = y0; y < y1; y++) {
-    for (let x = 0; x < WORLD_W; x++) if (minePortraitAt(x, y)) found.push({x, y});
-  }
-  return found;
-}
-
-describe('mine portraits', () => {
-  const portraits = minePortraitsIn(0, 1200);
-
-  it('hangs roughly one per three 16-tile chunks, derived the same every time', () => {
-    expect(PORTRAIT_CHUNK).toBe(16);
-    // ~0.35 per chunk (fewer at the walls): 1200 rows × 90 columns ≈ 420 chunks.
-    expect(portraits.length).toBeGreaterThan(90);
-    expect(portraits.length).toBeLessThan(170);
-    for (const {x, y} of portraits.slice(0, 20)) {
-      expect(minePortraitAt(x, y)).toBe(true);
-      expect(makeTile(x, y)).toEqual(makeTile(x, y));
-    }
-  });
-
-  it('is a Lenin Portrait decor tile in its own cleared 3×3 pocket', () => {
-    for (const {x, y} of portraits) {
-      expect(makeTile(x, y)).toEqual({type: 'decor', decor: 'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP});
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          expect(minePortraitPocket(x + dx, y + dy)).toBe(true);
-          if (dx || dy) expect(makeTile(x + dx, y + dy)).toEqual({type: 'air'});
-        }
-      }
-      expect(minePortraitPocket(x + 2, y)).toBe(false);
-      expect(x - 1).toBeGreaterThanOrEqual(2);
-      expect(x + 1).toBeLessThanOrEqual(WORLD_W - 3);
-    }
-  });
-
-  it('never hangs one, or its pocket, at or above the cavern floor', () => {
-    for (let y = 0; y <= HOME_ROW + 1; y++) {
-      for (let x = 0; x < WORLD_W; x++) {
-        expect(minePortraitAt(x, y)).toBe(false);
-        expect(minePortraitPocket(x, y)).toBe(false);
-      }
-    }
-    expect(portraits.every(p => p.y - 1 > HOME_ROW + 1)).toBe(true);
-  });
-
-  it('never overlaps a trading post pocket', () => {
-    for (const {x, y} of portraits) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) expect(tradingPostPocket(x + dx, y + dy)).toBe(false);
-      }
-    }
-  });
-
-  it('finds the nearest one within a few chunks of a deep point, deterministically', () => {
-    for (let i = 0; i < 20; i++) {
-      const fromX = Math.floor(rand(i + 5, 17) * WORLD_W);
-      const fromY = 200 + Math.floor(rand(i + 11, 29) * 5000);
-      const nearest = nearestMinePortrait(fromX, fromY, 3);
-      expect(nearest).not.toBeNull();
-      expect(minePortraitAt(nearest!.x, nearest!.y)).toBe(true);
-      expect(nearestMinePortrait(fromX, fromY, 3)).toEqual(nearest);
-      // Nothing in the rows around it hangs closer.
-      const distance = Math.hypot(nearest!.x - fromX, nearest!.y - fromY);
-      for (const other of minePortraitsIn(fromY - Math.ceil(distance), fromY + Math.ceil(distance) + 1)) {
-        expect(Math.hypot(other.x - fromX, other.y - fromY)).toBeGreaterThanOrEqual(distance);
-      }
-    }
-    expect(nearestMinePortrait(45, 0, 0)).toBeNull();
-  });
-});
-
 describe('chests', () => {
   const chests = chestsInRange(0, 0, WORLD_W - 1, 1199);
 
@@ -312,16 +232,14 @@ describe('chests', () => {
     for (let y = 0; y < CHEST_MIN_ROW; y++) for (let x = 0; x < WORLD_W; x++) expect(chestAt(x, y)).toBeNull();
   });
 
-  it('never shares — or touches — a trading post or mine portrait pocket', () => {
+  it('never shares — or touches — a trading post pocket', () => {
     for (const {x, y} of chests) {
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           expect(tradingPostPocket(x + dx, y + dy)).toBe(false);
-          expect(minePortraitPocket(x + dx, y + dy)).toBe(false);
         }
       }
       expect(tradingPostAt(x, y)).toBeNull();
-      expect(minePortraitAt(x, y)).toBe(false);
     }
   });
 });
@@ -368,12 +286,11 @@ describe('graves', () => {
     for (let y = 0; y < GRAVE_MIN_ROW; y++) for (let x = 0; x < WORLD_W; x++) expect(graveAt(x, y)).toBeNull();
   });
 
-  it('never shares — or touches — a trading post, mine portrait or chest', () => {
+  it('never shares — or touches — a trading post or chest', () => {
     for (const {x, y} of graves) {
       for (let dy = -2; dy <= 1; dy++) {
         for (let dx = -2; dx <= 2; dx++) {
           expect(tradingPostPocket(x + dx, y + dy)).toBe(false);
-          expect(minePortraitPocket(x + dx, y + dy)).toBe(false);
           expect(chestAt(x + dx, y + dy)).toBeNull();
           expect(starterOreForCoordinate(x + dx, y + dy)).toBeNull();
         }
@@ -406,35 +323,16 @@ describe('makeTile', () => {
     }
   });
 
-  it('carves a deterministic air cavern for the home base, bar its two portraits', () => {
+  it('carves a deterministic air cavern for the home base', () => {
     const cavern: Tile[] = [];
     for (let y = HOME_CAVERN_TOP; y <= HOME_ROW; y++) {
       for (let x = 0; x < WORLD_W; x++) {
-        if (isHomeCavern(x, y) && !homePortraitAt(x, y)) cavern.push(makeTile(x, y));
+        if (isHomeCavern(x, y)) cavern.push(makeTile(x, y));
       }
     }
 
     expect(cavern.length).toBeGreaterThan(0);
     expect(cavern.every(tile => tile.type === 'air')).toBe(true);
-  });
-
-  it('hangs a Lenin Portrait either side of the cavern\'s middle column, one row up', () => {
-    const left = {x: HOME_X - 1, y: HOME_ROW - 1};
-    const right = {x: HOME_X + 1, y: HOME_ROW - 1};
-    expect(HOME_PORTRAITS).toEqual([left, right]);
-    expect(left).toEqual({x: 44, y: 19});
-    expect(right).toEqual({x: 46, y: 19});
-    for (const {x, y} of HOME_PORTRAITS) {
-      expect(isHomeCavern(x, y)).toBe(true);
-      expect(makeTile(x, y)).toEqual({type: 'decor', decor: 'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP});
-    }
-    // Only those two: the middle column between them and the tiles around stay air.
-    expect(makeTile(HOME_X, HOME_ROW - 1)).toEqual({type: 'air'});
-    expect(makeTile(left.x - 1, left.y)).toEqual({type: 'air'});
-    expect(makeTile(right.x + 1, right.y)).toEqual({type: 'air'});
-    expect(makeTile(left.x, left.y + 1)).toEqual({type: 'air'});
-    expect(makeTile(right.x, right.y - 1)).toEqual({type: 'air'});
-    expect(homePortraitAt(HOME_X, HOME_ROW - 1)).toBe(false);
   });
 
   it('paves the cavern floor with stone blocks', () => {

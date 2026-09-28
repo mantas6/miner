@@ -1,4 +1,4 @@
-/* The intro badge: a CSS-only Soviet emblem with a Lenin portrait. Global
+/* The intro badge: a CSS-only Soviet emblem with a red star. Global
    because it is a fixed piece of art, not a reusable component style. */
 /* `z-index: 0` makes the badge its own stacking context so the ray burst below
    can sit behind the medallion without falling behind the card as well. */
@@ -27,21 +27,10 @@
   mask-image: radial-gradient(circle, #000 55%, transparent 78%);
 }
 .badge-star {
-  position: absolute;
-  bottom: 8px;
-  right: 25px;
   color: #b51212;
-  font-size: 42px;
-  text-shadow: 0 1px 0 #fff0a6;
-}
-.badge-sickle {
-  position: absolute;
-  bottom: 10px;
-  left: 26px;
-  color: #b51212;
-  font-size: 38px;
+  font-size: 120px;
   line-height: 1;
-  text-shadow: 0 1px 0 #fff0a6;
+  text-shadow: 0 2px 0 #fff0a6;
 }
 /* Constructivist award ribbon under the medallion: notched ends, stencil CCCP. */
 .soviet-ribbon {
@@ -57,83 +46,6 @@
   clip-path: polygon(0 0, 100% 0, calc(100% - 15px) 50%, 100% 100%, 0 100%, 15px 50%);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
 }
-.lenin-face {
-  position: relative;
-  width: 116px;
-  height: 138px;
-  border-radius: 48% 48% 50% 50%;
-  background: linear-gradient(#f2c88b, #c98951);
-  border: 4px solid #5a1a12;
-  box-shadow: inset 0 -12px 0 rgba(80, 30, 12, 0.18);
-}
-.lenin-hair {
-  position: absolute;
-  left: 8px;
-  top: -6px;
-  width: 78px;
-  height: 34px;
-  border-radius: 50% 40% 20% 20%;
-  background: #3a1810;
-  transform: rotate(-9deg);
-}
-.lenin-brow {
-  position: absolute;
-  top: 48px;
-  width: 28px;
-  height: 6px;
-  border-radius: 8px;
-  background: #3a1810;
-}
-.lenin-brow.left {
-  left: 24px;
-  transform: rotate(-8deg);
-}
-.lenin-brow.right {
-  right: 24px;
-  transform: rotate(8deg);
-}
-.lenin-eye {
-  position: absolute;
-  top: 59px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #17120f;
-}
-.lenin-eye.left {
-  left: 36px;
-}
-.lenin-eye.right {
-  right: 36px;
-}
-.lenin-nose {
-  position: absolute;
-  left: 53px;
-  top: 62px;
-  width: 13px;
-  height: 34px;
-  border-radius: 0 0 9px 9px;
-  border-right: 4px solid rgba(84, 31, 16, 0.55);
-}
-.lenin-moustache {
-  position: absolute;
-  left: 31px;
-  top: 91px;
-  width: 54px;
-  height: 15px;
-  border-radius: 50%;
-  background: #4a1c12;
-  box-shadow: 0 7px 0 #4a1c12;
-}
-.lenin-beard {
-  position: absolute;
-  left: 37px;
-  bottom: -10px;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px 12px 50% 50%;
-  background: #4a1c12;
-}
 @media (max-width: 760px) {
   .soviet-badge {
     width: 138px;
@@ -142,21 +54,8 @@
   .soviet-badge::before {
     inset: -18px;
   }
-  /* Scale the whole portrait instead of resizing the face box: the features are
-     absolutely positioned against the full-size face, so shrinking the box
-     alone slides them off the chin. */
-  .lenin-face {
-    transform: scale(0.62);
-  }
   .badge-star {
-    bottom: 2px;
-    right: 12px;
-    font-size: 28px;
-  }
-  .badge-sickle {
-    bottom: 3px;
-    left: 13px;
-    font-size: 25px;
+    font-size: 78px;
   }
   .soviet-ribbon {
     padding: 4px 22px;

@@ -14,7 +14,7 @@ import { MAX_WORLD_ROW, START_Y, WORLD_W } from '../../shared/constants';
 import { createInitialState } from '../core/state';
 import type { GameState } from '../core/types';
 import { createRenderer, type RendererState } from '../render/renderer';
-import { nearestMinePortrait, rand } from '../world/world';
+import { rand } from '../world/world';
 import { viewport } from './viewport';
 import { createWorldGrid } from './world-grid';
 
@@ -23,8 +23,6 @@ export const SHOWCASE_MIN_ROW = START_Y + 30;
 export const SHOWCASE_MAX_ROW = START_Y + 700;
 /** Downward drift of the camera, in tiles per second. */
 export const SHOWCASE_DRIFT_TILES_PER_SECOND = 0.35;
-/** How many 16-tile chunk rings out from the random pick to look for a portrait. */
-export const SHOWCASE_PORTRAIT_SEARCH_CHUNKS = 4;
 /**
  * The longest frame gap the drift honours. A hidden tab stops animation frames,
  * and the camera should resume gliding rather than jump the whole absence.
@@ -47,36 +45,6 @@ export function pickShowcaseCamera(random: () => number, tilesX: number): Showca
   return {
     camX: pick(0, maxX),
     camY: pick(SHOWCASE_MIN_ROW, SHOWCASE_MAX_ROW)
-  };
-}
-
-/**
- * The row the framed portrait lands on, as a fraction of the view's height. The
- * title card covers the middle of the screen, so the portrait is hung in the
- * band above it — and the downward drift then carries it up and out of view,
- * rather than behind the card.
- */
-export const SHOWCASE_PORTRAIT_ROW_FRACTION = 0.2;
-
-/**
- * Re-frame the camera `pick` on `portrait`: the portrait's tile lands on the
- * view's centre column (`floor(tilesX / 2)`) and a fifth of the way down
- * (`SHOWCASE_PORTRAIT_ROW_FRACTION`), clear of the card, with the column clamped
- * so the view stays inside the world's width and the row kept at `y ≥ 0`. Without
- * a portrait the pick stands. Pure, so the framing is testable without generating
- * any terrain.
- */
-export function frameShowcaseCamera(
-  pick: ShowcaseCamera,
-  portrait: {x: number; y: number} | null,
-  tilesX: number,
-  tilesY: number
-): ShowcaseCamera {
-  if (!portrait) return pick;
-  const maxX = Math.max(0, WORLD_W - tilesX);
-  return {
-    camX: Math.max(0, Math.min(maxX, portrait.x - Math.floor(tilesX / 2))),
-    camY: Math.max(0, portrait.y - Math.floor(tilesY * SHOWCASE_PORTRAIT_ROW_FRACTION))
   };
 }
 
@@ -104,10 +72,7 @@ export function createIntroShowcase({canvas, ctx, reducedMotion = false, random 
   // A fresh solo world with no save: rows generate from the seed on first read,
   // and nothing ever writes a tile, so the render-cache and diff hooks are no-ops.
   const grid = createWorldGrid({state, invalidateTerrain: () => {}, onTileSet: () => {}});
-  const {tilesX, tilesY} = viewport;
-  const pick = pickShowcaseCamera(random, tilesX);
-  const portrait = nearestMinePortrait(pick.camX + Math.floor(tilesX / 2), pick.camY + Math.floor(tilesY / 2), SHOWCASE_PORTRAIT_SEARCH_CHUNKS);
-  const {camX, camY} = frameShowcaseCamera(pick, portrait, tilesX, tilesY);
+  const {camX, camY} = pickShowcaseCamera(random, viewport.tilesX);
   // The renderer reads a shallow copy of the whole state with the intro's two
   // presentation overrides: `exploredTiles` absent means "everything visible"
   // (no fog) without emptying or replacing the real state's Set, and `hideShip`

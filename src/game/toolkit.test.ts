@@ -1,5 +1,4 @@
-// The Construction Toolkit: lifting empty stations, containers and hanging
-// decorations back aboard.
+// The Construction Toolkit: lifting empty stations and containers back aboard.
 //
 // The rules it leans on (reach, emptiness, bay room) come from core/stations.ts
 // and core/cargo-container.ts; what is checked here is the lift itself — a loaded
@@ -7,20 +6,18 @@
 // spent doing it.
 
 import { describe, expect, it, vi } from 'vitest';
-import { DECOR_HP } from '../../shared/constants';
 import { createPlacedContainer } from '../core/cargo-container';
 import { addItem, countItem, createInventory, oreItem } from '../core/inventory';
 import { createInitialState } from '../core/state';
 import { createExtractor, createManufacturer, createPortal, type PlacedStation } from '../core/stations';
 import type { GameState, Ore } from '../core/types';
 import { TOOLKIT_ITEM, createToolkit, type ToolkitSim } from './toolkit';
-import { createAudioStub, createFakeGrid, createToastLog, type AudioStub, type FakeGrid } from './test-support';
+import { createAudioStub, createToastLog, type AudioStub } from './test-support';
 
 const COPPER: Ore = {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1};
 
 interface Harness {
   state: GameState;
-  grid: FakeGrid;
   toolkit: ToolkitSim;
   audio: AudioStub;
   toasts: ReturnType<typeof createToastLog>;
@@ -38,16 +35,14 @@ function harness(toolkits = 1): Harness {
   const toasts = createToastLog();
   const armedUi: boolean[] = [];
   const saveProgress = vi.fn();
-  const grid = createFakeGrid();
   const toolkit = createToolkit({
     state,
-    grid,
     audio,
     toast: toasts.toast,
     saveProgress,
     setArmedUi: value => armedUi.push(value)
   });
-  return {state, grid, toolkit, audio, toasts, armedUi, saveProgress};
+  return {state, toolkit, audio, toasts, armedUi, saveProgress};
 }
 
 describe('arming the toolkit', () => {
@@ -57,7 +52,7 @@ describe('arming the toolkit', () => {
     h.toolkit.toggleArmed();
     expect(h.toolkit.armed).toBe(true);
     expect(h.armedUi).toEqual([true]);
-    expect(h.toasts.saw('press an empty station, a container or a hanging decoration')).toBe(true);
+    expect(h.toasts.saw('press an empty station or a container')).toBe(true);
 
     h.toolkit.toggleArmed();
     expect(h.toolkit.armed).toBe(false);
@@ -176,56 +171,6 @@ describe('lifting a container', () => {
     expect(h.toolkit.liftAt(41, 100)).toBe(false);
     expect(h.state.cargoContainers).toHaveLength(1);
     expect(h.toasts.saw('Empty it first')).toBe(true);
-  });
-});
-
-describe('lifting a hanging decoration', () => {
-  const portrait = () => ({type: 'decor' as const, decor: 'leninPortrait' as const, hp: DECOR_HP, maxHp: DECOR_HP});
-
-  it('packs a Lenin Portrait in reach into the bay and leaves air behind', () => {
-    const h = harness();
-    h.grid.put(41, 99, portrait());
-    h.toolkit.toggleArmed();
-
-    expect(h.toolkit.liftAt(41, 99)).toBe(true);
-
-    expect(h.grid.get(41, 99)).toEqual({type: 'air'});
-    expect(h.grid.writes).toEqual([{x: 41, y: 99, tile: {type: 'air'}}]);
-    expect(countItem(h.state.player.inventory, 'decor:leninPortrait')).toBe(1);
-    expect(countItem(h.state.player.inventory, TOOLKIT_ITEM.kind)).toBe(1);
-    expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.toasts.saw('Lenin Portrait packed into the bay.')).toBe(true);
-  });
-
-  it('refuses a portrait the ship is not alongside', () => {
-    const h = harness();
-    h.grid.put(42, 100, portrait());
-    h.toolkit.toggleArmed();
-
-    expect(h.toolkit.liftAt(42, 100)).toBe(false);
-    expect(h.grid.get(42, 100)).toEqual(portrait());
-    expect(h.toasts.saw('Too far from the decoration')).toBe(true);
-  });
-
-  it('refuses when the cargo bay has no room for the portrait', () => {
-    const h = harness();
-    h.state.player.cargoMax = 1; // The toolkit alone fills it.
-    h.grid.put(41, 100, portrait());
-    h.toolkit.toggleArmed();
-
-    expect(h.toolkit.liftAt(41, 100)).toBe(false);
-    expect(h.grid.writes).toEqual([]);
-    expect(h.toasts.saw('Cargo bay is full')).toBe(true);
-  });
-
-  it('leaves a solid decoration to the drill', () => {
-    const h = harness();
-    h.grid.put(41, 100, {type: 'decor', decor: 'steelPlate', hp: DECOR_HP, maxHp: DECOR_HP});
-    h.toolkit.toggleArmed();
-
-    expect(h.toolkit.liftAt(41, 100)).toBe(false);
-    expect(h.grid.writes).toEqual([]);
-    expect(h.toolkit.armed).toBe(true);
   });
 });
 

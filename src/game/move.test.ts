@@ -368,68 +368,6 @@ describe('drilling out a decoration', () => {
   });
 });
 
-describe('a decoration hanging in open space', () => {
-  const portrait = (): Tile => ({type: 'decor', decor: 'leninPortrait', hp: DECOR_HP, maxHp: DECOR_HP});
-
-  it('flies through a portrait like air, sideways and upward, leaving it hanging', () => {
-    const h = harness();
-    h.grid.put(11, 40, portrait());
-    h.grid.put(11, 39, portrait());
-
-    // Hovering (air underneath) — no side-drilling refusal, since nothing is drilled.
-    h.movement.move(1, 0);
-    expect(h.state.player).toMatchObject({x: 11, y: 40});
-    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - FUEL.baseMove * FUEL.flyMult);
-
-    h.movement.move(0, -1);
-    expect(h.state.player).toMatchObject({x: 11, y: 39});
-    expect(h.toasts.saw('cannot dig upward')).toBe(false);
-
-    expect(h.grid.writes).toHaveLength(0);
-    expect(h.grid.get(11, 40)).toEqual(portrait());
-    expect(h.movement.isOpenMovementDestination(0, 1)).toBe(true);
-  });
-
-  it('cannot drill a portrait: the ship drops straight into its tile and it stays', () => {
-    const h = harness();
-    h.state.player.drill = 999;
-    h.grid.put(10, 41, portrait());
-
-    h.movement.move(0, 1);
-
-    expect(h.state.player.y).toBe(41);
-    expect(h.grid.get(10, 41)).toEqual(portrait());
-    expect(h.grid.writes).toHaveLength(0);
-    expect(countItem(h.state.player.inventory, 'decor:leninPortrait')).toBe(0);
-    // A free descent through open space, like air.
-    expect(h.state.player.fuel).toBe(STARTING.fuel);
-  });
-
-  it('is not ground: side drilling above a portrait is refused', () => {
-    const h = harness();
-    h.grid.put(10, 41, portrait());
-    h.grid.put(11, 40, dirt(3));
-
-    h.movement.move(1, 0);
-
-    expect(h.toasts.saw('Side drilling needs solid ground')).toBe(true);
-    expect(h.state.player.x).toBe(10);
-    expect(h.grid.writes).toHaveLength(0);
-  });
-
-  it('still drills a solid steel plate', () => {
-    const h = harness();
-    h.state.player.drill = 999;
-    h.grid.put(10, 41, {type: 'decor', decor: 'steelPlate', hp: DECOR_HP, maxHp: DECOR_HP});
-    expect(h.movement.isOpenMovementDestination(0, 1)).toBe(false);
-
-    h.movement.move(0, 1);
-
-    expect(h.grid.get(10, 41)).toEqual({type: 'air'});
-    expect(countItem(h.state.player.inventory, 'decor:steelPlate')).toBe(1);
-  });
-});
-
 describe('hazards and hostile tiles', () => {
   it('damages the hull on a rock bump and never moves the ship', () => {
     const h = harness();

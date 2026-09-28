@@ -8,7 +8,7 @@
 
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { FUEL, HULL } from '../core/balance';
-import { decorKindForId, isPassableDecor } from '../core/decor';
+import { decorKindForId } from '../core/decor';
 import { addItem, addOre, isFull } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { fuelAfterMovement, isOpenSpaceDestination, isTraversableTile, movementDestination, sprintCrashDamage, sprintMomentumAfterMove } from '../core/movement';
@@ -89,7 +89,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     return isOpenSpaceDestination(nx !== p.x || ny !== p.y, grid.get(nx, ny), Boolean(enemies.enemyAt(nx, ny)));
   }
 
-  function flyThroughAir(_tile: AirTile | DecorTile, {dy, useFuel, flyCost}: MoveContext): MoveOutcome {
+  function flyThroughAir(_tile: AirTile, {dy, useFuel, flyCost}: MoveContext): MoveOutcome {
     useFuel(flyCost);
     if (performance.now() - audio.lastMove > 120) {
       audio.blip(150 + Math.abs(dy)*35, 0.035, 'triangle', 0.02);
@@ -169,7 +169,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
   }
 
   /**
-   * A solid placed decoration takes several seconds of drilling to break, then returns
+   * A placed decoration takes several seconds of drilling to break, then returns
    * to the bay — the player recovers what they set down. The full-bay check runs
    * only on the final hit, so the ship can chip away at one even with no room to
    * stow it; a full bay then refuses that last hit (the ship stays put), so a
@@ -202,15 +202,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     return 'advance';
   }
 
-  /**
-   * A decoration that hangs in open space (`isPassableDecor`) is flown through like
-   * air — the drill never bites it; the Construction Toolkit lifts it instead.
-   * Every other decoration is a solid panel the drill works out.
-   */
-  function enterDecorTile(tile: DecorTile, context: MoveContext): MoveOutcome {
-    return isPassableDecor(tile.decor) ? flyThroughAir(tile, context) : drillDecorTile(tile, context);
-  }
-
   /** Destination tile type → the drill/fly behaviour that resolves the move. */
   const tileMoveHandlers: {[K in Tile['type']]: TileMoveHandler<Extract<Tile, {type: K}>>} = {
     air: flyThroughAir,
@@ -219,7 +210,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     hazard: drillHazard,
     dirt: drillValuableTile,
     ore: drillValuableTile,
-    decor: enterDecorTile
+    decor: drillDecorTile
   };
 
   function resolveDestinationTile(tile: Tile, context: MoveContext): MoveOutcome {

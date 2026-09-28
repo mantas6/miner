@@ -991,7 +991,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     });
     toolkit = createToolkit({
       state,
-      grid,
       audio,
       toast,
       saveProgress,

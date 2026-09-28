@@ -16,7 +16,6 @@ import { DECOR_HP, ORES } from '../../shared/constants';
 import { HULL } from './balance';
 import { CARGO_CONTAINER } from './cargo-container';
 import type { Recipe } from './crafting';
-import { decorIdForKind, isPassableDecor } from './decor';
 import { DYNAMITE } from './dynamite';
 import {
   countItem,
@@ -75,19 +74,13 @@ function describeUpgrade(kind: UpgradeKind): ItemInfo {
   return {title: itemForKind(kind).label, lines};
 }
 
-/**
- * The placeable cosmetic tiles. A solid panel is drilled back out; one that hangs
- * in open space (`isPassableDecor`) is flown through and lifted with the toolkit
- * instead, so it swaps the drill line for that one.
- */
+/** The placeable cosmetic tiles, each a solid panel drilled back out. */
 function describeDecor(kind: DecorKind): ItemInfo {
   return {
     title: itemForKind(kind).label,
     lines: [
       'Decoration: set it down on a cleared tile to mark the mine.',
-      isPassableDecor(decorIdForKind(kind))
-        ? 'Hangs in open space: the ship flies through it, and the Construction Toolkit lifts it back aboard.'
-        : `Takes ${DECOR_HP} drill hits to clear once placed.`
+      `Takes ${DECOR_HP} drill hits to clear once placed.`
     ]
   };
 }

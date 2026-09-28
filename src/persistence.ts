@@ -93,7 +93,7 @@ interface SavedProgress {
 }
 
 export const SAVE_KEY = 'moleload-progress-v1';
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 /** The file name an exported save downloads as. */
 export const SAVE_EXPORT_FILENAME = 'moleload-save.json';
 /** A stored stack is a count, not a licence to write an unbounded number. */
