@@ -18,6 +18,8 @@ import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 import { appendToast, buildObservation, MAX_VIEW_RADIUS, VIEW_LEGEND } from './observation';
+import { createReadouts } from '../game/readouts';
+import { createAudioStub, createEnemySimStub, createFakeGrid } from '../game/test-support';
 import { nth } from '../test-narrowing';
 import { EXTRACTOR_FUEL_ORDER, SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, supplyPrice } from '../core/trading';
 
@@ -350,7 +352,10 @@ describe('buildObservation', () => {
     expect(hazards.hazards?.rows.length).toBeGreaterThan(0);
 
     const controls = info({infoTab: 'info-controls'});
-    expect(controls.controls).toContainEqual({keys: 'WASD / Arrows', action: 'Move, fly, and dig'});
+    expect(controls.controls).toContainEqual({
+      keys: 'WASD / Arrows',
+      action: 'Move, fly, and dig down or sideways (never up). Digging sideways with open air below the ship costs 50% more fuel.'
+    });
     expect(controls.controls?.some(row => row.keys.startsWith('+ / -'))).toBe(true);
 
     const settings = info({infoTab: 'info-settings', cheatsOpen: true, confirmingReset: true, confirmingImport: false});
@@ -530,6 +535,27 @@ describe('buildObservation', () => {
       get: tileSource({})
     });
     expect(near.hud.postHint).toBe('Trading post ≈9 tiles ↙');
+  });
+
+  it('carries the scanner line, hover surcharge included, in hud.scanner', () => {
+    const state = createInitialState();
+    state.player.x = 45;
+    state.player.y = 100;
+    state.player.drillDx = 1;
+    state.player.drillDy = 0;
+    reveal(state, 46, 100);
+    // Open air under the ship, dirt to its right: a side drill from a hover.
+    const get = tileSource({'45,101': {type: 'air'}});
+    const grid = createFakeGrid(get);
+    const readouts = createReadouts({
+      state, grid, enemies: createEnemySimStub(), audio: createAudioStub(),
+      atSurface: () => false, toast: () => {}
+    });
+    const hud = {...uiStore.getState().hud};
+    readouts.sync(hud);
+
+    const obs = buildObservation({state, ui: ui({hud}), get});
+    expect(obs.hud.scanner).toBe('Scanner →: dirt — drillable, 1 hit. Hover: +50 % fuel.');
   });
 
   it('carries the return forecast and the exit it is priced to in hud.fuelReserve', () => {

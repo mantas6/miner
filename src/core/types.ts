@@ -31,8 +31,8 @@ export type Direction = [number, number];
 /**
  * What one attempted step did: the ship `advanced` onto the destination, the
  * drill `drilled` it (or hit an enemy) without getting through yet, the ship
- * `bumped` solid rock, the move was `refused` outright (no upward or ungrounded
- * side drilling), or `none` — nothing happened (the run is over, the tank was
+ * `bumped` solid rock, the move was `refused` outright (the drill never digs
+ * upward), or `none` — nothing happened (the run is over, the tank was
  * already dry, or the world edge left nowhere to go).
  */
 export type MoveResult = 'advanced' | 'drilled' | 'bumped' | 'refused' | 'none';

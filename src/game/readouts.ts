@@ -26,7 +26,7 @@ import {
   type FuelExit,
   type FuelReserveStatus
 } from '../core/fuel-reserve';
-import { isTraversableTile } from '../core/movement';
+import { isHoverSideDrill, isTraversableTile } from '../core/movement';
 import { tradingPostHint } from '../core/post-beacon';
 import { formatTerrainScanner } from '../core/scanner';
 import type { PlacedStation } from '../core/stations';
@@ -90,6 +90,7 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
   let scanEnemyId = 0;
   let scanExplored = false;
   let scanDrill = NaN;
+  let scanHovering = false;
   let scannerLine = '';
 
   // Trading-post beacon memo: posts never move, so the ship's tile is the whole input.
@@ -153,15 +154,18 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
     const enemy = enemies.enemyAt(x, y);
     const enemyId = enemy?.id ?? 0;
     const explored = isTileExplored(state.exploredTiles, x, y);
+    // The same predicate `move()` prices the dig with, so the readout never drifts.
+    const hovering = isHoverSideDrill(dx, dy, grid.get(p.x, p.y + 1));
 
     if (x !== scanX || y !== scanY || dx !== scanDx || dy !== scanDy
       || tile !== scanTile || hp !== scanHp || enemyId !== scanEnemyId || explored !== scanExplored
-      || p.drill !== scanDrill) {
+      || p.drill !== scanDrill || hovering !== scanHovering) {
       scanX = x; scanY = y; scanDx = dx; scanDy = dy;
       scanTile = tile; scanHp = hp; scanEnemyId = enemyId; scanExplored = explored; scanDrill = p.drill;
+      scanHovering = hovering;
       scanDirection[0] = dx;
       scanDirection[1] = dy;
-      scannerLine = formatTerrainScanner({tile, direction: scanDirection, activeEnemy: enemy?.kind ?? false, explored, drill: p.drill});
+      scannerLine = formatTerrainScanner({tile, direction: scanDirection, activeEnemy: enemy?.kind ?? false, explored, drill: p.drill, hovering});
     }
     hud.scanner = scannerLine;
   }

@@ -120,6 +120,27 @@ describe('terrain scanner readout', () => {
     game.state.player.drill = 3;
     expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 2 hits.');
   });
+
+  it('flags the hover surcharge when the drill aims sideways over open air, and drops it on a floor', () => {
+    const game = setup();
+    game.descend(2);
+    const {x, y} = game.state.player;
+    game.state.player.drillDx = 1;
+    game.state.player.drillDy = 0;
+    game.state.exploredTiles.add(explorationIndex(x + 1, y));
+
+    // Standing on dirt: a plain side dig.
+    expect(game.sync().scanner).toBe('Scanner →: dirt — drillable, 3 hits.');
+
+    // The floor goes (a blast, say) and the same aim now reads as a hover drill.
+    game.grid.put(x, y + 1, {type: 'air'});
+    expect(game.sync().scanner).toBe('Scanner →: dirt — drillable, 3 hits. Hover: +50 % fuel.');
+
+    // Aiming down again is never a hover drill.
+    game.state.player.drillDx = 0;
+    game.state.player.drillDy = 1;
+    expect(game.sync().scanner).toBe('Scanner ↓: clear route.');
+  });
 });
 
 describe('trading-post beacon', () => {

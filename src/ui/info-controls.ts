@@ -9,6 +9,7 @@
 import { HULL, REVEAL_FOOTPRINT } from '../core/balance';
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import { DYNAMITE } from '../core/dynamite';
+import { HOVER_DRILL_SURCHARGE_PERCENT } from '../core/movement';
 import { SCANNER_DEVICE } from '../core/scanner-device';
 
 /** One piece of a row's keys cell. */
@@ -27,7 +28,7 @@ const control = (text: string): ControlKeyPart => ({kind: 'control', text});
 const text = (value: string): ControlKeyPart => ({kind: 'text', text: value});
 
 export const CONTROL_ROWS: readonly ControlRow[] = [
-  {keys: [key('WASD'), text(' / '), key('Arrows')], action: 'Move, fly, and dig'},
+  {keys: [key('WASD'), text(' / '), key('Arrows')], action: `Move, fly, and dig down or sideways (never up). Digging sideways with open air below the ship costs ${HOVER_DRILL_SURCHARGE_PERCENT}% more fuel.`},
   {keys: [control('Fog map')], action: `Movement permanently reveals a ${REVEAL_FOOTPRINT}x${REVEAL_FOOTPRINT} footprint around the ship.`},
   {keys: [key('Shift'), text(' + movement')], action: 'Boost through open space at increased fuel cost (requires a Booster fitted). Open-space descent is free and drilling stays normal. Slamming a boosted ship into rock, a ceiling, or a wall buckles the hull.'},
   {keys: [key('Space')], action: 'Use what the ship is parked beside: the Manufacturing Station to stow cargo and craft, the Fuel Extractor to refuel, a Portal to travel, a Trading Post to sell and buy, or a grave to read it'},

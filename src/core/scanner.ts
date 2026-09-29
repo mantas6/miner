@@ -1,4 +1,5 @@
 import { getEnemyType } from './enemy-types';
+import { HOVER_DRILL_SURCHARGE_PERCENT } from './movement';
 import type { Direction, EnemyKind, Tile } from './types';
 
 export interface TerrainScannerInput {
@@ -8,7 +9,15 @@ export interface TerrainScannerInput {
   explored?: boolean;
   /** The ship's drill power (hp removed per hit); hit counts divide by it. */
   drill?: number;
+  /**
+   * The drill is aimed sideways with nothing under the ship (`isHoverSideDrill`),
+   * so drilling the target costs the hover surcharge; a drillable tile says so.
+   */
+  hovering?: boolean;
 }
+
+/** The hover surcharge, derived from the balance constant: " Hover: +50 % fuel." */
+const HOVER_SUFFIX = ` Hover: +${HOVER_DRILL_SURCHARGE_PERCENT} % fuel.`;
 
 function directionLabel([dx, dy]: Direction): string {
   if (dx < 0) return '←';
@@ -31,14 +40,20 @@ function hitsLabel(hp: number, drill: number): string {
 }
 
 /** Formats a concise, DOM-free warning for the adjacent movement/drill target. */
-export function formatTerrainScanner({ tile, direction, activeEnemy = false, explored = true, drill = 1 }: TerrainScannerInput): string {
+export function formatTerrainScanner({ tile, direction, activeEnemy = false, explored = true, drill = 1, hovering = false }: TerrainScannerInput): string {
   const prefix = `Scanner ${directionLabel(direction)}:`;
   if (!explored) return `${prefix} unexplored — advance to map terrain.`;
   if (activeEnemy) {
     const name = typeof activeEnemy === 'string' ? getEnemyType(activeEnemy).name.toLowerCase() : 'fiend';
     return `${prefix} active ${name} — drill it before it chews hull.`;
   }
+  const line = describeTile(prefix, tile, drill);
+  // Only a tile the drill can bite warns of the surcharge: air is flown, and
+  // rock already says to detour.
+  return hovering && tile.type !== 'air' && tile.type !== 'rock' ? line + HOVER_SUFFIX : line;
+}
 
+function describeTile(prefix: string, tile: Tile, drill: number): string {
   switch (tile.type) {
     case 'air':
       return `${prefix} clear route.`;

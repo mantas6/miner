@@ -11,7 +11,15 @@ import { FUEL, HULL } from '../core/balance';
 import { decorKindForId } from '../core/decor';
 import { addItem, addOre, isFull } from '../core/inventory';
 import { itemForKind } from '../core/items';
-import { fuelAfterMovement, isOpenSpaceDestination, isTraversableTile, movementDestination, sprintCrashDamage, sprintMomentumAfterMove } from '../core/movement';
+import {
+  fuelAfterMovement,
+  isHoverSideDrill,
+  isOpenSpaceDestination,
+  isTraversableTile,
+  movementDestination,
+  sprintCrashDamage,
+  sprintMomentumAfterMove
+} from '../core/movement';
 import { hitsLeft } from '../core/scanner';
 import type {
   AirTile,
@@ -82,11 +90,6 @@ export interface GameMovementDeps {
 
 export function createMovement(deps: GameMovementDeps): GameMovement {
   const {state, grid, enemies, audio, toast, saveProgress, damage, gameOver, spawnDust, spawnExplosion} = deps;
-
-  function grounded(): boolean {
-    const p = state.player;
-    return !isTraversableTile(grid.get(p.x, p.y + 1));
-  }
 
   function isOpenMovementDestination(dx: number, dy: number): boolean {
     const p = state.player;
@@ -266,11 +269,15 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     const activeEnemy = enemies.enemyAt(nx, ny);
     const destinationOpen = isOpenSpaceDestination(true, tile, Boolean(activeEnemy));
     const baseCost = FUEL.baseMove + Math.abs(dy)*FUEL.vertical;
+    // Drilling terrain sideways with nothing underneath is allowed, at a
+    // surcharge; an enemy in the way is fought at the usual cost.
+    const hovering = !activeEnemy && !isTraversableTile(tile) && isHoverSideDrill(dx, dy, grid.get(p.x, p.y + 1));
+    const digMult = hovering ? FUEL.digMult * FUEL.hoverDrillMult : FUEL.digMult;
     const context: MoveContext = {
       dx, dy, nx, ny, player: p,
       useFuel: amount => { p.fuel = fuelAfterMovement(p.fuel, amount, sprinting, destinationOpen, dy > 0); },
-      dig: extra => (baseCost + extra) * FUEL.digMult, // digging uses 50% more fuel
-      flyCost: baseCost * FUEL.flyMult                 // flying uses 50% less fuel
+      dig: extra => (baseCost + extra) * digMult, // digging uses 50% more fuel, more again from a hover
+      flyCost: baseCost * FUEL.flyMult            // flying uses 50% less fuel
     };
     p.facing = dx ? Math.sign(dx) : p.facing;
     p.drillDx = dx;
@@ -278,7 +285,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     const resolve = (): MoveResult => {
       if (activeEnemy) { p.drillAnim = 1.65; context.useFuel(context.dig(FUEL.dig.enemy)); enemies.damageEnemy(activeEnemy); return 'drilled'; }
       if (!isTraversableTile(tile) && dy < 0) { p.drillDx = 0; p.drillDy = -1; p.drillAnim = 0.75; audio.bump(); toast('The drill cannot dig upward. Use tunnels to fly up.'); return 'refused'; }
-      if (!isTraversableTile(tile) && dx !== 0 && dy === 0 && !grounded()) { p.drillDx = dx; p.drillDy = 0; p.drillAnim = 0.55; audio.bump(); toast('Side drilling needs solid ground underneath.'); return 'refused'; }
       return resolveDestinationTile(tile, context);
     };
     // Read the momentum before the move consumes it: the crash is paid by the

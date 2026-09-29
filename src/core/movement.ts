@@ -1,4 +1,4 @@
-import { HULL, SPRINT } from './balance';
+import { FUEL, HULL, SPRINT } from './balance';
 import type { Direction, Tile } from './types';
 
 export function movementDestination(x: number, y: number, dx: number, dy: number, worldWidth: number): {x: number; y: number} {
@@ -18,6 +18,27 @@ export function movementDestination(x: number, y: number, dx: number, dy: number
 export function isTraversableTile(tile: Tile | undefined): boolean {
   return tile?.type === 'air';
 }
+
+/**
+ * Whether a ship has ground under it, given the tile directly below: anything but
+ * open space holds it up. The movement rules and the scanner readout both ask
+ * this one question, so they never disagree about when the ship is hovering.
+ */
+export function isGrounded(below: Tile | undefined): boolean {
+  return !isTraversableTile(below);
+}
+
+/**
+ * Whether a step drills sideways from a hover — straight left or right with open
+ * space below. Allowed, but the drill has no floor to brace against, so every
+ * hit costs `FUEL.hoverDrillMult` times the usual dig fuel.
+ */
+export function isHoverSideDrill(dx: number, dy: number, below: Tile | undefined): boolean {
+  return dx !== 0 && dy === 0 && !isGrounded(below);
+}
+
+/** That surcharge as a whole percentage (50 for a 1.5× multiplier), for the copy that names it. */
+export const HOVER_DRILL_SURCHARGE_PERCENT = Math.round((FUEL.hoverDrillMult - 1) * 100);
 
 export function isOpenSpaceDestination(destinationChanged: boolean, tile: Tile, activeEnemy: boolean): boolean {
   return destinationChanged && isTraversableTile(tile) && !activeEnemy;

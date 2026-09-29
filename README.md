@@ -606,7 +606,12 @@ eight around it, and only once it is explored.
   a seam some earlier ship already reached, or one a portal jump skipped past,
   stays quiet.
 - Drilling upward is blocked; use tunnels to fly back up.
-- Side-drilling requires solid ground under the ship.
+- Side-drilling works from a hover too, so ore beside a shaft is never out of
+  reach, but with open air under the ship every side hit (a rock bump included)
+  costs 1.5× the usual dig fuel (`FUEL.hoverDrillMult`); the scanner line warns
+  "Hover: +50 % fuel." while the drill is aimed at such a tile. A cleared tile
+  carries the ship in, still hovering — there is no gravity, and the drop below
+  stays free.
 - Rock, magma pockets, depth, and enemies make deeper mining more dangerous:
   Tunnel Fiends first, then Skitterlings, Ironbacks, and Abyss Stalkers. They are
   drawn as rusted, haunted versions of the player's own ship.

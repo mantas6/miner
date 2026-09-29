@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FUEL, HULL, STARTING } from './balance';
-import { activeSprintDirection, fuelAfterMovement, isOpenSpaceDestination, isSprintActive, isTraversableTile, keyboardMovementRepeatMs, movementDestination, movementFuelCost, sprintCrashDamage, sprintMomentumAfterMove } from './movement';
+import { activeSprintDirection, fuelAfterMovement, isGrounded, isHoverSideDrill, isOpenSpaceDestination, isSprintActive, isTraversableTile, keyboardMovementRepeatMs, movementDestination, movementFuelCost, sprintCrashDamage, sprintMomentumAfterMove } from './movement';
 import type { Tile } from './types';
 
 const AIR: Tile = {type: 'air'};
@@ -20,6 +20,19 @@ describe('traversable tiles', () => {
     expect(isTraversableTile(AIR)).toBe(true);
     for (const tile of SOLID_TILES) expect(isTraversableTile(tile)).toBe(false);
     expect(isTraversableTile(undefined)).toBe(false);
+  });
+
+  it('grounds the ship on anything but open air, and calls only a level side step off it a hover drill', () => {
+    expect(isGrounded(AIR)).toBe(false);
+    for (const tile of SOLID_TILES) expect(isGrounded(tile)).toBe(true);
+    // Off the loaded world counts as ground, like any solid tile.
+    expect(isGrounded(undefined)).toBe(true);
+
+    expect(isHoverSideDrill(1, 0, AIR)).toBe(true);
+    expect(isHoverSideDrill(-1, 0, AIR)).toBe(true);
+    expect(isHoverSideDrill(1, 0, DIRT)).toBe(false);
+    expect(isHoverSideDrill(0, 1, AIR)).toBe(false);
+    expect(isHoverSideDrill(0, -1, AIR)).toBe(false);
   });
 
   it('lets the ship sprint through air', () => {

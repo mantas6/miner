@@ -130,22 +130,6 @@ describe('blocked moves', () => {
     expect(h.toasts.saw('cannot dig upward')).toBe(true);
   });
 
-  it('requires solid ground under the ship before drilling sideways', () => {
-    const h = harness();
-    h.grid.put(11, 40, dirt(3));
-    // (10, 41) stays air, so the ship is hovering.
-
-    h.movement.move(1, 0);
-    expect(h.toasts.saw('Side drilling needs solid ground')).toBe(true);
-    expect(h.state.player.x).toBe(10);
-    expect(h.grid.writes).toHaveLength(0);
-
-    // With a floor underneath, the same press drills the wall instead.
-    h.grid.put(10, 41, dirt(3));
-    h.movement.move(1, 0);
-    expect(h.grid.get(11, 40)).toMatchObject({type: 'dirt', hp: 2});
-  });
-
   it('ignores every move once the run is over', () => {
     const h = harness();
     h.state.gameOver = true;
@@ -157,14 +141,70 @@ describe('blocked moves', () => {
   });
 });
 
+describe('side drilling from a hover', () => {
+  it('side-drills from a hover at hoverDrillMult × the dig cost', () => {
+    const h = harness();
+    h.state.player.drill = 1;
+    h.grid.put(11, 40, dirt(3));
+    // (10, 41) stays air, so the ship is hovering.
+
+    expect(h.movement.move(1, 0)).toBe('drilled');
+    const hoverHit = STARTING.fuel - h.state.player.fuel;
+    expect(h.grid.get(11, 40)).toMatchObject({type: 'dirt', hp: 2});
+    expect(h.state.player.x).toBe(10);
+
+    // With a floor underneath, the same press costs a plain dig.
+    h.grid.put(10, 41, dirt(3));
+    const before = h.state.player.fuel;
+    expect(h.movement.move(1, 0)).toBe('drilled');
+    const groundedHit = before - h.state.player.fuel;
+
+    expect(groundedHit).toBeCloseTo(DIG_COST(FUEL.dig.dig, 0));
+    expect(hoverHit).toBeCloseTo(DIG_COST(FUEL.dig.dig, 0) * FUEL.hoverDrillMult);
+    expect(FUEL.hoverDrillMult).toBeGreaterThan(1);
+  });
+
+  it('carries the ship into the cleared tile, still hovering, with ore aboard', () => {
+    const h = harness();
+    h.state.player.drill = 5;
+    h.grid.put(11, 40, {type: 'ore', ore: nth(ORES, 0), hp: 1, maxHp: 1});
+
+    expect(h.movement.move(1, 0)).toBe('advanced');
+
+    expect(h.state.player).toMatchObject({x: 11, y: 40});
+    expect(h.grid.get(11, 40)).toEqual({type: 'air'});
+    expect(countOres(h.state.player.inventory)).toBe(1);
+    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - DIG_COST(FUEL.dig.dig, 0) * FUEL.hoverDrillMult);
+    // No gravity: the open air below is still a free drop down.
+    expect(h.movement.move(0, 1)).toBe('advanced');
+    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - DIG_COST(FUEL.dig.dig, 0) * FUEL.hoverDrillMult);
+  });
+
+  it('fights an active enemy beside a hovering ship at the plain enemy cost', () => {
+    const h = harness();
+    h.enemies.standingEnemy = liveEnemy(11, 40);
+
+    expect(h.movement.move(1, 0)).toBe('drilled');
+    expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - DIG_COST(FUEL.dig.enemy, 0));
+  });
+
+  it('still never drills upward from a hover', () => {
+    const h = harness();
+    h.grid.put(10, 39, dirt(3));
+
+    expect(h.movement.move(0, -1)).toBe('refused');
+    expect(h.state.player.fuel).toBe(STARTING.fuel);
+  });
+});
+
 describe('the reported result', () => {
   it('names what each kind of step did', () => {
     const h = harness();
     expect(h.movement.move(1, 0)).toBe('advanced');
 
-    // Hovering at (11, 40): no side drilling, not even into rock.
+    // Hovering at (11, 40): a side step into rock bumps it, floor or no floor.
     h.grid.put(12, 40, {type: 'rock', hp: 999});
-    expect(h.movement.move(1, 0)).toBe('refused');
+    expect(h.movement.move(1, 0)).toBe('bumped');
 
     h.grid.put(11, 41, {type: 'rock', hp: 999});
     expect(h.movement.move(1, 0)).toBe('bumped');
