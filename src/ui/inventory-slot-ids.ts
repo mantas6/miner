@@ -1,7 +1,7 @@
 // The element ids of the inventory panel's actionable slots.
 //
 // A stack whose item is placed (a scanner, a station device, a decoration) or
-// spent with a press (a repair kit) is a button, and its id is the contract the
+// spent with a press (a repair kit, a fuel cell) is a button, and its id is the contract the
 // e2e suite and the agent harness click it by. The table lives here, apart from
 // the component, so the harness's allowlist (`agent/targets.ts`) derives the same
 // ids from the same source instead of keeping a hand-copied list in step.
@@ -13,12 +13,13 @@ import type { DecorKind, DeviceKind, InventoryItemKind } from '../core/inventory
 /** Every placeable decoration's stack kind, in catalogue order. */
 export const DECOR_KINDS: readonly DecorKind[] = DECOR_IDS.map(decorKindForId);
 
-/** The fixed slot ids: the deployables, the station devices, the toolkit and the repair kit. */
+/** The fixed slot ids: the deployables, the station devices, the toolkit, the repair kit and the fuel cell. */
 export const SLOT_BUTTON_IDS = {
   scanner: 'scannerSlotBtn',
   dynamite: 'dynamiteSlotBtn',
   container: 'containerSlotBtn',
   repairKit: 'repairKitSlotBtn',
+  fuelCell: 'fuelCellSlotBtn',
   'device:manufacturer': 'manufacturerSlotBtn',
   'device:extractor': 'extractorSlotBtn',
   'device:portal': 'portalSlotBtn',

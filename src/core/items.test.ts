@@ -10,17 +10,17 @@ import {
   parseUpgradeKind,
   type NonOreKind,
   type UpgradeId,
-  type UpgradeTier
+  type UpgradeMark
 } from './inventory';
 
 /** Every non-ore kind the game can hold, built the same way the catalog is keyed. */
 const NON_ORE_KINDS: NonOreKind[] = [
-  'dynamite', 'scanner', 'teleporter', 'container', 'repairKit',
+  'dynamite', 'scanner', 'teleporter', 'container', 'repairKit', 'fuelCell',
   'device:manufacturer', 'device:extractor', 'device:portal', 'toolkit',
   'decor:steelPlate', 'decor:stoneBlock', 'decor:copperTrim', 'decor:lampPanel',
   'upgrade:tank:1', 'upgrade:tank:2', 'upgrade:tank:3',
   'upgrade:cargo:1', 'upgrade:cargo:2', 'upgrade:cargo:3',
-  'upgrade:drill:1', 'upgrade:drill:2', 'upgrade:drill:3',
+  'upgrade:drill:1', 'upgrade:drill:2', 'upgrade:drill:3', 'upgrade:drill:4',
   'upgrade:hull:1', 'upgrade:hull:2', 'upgrade:hull:3',
   'upgrade:booster:1'
 ];
@@ -49,14 +49,17 @@ describe('the item catalog', () => {
     expect(ITEM_CATALOG['upgrade:hull:1'].label).toBe('Hull Plating Mk I');
     // Booster is Mk I only, so it drops the mark from its name.
     expect(ITEM_CATALOG['upgrade:booster:1'].label).toBe('Booster');
+    // The drill's tier 4 has a name of its own rather than a fourth mark.
+    expect(ITEM_CATALOG['upgrade:drill:4'].label).toBe('Core Drill');
   });
 
-  it('names the decorations and the repair kit', () => {
+  it('names the decorations, the repair kit and the fuel cell', () => {
     expect(ITEM_CATALOG['decor:steelPlate'].label).toBe('Steel Plate');
     expect(ITEM_CATALOG['decor:stoneBlock'].label).toBe('Stone Block');
     expect(ITEM_CATALOG['decor:copperTrim'].label).toBe('Copper Trim');
     expect(ITEM_CATALOG['decor:lampPanel'].label).toBe('Lamp Panel');
     expect(ITEM_CATALOG.repairKit.label).toBe('Repair Kit');
+    expect(ITEM_CATALOG.fuelCell.label).toBe('Fuel Cell');
   });
 });
 
@@ -94,17 +97,28 @@ describe('kind guards', () => {
     for (const kind of NON_ORE_KINDS) expect(isCatalogKind(kind)).toBe(true);
     expect(isCatalogKind('ore:Coal')).toBe(false);
     expect(isCatalogKind('upgrade:booster:2')).toBe(false);
+    // Only the drill has a tier 4.
+    expect(isCatalogKind('upgrade:tank:4')).toBe(false);
+    expect(isCatalogKind('upgrade:hull:4')).toBe(false);
     expect(isCatalogKind('bogus')).toBe(false);
   });
 
   it('splits an upgrade kind into its family and mark', () => {
-    const cases: [string, UpgradeId, UpgradeTier][] = [
+    const cases: [string, UpgradeId, UpgradeMark][] = [
       ['upgrade:tank:1', 'tank', 1],
       ['upgrade:hull:3', 'hull', 3],
-      ['upgrade:booster:1', 'booster', 1]
+      ['upgrade:booster:1', 'booster', 1],
+      ['upgrade:drill:4', 'drill', 4]
     ];
     for (const [kind, id, tier] of cases) {
       expect(parseUpgradeKind(kind as never)).toEqual({id, tier});
     }
+  });
+
+  it('only lets the drill reach tier 4, clamping any other family into Mk I–III', () => {
+    expect(parseUpgradeKind('upgrade:tank:4' as never)).toEqual({id: 'tank', tier: 3});
+    expect(parseUpgradeKind('upgrade:hull:9' as never)).toEqual({id: 'hull', tier: 3});
+    expect(parseUpgradeKind('upgrade:cargo:0' as never)).toEqual({id: 'cargo', tier: 1});
+    expect(parseUpgradeKind('upgrade:drill:x' as never)).toEqual({id: 'drill', tier: 1});
   });
 });

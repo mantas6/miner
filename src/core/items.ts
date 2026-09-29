@@ -7,14 +7,15 @@
 // mined from, so `itemForKind` resolves ore kinds through `ORES` instead of this
 // catalog.
 //
-// The consumable entries are the single source of truth for the four devices and
-// the repair kit; `dynamite.ts`, `scanner-device.ts`, `teleporter.ts`, and
+// The consumable entries are the single source of truth for the four devices, the
+// repair kit and the fuel cell; `dynamite.ts`, `scanner-device.ts`, `teleporter.ts`, and
 // `cargo-container.ts` re-export their own item from here rather than restating
 // it. The module depends only on `inventory.ts` types and the ore table, so it
 // sits at the bottom of the import graph with nothing importing back into it.
 
 import { ORES } from '../../shared/constants';
 import {
+  CORE_DRILL_KIND,
   isOreKind,
   oreItem,
   type DecorKind,
@@ -57,7 +58,7 @@ function upgradeItem(id: UpgradeId, tier: UpgradeTier): InventoryItem {
   return {kind, label, color: UPGRADE_COLORS[id], value: 0};
 }
 
-/** Every tiered upgrade stack, plus the lone Mk I booster. */
+/** Every tiered upgrade stack, plus the lone Mk I booster and the tier-4 Core Drill. */
 function upgradeItems(): Record<UpgradeKind, InventoryItem> {
   const out = {} as Record<UpgradeKind, InventoryItem>;
   for (const id of ['tank', 'cargo', 'drill', 'hull'] as const) {
@@ -66,6 +67,7 @@ function upgradeItems(): Record<UpgradeKind, InventoryItem> {
     }
   }
   out['upgrade:booster:1'] = upgradeItem('booster', 1);
+  out[CORE_DRILL_KIND] = {kind: CORE_DRILL_KIND, label: 'Core Drill', color: '#ff7a1f', value: 0};
   return out;
 }
 
@@ -88,6 +90,7 @@ export const ITEM_CATALOG: Record<NonOreKind, InventoryItem> = {
   teleporter: {kind: 'teleporter', label: 'Teleporter', color: '#72d9ff', value: 0},
   container: {kind: 'container', label: 'Container', color: '#c8912f', value: 0},
   repairKit: {kind: 'repairKit', label: 'Repair Kit', color: '#7be08a', value: 0},
+  fuelCell: {kind: 'fuelCell', label: 'Fuel Cell', color: '#b7ff45', value: 0},
   'device:manufacturer': {kind: 'device:manufacturer', label: 'Manufacturing Station', color: '#8fa2b5', value: 0},
   'device:extractor': {kind: 'device:extractor', label: 'Fuel Extractor', color: '#7fd4c0', value: 0},
   'device:portal': {kind: 'device:portal', label: 'Portal', color: '#72d9ff', value: 0},

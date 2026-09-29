@@ -9,11 +9,13 @@ import { EXTRACTOR } from '../core/balance';
 import { addItem, createInventory, oreItem, oreKind, totalItems } from '../core/inventory';
 import { chestLoot } from '../core/chest';
 import { createInitialState } from '../core/state';
+import { ITEM_CATALOG } from '../core/items';
+import { applyEquipment } from '../core/ship-upgrades';
 import { createPlacedContainer } from '../core/cargo-container';
 import { createWreck } from '../core/wreck';
 import { createScannerDevice } from '../core/scanner-device';
 import { createPlacedDynamite } from '../core/dynamite';
-import { buildShipSlots, uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
+import { buildInventorySlots, buildShipSlots, uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
 import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
@@ -814,6 +816,30 @@ describe('buildObservation', () => {
     if (overlay?.kind !== 'ship') throw new Error('expected ship overlay');
     expect(overlay.fittable.map(slot => slot.kind)).toEqual(['upgrade:drill:1']);
     expect(overlay.slots.length).toBe(state.player.equipment.length);
+  });
+
+  it('lists a carried Fuel Cell in the bay, where its slot button spends it', () => {
+    const state = createInitialState();
+    state.player.inventory = addItem(createInventory(), ITEM_CATALOG.fuelCell, 2);
+    const obs = buildObservation({state, ui: ui({inventorySlots: buildInventorySlots(state.player.inventory)}), get: tileSource({})});
+    expect(obs.bay).toEqual([{kind: 'fuelCell', label: 'Fuel Cell', count: 2}]);
+  });
+
+  it('carries a fitted Core Drill in ship.equipment, its +7 in ship.drill, and in the ship overlay', () => {
+    const state = createInitialState();
+    state.stats.bestMarkCrafted = 4;
+    state.player.equipment = ['upgrade:drill:4', null, null];
+    applyEquipment(state.player);
+    const obs = buildObservation({
+      state,
+      ui: ui({overlay: {kind: 'ship'}, shipEquipment: buildShipSlots(state.player.equipment, 4)}),
+      get: tileSource({})
+    });
+    expect(obs.ship.equipment).toEqual(['upgrade:drill:4', null, null]);
+    expect(obs.ship.drill).toBe(8);
+    expect(obs.stats.bestMarkCrafted).toBe(4);
+    if (obs.overlay?.kind !== 'ship') throw new Error('expected ship overlay');
+    expect(nth(obs.overlay.slots, 0)).toMatchObject({kind: 'upgrade:drill:4', label: 'Core Drill', info: expect.arrayContaining(['+7 drill power when fitted.'])});
   });
 
   it('marks the third fitting slot locked until a Mk II has been crafted', () => {

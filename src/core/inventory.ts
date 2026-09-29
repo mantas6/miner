@@ -34,19 +34,30 @@ const ORE_KIND_PREFIX = 'ore:';
 /** One ore type's stack key, e.g. `ore:Copper`. */
 export type OreKind = `${typeof ORE_KIND_PREFIX}${string}`;
 
-/** The four consumables and the repair kit — items spent (or placed) on use. */
-export type ConsumableKind = 'dynamite' | 'scanner' | 'teleporter' | 'container' | 'repairKit';
+/** The four consumables, the repair kit and the fuel cell — items spent (or placed) on use. */
+export type ConsumableKind = 'dynamite' | 'scanner' | 'teleporter' | 'container' | 'repairKit' | 'fuelCell';
 
-/** Ship-equipment families. `booster` is Mk I only; every other id tiers to Mk III. */
+/**
+ * Ship-equipment families. `booster` is Mk I only; every other id tiers to Mk III,
+ * and the drill alone has a fourth mark, the Core Drill.
+ */
 export type UpgradeId = 'tank' | 'cargo' | 'drill' | 'hull' | 'booster';
-/** Upgrade mark: I, II, III. */
+/** Upgrade mark shared by every tiered family: I, II, III. */
 export type UpgradeTier = 1 | 2 | 3;
+/** Any mark a fitted upgrade can carry: the shared three, plus the Core Drill's tier 4. */
+export type UpgradeMark = UpgradeTier | 4;
+/** The Core Drill: the one tier-4 upgrade, crafted from the deepest ores. */
+export const CORE_DRILL_KIND = 'upgrade:drill:4';
 /**
  * A tiered ship-upgrade stack key, e.g. `upgrade:drill:2`. Booster is deliberately
  * excluded from the tiered families — it exists as Mk I only — and reappears as the
- * single `upgrade:booster:1`, so the type admits exactly the kinds the catalog holds.
+ * single `upgrade:booster:1`; the Core Drill is the lone `upgrade:drill:4`. So the
+ * type admits exactly the kinds the catalog holds.
  */
-export type UpgradeKind = `upgrade:${Exclude<UpgradeId, 'booster'>}:${UpgradeTier}` | 'upgrade:booster:1';
+export type UpgradeKind =
+  | `upgrade:${Exclude<UpgradeId, 'booster'>}:${UpgradeTier}`
+  | 'upgrade:booster:1'
+  | typeof CORE_DRILL_KIND;
 
 /** One placeable cosmetic tile (`DECOR_IDS` in `shared/constants.ts`). */
 export type { DecorId };
@@ -117,10 +128,18 @@ export function isDeviceKind(kind: InventoryItemKind): kind is DeviceKind {
   return kind.startsWith(DEVICE_KIND_PREFIX);
 }
 
-/** Split an upgrade kind into its family and mark, e.g. `{id: 'drill', tier: 2}`. */
-export function parseUpgradeKind(kind: UpgradeKind): {id: UpgradeId; tier: UpgradeTier} {
-  const [, id, tier] = kind.split(':');
-  return {id: id as UpgradeId, tier: Number(tier) as UpgradeTier};
+/**
+ * Split an upgrade kind into its family and mark, e.g. `{id: 'drill', tier: 2}`.
+ * Tier 4 is only real for the drill: any other family's out-of-range mark is
+ * clamped into I–III, so a malformed kind never reads past the effect tables.
+ */
+export function parseUpgradeKind(kind: UpgradeKind): {id: UpgradeId; tier: UpgradeMark} {
+  const [, rawId, rawTier] = kind.split(':');
+  const id = rawId as UpgradeId;
+  const tier = Math.floor(Number(rawTier));
+  if (tier === 4 && id === 'drill') return {id, tier: 4};
+  const clamped = Number.isFinite(tier) ? Math.min(3, Math.max(1, tier)) : 1;
+  return {id, tier: clamped as UpgradeTier};
 }
 
 /** The stackable item one mined ore becomes. */

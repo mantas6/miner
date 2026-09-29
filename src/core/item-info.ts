@@ -86,7 +86,7 @@ function describeDecor(kind: DecorKind): ItemInfo {
   };
 }
 
-/** The four devices and the repair kit, each from its own config. */
+/** The four devices, the repair kit and the fuel cell, each from its own config. */
 function describeConsumable(kind: ConsumableKind): ItemInfo {
   const title = itemForKind(kind).label;
   switch (kind) {
@@ -127,6 +127,11 @@ function describeConsumable(kind: ConsumableKind): ItemInfo {
       return {
         title,
         lines: [`Restores +${Math.round(HULL.repairKitFraction * 100)}% of max hull when used.`]
+      };
+    case 'fuelCell':
+      return {
+        title,
+        lines: ['Refills the tank to full when used.', 'Spent from its inventory slot; refused while the tank is full.']
       };
     default:
       return assertNever(kind);

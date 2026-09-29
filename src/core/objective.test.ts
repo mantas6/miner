@@ -201,6 +201,46 @@ describe('expedition objective helper', () => {
     expect(formatExpeditionObjective({...deep, maxDepthMeters: POST_OBJECTIVE_DEPTH - 10})).toContain('dig toward');
   });
 
+  it('turns Uranium aboard or stocked into a Fuel Cell nudge until a cell is held', () => {
+    const text = 'Objective: craft Fuel Cells (1 Uranium → 2 cells) for the deep runs.';
+    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 1)})).toBe(text);
+    expect(formatExpeditionObjective({...veteran, station: withOre('Uranium', 1)})).toBe(text);
+    // A cell aboard or in the stock settles it.
+    expect(formatExpeditionObjective({...veteran, bay: withItem('fuelCell', 1, withOre('Uranium', 1))})).toContain('dig toward');
+    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 1), station: withItem('fuelCell')})).toContain('dig toward');
+  });
+
+  it('asks for the Core Drill once its ores are stocked, ahead of spending the Uranium on cells', () => {
+    const stock = withOre('Alienite', 2, withOre('Uranium', 2, withOre('Core Shard', 3)));
+    expect(formatExpeditionObjective({...veteran, station: stock}))
+      .toBe('Objective: craft the Core Drill at the Manufacturing Station.');
+    // One ore short: the Uranium goes to cells instead.
+    const short = withOre('Alienite', 1, withOre('Uranium', 2, withOre('Core Shard', 3)));
+    expect(formatExpeditionObjective({...veteran, station: short})).toContain('Fuel Cells');
+  });
+
+  it('asks for a crafted Core Drill to be fitted', () => {
+    expect(formatExpeditionObjective({...veteran, bay: withItem('upgrade:drill:4')}))
+      .toBe('Objective: fit the Core Drill from the Ship screen.');
+    expect(formatExpeditionObjective({...veteran, station: withItem('upgrade:drill:4')}))
+      .toBe('Objective: fit the Core Drill from the Ship screen.');
+  });
+
+  it('with the Core Drill fitted, points past the depth record at the next 1000 m', () => {
+    const drilled = {...veteran, player: {...upgraded, equipment: ['upgrade:drill:4', null, null] as (UpgradeKind | null)[]}};
+    expect(formatExpeditionObjective({...drilled, maxDepthMeters: 9840}))
+      .toBe('Objective: Core Drill fitted — push the depth record past 10000 m.');
+    // A record already on the round number points at the next one.
+    expect(formatExpeditionObjective({...drilled, maxDepthMeters: 10000}))
+      .toBe('Objective: Core Drill fitted — push the depth record past 11000 m.');
+    // Fitted, it no longer asks to craft or fit another, and the ship's own depth counts.
+    const stock = withOre('Alienite', 2, withOre('Uranium', 2, withOre('Core Shard', 3)));
+    expect(formatExpeditionObjective({...drilled, station: withItem('fuelCell', 1, stock), player: {...drilled.player, y: rowAt(1230)}}))
+      .toBe('Objective: Core Drill fitted — push the depth record past 2000 m.');
+    // Uranium with no cell still asks for cells first.
+    expect(formatExpeditionObjective({...drilled, bay: withOre('Uranium', 1)})).toContain('Fuel Cells');
+  });
+
   it('drops the fuel caveat from the depth target once a field portal stands', () => {
     expect(formatExpeditionObjective({...veteran, fieldPortals: 1, player: {...upgraded, y: rowAt(80)}}))
       .toBe('Objective: dig toward Silver around 600 m.');
@@ -313,6 +353,22 @@ describe('memoised expedition objective', () => {
     input.bay = addItem(createInventory(), {kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', color: '#000', value: 0});
     check();
     input.bay = empty;
+    check();
+    // The late game: Uranium, then a cell, then the Core Drill's ores, crafted,
+    // fitted, and the record deepening under it.
+    ship.equipment = ['upgrade:tank:1', null, null];
+    input.bay = withOre('Uranium', 1);
+    check();
+    input.bay = withItem('fuelCell', 2, input.bay);
+    check();
+    input.station = withOre('Alienite', 2, withOre('Uranium', 2, withOre('Core Shard', 3)));
+    check();
+    input.station = withItem('upgrade:drill:4');
+    check();
+    input.station = empty;
+    ship.equipment = ['upgrade:drill:4', null, null];
+    check();
+    input.maxDepthMeters = 1500;
     check();
 
     expect(new Set(frames).size).toBeGreaterThan(12);

@@ -15,12 +15,34 @@ describe('the recipe table', () => {
     for (const recipe of RECIPES) expect(isCatalogKind(recipe.output)).toBe(true);
   });
 
-  it('offers all twelve ship-upgrade marks plus the booster', () => {
+  it('offers all twelve ship-upgrade marks plus the booster and the Core Drill', () => {
     const upgrades = RECIPES.filter(recipe => recipe.output.startsWith('upgrade:'));
     expect(upgrades.map(recipe => recipe.output)).toContain('upgrade:tank:1');
     expect(upgrades.map(recipe => recipe.output)).toContain('upgrade:hull:3');
     expect(upgrades.map(recipe => recipe.output)).toContain('upgrade:booster:1');
-    expect(upgrades).toHaveLength(13);
+    expect(upgrades.map(recipe => recipe.output)).toContain('upgrade:drill:4');
+    expect(upgrades).toHaveLength(14);
+  });
+
+  it('turns one Uranium into two Fuel Cells', () => {
+    const fuelCell = RECIPES.find(recipe => recipe.output === 'fuelCell')!;
+    expect(fuelCell).toMatchObject({count: 2, inputs: [{kind: oreKind('Uranium'), count: 1}]});
+    const after = craft(ores(['Uranium', 1]), fuelCell);
+    expect(countItem(after!, 'fuelCell')).toBe(2);
+    expect(countItem(after!, oreKind('Uranium'))).toBe(0);
+  });
+
+  it('builds the Core Drill from the three deepest ores', () => {
+    const coreDrill = RECIPES.find(recipe => recipe.output === 'upgrade:drill:4')!;
+    expect(coreDrill.inputs).toEqual([
+      {kind: oreKind('Core Shard'), count: 3},
+      {kind: oreKind('Uranium'), count: 2},
+      {kind: oreKind('Alienite'), count: 2}
+    ]);
+    expect(canCraft(ores(['Core Shard', 3], ['Uranium', 2], ['Alienite', 1]), coreDrill)).toBe(false);
+    const after = craft(ores(['Core Shard', 3], ['Uranium', 2], ['Alienite', 2]), coreDrill);
+    expect(countItem(after!, 'upgrade:drill:4')).toBe(1);
+    expect(totalItems(after!)).toBe(1);
   });
 
 });

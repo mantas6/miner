@@ -98,6 +98,9 @@ function instructions(): string {
     '    toolkitSlotBtn arms the Construction Toolkit, whose press packs an empty',
     '    station, container or portal back into the bay. Placed stations show as',
     '    M / X / P in the view and notable.',
+    '  Spent with one click: repairKitSlotBtn uses a Repair Kit on the hull, and',
+    '    fuelCellSlotBtn uses a Fuel Cell (crafted from Uranium) to fill the tank —',
+    '    refused while the tank is already full.',
     '  Naming a portal: in the travel overlay, `click` portalNameInput to focus it,',
     '    `type` the new name (max 16 chars), then `click` portalNameSaveBtn (Enter also',
     '    saves). The new name echoes back in `overlay.name` and the portal notable.',
@@ -361,7 +364,8 @@ server.registerTool(
       'extractorBuyFuelBtn orders fuel for cash into the home Fuel Extractor. A portal travel/respawn row is target ' +
       '"data-portal", value the destination "x,y" (e.g. "48,20"). An info tab is target ' +
       '"data-info-section", value e.g. "info-settings". data-ship-unequip takes the ' +
-      '0-based fitting-slot index (e.g. "0"). The cheat grants data-developer-grant-ores ' +
+      '0-based fitting-slot index (e.g. "0"). Inventory slot buttons such as ' +
+      'repairKitSlotBtn and fuelCellSlotBtn spend one item per click. The cheat grants data-developer-grant-ores ' +
       'and data-developer-fill-extractor take no value. A click that reloads the page ' +
       '(importSaveConfirmBtn, resetGameConfirmBtn) returns once the game is back. ' +
       'A wrong target is refused with the full allowed list.',

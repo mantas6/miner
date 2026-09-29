@@ -339,6 +339,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       unequipUpgrade: slot => unequipUpgrade(slot),
       toggleDecorPlacement: kind => placements.toggle('decor', () => decor.toggleArmed(kind)),
       useRepairKit: () => actions.useRepairKit(),
+      useFuelCell: () => actions.useFuelCell(),
       closeStation: () => homeStations.close(),
       stowAll: () => homeStations.stowAll(),
       stowStack: (kind, single) => homeStations.stow(kind, single),

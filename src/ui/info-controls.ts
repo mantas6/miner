@@ -38,6 +38,7 @@ export const CONTROL_ROWS: readonly ControlRow[] = [
   {keys: [control('Container, station or decoration slot'), text(' then a mine tile')], action: 'Set one carried cargo container, Manufacturing Station, Fuel Extractor, Portal or decoration down on explored, cleared ground. Escape cancels.'},
   {keys: [control('Toolkit slot'), text(' then a station')], action: 'Pack an empty station, portal or container the ship can reach back into the cargo bay. Escape cancels.'},
   {keys: [control('Repair Kit slot')], action: `Spend one kit to restore ${Math.round(HULL.repairKitFraction * 100)}% of max hull.`},
+  {keys: [control('Fuel Cell slot')], action: 'Spend one cell to fill the tank to full.'},
   {keys: [key('C'), text(' / press the crate')], action: `Open the placed container, wreck or chest the ship is on or beside. Press a stack in either column to move it across; a crate holds up to ${CARGO_CONTAINER.capacity} items and keeps them through death and reload, and anything taken back aboard still obeys the cargo-bay limit.`},
   {keys: [key('+'), text(' / '), key('-'), text(' / wheel')], action: 'Zoom the mine view in and out'},
   {keys: [key('Esc')], action: 'Close the open screen, or cancel an armed placement'},

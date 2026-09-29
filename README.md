@@ -312,6 +312,7 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 | Put a grave's stone away | `Space`, `Enter` or `Escape` | OK button |
 | Ship equipment (fit/unfit upgrades) | — | Ship button |
 | Use a repair kit (patch the hull) | — | Repair Kit inventory slot |
+| Use a fuel cell (fill the tank) | — | Fuel Cell inventory slot |
 | Plant dynamite (5 s fuse) | `E`, then press a mine tile | Dynamite inventory slot, then a mine tile |
 | Deploy a scanner | — | Scanner inventory slot, then a mine tile |
 | Set a cargo container down | — | Container inventory slot, then a mine tile |
@@ -417,6 +418,7 @@ and drill out as usual.
   | Scanner | 2 Copper + 1 Silver |
   | Container | 6 Iron |
   | Teleporter | 3 Silver + 2 Gold |
+  | Fuel Cell ×2 | 1 Uranium |
   | Manufacturing Station | 8 Iron + 4 Copper + 2 Silver |
   | Fuel Extractor | 6 Iron + 4 Copper + 2 Coal |
   | Portal | 3 Silver + 3 Gold + 2 Iron |
@@ -424,6 +426,7 @@ and drill out as usual.
   | Fuel Tank / Cargo Hold / Drill / Hull Plating **Mk I** | 4 Iron + 2 Copper |
   | … **Mk II** | 3 Silver + 3 Gold |
   | … **Mk III** | 2 Ruby + 2 Emerald + 1 Alienite |
+  | Core Drill (tier-4 drill) | 3 Core Shard + 2 Uranium + 2 Alienite |
   | Booster | 3 Copper + 2 Coal + 1 Silver |
   | Steel Plate (decor) | 2 Iron |
   | Stone Block ×2 (decor) | 1 Coal |
@@ -548,8 +551,17 @@ eight around it, and only once it is explored.
 
   The Booster is Mk I only and carries no stat: it is the gate on the `Shift`
   sprint, which does nothing until one is fitted.
+
+  The drill alone has a fourth mark: the **Core Drill** (`upgrade:drill:4`, +7 drill
+  power, so a single one drills at 8), crafted from the deepest ores — 3 Core Shard,
+  2 Uranium and 2 Alienite. It fits like any other upgrade and records mark 4 in
+  `stats.bestMarkCrafted`. Once it is fitted the objective points past the depth
+  record, at the next 1000 m.
 - The **Repair Kit** is crafted, carried in the bay, and spent from its own slot to
   patch 25% of the hull maximum; it is refused at a full hull.
+- The **Fuel Cell** is crafted two at a time from one Uranium, carried in the bay,
+  and spent from its own slot to fill the tank to full anywhere in the mine; it is
+  refused while the tank is already full.
 - Dynamite and scanners are crafted, carried in the cargo bay, and placed from
   their own inventory slot onto explored, cleared ground. A planted stick blows a
   2-tile radius five seconds later — long enough to get clear, and close enough to
@@ -886,7 +898,7 @@ controls joining both values with a comma (`data-cargo=take,ore:Iron`,
 `{target, value?, kind?}` — the MCP `click` tool takes `target`/`value`/`kind`
 fields directly. Allowlisted controls: the HUD/action bar (`shipBtn`,
 `teleporterBtn`, `infoBtn`, `musicBtn`, `sfxBtn`, `inventoryToggleBtn`), inventory
-slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBtn`,
+slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBtn`, `fuelCellSlotBtn`,
 `manufacturerSlotBtn`, `extractorSlotBtn`, `portalSlotBtn`, `toolkitSlotBtn`, the `decor:*SlotBtn`
 panels — derived from `src/ui/inventory-slot-ids.ts`, the table the panel renders
 from), the ship screen (`data-ship-equip` with an upgrade kind,

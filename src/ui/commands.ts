@@ -86,6 +86,8 @@ export interface UiCommands {
   toggleDecorPlacement(kind: DecorKind): void;
   /** Spend one repair kit from the bay to patch the hull. */
   useRepairKit(): void;
+  /** Spend one fuel cell from the bay to fill the tank. */
+  useFuelCell(): void;
   /**
    * Shut the open home-station screen — the manufacturer's or the fuel extractor's;
    * also what either dialog's close reports.
@@ -179,6 +181,7 @@ function noopCommands(): UiCommands {
     unequipUpgrade: noop,
     toggleDecorPlacement: noop,
     useRepairKit: noop,
+    useFuelCell: noop,
     closeStation: noop,
     stowAll: noop,
     stowStack: noop,

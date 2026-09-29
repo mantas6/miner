@@ -78,6 +78,11 @@ const USABLE: Partial<Record<InventoryItemKind, {buttonId: string; title: string
     buttonId: SLOT_BUTTON_IDS.repairKit,
     title: 'Use a repair kit to patch the hull',
     use: () => uiCommands.useRepairKit()
+  },
+  fuelCell: {
+    buttonId: SLOT_BUTTON_IDS.fuelCell,
+    title: 'Use a fuel cell to fill the tank',
+    use: () => uiCommands.useFuelCell()
   }
 };
 

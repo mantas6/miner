@@ -43,7 +43,8 @@ function ore(name: string, count: number): RecipeInput {
 /**
  * The single tunable recipe table. Ore names must match `ORES` in
  * `shared/constants.ts`. The four ship upgrades come in three marks, so each mark
- * is four sibling recipes sharing one input cost.
+ * is four sibling recipes sharing one input cost; the drill alone has a fourth,
+ * the Core Drill, made from the deepest ores.
  */
 export const RECIPES: Recipe[] = [
   {output: 'repairKit', count: 1, inputs: [ore('Iron', 3)]},
@@ -51,6 +52,7 @@ export const RECIPES: Recipe[] = [
   {output: 'scanner', count: 1, inputs: [ore('Copper', 2), ore('Silver', 1)]},
   {output: 'container', count: 1, inputs: [ore('Iron', 6)]},
   {output: 'teleporter', count: 1, inputs: [ore('Silver', 3), ore('Gold', 2)]},
+  {output: 'fuelCell', count: 2, inputs: [ore('Uranium', 1)]},
 
   {output: 'device:manufacturer', count: 1, inputs: [ore('Iron', 8), ore('Copper', 4), ore('Silver', 2)]},
   {output: 'device:extractor', count: 1, inputs: [ore('Iron', 6), ore('Copper', 4), ore('Coal', 2)]},
@@ -71,6 +73,8 @@ export const RECIPES: Recipe[] = [
   {output: 'upgrade:cargo:3', count: 1, inputs: [ore('Ruby', 2), ore('Emerald', 2), ore('Alienite', 1)]},
   {output: 'upgrade:drill:3', count: 1, inputs: [ore('Ruby', 2), ore('Emerald', 2), ore('Alienite', 1)]},
   {output: 'upgrade:hull:3', count: 1, inputs: [ore('Ruby', 2), ore('Emerald', 2), ore('Alienite', 1)]},
+
+  {output: 'upgrade:drill:4', count: 1, inputs: [ore('Core Shard', 3), ore('Uranium', 2), ore('Alienite', 2)]},
 
   {output: 'upgrade:booster:1', count: 1, inputs: [ore('Copper', 3), ore('Coal', 2), ore('Silver', 1)]},
 

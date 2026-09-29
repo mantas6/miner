@@ -28,8 +28,15 @@ describe('describeItem', () => {
     expect(describeItem('upgrade:drill:1').lines).toContain('+0.75 drill power when fitted.');
     expect(describeItem('upgrade:drill:2').lines).toContain('+1.75 drill power when fitted.');
     expect(describeItem('upgrade:drill:3').lines).toContain('+3.5 drill power when fitted.');
+    expect(describeItem('upgrade:drill:4')).toMatchObject({title: 'Core Drill'});
+    expect(describeItem('upgrade:drill:4').lines).toContain('+7 drill power when fitted.');
     expect(describeItem('upgrade:tank:1').lines).toContain('+50 max fuel when fitted.');
     expect(describeItem('upgrade:booster:1').lines.join(' ')).toContain('sprint');
+  });
+
+  it('says a fuel cell fills the tank', () => {
+    expect(describeItem('fuelCell')).toMatchObject({title: 'Fuel Cell'});
+    expect(describeItem('fuelCell').lines).toContain('Refills the tank to full when used.');
   });
 
   it('warns that a scanner is single use', () => {

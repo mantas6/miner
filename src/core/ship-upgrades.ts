@@ -65,7 +65,7 @@ type UpgradeStat = 'fuelMax' | 'hullMax' | 'cargoMax' | 'drill' | null;
 /** One upgrade family's effect: the stat it grows and the additive bonus per mark. */
 interface UpgradeEffect {
   stat: UpgradeStat;
-  /** Bonus by mark: index 0 is Mk I, 1 is Mk II, 2 is Mk III. */
+  /** Bonus by mark: index 0 is Mk I, 1 is Mk II, 2 is Mk III (3 is the drill's Core Drill). */
   bonuses: readonly number[];
 }
 
@@ -80,7 +80,8 @@ export const UPGRADE_EFFECTS: Record<UpgradeId, UpgradeEffect> = {
   // Fractional so every mark cuts the hit count on the dirt of its depth band:
   // single-slot power 1 / 1.75 / 2.75 / 4.5 takes 9-hp dirt in 9 / 6 / 4 / 2 hits.
   // Every bonus is a multiple of 1/4, so drill hp arithmetic stays exact in floats.
-  drill: {stat: 'drill', bonuses: [0.75, 1.75, 3.5]},
+  // The fourth entry is the tier-4 Core Drill (single-slot power 8).
+  drill: {stat: 'drill', bonuses: [0.75, 1.75, 3.5, 7]},
   hull: {stat: 'hullMax', bonuses: [50, 100, 200]},
   booster: {stat: null, bonuses: [0]}
 };

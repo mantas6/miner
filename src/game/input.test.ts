@@ -21,7 +21,8 @@ import { emptyOverlay } from '../test-overlays';
 function createActionsSpy() {
   return {
     useTeleporter: vi.fn(),
-    useRepairKit: vi.fn()
+    useRepairKit: vi.fn(),
+    useFuelCell: vi.fn()
   } satisfies GameActions;
 }
 

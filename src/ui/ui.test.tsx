@@ -731,6 +731,21 @@ describe('inventory panel', () => {
     act(() => { fireEvent.click(portal); });
     expect(togglePortalPlacement).toHaveBeenCalledOnce();
   });
+
+  it('spends a carried fuel cell from its inventory slot', () => {
+    const useFuelCell = vi.fn();
+    setUiCommands({useFuelCell});
+    render(<MinerApp />);
+
+    act(() => {
+      uiStore.getState().setInventorySlots(buildInventorySlots(addItem(createInventory(), ITEM_CATALOG.fuelCell, 2)));
+    });
+
+    const cell = document.getElementById('fuelCellSlotBtn')!;
+    expect(cell.textContent).toBe('Fuel Cell×2');
+    act(() => { fireEvent.click(cell); });
+    expect(useFuelCell).toHaveBeenCalledOnce();
+  });
 });
 
 describe('info dialog tabs', () => {

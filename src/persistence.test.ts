@@ -380,6 +380,25 @@ describe('equipment persistence', () => {
     expect(state.player.cargoMax).toBe(40);
   });
 
+  it('loads the Core Drill in a slot and in the bay, and Fuel Cells aboard', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      equipment: ['upgrade:drill:4', 'upgrade:tank:4', null],
+      bay: [{kind: 'upgrade:drill:4', count: 1}, {kind: 'fuelCell', count: 3}],
+      stats: {bestMarkCrafted: 4}
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    // Tier 4 is the drill's alone: a tank mark 4 is no catalogued upgrade.
+    expect(state.player.equipment).toEqual(['upgrade:drill:4', null, null]);
+    expect(state.player.drill).toBe(8);
+    expect(countItem(state.player.inventory, 'upgrade:drill:4')).toBe(1);
+    expect(countItem(state.player.inventory, 'fuelCell')).toBe(3);
+    expect(state.stats.bestMarkCrafted).toBe(4);
+  });
+
   it('pads a shorter hand-edited equipment list out to every slot', () => {
     stubStorage({version: SAVE_VERSION, equipment: ['upgrade:drill:1', null]});
     const state = createInitialState();

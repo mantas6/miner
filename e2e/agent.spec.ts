@@ -183,6 +183,22 @@ const seedMarkTwo = seedSaveScript({
   ]
 });
 
+/**
+ * The late game at home: a Fuel Cell aboard with the tank part-empty (fuel is
+ * persisted), a Fuel Tank Mk I fitted so the first-upgrade rung is past, a stocked
+ * extractor so the base rung is quiet, and the manufacturer holding the Core
+ * Drill's ores plus one Uranium more for a pair of cells.
+ */
+const seedLateGame = seedSaveScript({
+  fuel: 30,
+  equipment: ['upgrade:tank:1', null, null],
+  bay: [{kind: 'fuelCell', count: 1}],
+  stations: [
+    {...WORKBENCHES[0], items: [{kind: 'ore:Core Shard', count: 3}, {kind: 'ore:Uranium', count: 3}, {kind: 'ore:Alienite', count: 2}]},
+    {...WORKBENCHES[1], fuel: 500}
+  ]
+});
+
 /** A cargo container and three sticks of dynamite aboard, at the home base. */
 const seedDeployables = seedSaveScript({
   bay: [{kind: 'container', count: 1}, {kind: 'dynamite', count: 3}],
@@ -533,6 +549,53 @@ test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks i
     expect(obs.ship.equipment).toEqual(['upgrade:drill:1', 'upgrade:tank:1', 'upgrade:drill:2']);
     // Base 1 + Mk I 0.75 + Mk II 1.75.
     expect(obs.ship.drill).toBe(3.5);
+  } finally {
+    await s.close();
+  }
+});
+
+test('a Fuel Cell fills a part-empty tank from its slot, and the Core Drill is crafted, fitted and chased', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedLateGame});
+  try {
+    let obs = await s.startRun();
+    expect(obs.ship).toMatchObject({fuel: 30, fuelMax: 150});
+    expect(countKind(obs.bay, 'fuelCell')).toBe(1);
+    expect(obs.hud.objective).toBe('Objective: craft the Core Drill at the Manufacturing Station.');
+
+    // The slot button spends the cell and fills the tank.
+    obs = await s.click('fuelCellSlotBtn');
+    expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
+    expect(countKind(obs.bay, 'fuelCell')).toBe(0);
+
+    // Craft the Core Drill and a pair of cells from the last Uranium, and take both aboard.
+    obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(obs.overlay.recipes.find(recipe => recipe.output === 'upgrade:drill:4')?.craftable).toBe(true);
+    obs = await s.click({target: 'data-craft', value: 'upgrade:drill:4'});
+    expect(obs.stats.bestMarkCrafted).toBe(4);
+    obs = await s.click({target: 'data-craft', value: 'fuelCell'});
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(obs.overlay.stock, 'fuelCell')).toBe(2);
+    expect(countKind(obs.overlay.stock, 'ore:Uranium')).toBe(0);
+    obs = await s.click({target: 'data-station', value: 'take', kind: 'upgrade:drill:4'});
+    obs = await s.click({target: 'data-station', value: 'take', kind: 'fuelCell'});
+    expect(countKind(obs.bay, 'upgrade:drill:4')).toBe(1);
+    expect(countKind(obs.bay, 'fuelCell')).toBe(2);
+    obs = await s.press('Escape');
+    expect(obs.hud.objective).toBe('Objective: fit the Core Drill from the Ship screen.');
+
+    // A full tank refuses the next cell and keeps it.
+    obs = await s.click('fuelCellSlotBtn');
+    expect(countKind(obs.bay, 'fuelCell')).toBe(2);
+    expect(obs.toasts.some(toast => toast.message.includes('already full'))).toBe(true);
+
+    // Fitted, the Core Drill adds +7 and the objective points past the depth record.
+    obs = await s.click('shipBtn');
+    obs = await s.click({target: 'data-ship-equip', value: 'upgrade:drill:4'});
+    expect(obs.ship.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:4', null]);
+    expect(obs.ship.drill).toBe(8);
+    obs = await s.click('shipCloseBtn');
+    expect(obs.hud.objective).toBe('Objective: Core Drill fitted — push the depth record past 1000 m.');
   } finally {
     await s.close();
   }

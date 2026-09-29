@@ -1,11 +1,11 @@
-// Player-initiated actions that resolve in a single press: the teleporter and
-// the repair kit.
+// Player-initiated actions that resolve in a single press: the teleporter, the
+// repair kit and the fuel cell.
 //
 // Everything that is set down in the mine — scanners, dynamite, crates, stations,
 // decorations — arms and places itself through its own module
 // (`scanner-devices.ts`, `dynamite-sticks.ts`, `cargo-containers.ts`,
-// `station-devices.ts`, `decor.ts`). The teleporter and the repair kit are carried
-// the same way but spent from here, because each resolves in one press instead of
+// `station-devices.ts`, `decor.ts`). The teleporter, the repair kit and the fuel
+// cell are carried the same way but spent from here, because each resolves in one press instead of
 // being left behind in the mine.
 //
 // Each one is a small transaction — validate, mutate, toast, play a sound — so
@@ -27,6 +27,11 @@ export interface GameActions {
    * at full hull or with none aboard.
    */
   useRepairKit(): void;
+  /**
+   * Spend one fuel cell from the bay to fill the tank. Refused with a full tank
+   * or with none aboard.
+   */
+  useFuelCell(): void;
 }
 
 export interface GameActionsDeps {
@@ -77,8 +82,28 @@ export function createActions(deps: GameActionsDeps): GameActions {
     toast(`Repair kit used — hull +${restored}.`);
   }
 
+  function useFuelCell(): void {
+    const p = state.player;
+    if (state.gameOver) return;
+    if (countItem(p.inventory, ITEM_CATALOG.fuelCell.kind) <= 0) {
+      audio.alarm();
+      return toast('No fuel cell aboard. Craft them from Uranium at the Manufacturing Station.');
+    }
+    if (p.fuel >= p.fuelMax) {
+      audio.alarm();
+      return toast('Fuel tank already full.');
+    }
+    const added = Math.ceil(p.fuelMax - p.fuel);
+    p.fuel = p.fuelMax;
+    p.inventory = removeItem(p.inventory, ITEM_CATALOG.fuelCell.kind);
+    saveProgress();
+    audio.refuel();
+    toast(`Fuel cell used — tank full (+${added} fuel).`);
+  }
+
   return {
     useTeleporter,
-    useRepairKit
+    useRepairKit,
+    useFuelCell
   };
 }

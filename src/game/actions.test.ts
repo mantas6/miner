@@ -81,6 +81,50 @@ describe('using a repair kit', () => {
   });
 });
 
+describe('using a fuel cell', () => {
+  it('fills the tank to full and spends one cell', () => {
+    const h = harness();
+    h.state.player.fuel = 30;
+    h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.fuelCell, 2);
+
+    h.actions.useFuelCell();
+
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
+    expect(countItem(h.state.player.inventory, ITEM_CATALOG.fuelCell.kind)).toBe(1);
+    expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.audio.played).toEqual(['refuel']);
+    expect(h.toasts.saw(`+${h.state.player.fuelMax - 30} fuel`)).toBe(true);
+  });
+
+  it('refuses with a full tank and with none aboard, warning audibly', () => {
+    const h = harness();
+    h.state.player.fuel = 10;
+    h.actions.useFuelCell();
+    expect(h.toasts.saw('No fuel cell aboard')).toBe(true);
+    expect(h.state.player.fuel).toBe(10);
+
+    h.state.player.fuel = h.state.player.fuelMax;
+    h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.fuelCell, 1);
+    h.actions.useFuelCell();
+    expect(h.toasts.saw('already full')).toBe(true);
+    expect(countItem(h.state.player.inventory, ITEM_CATALOG.fuelCell.kind)).toBe(1);
+    expect(h.audio.played).toEqual(['alarm', 'alarm']);
+    expect(h.saveProgress).not.toHaveBeenCalled();
+  });
+
+  it('does nothing once the ship is lost', () => {
+    const h = harness();
+    h.state.gameOver = true;
+    h.state.player.fuel = 0;
+    h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.fuelCell, 1);
+
+    h.actions.useFuelCell();
+
+    expect(h.state.player.fuel).toBe(0);
+    expect(countItem(h.state.player.inventory, ITEM_CATALOG.fuelCell.kind)).toBe(1);
+  });
+});
+
 describe('using the teleporter', () => {
   it('opens the portal list in teleporter mode when a charge and an out-of-reach portal exist', () => {
     const h = harness();

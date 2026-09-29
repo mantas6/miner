@@ -194,6 +194,9 @@ describe('harness allowlist', () => {
   it('allowlists every inventory slot, decorations included, from the shared table', () => {
     for (const id of allSlotButtonIds()) expect(ID_TARGETS.has(id), id).toBe(true);
     for (const id of DECOR_IDS) expect(ID_TARGETS.has(`decor:${id}SlotBtn`), id).toBe(true);
+    // The spend-on-press slots, the Fuel Cell's included.
+    expect(ID_TARGETS.has('repairKitSlotBtn')).toBe(true);
+    expect(ID_TARGETS.has('fuelCellSlotBtn')).toBe(true);
   });
 
   it('keeps every exclusion live: nothing listed that the tree no longer renders or already reaches', () => {

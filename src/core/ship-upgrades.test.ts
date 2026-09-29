@@ -17,7 +17,8 @@ import {
   firstFittingSlot,
   isSlotLocked,
   unequip,
-  unlockedSlotCount
+  unlockedSlotCount,
+  upgradeBonus
 } from './ship-upgrades';
 import type { Player } from './types';
 
@@ -120,10 +121,27 @@ describe('applyEquipment', () => {
 
 describe('drill marks', () => {
   it('uses fractional bonuses so no mark is a dead zone', () => {
-    expect(UPGRADE_EFFECTS.drill.bonuses).toEqual([0.75, 1.75, 3.5]);
+    expect(UPGRADE_EFFECTS.drill.bonuses).toEqual([0.75, 1.75, 3.5, 7]);
     expect(computeStats(['upgrade:drill:1', null, null]).drill).toBe(1.75);
     expect(computeStats(['upgrade:drill:2', null, null]).drill).toBe(2.75);
     expect(computeStats(['upgrade:drill:3', null, null]).drill).toBe(4.5);
+  });
+
+  it('gives the tier-4 Core Drill +7 power, stacking with the other marks', () => {
+    expect(upgradeBonus('upgrade:drill:4')).toBe(7);
+    expect(computeStats(['upgrade:drill:4', null, null]).drill).toBe(STARTING.drill + 7);
+    expect(computeStats(['upgrade:drill:4', 'upgrade:drill:3', null]).drill).toBe(STARTING.drill + 10.5);
+    // It cuts 9-hp dirt to two hits and 16-hp stone-hard ground to two as well.
+    expect(hitsLeft(9, STARTING.drill + 7)).toBe(2);
+    expect(hitsLeft(16, STARTING.drill + 7)).toBe(2);
+  });
+
+  it('fits the Core Drill from the bay like any other upgrade', () => {
+    const p = withBay(fitted([null, null, null]), 'upgrade:drill:4');
+    expect(equip(p, 0, 'upgrade:drill:4', UNLOCKED)).toEqual({ok: true});
+    expect(p.equipment[0]).toBe('upgrade:drill:4');
+    expect(p.drill).toBe(STARTING.drill + 7);
+    expect(countItem(p.inventory, 'upgrade:drill:4')).toBe(0);
   });
 
   it('every single-slot drill mark cuts hits on 6/9 hp dirt', () => {

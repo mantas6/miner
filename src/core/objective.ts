@@ -8,7 +8,8 @@
 //   6. a Portal is craftable (or held) and none stands in the field → set one down deep
 //   7. 600 m reached, never a Scanner → craft one: ore hides in the fog
 //   8. 400 m reached, no trading post found → go find one
-//   9. (reserved: the late-game rung)
+//   9. the late game: craft (then fit) the Core Drill; turn Uranium into Fuel
+//      Cells; with the Core Drill fitted, push the depth record past the next 1000 m
 //  10. the next ore band below the career's deepest descent
 //
 // The ladder is evaluated into a small `ObjectiveStep` (which rung, plus the few
@@ -20,7 +21,7 @@ import { ORES, START_Y, rowDepthMeters } from '../../shared/constants';
 import { canCraft, RECIPES, type Recipe } from './crafting';
 import { fuelExitLabel, type FuelExit } from './fuel-reserve';
 import { isBaseLow } from './hud-alerts';
-import { countItem, isUpgradeKind, oreKind, type Inventory, type InventoryItemKind } from './inventory';
+import { CORE_DRILL_KIND, countItem, isUpgradeKind, oreKind, type Inventory, type InventoryItemKind } from './inventory';
 import type { Ore, Player } from './types';
 
 type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'cargoMax' | 'equipment'>;
@@ -62,11 +63,15 @@ const FIRST_UPGRADE_LABEL = 'Fuel Tank Mk I';
 export const SCANNER_OBJECTIVE_DEPTH = 600;
 /** Career depth from which a player who has found no trading post is sent to find one. */
 export const POST_OBJECTIVE_DEPTH = 400;
+/** The Core Drill's depth-record rung rounds its target up to the next multiple of this. */
+export const DEPTH_RECORD_STEP = 1000;
 
 const firstUpgradeRecipe = RECIPES.find(entry => entry.output === FIRST_UPGRADE);
 const markTwoRecipes = RECIPES.filter(entry => isUpgradeKind(entry.output) && entry.output.endsWith(':2'));
 const portalRecipe = RECIPES.find(entry => entry.output === 'device:portal');
+const coreDrillRecipe = RECIPES.find(entry => entry.output === CORE_DRILL_KIND);
 const COAL = oreKind('Coal');
+const URANIUM = oreKind('Uranium');
 
 /** The first ore band starting deeper than `depthMeters`, if any is left. */
 function nextOreBelow(depthMeters: number, ores: readonly Ore[], startY: number): Ore | undefined {
@@ -85,6 +90,7 @@ interface CraftFacts {
   firstUpgrade: boolean;
   markTwo: boolean;
   portal: boolean;
+  coreDrill: boolean;
 }
 
 /** What is fitted, aboard or stored: a function of the fitted slots, bay and stock. */
@@ -97,6 +103,14 @@ interface HoldFacts {
   scanner: boolean;
   /** Coal in the bay. */
   coal: number;
+  /** Uranium aboard or stored — Fuel Cell material. */
+  uranium: boolean;
+  /** A Fuel Cell aboard or stored. */
+  fuelCell: boolean;
+  /** The Core Drill in a fitting slot. */
+  coreDrillFitted: boolean;
+  /** The Core Drill aboard or stored, waiting to be fitted. */
+  coreDrillHeld: boolean;
 }
 
 function craftable(recipe: Recipe | undefined, station: Inventory): boolean {
@@ -107,7 +121,8 @@ function craftFacts(station: Inventory): CraftFacts {
   return {
     firstUpgrade: craftable(firstUpgradeRecipe, station),
     markTwo: markTwoRecipes.some(recipe => canCraft(station, recipe)),
-    portal: craftable(portalRecipe, station)
+    portal: craftable(portalRecipe, station),
+    coreDrill: craftable(coreDrillRecipe, station)
   };
 }
 
@@ -121,13 +136,17 @@ function holdFacts(player: ObjectivePlayer, bay: Inventory, station: Inventory):
       || bay.some(stack => isUpgradeKind(stack.kind)) || station.some(stack => isUpgradeKind(stack.kind)),
     portal: holds(bay, station, 'device:portal'),
     scanner: holds(bay, station, 'scanner'),
-    coal: countItem(bay, COAL)
+    coal: countItem(bay, COAL),
+    uranium: holds(bay, station, URANIUM),
+    fuelCell: holds(bay, station, 'fuelCell'),
+    coreDrillFitted: player.equipment.includes(CORE_DRILL_KIND),
+    coreDrillHeld: holds(bay, station, CORE_DRILL_KIND)
   };
 }
 
 type Rung =
   | 'refuel' | 'stow' | 'base' | 'firstUpgrade' | 'markTwo' | 'portal' | 'scanner' | 'post'
-  | 'depth' | 'richest' | 'deeper';
+  | 'coreDrill' | 'fuelCell' | 'record' | 'depth' | 'richest' | 'deeper';
 
 /** One evaluated rung: which, plus every value its text reads. */
 interface ObjectiveStep {
@@ -135,14 +154,15 @@ interface ObjectiveStep {
   /**
    * The rung's wording: refuel 0 home / 1 portal; stow 0 home / 1 or a post;
    * base 0 no extractor / 1 load coal / 2 mine coal; firstUpgrade 0 mine / 1 craft;
-   * portal 0 craft / 1 set down; depth 0 mind the trip home / 1 a portal stands.
+   * portal 0 craft / 1 set down; coreDrill 0 craft / 1 fit; depth 0 mind the trip
+   * home / 1 a portal stands.
    */
   variant: number;
   /** Coal aboard (base 1) or the extractor's stored fuel (base 2). */
   amount: number;
   /** The exit label (refuel) or the ore name (depth, richest). */
   name: string;
-  /** The ore band's depth in metres (depth). */
+  /** The ore band's depth (depth), or the record to beat (record), in metres. */
   depth: number;
 }
 
@@ -204,7 +224,15 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, held: HoldFacts, ou
   // 8. Deep enough for posts, and none found yet.
   if (careerDepth >= POST_OBJECTIVE_DEPTH && postsFound === 0) return setStep(out, 'post');
 
-  // 9. Reserved: the late-game rung (Fuel Cells, the Core Drill) slots in here.
+  // 9. The late game. The Core Drill first — its recipe spends the same Uranium
+  // a Fuel Cell would — then the cells, then, with the drill fitted, the record.
+  if (!held.coreDrillFitted && held.coreDrillHeld) return setStep(out, 'coreDrill', 1);
+  if (!held.coreDrillFitted && crafts.coreDrill) return setStep(out, 'coreDrill', 0);
+  if (held.uranium && !held.fuelCell) return setStep(out, 'fuelCell');
+  if (held.coreDrillFitted) {
+    const record = (Math.floor(careerDepth / DEPTH_RECORD_STEP) + 1) * DEPTH_RECORD_STEP;
+    return setStep(out, 'record', 0, 0, '', record);
+  }
 
   // 10. The next ore band below the deepest the career has been — not below the
   // ship, which at home would name the first band all run long.
@@ -249,6 +277,14 @@ function formatStep(step: ObjectiveStep): string {
       return 'Objective: craft a Scanner (2 Copper + 1 Silver) — ore hides in the fog.';
     case 'post':
       return `Objective: find a trading post below ${POST_OBJECTIVE_DEPTH} m to turn ore into cash.`;
+    case 'coreDrill':
+      return step.variant === 1
+        ? 'Objective: fit the Core Drill from the Ship screen.'
+        : 'Objective: craft the Core Drill at the Manufacturing Station.';
+    case 'fuelCell':
+      return 'Objective: craft Fuel Cells (1 Uranium → 2 cells) for the deep runs.';
+    case 'record':
+      return `Objective: Core Drill fitted — push the depth record past ${step.depth} m.`;
     case 'depth':
       return step.variant === 1
         ? `Objective: dig toward ${step.name} around ${step.depth} m.`
