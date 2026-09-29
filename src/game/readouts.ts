@@ -54,6 +54,8 @@ export interface HudReadoutFields {
 export interface HudReadouts {
   /** Fill this frame's readout fields, announcing any landmark just cleared. */
   sync(hud: HudReadoutFields): void;
+  /** The exit the last sync priced the fuel reserve to (home or a field portal), for the objective. */
+  readonly fuelExit: FuelExit | null;
   /**
    * Re-arm the landmark announcements, as a wiped profile's first run would. A
    * death does not call this: the announcements count across the career.
@@ -279,6 +281,9 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
       syncFuelReserve(hud);
       syncMilestone(hud);
       careerDepthAtLastSync = state.stats.maxDepth;
+    },
+    get fuelExit() {
+      return reserveExit;
     },
     reset
   };

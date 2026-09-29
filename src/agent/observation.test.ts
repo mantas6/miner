@@ -71,6 +71,16 @@ describe('buildObservation', () => {
     expect(obs.notable.some(n => n.x === 47)).toBe(false);
   });
 
+  it('mirrors the career stats, including the objective progress counters', () => {
+    const state = createInitialState();
+    state.stats.scannersObtained = 2;
+    state.stats.bestMarkCrafted = 2;
+    const obs = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(obs.stats).toMatchObject({scannersObtained: 2, bestMarkCrafted: 2, deaths: 0});
+    // A copy, not the live object.
+    expect(obs.stats).not.toBe(state.stats);
+  });
+
   it('marks the ship and publishes the legend', () => {
     const state = createInitialState();
     state.player.x = 45;

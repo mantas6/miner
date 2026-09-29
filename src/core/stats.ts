@@ -1,4 +1,25 @@
+import { isUpgradeKind, parseUpgradeKind, type InventoryItemKind } from './inventory';
 import type { GameStats } from './types';
+
+/** The highest mark `bestMarkCrafted` can record (Mk I–III, plus room for a tier-4 drill). */
+export const BEST_MARK_MAX = 4;
+
+/**
+ * Count items that just came into the player's hands — crafted, or bought at the
+ * home Supply or a trading post. Only scanners are tallied, for the objective's
+ * "craft a Scanner" rung.
+ */
+export function recordItemsObtained(stats: GameStats, kind: InventoryItemKind, count: number): void {
+  if (kind === 'scanner' && count > 0) stats.scannersObtained += count;
+}
+
+/** Count a finished craft: the items obtained, and an upgrade's mark toward `bestMarkCrafted`. */
+export function recordCraft(stats: GameStats, kind: InventoryItemKind, count: number): void {
+  recordItemsObtained(stats, kind, count);
+  if (!isUpgradeKind(kind)) return;
+  const mark = Math.min(BEST_MARK_MAX, parseUpgradeKind(kind).tier);
+  stats.bestMarkCrafted = Math.max(stats.bestMarkCrafted, mark);
+}
 
 export interface ExpeditionStatRow {
   label: string;

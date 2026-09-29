@@ -51,7 +51,9 @@ export function createDefaultStats(): GameStats {
     totalCashEarned: 0,
     oreMined: 0,
     enemiesDestroyed: 0,
-    deaths: 0
+    deaths: 0,
+    scannersObtained: 0,
+    bestMarkCrafted: 0
   };
 }
 

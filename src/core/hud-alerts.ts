@@ -40,7 +40,11 @@ export function shouldCargoBarFlash(state: GameState): boolean {
  * with no extractor left in the home cavern has nothing to refuel from at all.
  */
 export function shouldBaseAlert(state: Pick<GameState, 'stations' | 'player'>): boolean {
-  const base = homeExtractor(state.stations);
+  return isBaseLow(homeExtractor(state.stations), state.player.fuelMax);
+}
+
+/** `shouldBaseAlert` over the home extractor's buffers (`null` when there is none). */
+export function isBaseLow(base: {fuel: number; coal: number} | null, fuelMax: number): boolean {
   if (!base) return true;
-  return base.fuel + base.coal * EXTRACTOR.fuelPerCoal < state.player.fuelMax;
+  return base.fuel + base.coal * EXTRACTOR.fuelPerCoal < fuelMax;
 }

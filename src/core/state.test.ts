@@ -27,6 +27,10 @@ describe('initial game state', () => {
 
     expect(createInitialState().stats.maxDepth).toBe(0);
   });
+
+  it('starts the objective progress counters at zero', () => {
+    expect(createInitialState().stats).toMatchObject({scannersObtained: 0, bestMarkCrafted: 0});
+  });
 });
 
 describe('player respawn', () => {

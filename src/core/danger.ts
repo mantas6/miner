@@ -37,6 +37,10 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
       detail: `Drill them back before they chew the hull. Bites start at ${HULL.enemyBite.base} hull damage; faster ${ENEMY_TYPES.skitterling.name}s appear near ${depthLabel(ENEMY_TYPES.skitterling.minRow)}, armored ${ENEMY_TYPES.ironback.name}s near ${depthLabel(ENEMY_TYPES.ironback.minRow)}, and ${ENEMY_TYPES.abyssStalker.name}s beyond ${depthLabel(ENEMY_TYPES.abyssStalker.minRow)}.`
     },
     {
+      title: 'Fighting fiends',
+      detail: 'Fight from above in a one-tile shaft; a biter above you cannot be drilled — step one tile sideways so it drops beside you.'
+    },
+    {
       title: 'Fiend bounties',
       detail: `A destroyed fiend pays $${ENEMY.bounty.base}, plus $${ENEMY.bounty.step} for every ${ENEMY.bounty.depthDivisor} rows of depth.`
     },

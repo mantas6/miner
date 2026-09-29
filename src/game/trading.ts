@@ -24,6 +24,7 @@ import {
 } from '../core/inventory';
 import { tileKey } from '../../shared/tile-key';
 import { itemForKind } from '../core/items';
+import { recordItemsObtained } from '../core/stats';
 import { TRADING_POST_REACH, fuelPurchase, fuelUnitPrice, offersForPost, remainingStock, sellPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
 import type { TradeOfferView } from '../ui/store';
@@ -184,6 +185,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
     }
     deps.addCash(-offer.price);
     state.player.inventory = addItem(state.player.inventory, itemForKind(offer.kind), 1);
+    recordItemsObtained(state.stats, offer.kind, 1);
     const next = [...remaining];
     next[index] = left - 1;
     state.tradeLedger[tileKey(post.x, post.y)] = next;

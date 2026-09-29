@@ -69,7 +69,7 @@ export function fuelExitCost(playerX: number, playerY: number, exit: Pick<FuelEx
 }
 
 /** How the HUD names an exit: `Home`, or `Portal "Deep"`. */
-export function fuelExitLabel(exit: FuelExit | null): string {
+export function fuelExitLabel(exit: Pick<FuelExit, 'kind' | 'name'> | null): string {
   if (!exit || exit.kind === 'home') return 'Home';
   return `Portal "${exit.name}"`;
 }

@@ -198,6 +198,15 @@ export function portals(stations: readonly PlacedStation[]): PortalStation[] {
   return stations.filter((s): s is PortalStation => s.kind === 'portal');
 }
 
+/** How many portals stand outside the home cavern. Counted in place: it runs every frame. */
+export function fieldPortalCount(stations: readonly PlacedStation[]): number {
+  let count = 0;
+  for (const station of stations) {
+    if (station.kind === 'portal' && !isHomeStation(station)) count++;
+  }
+  return count;
+}
+
 /**
  * The stock of the first manufacturer, for the objective guidance and the HUD:
  * an empty inventory when there is no manufacturer standing anywhere.

@@ -12,10 +12,10 @@ import { FUEL } from '../core/balance';
 import { shouldBaseAlert, shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
 import { countItem, totalItems, type Inventory } from '../core/inventory';
 import { createExpeditionObjectiveFormatter, type ObjectiveInput } from '../core/objective';
-import { discoveredTradingPosts } from '../core/post-beacon';
+import { discoveredTradingPosts, type DiscoveredTradingPost } from '../core/post-beacon';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
-import { isAtHome } from '../core/state';
-import { homeExtractor, manufacturerStock } from '../core/stations';
+import { createDefaultStats, isAtHome } from '../core/state';
+import { fieldPortalCount, homeExtractor, manufacturerStock } from '../core/stations';
 import { formatExpeditionStats } from '../core/stats';
 import { TELEPORTER_ITEM, canUsePortableTeleporter } from '../core/teleporter';
 import type { AudioController, GameState, GameStats } from '../core/types';
@@ -57,7 +57,7 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
    */
   let infoInventory: Inventory | null = null;
   let infoStats: GameStats | null = null;
-  const infoStatValues: GameStats = {maxDepth: 0, totalCashEarned: 0, oreMined: 0, enemiesDestroyed: 0, deaths: 0};
+  const infoStatValues: GameStats = createDefaultStats();
   function statsUnchanged(stats: GameStats): boolean {
     return stats === infoStats
       && stats.maxDepth === infoStatValues.maxDepth
@@ -76,6 +76,20 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
   let postsExploredSize = -1;
   let postsMaxDepth = -1;
   let postsShipY = NaN;
+  let posts: DiscoveredTradingPost[] = [];
+  /** The posts found, shared by the Prospecting rows and the objective's post rungs. */
+  function currentPosts(): DiscoveredTradingPost[] {
+    if (state.exploredTiles !== postsExplored || state.exploredTiles.size !== postsExploredSize
+      || state.stats.maxDepth !== postsMaxDepth || state.player.y !== postsShipY) {
+      postsExplored = state.exploredTiles;
+      postsExploredSize = state.exploredTiles.size;
+      postsMaxDepth = state.stats.maxDepth;
+      postsShipY = state.player.y;
+      posts = discoveredTradingPosts(state);
+    }
+    return posts;
+  }
+  let publishedPosts: DiscoveredTradingPost[] | null = null;
   function syncInfoDetails(force = false): void {
     const store = uiStore.getState();
     const {inventory} = state.player;
@@ -83,13 +97,10 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
       infoInventory = inventory;
       store.setCargoRows(buildCargoRows(inventory));
     }
-    if (force || state.exploredTiles !== postsExplored || state.exploredTiles.size !== postsExploredSize
-      || state.stats.maxDepth !== postsMaxDepth || state.player.y !== postsShipY) {
-      postsExplored = state.exploredTiles;
-      postsExploredSize = state.exploredTiles.size;
-      postsMaxDepth = state.stats.maxDepth;
-      postsShipY = state.player.y;
-      store.setPostRows(discoveredTradingPosts(state));
+    const found = currentPosts();
+    if (force || found !== publishedPosts) {
+      publishedPosts = found;
+      store.setPostRows(found);
     }
     if (force || !statsUnchanged(state.stats)) {
       infoStats = state.stats;
@@ -134,11 +145,22 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
     hudScratch.baseFuel = base ? Math.floor(base.fuel) : 0;
     hudScratch.baseCoal = base ? base.coal : 0;
     hudScratch.baseAlert = shouldBaseAlert(state);
+    // Scanner line, return-fuel forecast, and depth landmark, each recomputed only
+    // when its own inputs moved. Milestone crossings toast from in here. Run ahead
+    // of the objective, which reads the exit the fuel forecast chose.
+    readouts.sync(hudScratch);
     objectiveScratch.player = p;
     objectiveScratch.cargoCount = hudScratch.cargo;
     objectiveScratch.atSurface = surf;
     objectiveScratch.bay = p.inventory;
     objectiveScratch.station = manufacturerStock(state.stations);
+    objectiveScratch.baseExtractor = base;
+    objectiveScratch.fieldPortals = fieldPortalCount(state.stations);
+    objectiveScratch.maxDepthMeters = state.stats.maxDepth;
+    objectiveScratch.scannersObtained = state.stats.scannersObtained;
+    objectiveScratch.bestMarkCrafted = state.stats.bestMarkCrafted;
+    objectiveScratch.postsFound = currentPosts().length;
+    objectiveScratch.nearestExit = readouts.fuelExit;
     hudScratch.objective = formatObjective(objectiveScratch);
     hudScratch.atSurface = surf;
     hudScratch.gameOver = state.gameOver;
@@ -157,9 +179,6 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
       cargoFull: hudScratch.cargoAlert,
       hullCritical: hudScratch.hullAlert
     });
-    // Scanner line, return-fuel forecast, and depth landmark, each recomputed only
-    // when its own inputs moved. Milestone crossings toast from in here.
-    readouts.sync(hudScratch);
 
     const store = uiStore.getState();
     store.syncHud(hudScratch);

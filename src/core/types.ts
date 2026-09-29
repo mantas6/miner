@@ -150,6 +150,10 @@ export interface GameStats {
   oreMined: number;
   enemiesDestroyed: number;
   deaths: number;
+  /** Scanners crafted or bought (home Supply, trading posts) — the objective's Scanner rung. */
+  scannersObtained: number;
+  /** The highest upgrade mark ever crafted, 0 (none) to 4 — the objective's Mk II rung. */
+  bestMarkCrafted: number;
 }
 
 export interface InputState {

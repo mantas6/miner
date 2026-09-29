@@ -8,7 +8,7 @@ describe('danger guide helpers', () => {
     const rows = buildDangerGuideRows();
     const byTitle = new Map(rows.map(row => [row.title, row.detail]));
 
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(7);
     expect(byTitle.get('Solid rock')).toContain(`≈${(DANGER.rockMinRow - START_Y) * 10} m`);
     expect(byTitle.get('Solid rock')).toContain(`${HULL.rockBump}-hull`);
     expect(byTitle.get('Magma pockets')).toContain(`≈${(DANGER.hazardMinRow - START_Y) * 10} m`);
@@ -17,5 +17,11 @@ describe('danger guide helpers', () => {
     expect(byTitle.get('Fiend bounties')).toContain(`$${ENEMY.bounty.base}`);
     expect(byTitle.get('Fiend bounties')).toContain(`$${ENEMY.bounty.step}`);
     expect(byTitle.get('Fuel discipline')).toContain(`${FUEL.lowFuelFraction * 100}% fuel`);
+  });
+
+  it('teaches the counters to a biting fiend: fight from above, sidestep one overhead', () => {
+    const detail = buildDangerGuideRows().find(row => row.title === 'Fighting fiends')?.detail ?? '';
+    expect(detail).toContain('Fight from above in a one-tile shaft');
+    expect(detail).toContain('step one tile sideways');
   });
 });

@@ -611,6 +611,12 @@ eight around it, and only once it is explored.
   Tunnel Fiends first, then Skitterlings, Ironbacks, and Abyss Stalkers. They are
   drawn as rusted, haunted versions of the player's own ship.
 - Enemies wake when exposed nearby; drill them before they chew through the hull.
+  Fight from above in a one-tile shaft; a biter above you cannot be drilled, so
+  step one tile sideways and let it drop beside you.
+- The HUD objective walks a ladder, first match wins: refuel at the cheapest exit,
+  unload a full bay, feed a dry base coal, the first upgrade, a Mk II, a field
+  portal, a Scanner past 600 m, a trading post past 400 m, then the next ore band
+  below the career's deepest descent.
 - The mine has no bottom: the run's goal is to keep hauling richer loads home
   alive, crafting better equipment, and setting depth records.
 - Progress (cash, fitted equipment, the bay, the home base, stats, explored tiles,
@@ -885,7 +891,7 @@ what a sighted player sees, as JSON. The top-level shape:
 
 - `tick`, `phase`, `activeOverlay`, `gameOver`
 - `ship`: `{x, y, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface, on}` (vitals read from the live sim, not the UI snapshot; `on` is `{tile, what?, detail?}` — the tile the `@` hides and anything notable standing on it)
-- `cash`, `stats`
+- `cash`, `stats` (the career counters, including `scannersObtained` and `bestMarkCrafted` — the objective ladder's progress)
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `placement`: while a placeable device is armed, `{kind, target, valid, sites[]}` — the valid `sites` the canvas grid tints green around the ship, and the hovered/last-pressed `target` tile with whether the device fits there (`null` with no target); `null` when nothing placeable is armed (the toolkit included)
 - `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the tooltips their buttons carry (the next action, or why sound is blocked; the accessible names stay a fixed "Music" / "Sound effects"); `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail

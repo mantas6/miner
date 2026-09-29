@@ -49,6 +49,7 @@ import {
   type ManufacturerStation,
   type PlacedStation
 } from '../core/stations';
+import { recordCraft, recordItemsObtained } from '../core/stats';
 import { extractorFuelOrder, isSupplyKind, supplyPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
 import type { PortalsSim } from './portals';
@@ -255,6 +256,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
       return toast(`Station stock is full at ${STATION_CAPACITY} items. Take something out first.`);
     }
     manufacturer.inventory = result;
+    recordCraft(state.stats, recipe.output, recipe.count);
     repaint();
     saveProgress();
     audio.craft();
@@ -303,6 +305,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     }
     deps.addCash(-price);
     manufacturer.inventory = addItem(manufacturer.inventory, itemForKind(kind), 1);
+    recordItemsObtained(state.stats, kind, 1);
     repaint();
     saveProgress();
     audio.buy();

@@ -287,6 +287,28 @@ describe('crafting at the station', () => {
     expect(h.toasts.saw('Not enough materials')).toBe(true);
     expect(h.audio.played).toEqual(['alarm']);
   });
+
+  it('counts crafted Scanners and keeps the best upgrade mark crafted', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    manufacturer(h.state).inventory = [ore('Copper', 8), ore('Silver', 8), ore('Gold', 3), ore('Iron', 4)].reduce(
+      (inv, stack) => addItem(inv, itemForKind(stack.kind), stack.count), createInventory()
+    );
+    h.sim.openNearest();
+
+    h.sim.craft('scanner');
+    h.sim.craft('scanner');
+    expect(h.state.stats.scannersObtained).toBe(2);
+    expect(h.state.stats.bestMarkCrafted).toBe(0);
+
+    h.sim.craft('upgrade:drill:2');
+    h.sim.craft('upgrade:tank:1');
+    expect(h.state.stats.bestMarkCrafted).toBe(2);
+    // A refused craft counts nothing.
+    h.sim.craft('upgrade:hull:3');
+    expect(h.state.stats.bestMarkCrafted).toBe(2);
+    expect(h.state.stats.scannersObtained).toBe(2);
+  });
 });
 
 describe('the fuel extractor transfers', () => {
@@ -505,6 +527,18 @@ describe('the home Supply counter', () => {
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.audio.played).toEqual(['buy']);
     expect(h.toasts.saw(`Bought Repair Kit for $${price}`)).toBe(true);
+    expect(h.state.stats.scannersObtained).toBe(0);
+  });
+
+  it('counts a bought Scanner toward the objective\'s scanners obtained', () => {
+    const h = harnessWithCash(supplyPrice('scanner'));
+    park(h.state, 'manufacturer');
+    h.sim.openNearest();
+
+    h.sim.buySupply('scanner');
+
+    expect(countItem(manufacturer(h.state).inventory, 'scanner')).toBe(1);
+    expect(h.state.stats.scannersObtained).toBe(1);
   });
 
   it('refuses when the wallet cannot cover the price', () => {

@@ -186,7 +186,22 @@ describe('legacy stat save compatibility', () => {
 
     load(state);
 
-    expect(state.stats).toEqual({ maxDepth: 0, totalCashEarned: 0, oreMined: 7, enemiesDestroyed: 0, deaths: 0 });
+    expect(state.stats).toEqual({
+      maxDepth: 0, totalCashEarned: 0, oreMined: 7, enemiesDestroyed: 0, deaths: 0, scannersObtained: 0, bestMarkCrafted: 0
+    });
+  });
+
+  it('defaults the objective counters in a save written before they existed, and keeps them once saved', () => {
+    stubStorage({ version: SAVE_VERSION, stats: { maxDepth: 900, oreMined: 12, enemiesDestroyed: 2, deaths: 1, totalCashEarned: 40 } });
+    const old = createInitialState();
+    load(old);
+    expect(old.stats).toMatchObject({ maxDepth: 900, oreMined: 12, scannersObtained: 0, bestMarkCrafted: 0 });
+
+    stubStorage({ version: SAVE_VERSION, stats: { scannersObtained: 3, bestMarkCrafted: 9 } });
+    const current = createInitialState();
+    load(current);
+    // A tampered mark clamps to the highest one there is.
+    expect(current.stats).toMatchObject({ scannersObtained: 3, bestMarkCrafted: 4 });
   });
 });
 

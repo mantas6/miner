@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatExpeditionStats } from './stats';
+import { createDefaultStats } from './state';
+import { formatExpeditionStats, recordCraft, recordItemsObtained } from './stats';
 import { nth } from '../test-narrowing';
 
 const PROGRESSED = {
@@ -50,5 +51,26 @@ describe('expedition stats formatting', () => {
     expect(nth(rows, 0).value).toBe('0 m');
     expect(nth(rows, 1).value).toBe('$0');
     expect(nth(rows, 2).value).toBe('1 ore');
+  });
+});
+
+describe('objective progress counters', () => {
+  it('tallies scanners obtained and keeps the best upgrade mark crafted', () => {
+    const stats = createDefaultStats();
+    recordItemsObtained(stats, 'scanner', 1);
+    recordItemsObtained(stats, 'dynamite', 3);
+    recordCraft(stats, 'scanner', 2);
+    expect(stats.scannersObtained).toBe(3);
+
+    recordCraft(stats, 'upgrade:drill:2', 1);
+    recordCraft(stats, 'upgrade:tank:1', 1);
+    recordCraft(stats, 'repairKit', 1);
+    expect(stats.bestMarkCrafted).toBe(2);
+    recordCraft(stats, 'upgrade:hull:3', 1);
+    expect(stats.bestMarkCrafted).toBe(3);
+  });
+
+  it('does not list the counters on the Stats tab', () => {
+    expect(formatExpeditionStats({...createDefaultStats(), scannersObtained: 4, bestMarkCrafted: 2})).toHaveLength(5);
   });
 });

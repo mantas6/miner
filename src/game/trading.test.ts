@@ -19,11 +19,11 @@ import { nth } from '../test-narrowing';
 const IRON: Ore = {name: 'Iron', color: '#8a7f75', value: 12, min: 0, max: 900, chance: 1};
 
 /** The first trading post in the interior band, for the ship to be parked at. */
-function findPost(): TradingPost {
+function findPost(accept: (post: TradingPost) => boolean = () => true): TradingPost {
   for (let y = START_Y + 40; y < START_Y + 4000; y++) {
     for (let x = 3; x < WORLD_W - 3; x++) {
       const post = tradingPostAt(x, y);
-      if (post) return post;
+      if (post && accept(post)) return post;
     }
   }
   throw new Error('no trading post found');
@@ -39,10 +39,10 @@ interface Harness {
   post: TradingPost;
 }
 
-/** A ship parked on a real post's tile, with `cash` in the wallet. */
-function harness(cash = 100000): Harness {
+/** A ship parked on a real post's tile (the first `accept` passes), with `cash` in the wallet. */
+function harness(cash = 100000, accept?: (post: TradingPost) => boolean): Harness {
   const state = createInitialState();
-  const post = findPost();
+  const post = findPost(accept);
   Object.assign(state.player, {x: post.x, y: post.y});
   state.cash = cash;
   const audio = createAudioStub();
@@ -151,6 +151,17 @@ describe('buying gear', () => {
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.audio.played).toEqual(['buy']);
     expect(h.toasts.saw(`Bought ${offer.label}`)).toBe(true);
+  });
+
+  it('counts a bought Scanner toward the objective\'s scanners obtained', () => {
+    const sellsScanner = (post: TradingPost) => offersForPost(post.x, post.y).some(offer => offer.kind === 'scanner');
+    const h = harness(100000, sellsScanner);
+    h.trading.openAt(h.post.x, h.post.y);
+
+    h.trading.buy('scanner');
+
+    expect(countItem(h.state.player.inventory, 'scanner')).toBe(1);
+    expect(h.state.stats.scannersObtained).toBe(1);
   });
 
   it('keeps the drawn-down stock across a close and reopen', () => {

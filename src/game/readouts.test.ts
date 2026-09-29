@@ -202,6 +202,8 @@ describe('return-fuel forecast', () => {
       fuelReserveNeeded: Math.ceil(toPortal),
       fuelReserveExit: 'Portal "Deep"'
     });
+    // The objective reads the chosen exit itself, not the label.
+    expect(game.readouts.fuelExit).toBe(portal);
 
     portal.name = 'Shaft';
     expect(game.sync().fuelReserveExit).toBe('Portal "Shaft"');

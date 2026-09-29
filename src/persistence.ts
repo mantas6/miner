@@ -26,6 +26,7 @@ import { chestKey, ledgerStacks } from './core/chest';
 import { chestAt } from './world/world';
 import { applyEquipment } from './core/ship-upgrades';
 import { createDefaultStats } from './core/state';
+import { BEST_MARK_MAX } from './core/stats';
 import {
   STATION_CAPACITY,
   STATION_DEVICE,
@@ -403,9 +404,12 @@ function parseProgress(raw: string | null, state: GameState): StagedProgress | n
   const defaultStats = createDefaultStats();
   const savedStats = save.stats && typeof save.stats === 'object' ? save.stats : {};
   const stats = createDefaultStats();
+  // Read by key with defaults, so a counter added since the save was written
+  // (`scannersObtained`, `bestMarkCrafted`) loads as zero without a version bump.
   for (const key of Object.keys(defaultStats) as (keyof GameStats)[]) {
     stats[key] = numeric(savedStats[key], defaultStats[key], 0);
   }
+  stats.bestMarkCrafted = Math.min(BEST_MARK_MAX, Math.floor(stats.bestMarkCrafted));
   return {
     cash: numeric(save.cash, state.cash, 0),
     equipment: parseEquipment(save.equipment),

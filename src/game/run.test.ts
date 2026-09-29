@@ -422,7 +422,7 @@ describe('a full player reset', () => {
     });
     h.state.gameOver = true;
     h.state.particles.push({x: 1, y: 1, vx: 1, vy: 1, life: 1, color: '#fff', size: 1});
-    h.state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4};
+    h.state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4, scannersObtained: 2, bestMarkCrafted: 2};
     h.state.scannerDevices = [{x: 3, y: 40, timer: 9}];
     h.state.cargoContainers = [{x: 4, y: 40, inventory: createInventory()}];
     h.state.wrecks = [{x: 5, y: 40, inventory: addOre(createInventory(), nth(ORES, 0), 1)!}];
