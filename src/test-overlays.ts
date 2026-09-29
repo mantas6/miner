@@ -8,7 +8,7 @@ const EMPTY: {[K in OverlayId]: () => OverlayOf<K>} = {
   info: () => ({kind: 'info'}),
   ship: () => ({kind: 'ship'}),
   container: () => ({kind: 'container', slots: []}),
-  wreck: () => ({kind: 'wreck', slots: []}),
+  wreck: () => ({kind: 'wreck', slots: [], deathsLeft: 3}),
   chest: () => ({kind: 'chest', slots: []}),
   station: () => ({kind: 'station', slots: [], supply: false}),
   extractor: () => ({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0, supply: false}}),

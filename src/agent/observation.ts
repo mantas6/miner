@@ -24,6 +24,7 @@ import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
 import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
+import { formatWreckLifetime } from '../core/wreck';
 import { SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, sellPrice, supplyPrice } from '../core/trading';
 import { chestAt, graveAt, tradingPostAt } from '../world/world';
 import { chestContents, isChestLooted } from '../core/chest';
@@ -180,7 +181,8 @@ export type AgentOverlay =
     }
   | {kind: 'ship'; slots: AgentShipSlot[]; fittable: AgentSlot[]}
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
-  | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]}
+  /** `deathsLeft`: each further death (or hand reset) takes one off; the one that reaches 0 crumbles it. */
+  | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]; deathsLeft: number}
   | {kind: 'chest'; ship: AgentSlot[]; chest: AgentSlot[]}
   /** A grave's stone: who lies there, the years they lived, and how the mine took them. */
   | {kind: 'grave'; name: string; born: number; died: number; cause: string}
@@ -202,7 +204,12 @@ export type AgentOverlay =
       source?: {x: number; y: number; name: string};
       /** The source portal's current name, echoed in travel mode for rename feedback. */
       name?: string;
-      destinations: {x: number; y: number; name: string; depth: number; distance: number}[];
+      /**
+       * `respawnFuel` (respawn mode only): the absolute fuel units the replacement
+       * ship deploys with at that portal — the full base tank at home, half of it at
+       * a field portal.
+       */
+      destinations: {x: number; y: number; name: string; depth: number; distance: number; respawnFuel?: number}[];
     }
   | AgentInfoOverlay;
 
@@ -452,7 +459,7 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
     case 'container':
       return {kind: 'container', ship: toSlotsWithInfo(ui.inventorySlots), container: toSlotsWithInfo(overlay.slots)};
     case 'wreck':
-      return {kind: 'wreck', ship: toSlotsWithInfo(ui.inventorySlots), wreck: toSlotsWithInfo(overlay.slots)};
+      return {kind: 'wreck', ship: toSlotsWithInfo(ui.inventorySlots), wreck: toSlotsWithInfo(overlay.slots), deathsLeft: overlay.deathsLeft};
     case 'chest':
       return {kind: 'chest', ship: toSlotsWithInfo(ui.inventorySlots), chest: toSlotsWithInfo(overlay.slots)};
     case 'trade':
@@ -473,13 +480,18 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         mode: portal.mode,
         source: portal.source,
         name: portal.source?.name,
-        destinations: portal.destinations.map(destination => ({
-          x: destination.x,
-          y: destination.y,
-          name: destination.name,
-          depth: destination.depthMeters,
-          distance: destination.distance
-        }))
+        destinations: portal.destinations.map(destination => {
+          const row: {x: number; y: number; name: string; depth: number; distance: number; respawnFuel?: number} = {
+            x: destination.x,
+            y: destination.y,
+            name: destination.name,
+            depth: destination.depthMeters,
+            distance: destination.distance
+          };
+          // Only the respawn prompt prices a redeploy; travel rows stay as they were.
+          if (destination.respawnFuel !== undefined) row.respawnFuel = destination.respawnFuel;
+          return row;
+        })
       };
     }
     case 'grave': {
@@ -602,7 +614,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
     const wreck = wreckAt.get(at);
     if (wreck) {
       const items = totalItems(wreck.inventory);
-      return on('W', 'wreck', `${items} item${items === 1 ? '' : 's'}`);
+      return on('W', 'wreck', `${items} item${items === 1 ? '' : 's'}, ${formatWreckLifetime(wreck.deathsLeft)}`);
     }
     const station = stationAt(state.stations, x, y);
     if (station?.kind === 'manufacturer') return on('M', 'station', 'Manufacturer');

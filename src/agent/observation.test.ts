@@ -189,8 +189,13 @@ describe('buildObservation', () => {
     const obs = buildObservation({state, ui: ui(), get: tileSource({})});
 
     expect(obs.view.rows[6]?.[43 - 38]).toBe('W');
-    expect(obs.notable.find(n => n.what === 'wreck')?.detail).toBe('3 items');
+    // A fresh wreck outlasts three more deaths; the detail counts them down.
+    expect(obs.notable.find(n => n.what === 'wreck')?.detail).toBe('3 items, crumbles in 3 deaths');
     expect(VIEW_LEGEND.W).toBe('wreck');
+
+    wreck.deathsLeft = 1;
+    const last = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(last.notable.find(n => n.what === 'wreck')?.detail).toBe('3 items, crumbles on the next death');
   });
 
   it('mirrors the wreck overlay only while it is open', () => {
@@ -201,12 +206,13 @@ describe('buildObservation', () => {
 
     const overlay = buildObservation({
       state,
-      ui: ui({overlay: {kind: 'wreck', slots: wreckSlots}, inventorySlots: [oreSlot('Iron', 1)]}),
+      ui: ui({overlay: {kind: 'wreck', slots: wreckSlots, deathsLeft: 2}, inventorySlots: [oreSlot('Iron', 1)]}),
       get: tileSource({})
     }).overlay;
 
     expect(overlay?.kind).toBe('wreck');
     if (overlay?.kind !== 'wreck') throw new Error('expected wreck overlay');
+    expect(overlay.deathsLeft).toBe(2);
     expect(overlay.wreck).toMatchObject([{kind: oreKind('Gold'), label: 'Gold', count: 4}]);
     expect(overlay.ship).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 1}]);
     // Overlay slots carry the tooltip lines a human would read off the row.
@@ -390,7 +396,7 @@ describe('buildObservation', () => {
 
     state.wrecks.push(createWreck(45, 100, addItem(createInventory(), oreItem({name: 'Iron', color: '#fff', value: 1, min: 0, max: 1, chance: 1}), 2)));
     const onWreck = buildObservation({state, ui: ui(), get: tileSource({'45,100': {type: 'air'}})});
-    expect(onWreck.ship.on).toEqual({tile: 'air', what: 'wreck', detail: '2 items'});
+    expect(onWreck.ship.on).toEqual({tile: 'air', what: 'wreck', detail: '2 items, crumbles in 3 deaths'});
     // The ship's own cell stays `@` in the view, and out of notable.
     expect(onWreck.view.rows[5]?.[7]).toBe('@');
     expect(onWreck.notable.some(n => n.x === 45 && n.y === 100)).toBe(false);
@@ -501,8 +507,8 @@ describe('buildObservation', () => {
       state,
       ui: ui({
         overlay: {kind: 'portal', portal: {mode: 'respawn', destinations: [
-          {x: 48, y: 20, name: 'Home', depthMeters: 0, distance: 0},
-          {x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208}
+          {x: 48, y: 20, name: 'Home', depthMeters: 0, distance: 0, respawnFuel: 100},
+          {x: 20, y: 200, name: 'Depot', depthMeters: 180, distance: 208, respawnFuel: 50}
         ]}}
       }),
       get: tileSource({})
@@ -510,7 +516,13 @@ describe('buildObservation', () => {
     expect(respawn?.kind).toBe('portal');
     if (respawn?.kind !== 'portal') throw new Error('expected portal overlay');
     expect(respawn.mode).toBe('respawn');
-    expect(respawn.destinations).toHaveLength(2);
+    // Each row carries the absolute fuel the replacement would deploy with there.
+    expect(respawn.destinations).toEqual([
+      {x: 48, y: 20, name: 'Home', depth: 0, distance: 0, respawnFuel: 100},
+      {x: 20, y: 200, name: 'Depot', depth: 180, distance: 208, respawnFuel: 50}
+    ]);
+    // Outside respawn mode there is no redeploy to price.
+    expect(teleporter.destinations[0]).not.toHaveProperty('respawnFuel');
   });
 
   it('carries the carried-teleporter HUD state in hud.teleport', () => {

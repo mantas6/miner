@@ -1,5 +1,5 @@
 import { HOME_ROW, HOME_X, SHIP_UPGRADE_SLOTS, isHomeCavern } from '../../shared/constants';
-import { STARTING } from './balance';
+import { RESPAWN, STARTING } from './balance';
 import { createInventory, removeOres } from './inventory';
 import { createInitialStations } from './stations';
 import { applyEquipment } from './ship-upgrades';
@@ -22,7 +22,34 @@ export function isAtHome(player: Pick<Player, 'x' | 'y'>): boolean {
   return isHomeCavern(player.x, player.y);
 }
 
-export function respawnPlayer(player: Player, at?: {x: number; y: number}): void {
+/**
+ * The share of a tank a replacement ship deploys with at `at`: a full one at home
+ * (no tile, or one inside the home cavern — the base's own `Home` portal counts),
+ * `RESPAWN.portalFuelFraction` at a portal out in the field.
+ */
+export function respawnFuelFraction(at?: {x: number; y: number}): number {
+  return !at || isHomeCavern(at.x, at.y) ? 1 : RESPAWN.portalFuelFraction;
+}
+
+/** The fuel a tank of `fuelMax` holds at `fraction` full: whole units, never empty. */
+export function respawnFuelUnits(fuelMax: number, fraction: number): number {
+  return Math.max(1, Math.min(fuelMax, Math.floor(fuelMax * fraction)));
+}
+
+/**
+ * The fuel a replacement ship would deploy with at `at`. Death strips every
+ * fitted upgrade, so the tank is the starting one whatever the lost ship flew.
+ */
+export function respawnFuelAt(at?: {x: number; y: number}): number {
+  return respawnFuelUnits(STARTING.fuelMax, respawnFuelFraction(at));
+}
+
+/**
+ * Deploy a replacement ship at `at` (a portal) or the home base: fitted upgrades
+ * and ore stripped, a full hull, and `fuelFraction` of the base tank (see
+ * `respawnFuelFraction`; the default is a full one).
+ */
+export function respawnPlayer(player: Player, at?: {x: number; y: number}, fuelFraction = 1): void {
   if (at) {
     Object.assign(player, {x: at.x, y: at.y, drawX: at.x, drawY: at.y});
   } else {
@@ -30,11 +57,11 @@ export function respawnPlayer(player: Player, at?: {x: number; y: number}): void
   }
   // Fitted upgrades do not survive the wreck: unfitting every slot is the wipe,
   // and re-deriving the maxima against the empty loadout drops them back to base
-  // before the replacement ship deploys with a full tank and hull.
+  // before the replacement ship deploys with a full hull and its share of a tank.
   player.equipment = Array.from({length: SHIP_UPGRADE_SLOTS}, () => null);
   applyEquipment(player);
   Object.assign(player, {
-    fuel: player.fuelMax,
+    fuel: respawnFuelUnits(player.fuelMax, fuelFraction),
     hull: player.hullMax,
     // Ore never survives a death, and neither do the upgrades fitted to the hull.
     // Bought equipment still riding in the bay — dynamite, scanners, teleporters,

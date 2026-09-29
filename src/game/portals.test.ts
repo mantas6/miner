@@ -255,6 +255,12 @@ describe('the lost-ship respawn prompt', () => {
     h.sim.openRespawn(onPick);
     expect(h.sim.mode).toBe('respawn');
     expect(h.lastView()!.mode).toBe('respawn');
+    // Each row prices the redeploy: home (48,20 is in the cavern) a full tank,
+    // the field portal half of one.
+    expect(h.lastView()!.destinations.map(d => [d.name, d.respawnFuel])).toEqual([
+      ['Home', 100],
+      ['Deep', 50]
+    ]);
 
     // The prompt has no close button: `close()` is ignored.
     h.sim.close();

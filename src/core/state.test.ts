@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { STARTING } from './balance';
-import { ORES, START_Y, WORLD_W } from '../../shared/constants';
+import { RESPAWN, STARTING } from './balance';
+import { ORES, START_Y, STATIONS, WORLD_W } from '../../shared/constants';
 import { DYNAMITE_ITEM } from './dynamite';
 import { addItem, addOre, countItem, countOres, createInventory } from './inventory';
 import { applyEquipment } from './ship-upgrades';
-import { createInitialState, respawnPlayer } from './state';
+import { createInitialState, respawnFuelAt, respawnFuelFraction, respawnFuelUnits, respawnPlayer } from './state';
 import { TELEPORTER_ITEM } from './teleporter';
 import { nth } from '../test-narrowing';
 
@@ -68,5 +68,40 @@ describe('player respawn', () => {
     // Ore gone, the two bay equipment stacks remain, and every fitting slot empties.
     expect(player.inventory).toHaveLength(2);
     expect(player.equipment).toEqual([null, null, null]);
+  });
+
+  it('fills the given share of the base tank, and always the whole hull', () => {
+    const player = createInitialState().player;
+    player.equipment = ['upgrade:tank:1', null, null];
+    applyEquipment(player);
+    Object.assign(player, {fuel: 0, hull: 0});
+
+    respawnPlayer(player, {x: 30, y: 80}, RESPAWN.portalFuelFraction);
+
+    expect(player).toMatchObject({
+      x: 30, y: 80,
+      fuel: STARTING.fuelMax * RESPAWN.portalFuelFraction,
+      fuelMax: STARTING.fuelMax,
+      hull: STARTING.hullMax
+    });
+  });
+});
+
+describe('respawn fuel', () => {
+  it('is a full tank at home and half of one at a field portal', () => {
+    expect(respawnFuelFraction()).toBe(1);
+    // The base's own portal stands in the home cavern: home rules.
+    expect(respawnFuelFraction({x: STATIONS.portal.x, y: STATIONS.portal.y})).toBe(1);
+    expect(respawnFuelFraction({x: 30, y: 80})).toBe(RESPAWN.portalFuelFraction);
+
+    expect(respawnFuelAt()).toBe(STARTING.fuelMax);
+    expect(respawnFuelAt({x: 30, y: 80})).toBe(50);
+  });
+
+  it('deals in whole units and never deploys an empty tank', () => {
+    expect(respawnFuelUnits(150, 0.5)).toBe(75);
+    expect(respawnFuelUnits(99, 0.5)).toBe(49);
+    expect(respawnFuelUnits(100, 0)).toBe(1);
+    expect(respawnFuelUnits(100, 2)).toBe(100);
   });
 });

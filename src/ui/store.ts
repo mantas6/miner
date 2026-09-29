@@ -166,6 +166,8 @@ export interface PortalDestinationView {
   depthMeters: number;
   /** Manhattan distance from the ship (or the death tile), in tiles. */
   distance: number;
+  /** Respawn mode only: the fuel a replacement ship would deploy with here. */
+  respawnFuel?: number;
 }
 
 /**
@@ -240,8 +242,8 @@ export type Overlay =
   | {kind: 'ship'}
   /** The open cargo container's stacks, in the inventory-slot shape. */
   | {kind: 'container'; slots: InventorySlotView[]}
-  /** The open wreck's contents, in the same shape. Take-only. */
-  | {kind: 'wreck'; slots: InventorySlotView[]}
+  /** The open wreck's contents, in the same shape (take-only), and the deaths it has left. */
+  | {kind: 'wreck'; slots: InventorySlotView[]; deathsLeft: number}
   /** The open chest's contents, in the same shape. Take-only. */
   | {kind: 'chest'; slots: InventorySlotView[]}
   /**
@@ -478,9 +480,10 @@ function sameOverlay(current: ActiveOverlay, next: ActiveOverlay): boolean {
     case 'ship':
       return true;
     case 'container':
-    case 'wreck':
     case 'chest':
       return sameInventorySlots((current as typeof next).slots, next.slots);
+    case 'wreck':
+      return (current as typeof next).deathsLeft === next.deathsLeft && sameInventorySlots((current as typeof next).slots, next.slots);
     case 'station':
       return (current as typeof next).supply === next.supply && sameInventorySlots((current as typeof next).slots, next.slots);
     case 'extractor': {

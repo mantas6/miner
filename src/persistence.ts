@@ -59,6 +59,9 @@ import type { ChestLedger, GameState, GameStats } from './core/types';
 //
 // The current shape's fields:
 //   * `x`/`y`     — the tile the ship parked on.
+//   * `fuel`/`hull` — the ship's current vitals, clamped on load to the maxima the
+//     fitted equipment derives. Either at 0 is a save taken while dead, which
+//     `run.resume` settles as that death (see `game/run.ts`).
 //   * `cash`      — the wallet.
 //   * `tiles`     — the world's tile diff, as `{x, y, tile}` entries.
 //   * `explored`  — run-length-encoded explored tiles.
@@ -75,7 +78,8 @@ import type { ChestLedger, GameState, GameStats } from './core/types';
 //   * `scannerDevices`/`dynamiteSticks`/`cargoContainers`/`wrecks` — the hardware
 //     and corpse loot left standing in the mine, crates and wrecks saved with their
 //     contents as `{kind, count}` stacks (prices and labels come from the ore table
-//     and the catalog on load, never from the file). An emptied wreck is not saved.
+//     and the catalog on load, never from the file). An emptied wreck is not saved;
+//     each wreck also carries `deathsLeft`, the deaths it outlasts before crumbling.
 //   * `tradeLedger` — the drawn-down buy stock per trading post, keyed `"x,y"`.
 //   * `chestLedger` — what is left in each opened chest, keyed `"x,y"`, as
 //     `{kind, count}` stacks; `[]` is a chest looted bare. Optional: a save without
@@ -87,6 +91,8 @@ interface SavedProgress {
   tiles?: unknown;
   x?: unknown;
   y?: unknown;
+  fuel?: unknown;
+  hull?: unknown;
   cash?: unknown;
   bay?: unknown;
   equipment?: unknown;
@@ -102,7 +108,7 @@ interface SavedProgress {
 }
 
 export const SAVE_KEY = 'stalinload:progress:v1';
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 /** The file name an exported save downloads as. */
 export const SAVE_EXPORT_FILENAME = 'stalinload-save.json';
 /** A stored stack is a count, not a licence to write an unbounded number. */
@@ -196,9 +202,14 @@ export function parseWrecks(value: unknown): Wreck[] {
     if (wrecks.length >= WRECK.maxPlaced) break;
     const tile = parsePlacedTile(entry);
     if (!tile) continue;
-    const inventory = parseKindCountStacks((entry as {items?: unknown}).items, isSavedItemKind, WRECK.capacity);
+    const {items, deathsLeft} = entry as {items?: unknown; deathsLeft?: unknown};
+    // Every wreck this version writes carries its lifetime; one without it is
+    // junk, and one past the range is clamped into what the game could produce.
+    const lifetime = Math.floor(numeric(deathsLeft, 0, 0, WRECK.lifetimeDeaths));
+    if (lifetime <= 0) continue;
+    const inventory = parseKindCountStacks(items, isSavedItemKind, WRECK.capacity);
     if (inventory.length === 0) continue;
-    wrecks.push(createWreck(tile.x, tile.y, inventory));
+    wrecks.push(createWreck(tile.x, tile.y, inventory, lifetime));
   }
   return wrecks;
 }
@@ -239,9 +250,10 @@ function isSavedItemKind(kind: string): boolean {
 
 /**
  * The fitted upgrades, one slot each, dropping anything that is not a real
- * upgrade. A shorter array — a save from the two-slot build — is padded with
- * empty slots, and a slot the career has not unlocked yet (`isSlotLocked`) comes
- * back empty: the game never fits one, so only a hand-edited save could.
+ * upgrade. The game always writes `SHIP_UPGRADE_SLOTS` entries; a shorter
+ * hand-edited array is padded with empty slots rather than refused, and a slot
+ * the career has not unlocked yet (`isSlotLocked`) comes back empty: the game
+ * never fits one, so only a hand-edited save could.
  */
 function parseEquipment(value: unknown, bestMarkCrafted: number): (UpgradeKind | null)[] {
   const slots: (UpgradeKind | null)[] = Array.from({length: SHIP_UPGRADE_SLOTS}, () => null);
@@ -361,6 +373,11 @@ function serializePlacedInventory(entity: {x: number; y: number; inventory: Inve
   return {x: entity.x, y: entity.y, items: serializeStacks(entity.inventory)};
 }
 
+/** A wreck: its tile and stacks, plus the deaths it has left before it crumbles. */
+function serializeWreck(wreck: Wreck) {
+  return {...serializePlacedInventory(wreck), deathsLeft: Math.floor(wreck.deathsLeft)};
+}
+
 /** A bay or station stack, flattened to just the kind and how many. */
 function serializeStacks(inventory: Inventory): {kind: InventoryItemKind; count: number}[] {
   return inventoryStacks(inventory).map(stack => ({kind: stack.kind, count: stack.count}));
@@ -384,6 +401,10 @@ interface StagedProgress {
   chestLedger: ChestLedger;
   x: number;
   y: number;
+  /** Unbounded above until `applyEquipment` clamps it to the restored `fuelMax`. */
+  fuel: number;
+  /** Likewise, until clamped to the restored `hullMax`. */
+  hull: number;
   explored: Set<number>;
   tileDiff: TileDiff;
   stats: GameStats;
@@ -435,6 +456,11 @@ function parseProgress(raw: string | null, state: GameState): StagedProgress | n
     // a miner outside the walls; `run.resume` sends one parked in rock home.
     x: Math.floor(numeric(save.x, p.x, 1, WORLD_W - 2)),
     y: Math.floor(numeric(save.y, p.y, START_Y, MAX_WORLD_ROW)),
+    // Clamped at zero here and to the restored maxima by `applyEquipment` in
+    // `load`. A file without them (only a hand-written one) loads with a full
+    // tank and hull, as a fresh ship would.
+    fuel: numeric(save.fuel, Infinity, 0, Infinity),
+    hull: numeric(save.hull, Infinity, 0, Infinity),
     explored,
     tileDiff: createTileDiff(parseTileEntries(save.tiles)),
     stats
@@ -455,11 +481,13 @@ export function load(state: GameState): void {
   state.cash = staged.cash;
   // The four ship stats are derived from fitted equipment, not stored: restore
   // the fitted slots and the bay, then `applyEquipment` recomputes `fuelMax`/
-  // `hullMax`/`cargoMax`/`drill` and `boost` from them. It only clamps the
-  // current fuel and hull — the fit-time delta `equip` carries over is never
-  // re-applied here, so a reload restores maxima without granting fuel.
+  // `hullMax`/`cargoMax`/`drill` and `boost` from them. The saved fuel and hull
+  // go in first so its clamp bounds them by the restored maxima — the fit-time
+  // delta `equip` carries over is never re-applied, so a reload grants nothing.
   p.equipment = staged.equipment;
   p.inventory = staged.bay;
+  p.fuel = staged.fuel;
+  p.hull = staged.hull;
   applyEquipment(p);
   if (staged.stations) state.stations = staged.stations;
   state.scannerDevices = staged.scannerDevices;
@@ -521,6 +549,10 @@ export function serializeProgress(state: GameState): SavedProgress & {version: n
     cash: Math.floor(state.cash),
     x: p.x,
     y: p.y,
+    // The vitals ride along, so a reload or an import is never a free refill. A
+    // save written at game over holds an empty tank or hull; `run.resume` settles it.
+    fuel: Math.max(0, p.fuel),
+    hull: Math.max(0, p.hull),
     // Ore is lost with the run, so only the non-ore stacks — equipment, upgrades,
     // decor — are written out of the bay.
     bay: serializeStacks(p.inventory).filter(stack => !isOreKind(stack.kind)),
@@ -530,7 +562,7 @@ export function serializeProgress(state: GameState): SavedProgress & {version: n
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),
     cargoContainers: state.cargoContainers.slice(0, CARGO_CONTAINER.maxPlaced).map(serializePlacedInventory),
     // An emptied wreck is retired on the spot, so one here would only be junk.
-    wrecks: state.wrecks.filter(wreck => wreck.inventory.length > 0).slice(0, WRECK.maxPlaced).map(serializePlacedInventory),
+    wrecks: state.wrecks.filter(wreck => wreck.inventory.length > 0).slice(0, WRECK.maxPlaced).map(serializeWreck),
     tradeLedger: state.tradeLedger,
     chestLedger: state.chestLedger,
     explored: encodeExploration(state.exploredTiles),

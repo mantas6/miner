@@ -117,6 +117,21 @@ describe('portal overlay', () => {
     expect(closePortal).not.toHaveBeenCalled();
   });
 
+  it('prices each respawn row by the tank the replacement would deploy with, and only there', () => {
+    open({mode: 'respawn', source: undefined, destinations: [
+      {x: 48, y: 20, name: 'Home', depthMeters: 0, distance: 1, respawnFuel: 100},
+      {x: 12, y: 40, name: 'Depot', depthMeters: 120, distance: 8, respawnFuel: 50}
+    ]});
+
+    expect(row(48, 20).textContent).toContain('full tank');
+    expect(row(12, 40).textContent).toContain('½ tank');
+
+    // Travel rows carry no respawn fuel, so they say nothing about a tank.
+    cleanup();
+    open();
+    expect(row(12, 40).textContent).not.toContain('tank');
+  });
+
   it('closes from the button and the backdrop in travel and teleporter modes', () => {
     const closePortal = vi.fn();
     setUiCommands({closePortal});

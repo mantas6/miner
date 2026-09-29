@@ -17,6 +17,7 @@
 
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import type { InventoryItemKind } from '../core/inventory';
+import { WRECK, formatWreckLifetime } from '../core/wreck';
 import { uiCommands } from './commands';
 import { overlayOf, useUiStore, type InventorySlotView } from './store';
 import { CardHeader, ModalShell } from './ModalShell';
@@ -66,13 +67,15 @@ interface LootCardProps {
 /** The wreck's salvage menu: one take-only column, plus a loot-all shortcut. */
 function WreckCard() {
   const wreckSlots = useUiStore(state => overlayOf(state, 'wreck')?.slots ?? NO_SLOTS);
+  const deathsLeft = useUiStore(state => overlayOf(state, 'wreck')?.deathsLeft ?? WRECK.lifetimeDeaths);
   return (
     <LootCard
       title="Wreck"
       listId="wreckSlots"
       slots={wreckSlots}
       note={'A lost ship: the ore and fitted upgrades it went down with, waiting to be salvaged. '
-        + 'Anything hauled aboard still obeys the cargo-bay limit, and the wreck is gone once emptied.'}
+        + 'Anything hauled aboard still obeys the cargo-bay limit, and the wreck is gone once emptied. '
+        + `It ${formatWreckLifetime(deathsLeft)}.`}
       close={() => uiCommands.closeWreck()}
       take={(kind, single) => uiCommands.takeFromWreck(kind, single)}
       lootAll={() => uiCommands.lootAll()}

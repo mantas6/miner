@@ -14,7 +14,7 @@
 // The open wreck does not survive a reload: it is about what the player is doing
 // right now, not about what they own.
 
-import { totalItems, type Inventory, type InventoryItemKind } from '../core/inventory';
+import { totalItems, type InventoryItemKind } from '../core/inventory';
 import {
   isWreckReachable,
   lootAll,
@@ -52,10 +52,11 @@ export interface WreckDeps {
   toast(message: string): void;
   saveProgress(): void;
   /**
-   * Show the salvage menu for these contents, or take it away with `null`.
-   * `quiet` skips the close cue when the haul that emptied the wreck plays its own.
+   * Show the salvage menu for this wreck — its contents and the deaths it has
+   * left — or take it away with `null`. `quiet` skips the close cue when the haul
+   * that emptied the wreck plays its own.
    */
-  setOpenUi(contents: Inventory | null, quiet?: boolean): void;
+  setOpenUi(wreck: Wreck | null, quiet?: boolean): void;
 }
 
 export function createWrecks(deps: WreckDeps): WreckSim {
@@ -70,13 +71,13 @@ export function createWrecks(deps: WreckDeps): WreckSim {
 
   /** Re-publish the open wreck's contents after a transfer changed them. */
   function repaint(): void {
-    if (open) deps.setOpenUi(open.inventory);
+    if (open) deps.setOpenUi(open);
   }
 
   /** Show the wreck's contents and hand the menu to the UI. */
   function show(wreck: Wreck): boolean {
     open = wreck;
-    deps.setOpenUi(wreck.inventory);
+    deps.setOpenUi(wreck);
     return true;
   }
 

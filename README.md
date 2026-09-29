@@ -30,11 +30,13 @@ refuses a save for size anyway, the tile budget halves (and stays halved for the
 session) until the save fits; cash, equipment and the rest are never dropped to
 make room.
 
-The ship is part of that mine. The save records the tile it parked on, so a
-refresh resumes down the shaft instead of at the home base — with a full tank, a
-whole hull and an empty cargo bay, since none of those are saved. Dying is the
-break: it costs you your position, the cargo aboard, and the upgrades fitted to
-the ship (the ones in the bay survive). If the restored mine turns out to be solid rock at that
+The ship is part of that mine. The save records the tile it parked on and the
+fuel and hull it had, so a refresh (or an import) resumes down the shaft with the
+tank you left it on — a reload is never a free refill — and an empty cargo bay,
+since ore is not saved. Dying is the break: it costs you your position, the cargo
+aboard, and the upgrades fitted to the ship (the ones in the bay survive). A save
+taken while dead — the game-over write, reloaded before redeploying — is settled
+as that death: the wreck is dropped and the ship redeploys at home, full. If the restored mine turns out to be solid rock at that
 tile (a capped save), the ship starts at the home base rather than buried,
 because the drill cannot dig upward. The same rule guards every jump: a portal
 whose tile has gone solid is left out of the travel, teleporter and respawn lists,
@@ -45,7 +47,7 @@ the last change); the save is written on the spot when the run ends, the tab is
 hidden or closed, or the runtime is torn down, and the once-a-minute safety save
 is skipped while nothing has changed.
 
-The save is version 20, stored under `stalinload:progress:v1`, and a clean break:
+The save is version 21, stored under `stalinload:progress:v1`, and a clean break:
 any save not written by exactly this version — older or newer — is discarded on
 load rather than migrated, because the reworks changed the shape too much to
 convert honestly (the four ship stats became derived from fitted equipment, the
@@ -54,14 +56,15 @@ carrying their own state, and crate and wreck stacks stopped carrying their own
 prices — every sell price comes from the ore table). A returning player from an
 older build starts fresh; the old `moleload-*` keys are no longer read, but
 **Reset game** still removes them. A save is parsed in full before any of it is
-applied, and every stack in it is clamped to what its holder can hold. What the save keeps: the parked tile, cash, the tile diff, explored
+applied, and every stack in it is clamped to what its holder can hold. What the save keeps: the parked tile, the ship's `fuel` and `hull`
+(clamped to the maxima the fitted equipment derives), cash, the tile diff, explored
 tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the placed
 stations (each Manufacturing Station's stock, each Fuel Extractor's coal/fuel, and
 each Portal's name),
 the drawn-down trading-post stock (`tradeLedger`), what is left in each opened
 chest (`chestLedger` — optional, so a save without it loads with every chest
 full), and the hardware left standing in the mine (scanners, dynamite, crates and
-wrecks with their contents). Ore aboard the ship is never saved — it is lost with
+wrecks with their contents, each wreck with the deaths it has left). Ore aboard the ship is never saved — it is lost with
 the run.
 
 The save can be carried between browsers from **Info → Settings → Save data**.
@@ -602,8 +605,13 @@ eight around it, and only once it is explored.
   to open a take-only salvage menu: press a stack (or its "1" button) to haul it
   aboard, or **Loot all** to take everything that fits in one press. A wreck vanishes
   the moment it is emptied; up to five stand at once, the oldest dropped past the cap.
-  They survive death and reload and clear only on a full player-data reset. The
-  fitted upgrades come back as unequipped bay items, ready to refit.
+  They survive reload, but not for ever: every later death or hand reset wears each
+  standing wreck down by one (`WRECK.lifetimeDeaths` = 3, `ageWrecks`), and the one
+  that brings it to zero crumbles it to scrap ("The wreck at (x, y) crumbled to
+  scrap."). The salvage menu and the observation (`notable` detail "2 items,
+  crumbles in 2 deaths", `overlay.deathsLeft`) show how long one has left. A full
+  player-data reset clears them all. The fitted upgrades come back as unequipped
+  bay items, ready to refit.
 
 ### Hazards and descent
 
@@ -637,10 +645,10 @@ eight around it, and only once it is explored.
 - The mine has no bottom: the run's goal is to keep hauling richer loads home
   alive, crafting better equipment, and setting depth records.
 - Progress (cash, fitted equipment, the bay, the home base, stats, explored tiles,
-  the trading stock you have drawn down, the mine you dug, and where you parked) is
-  saved locally; death keeps your cash, bay equipment, home base, drawn-down trading
-  stock and stats, and costs you the cargo aboard, the upgrades fitted to the ship,
-  and your position.
+  the trading stock you have drawn down, the mine you dug, where you parked, and
+  the fuel and hull you parked with) is saved locally; death keeps your cash, bay
+  equipment, home base, drawn-down trading stock and stats, and costs you the cargo
+  aboard, the upgrades fitted to the ship, and your position.
 - The camera zoom is remembered too, but as a preference rather than progress:
   it is stored under `stalinload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
   clamped back into the 0.5x–2x range on load, and survives a death, a fresh
@@ -648,9 +656,10 @@ eight around it, and only once it is explored.
 
 ### Death and redeploying
 
-A lost ship — from a destroyed hull or a hand `R`-reset — drops its wreck, rebuilds
-the world, and redeploys a fresh ship. Where the replacement lands depends on how
-many portals are built (`restartGame` in `src/game/run.ts`, `respawnPortals` in
+A lost ship — from a destroyed hull, an empty tank or a hand `R`-reset — wears
+every standing wreck down by one death, drops its own wreck, rebuilds the world,
+and redeploys a fresh ship. Where the replacement lands depends on how many
+portals are built (`restartGame` in `src/game/run.ts`, `respawnPortals` in
 `src/core/portal.ts`):
 
 - **No portals.** The ship redeploys in the home cavern, as it always has.
@@ -658,7 +667,15 @@ many portals are built (`restartGame` in `src/game/run.ts`, `respawnPortals` in
 - **Two or more portals.** A portal overlay opens in respawn mode listing every
   portal; it has no close button and ignores `Escape`/`Space`, so the run cannot
   continue until a destination is chosen. Picking one drops the wreck, rebuilds the
-  world, and spawns the ship at that portal with a full tank and whole hull.
+  world, and spawns the ship at that portal.
+
+The replacement always has a whole hull, but its tank depends on where it lands
+(`RESPAWN` in `src/core/balance.ts`, `respawnFuelFraction` in `src/core/state.ts`):
+a full tank at home — the home cavern, its `Home` portal included — and half of one
+(`portalFuelFraction` 0.5) at a portal out in the field, so a death beside a deep
+portal still costs a trip home to refuel. Each respawn row says which ("full
+tank" / "½ tank"; `respawnFuel` in the observation), and the toast names it:
+"Replacement ship deployed at Portal "Deep" with 50/100 fuel."
 
 ## Soundtrack
 
@@ -914,8 +931,8 @@ what a sighted player sees, as JSON. The top-level shape:
 - `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the tooltips their buttons carry (the next action, or why sound is blocked; the accessible names stay a fixed "Music" / "Sound effects"); `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail
 - `hud`: `{cash, objective, scanner, postHint, fuelReserve{status, needed, margin, exit}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `fuelReserve` prices the flight to the cheapest exit, which `exit` names (`"Home"` or a field portal such as `"Portal \"Deep\""`): `needed` is the fuel that trip costs and `margin` what is left after it; `postHint` is the trading-post beacon (`"Trading post ≈9 tiles ↙"` for the nearest post within 12 tiles, fog ignored; empty when none is near or one is already in reach); `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank, and `null` with no extractor in the home cavern
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
-- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a grave has none)
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (slots `[{index, kind, label, locked, info}]` — `locked` the third slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores, posts[{x, y, depth}]}` (`posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a wreck's adds its lifetime, e.g. `"2 items, crumbles in 2 deaths"`; a grave has none)
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (slots `[{index, kind, label, locked, info}]` — `locked` the third slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck, and `deathsLeft` — the further deaths it takes to crumble it), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]` — in respawn mode each also carries `respawnFuel`, the absolute fuel the replacement would deploy with there: the full base tank at home, half of it at a field portal), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores, posts[{x, y, depth}]}` (`posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
@@ -1027,7 +1044,7 @@ the boot flow gets from the splash to a live run without the browser complaining
 | `e2e/dialogs.spec.ts` | Ship, station and info dialogs opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the ship and info overlays handing the screen over rather than stacking. |
 | `e2e/focus-visible.spec.ts` | The ring drawn for `Tab` (3px, and inset on the canvas) and gone for a click that moves focus, including the focus a clicked-shut dialog restores. |
 | `e2e/failure.spec.ts` | A refused 2D context — stubbed with an init script — surfacing as the "Mine offline" notice with its detail line, its `role="alert"` and a working Reload, while the crash boundary stays out of it. |
-| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; then every info tab by `data-info-section`, the Settings flags and cheat grant, the `+`/`-` zoom and the inventory fold; plus the craft → take → fit/unfit (fuel carried with the tank, third slot locked until a Mk II craft opens it), extractor load-coal/refuel, container store/take, dynamite arm-and-plant, trading, wreck, chest, grave, portal, toolkit and save export/import flows. |
+| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; then every info tab by `data-info-section`, the Settings flags and cheat grant, the `+`/`-` zoom and the inventory fold; plus the craft → take → fit/unfit (fuel carried with the tank, third slot locked until a Mk II craft opens it), extractor load-coal/refuel, container store/take, dynamite arm-and-plant, trading (from a saved part-empty tank), wreck (with its lifetime), chest, grave, portal (a respawn at a field portal on half a tank), toolkit and save export/import flows. |
 
 Two notes on how the suite is wired:
 

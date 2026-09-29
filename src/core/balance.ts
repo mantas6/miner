@@ -42,6 +42,15 @@ export const FUEL = Object.freeze({
   lowFuelWarnMs: 1400
 });
 
+/**
+ * What a replacement ship deploys with. Home always hands out a full tank; a
+ * field portal only `portalFuelFraction` of one, so a death beside a deep portal
+ * still costs the trip back up to refuel rather than being a free refill.
+ */
+export const RESPAWN = Object.freeze({
+  portalFuelFraction: 0.5
+});
+
 export const SPRINT = Object.freeze({
   repeatMultiplier: 0.55,
   fuelMultiplier: 1.75

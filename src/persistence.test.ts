@@ -7,6 +7,7 @@ import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKin
 import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { WRECK, createWreck } from './core/wreck';
+import { applyEquipment } from './core/ship-upgrades';
 import { STATION_DEVICE, createPortal, type PortalStation } from './core/stations';
 import { EXTRACTOR } from './core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
@@ -271,6 +272,68 @@ describe('cargo bay persistence', () => {
   });
 });
 
+describe('vitals persistence', () => {
+  it('round-trips the current fuel and hull, fractions and all', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.stats.bestMarkCrafted = 2;
+    state.player.equipment = ['upgrade:tank:1', 'upgrade:hull:1', null];
+    applyEquipment(state.player);
+    Object.assign(state.player, {fuel: 123.25, hull: 61.5});
+
+    save(state);
+
+    expect(readSave(stored)).toMatchObject({fuel: 123.25, hull: 61.5});
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.player).toMatchObject({fuel: 123.25, fuelMax: 150, hull: 61.5, hullMax: 150});
+  });
+
+  it('clamps saved vitals into [0, the maxima the fitted equipment derives]', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:tank:1', null, null], fuel: 9999, hull: -20});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.player).toMatchObject({fuel: 150, fuelMax: 150, hull: 0});
+  });
+
+  it('writes an emptied tank at game over as zero, never negative', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    Object.assign(state.player, {fuel: -0.4, hull: 12});
+
+    save(state);
+
+    // A dead save: `run.resume` settles it as the death it was (see run.test.ts).
+    expect(readSave(stored)).toMatchObject({fuel: 0, hull: 12});
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.player).toMatchObject({fuel: 0, hull: 12});
+  });
+
+  it('loads a hand-written save without vitals at a full tank and hull', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:tank:1', null, null]});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.player).toMatchObject({fuel: 150, hull: 100});
+  });
+
+  it('discards a version-20 save, vitals and all', () => {
+    stubStorage({version: 20, cash: 9000, fuel: 3, hull: 4});
+    const state = createInitialState();
+    const fresh = createInitialState();
+
+    load(state);
+
+    expect(SAVE_VERSION).toBe(21);
+    expect(state.cash).toBe(fresh.cash);
+    expect(state.player).toMatchObject({fuel: fresh.player.fuel, hull: fresh.player.hull});
+  });
+});
+
 describe('equipment persistence', () => {
   it('round-trips the fitted upgrade slots', () => {
     const stored = stubStorage();
@@ -298,10 +361,8 @@ describe('equipment persistence', () => {
   });
 
   it('sets the maxima on load without carrying the fit-time bonus over to fuel or hull', () => {
-    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:tank:2', 'upgrade:hull:2']});
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:tank:2', 'upgrade:hull:2'], fuel: 40, hull: 30});
     const state = createInitialState();
-    state.player.fuel = 40;
-    state.player.hull = 30;
 
     load(state);
 
@@ -319,7 +380,7 @@ describe('equipment persistence', () => {
     expect(state.player.cargoMax).toBe(40);
   });
 
-  it('pads a two-slot save out to every slot', () => {
+  it('pads a shorter hand-edited equipment list out to every slot', () => {
     stubStorage({version: SAVE_VERSION, equipment: ['upgrade:drill:1', null]});
     const state = createInitialState();
 
@@ -724,7 +785,8 @@ describe('wreck persistence', () => {
   it('round-trips wrecks with their salvageable contents', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    const wreck = createWreck(20, 640);
+    // Worn down by one death already: the count it has left rides along.
+    const wreck = createWreck(20, 640, createInventory(), 2);
     wreck.inventory = addItem(addItem(wreck.inventory, oreItem(GOLD), 4), ITEM_CATALOG['upgrade:tank:1'], 1);
     // An emptied wreck is retired the moment it is emptied; one left over is not saved.
     state.wrecks = [wreck, createWreck(44, 700)];
@@ -733,7 +795,7 @@ describe('wreck persistence', () => {
 
     expect(readSave(stored)).toMatchObject({version: SAVE_VERSION});
     expect(readSave(stored).wrecks).toEqual([
-      {x: 20, y: 640, items: [{kind: 'ore:Gold', count: 4}, {kind: 'upgrade:tank:1', count: 1}]}
+      {x: 20, y: 640, items: [{kind: 'ore:Gold', count: 4}, {kind: 'upgrade:tank:1', count: 1}], deathsLeft: 2}
     ]);
 
     const restored = createInitialState();
@@ -751,12 +813,28 @@ describe('wreck persistence', () => {
   });
 
   it('clamps a wreck stuffed past anything a ship could have carried', () => {
-    stubStorage({version: SAVE_VERSION, wrecks: [{x: 20, y: 640, items: [{kind: 'ore:Gold', count: 9999}]}]});
+    stubStorage({version: SAVE_VERSION, wrecks: [{x: 20, y: 640, items: [{kind: 'ore:Gold', count: 9999}], deathsLeft: 3}]});
     const state = createInitialState();
 
     load(state);
 
     expect(countOres(nth(state.wrecks, 0).inventory)).toBe(WRECK.capacity);
+  });
+
+  it('clamps a hand-edited lifetime, and drops a wreck with none or none left', () => {
+    const items = [{kind: 'ore:Gold', count: 1}];
+    stubStorage({version: SAVE_VERSION, wrecks: [
+      {x: 20, y: 640, items, deathsLeft: 99},
+      {x: 21, y: 640, items, deathsLeft: 1.7},
+      {x: 22, y: 640, items},
+      {x: 23, y: 640, items, deathsLeft: 0},
+      {x: 24, y: 640, items, deathsLeft: 'soon'}
+    ]});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.wrecks.map(w => [w.x, w.deathsLeft])).toEqual([[20, WRECK.lifetimeDeaths], [21, 1]]);
   });
 
   it('keeps a wreck through a reload that empties the bay, ore intact', () => {
@@ -793,7 +871,7 @@ describe('wreck persistence', () => {
   it('clamps a hand-edited save to the wreck cap', () => {
     stubStorage({
       version: SAVE_VERSION,
-      wrecks: Array.from({length: WRECK.maxPlaced + 4}, (_, index) => ({x: index, y: 400, items: [{kind: 'ore:Iron', count: 1}]}))
+      wrecks: Array.from({length: WRECK.maxPlaced + 4}, (_, index) => ({x: index, y: 400, items: [{kind: 'ore:Iron', count: 1}], deathsLeft: 2}))
     });
     const state = createInitialState();
 

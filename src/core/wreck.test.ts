@@ -7,7 +7,9 @@ import { addItem, addOre, countItem, countOres, createInventory, oreItem } from 
 import type { Ore, Player } from './types';
 import {
   WRECK,
+  ageWrecks,
   buildWreckInventory,
+  formatWreckLifetime,
   createWreck,
   dropWreck,
   isWreckReachable,
@@ -93,6 +95,48 @@ describe('dropWreck', () => {
     expect(wrecks).toHaveLength(WRECK.maxPlaced);
     expect(wrecks[0]).not.toMatchObject({x: 0, y: 0}); // the first was shifted off
     expect(wrecks.at(-1)).toBe(wreck);
+  });
+
+  it('drops a wreck with its full lifetime ahead of it', () => {
+    const wreck = dropWreck([], player());
+    expect(wreck?.deathsLeft).toBe(WRECK.lifetimeDeaths);
+  });
+});
+
+describe('ageWrecks', () => {
+  it('wears every wreck down by one death, crumbling those that reach zero', () => {
+    const spent = createWreck(1, 1, createInventory(), 1);
+    const worn = createWreck(2, 2, createInventory(), 2);
+    const fresh = createWreck(3, 3);
+
+    const {kept, crumbled} = ageWrecks([spent, worn, fresh]);
+
+    expect(crumbled).toEqual([spent]);
+    expect(kept.map(w => [w.x, w.deathsLeft])).toEqual([[2, 1], [3, WRECK.lifetimeDeaths - 1]]);
+  });
+
+  it('is pure: the input wrecks keep their counts, and the survivors are new objects', () => {
+    const worn = createWreck(2, 2, createInventory(), 2);
+    const wrecks = [worn];
+
+    const {kept} = ageWrecks(wrecks);
+
+    expect(worn.deathsLeft).toBe(2);
+    expect(wrecks).toEqual([worn]);
+    expect(kept[0]).not.toBe(worn);
+    expect(kept[0]?.inventory).toBe(worn.inventory);
+  });
+
+  it('lets a fresh wreck outlast exactly WRECK.lifetimeDeaths − 1 further deaths', () => {
+    let wrecks = [createWreck(0, 0)];
+    for (let death = 1; death < WRECK.lifetimeDeaths; death++) wrecks = ageWrecks(wrecks).kept;
+    expect(wrecks).toHaveLength(1);
+    expect(ageWrecks(wrecks)).toMatchObject({kept: [], crumbled: [{x: 0, y: 0}]});
+  });
+
+  it('reads its remaining lifetime as a short phrase', () => {
+    expect(formatWreckLifetime(3)).toBe('crumbles in 3 deaths');
+    expect(formatWreckLifetime(1)).toBe('crumbles on the next death');
   });
 });
 

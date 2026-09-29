@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { addItem, addOre, countOres, createInventory, oreItem, type Inventory } from '../core/inventory';
 import { createInitialState } from '../core/state';
-import { createWreck } from '../core/wreck';
+import { WRECK, createWreck } from '../core/wreck';
 import type { GameState, Ore } from '../core/types';
 import { createWrecks, type WreckSim } from './wrecks';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
@@ -25,6 +25,8 @@ interface Harness {
   openUi: (Inventory | null)[];
   /** The `quiet` flag of each push, in step with `openUi`. */
   quiet: (boolean | undefined)[];
+  /** The open wreck's `deathsLeft` at each push (`undefined` for a close). */
+  lifetimes: (number | undefined)[];
   saveProgress: ReturnType<typeof vi.fn>;
 }
 
@@ -38,15 +40,16 @@ function harness(ore = 6): Harness {
   const toasts = createToastLog();
   const openUi: (Inventory | null)[] = [];
   const quiet: (boolean | undefined)[] = [];
+  const lifetimes: (number | undefined)[] = [];
   const saveProgress = vi.fn();
   const wrecks = createWrecks({
     state,
     audio,
     toast: toasts.toast,
     saveProgress,
-    setOpenUi: (contents, silent) => { openUi.push(contents); quiet.push(silent); }
+    setOpenUi: (open, silent) => { openUi.push(open && open.inventory); quiet.push(silent); lifetimes.push(open?.deathsLeft); }
   });
-  return {state, wrecks, audio, toasts, openUi, quiet, saveProgress};
+  return {state, wrecks, audio, toasts, openUi, quiet, lifetimes, saveProgress};
 }
 
 describe('opening a wreck', () => {
@@ -56,6 +59,8 @@ describe('opening a wreck', () => {
     expect(h.wrecks.openAt(40, 100)).toBe(true);
     expect(h.wrecks.open).toBe(h.state.wrecks[0]);
     expect(h.openUi.at(-1)).toBe(nth(h.state.wrecks, 0).inventory);
+    // The menu is told how many deaths the wreck has left before it crumbles.
+    expect(h.lifetimes.at(-1)).toBe(WRECK.lifetimeDeaths);
   });
 
   it('says nothing at all about a press on bare rock', () => {

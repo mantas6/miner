@@ -64,6 +64,7 @@ import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
 import { createDynamiteSticks, type DynamiteSim } from './dynamite-sticks';
 import { createCargoContainers, type CargoContainerSim } from './cargo-containers';
 import { createWrecks, type WreckSim } from './wrecks';
+import type { Wreck } from '../core/wreck';
 import { createChests, type ChestSim } from './chests';
 import { createGraves, type GraveSim } from './graves';
 import { createHomeStations, extractorView, type HomeStationsSim } from './home-stations';
@@ -225,8 +226,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   // The stashes' own openers stand their placements down (C does it for them).
   const setContainerUi = overlays.publisher('container', (contents: Inventory) =>
     ({kind: 'container', slots: buildInventorySlots(contents)}));
-  const setWreckUi = overlays.publisher('wreck', (contents: Inventory) =>
-    ({kind: 'wreck', slots: buildInventorySlots(contents)}));
+  const setWreckUi = overlays.publisher('wreck', (wreck: Wreck) =>
+    ({kind: 'wreck', slots: buildInventorySlots(wreck.inventory), deathsLeft: wreck.deathsLeft}));
   // The lid's own creak (`chestOpen`, played by the sim) is the open cue.
   const setChestUi = overlays.publisher('chest', (contents: Inventory) =>
     ({kind: 'chest', slots: buildInventorySlots(contents)}), {cue: false});

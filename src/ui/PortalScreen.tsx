@@ -18,6 +18,7 @@
 // and Space).
 
 import { useRef } from 'react';
+import { STARTING } from '../core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from '../core/portal';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
@@ -119,7 +120,20 @@ function NameEditor({name}: {name: string}) {
   );
 }
 
-/** One destination: its name, depth (metres, 0 at the surface) and distance in tiles. */
+/**
+ * How much of a tank a respawn at a portal deploys with: "full tank" at home,
+ * "½ tank" at a field portal, or the units when the share is anything else.
+ */
+function respawnTankLabel(fuel: number, fuelMax = STARTING.fuelMax): string {
+  if (fuel >= fuelMax) return 'full tank';
+  if (fuel * 2 === fuelMax) return '½ tank';
+  return `${fuel}/${fuelMax} fuel`;
+}
+
+/**
+ * One destination: its name, depth (metres, 0 at the surface) and distance in
+ * tiles — and, in the respawn prompt, the tank the replacement would deploy with.
+ */
 function DestinationRow({destination}: {destination: PortalDestinationView}) {
   return (
     <li>
@@ -132,6 +146,9 @@ function DestinationRow({destination}: {destination: PortalDestinationView}) {
         <span className={styles.label}>{destination.name}</span>
         <span className={styles.meta}>{destination.depthMeters} m</span>
         <span className={styles.meta}>{destination.distance} tiles</span>
+        {destination.respawnFuel !== undefined && (
+          <span className={styles.meta}>{respawnTankLabel(destination.respawnFuel)}</span>
+        )}
       </button>
     </li>
   );

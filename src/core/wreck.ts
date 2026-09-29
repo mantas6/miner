@@ -9,8 +9,9 @@
 // A wreck is a thing standing on a tile with an inventory, like a cargo container,
 // and it answers the same reach questions. What sets it apart is that it is never
 // placed by hand and never restocked: it is built once from a dying ship, looted
-// take-only, and removed the moment it is emptied. The mine holds a bounded number
-// of them, the oldest dropping out past the cap, so a save can never grow an
+// take-only, and removed the moment it is emptied — or when it crumbles, a few
+// deaths after it was dropped (`ageWrecks`). The mine holds a bounded number of
+// them, the oldest dropping out past the cap, so a save can never grow an
 // unbounded graveyard.
 //
 // Everything here is pure and DOM-free.
@@ -48,6 +49,13 @@ export const WRECK = Object.freeze({
    */
   maxPlaced: 5,
   /**
+   * How many further deaths (or hand resets) it takes to crumble a wreck. Each one
+   * after the death that dropped it wears it down by one, and the one that brings
+   * it to zero crumbles it to scrap — so a salvage run has a deadline, and dying
+   * over and over beside the same shaft stops paying out.
+   */
+  lifetimeDeaths: 3,
+  /**
    * How far the salvage hatch opens from. One tile in any direction — Chebyshev,
    * so the diagonals count — plus the wreck's own tile, which the ship can fly onto.
    */
@@ -66,10 +74,40 @@ export interface Lootable {
 }
 
 /** One wrecked ship standing in the mine, and everything it still holds. */
-export type Wreck = Lootable;
+export interface Wreck extends Lootable {
+  /** Deaths left before it crumbles: `WRECK.lifetimeDeaths` when dropped, see `ageWrecks`. */
+  deathsLeft: number;
+}
 
-export function createWreck(x: number, y: number, inventory: Inventory = createInventory()): Wreck {
-  return {x, y, inventory};
+export function createWreck(
+  x: number,
+  y: number,
+  inventory: Inventory = createInventory(),
+  deathsLeft: number = WRECK.lifetimeDeaths
+): Wreck {
+  return {x, y, inventory, deathsLeft};
+}
+
+/**
+ * Wear every standing wreck down by one death: the survivors come back as fresh
+ * objects with one fewer `deathsLeft`, and the ones that reach zero are listed as
+ * `crumbled` (as they stood, for the toast). Called on every death and hand reset
+ * *before* the new wreck is dropped, so a fresh wreck starts its full lifetime.
+ */
+export function ageWrecks(wrecks: readonly Wreck[]): {kept: Wreck[]; crumbled: Wreck[]} {
+  const kept: Wreck[] = [];
+  const crumbled: Wreck[] = [];
+  for (const wreck of wrecks) {
+    const deathsLeft = wreck.deathsLeft - 1;
+    if (deathsLeft <= 0) crumbled.push(wreck);
+    else kept.push({...wreck, deathsLeft});
+  }
+  return {kept, crumbled};
+}
+
+/** "crumbles in 2 deaths" / "crumbles on the next death": a wreck's remaining lifetime. */
+export function formatWreckLifetime(deathsLeft: number): string {
+  return deathsLeft <= 1 ? 'crumbles on the next death' : `crumbles in ${deathsLeft} deaths`;
 }
 
 /**

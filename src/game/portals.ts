@@ -24,6 +24,7 @@ import {
   sanitizePortalName,
   type PortalDestination
 } from '../core/portal';
+import { respawnFuelAt } from '../core/state';
 import type { PortalStation } from '../core/stations';
 import { TELEPORTER_ITEM, createTeleportEffect, movePlayerTo } from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
@@ -133,7 +134,9 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
         y: portal.y,
         name: portal.name,
         depthMeters: rowDepthMeters(portal.y),
-        distance: Math.abs(portal.x - from.x) + Math.abs(portal.y - from.y)
+        distance: Math.abs(portal.x - from.x) + Math.abs(portal.y - from.y),
+        // What the replacement would deploy with there: full at home, half out in the field.
+        respawnFuel: respawnFuelAt(portal)
       }))
       .sort((a, b) => a.distance - b.distance);
     publish();

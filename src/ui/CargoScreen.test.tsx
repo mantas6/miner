@@ -150,16 +150,25 @@ describe('cargo transfer dialog', () => {
   });
 });
 
-function openWreck(): HTMLDialogElement {
+function openWreck(deathsLeft = 3): HTMLDialogElement {
   const rendered = render(<CargoScreen />);
   act(() => {
     const store = uiStore.getState();
-    store.showOverlay({kind: 'wreck', slots: buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 4))});
+    store.showOverlay({kind: 'wreck', slots: buildInventorySlots(addItem(createInventory(), oreItem(COPPER), 4)), deathsLeft});
   });
   return rendered.container.querySelector('dialog')!;
 }
 
 describe('wreck salvage dialog', () => {
+  it('says how many more deaths the wreck outlasts before it crumbles', () => {
+    openWreck(2);
+    expect(document.getElementById('cargo-card')?.textContent).toContain('It crumbles in 2 deaths.');
+
+    cleanup();
+    openWreck(1);
+    expect(document.getElementById('cargo-card')?.textContent).toContain('It crumbles on the next death.');
+  });
+
   it('opens as a take-only menu titled Wreck, with a loot-all shortcut', () => {
     const dialog = openWreck();
 
@@ -192,7 +201,7 @@ describe('wreck salvage dialog', () => {
   it('disables loot-all and shows Empty once the wreck is bare', () => {
     openWreck();
 
-    act(() => { uiStore.getState().showOverlay({kind: 'wreck', slots: buildInventorySlots(createInventory())}); });
+    act(() => { uiStore.getState().showOverlay({kind: 'wreck', slots: buildInventorySlots(createInventory()), deathsLeft: 3}); });
 
     expect(document.querySelector('[data-cargo-action="take"]')).toBeNull();
     expect((document.getElementById('lootAllBtn') as HTMLButtonElement).disabled).toBe(true);

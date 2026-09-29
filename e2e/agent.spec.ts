@@ -58,15 +58,15 @@ const seedToolkitScenario = seedSaveScript({bay: [{kind: 'toolkit', count: 1}], 
  * The ship parked on the first trading post the generator places (found in Node
  * by `firstTradingPost`), which stands in a cleared 3×3 air pocket (see
  * `src/world/world.ts`); a manufacturer holding iron one tile over gives the test
- * ore to sell without a dig, and cash to start the buy side.
+ * ore to sell without a dig, and cash to start the buy side. The save carries a
+ * part-empty tank — fuel is persisted — so there is room to buy fuel back.
  */
 const POST = firstTradingPost();
 const seedTradingPost = seedSaveScript({
   x: POST.x, y: POST.y,
   cash: 100,
-  // Fitted at the post, the tank grows and its fuel with it; one drill hit into
-  // the tough dirt seeded under the post burns the room to buy fuel back.
-  bay: [{kind: 'upgrade:tank:1', count: 1}],
+  fuel: 60,
+  // A floor under the post, so the parked ship sits still.
   tiles: [{x: POST.x, y: POST.y + 1, tile: {type: 'dirt', hp: 9, maxHp: 9}}],
   stations: [{kind: 'manufacturer', x: POST.x + 1, y: POST.y, items: [{kind: 'ore:Iron', count: 10}]}]
 });
@@ -91,7 +91,7 @@ const seedAbovePost = seedSaveScript({
  * workbench stations are seeded (no portal), so the reset falls back to the home
  * cavern: the replacement ship redeploys on the very tile the wreck was left on.
  */
-const seedFittedUpgrade = seedSaveScript({equipment: ['upgrade:drill:1', null], stations: WORKBENCHES});
+const seedFittedUpgrade = seedSaveScript({equipment: ['upgrade:drill:1', null, null], stations: WORKBENCHES});
 
 /**
  * The ship parked one tile east of the base `Home` portal, with the `Deep` portal
@@ -118,12 +118,12 @@ const seedPortalTeleporter = seedSaveScript({
 /**
  * The ship one tile west of the `Home` portal with a Drill Mk I fitted, so a hand
  * reset drops a wreck on the death tile, and two portals so the reset raises the
- * no-close respawn prompt. The death tile is adjacent to the Home portal, so
- * redeploying there keeps the wreck inside the reveal footprint.
+ * no-close respawn prompt. The death tile was explored at spawn and sits four
+ * rows above the `Deep` portal, so redeploying there keeps the wreck in view.
  */
 const seedPortalRespawn = seedSaveScript({
   x: HOME_PORTAL.x - 1, y: HOME_ROW,
-  equipment: ['upgrade:drill:1', null],
+  equipment: ['upgrade:drill:1', null, null],
   tiles: [DEEP_PORTAL_TILE],
   stations: [...WORKBENCHES, HOME_PORTAL, DEEP_PORTAL]
 });
@@ -172,12 +172,11 @@ const seedWorkshop = seedSaveScript({
 });
 
 /**
- * A two-slot save — the shape the build before the third slot wrote — with both
- * slots fitted and the manufacturer stocked for one Mk II (3 Silver, 3 Gold). It
- * must still load, padded to three slots, with the third locked until the craft.
+ * A Mk I career with the two open slots fitted and the manufacturer stocked for
+ * one Mk II (3 Silver, 3 Gold): the third slot is locked until that craft.
  */
 const seedMarkTwo = seedSaveScript({
-  equipment: ['upgrade:drill:1', 'upgrade:tank:1'],
+  equipment: ['upgrade:drill:1', 'upgrade:tank:1', null],
   stations: [
     {...WORKBENCHES[0], items: [{kind: 'ore:Silver', count: 3}, {kind: 'ore:Gold', count: 3}]},
     WORKBENCHES[1]
@@ -504,7 +503,7 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
   }
 });
 
-test('a two-slot save pads to three, and crafting a Mk II unlocks the third slot for the next fit', async () => {
+test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks it for the next fit', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedMarkTwo});
   try {
     let obs = await s.startRun();
@@ -604,17 +603,8 @@ test('a trading post buys ore for cash, fills the tank for cash, and sells its s
     let obs = await s.observe();
     expect(obs.ship.x).toBe(POST.x);
     expect(obs.ship.y).toBe(POST.y);
-
-    // Fit the tank aboard: it grows by 50 and so does the fuel, still full.
-    obs = await s.click('shipBtn');
-    obs = await s.click({target: 'data-ship-equip', value: 'upgrade:tank:1'});
-    obs = await s.click('shipCloseBtn');
-    expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
-    // One drill hit into the floor burns a little fuel — room to buy — and leaves
-    // the ship where it is.
-    obs = await s.press('ArrowDown');
-    expect(obs.ship).toMatchObject({x: POST.x, y: POST.y});
-    expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
+    // The saved tank came back as saved: a reload is no refill.
+    expect(obs.ship).toMatchObject({fuel: 60, fuelMax: 100});
 
     // The post sits under the ship; take iron aboard from the neighbouring station.
     obs = await s.pressTile(POST.x + 1, POST.y);
@@ -695,12 +685,16 @@ test('a hand reset leaves a wreck whose fitted upgrade can be salvaged back aboa
     await s.press('r');
     obs = await s.press('r');
     expect(obs.ship.equipment).not.toContain('upgrade:drill:1');
+    // Redeployed at home: a full tank, and the wreck under the ship names its lifetime.
+    expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
+    expect(obs.ship.on).toMatchObject({what: 'wreck', detail: '1 item, crumbles in 3 deaths'});
 
     // Open the wreck under the replacement ship and salvage everything.
     obs = await s.pressTile(x, y);
     expect(obs.overlay?.kind).toBe('wreck');
     if (obs.overlay?.kind !== 'wreck') throw new Error('wreck overlay expected');
     expect(countKind(obs.overlay.wreck, 'upgrade:drill:1')).toBe(1);
+    expect(obs.overlay.deathsLeft).toBe(3);
 
     obs = await s.click('lootAllBtn');
     // The upgrade is back in the bay as an unequipped item, and the emptied wreck
@@ -904,14 +898,24 @@ test('a hand reset with two portals raises the no-close respawn prompt', async (
     if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
     expect(obs.overlay.mode).toBe('respawn');
 
-    // Pick the nearest portal: the ship redeploys there, alive, and the scrapped
-    // ship's wreck stands on the tile it died on.
-    const target = nth(obs.overlay.destinations, 0);
-    obs = await s.click({target: 'data-portal', value: `${target.x},${target.y}`});
+    // Each row prices the redeploy: the Home portal, in the home cavern, a full
+    // tank; the Deep portal out in the field half of one.
+    const home = obs.overlay.destinations.find(destination => destination.name === 'Home');
+    const deep = obs.overlay.destinations.find(destination => destination.name === 'Deep');
+    if (!home || !deep) throw new Error('both portals should be listed');
+    expect(home.respawnFuel).toBe(100);
+    expect(deep.respawnFuel).toBe(50);
+
+    // Pick the Deep portal: the ship redeploys there, alive, on half a tank and a
+    // whole hull, and the scrapped ship's wreck stands on the tile it died on.
+    obs = await s.click({target: 'data-portal', value: `${deep.x},${deep.y}`});
     expect(obs.gameOver).toBe(false);
-    expect(obs.ship.x).toBe(target.x);
-    expect(obs.ship.y).toBe(target.y);
+    expect(obs.ship.x).toBe(deep.x);
+    expect(obs.ship.y).toBe(deep.y);
+    expect(obs.ship).toMatchObject({fuel: 50, fuelMax: 100, hull: obs.ship.hullMax});
+    expect(obs.toasts.some(toast => toast.message.startsWith('Ship reset at Portal "Deep" with 50/100 fuel.'))).toBe(true);
     expect(obs.view.rows.join('')).toContain('W');
+    expect(obs.notable).toContainEqual({x: HOME_PORTAL.x - 1, y: HOME_ROW, what: 'wreck', detail: '1 item, crumbles in 3 deaths'});
   } finally {
     await s.close();
   }

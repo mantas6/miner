@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HOME_ROW, HOME_X, ORES, START_Y, WORLD_W } from '../../shared/constants';
-import { STARTING } from '../core/balance';
+import { HOME_ROW, HOME_X, ORES, START_Y, STATIONS, WORLD_W } from '../../shared/constants';
+import { RESPAWN, STARTING } from '../core/balance';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
 import { applyEquipment } from '../core/ship-upgrades';
 import { createInitialState } from '../core/state';
 import { createPortal } from '../core/stations';
 import { TELEPORTER_ITEM } from '../core/teleporter';
-import { WRECK } from '../core/wreck';
+import { WRECK, createWreck } from '../core/wreck';
 import type { GameState } from '../core/types';
 import { createTileDiff } from '../world/tile-diff';
 import { makeTile } from '../world/world';
@@ -226,10 +226,10 @@ describe('redeploying at a portal after a restart', () => {
     expect(h.state.player).toMatchObject({x: Math.floor(WORLD_W / 2), y: START_Y});
   });
 
-  it('redeploys at the sole portal without prompting', () => {
+  it('redeploys at the sole portal without prompting, with half a tank out in the field', () => {
     const h = harness();
     // The portal sits on a dug-out tile, carried back out by the diff.
-    h.state.stations = [dugPortal(h.state, 30, 80, 'Home')];
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Deep')];
     h.run.gameOver();
 
     h.run.restartGame();
@@ -238,10 +238,38 @@ describe('redeploying at a portal after a restart', () => {
     expect(h.state.player).toMatchObject({
       x: 30,
       y: 80,
-      fuel: STARTING.fuelMax,
+      fuel: STARTING.fuelMax * RESPAWN.portalFuelFraction,
+      fuelMax: STARTING.fuelMax,
+      // The hull always comes back whole.
       hull: STARTING.hullMax
     });
     expect(h.state.gameOver).toBe(false);
+    expect(h.toasts.saw('Replacement ship deployed at Portal "Deep" with 50/100 fuel. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
+  });
+
+  it('hands out a full tank at a portal in the home cavern', () => {
+    const h = harness();
+    h.state.stations = [createPortal(STATIONS.portal.x, STATIONS.portal.y, 'Home')];
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.player).toMatchObject({x: STATIONS.portal.x, y: STATIONS.portal.y, fuel: STARTING.fuelMax, hull: STARTING.hullMax});
+    expect(h.toasts.saw('Replacement ship deployed. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
+    expect(h.toasts.saw('with 50/100 fuel')).toBe(false);
+  });
+
+  it('words a hand reset at a field portal with its half tank, wreck or none', () => {
+    const h = harness();
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Deep')];
+    h.state.player.inventory = createInventory();
+    h.state.player.equipment = [null, null, null];
+
+    h.run.restartGame();
+
+    expect(h.state.wrecks).toEqual([]);
+    expect(h.state.player.fuel).toBe(50);
+    expect(h.toasts.saw('Ship reset at Portal "Deep" with 50/100 fuel.')).toBe(true);
   });
 
   it('raises the no-close prompt with two or more portals, and the pick rebuilds', () => {
@@ -260,10 +288,11 @@ describe('redeploying at a portal after a restart', () => {
     const onPick = nth(vi.mocked(h.portals.openRespawn).mock.calls, 0)[0] as (at: {x: number; y: number}) => void;
     onPick({x: 50, y: 100});
 
+    // A field portal: the replacement deploys with half the base tank.
     expect(h.state.player).toMatchObject({
       x: 50,
       y: 100,
-      fuel: STARTING.fuelMax,
+      fuel: STARTING.fuelMax * RESPAWN.portalFuelFraction,
       hull: STARTING.hullMax
     });
     expect(h.state.gameOver).toBe(false);
@@ -315,7 +344,7 @@ describe('wrecks dropped on restart', () => {
 
   it('keeps the mine bounded at the cap, dropping the oldest wreck', () => {
     const h = harness();
-    h.state.wrecks = Array.from({length: WRECK.maxPlaced}, (_, i) => ({x: i, y: 500, inventory: createInventory()}));
+    h.state.wrecks = Array.from({length: WRECK.maxPlaced}, (_, i) => createWreck(i, 500, createInventory()));
     h.run.gameOver();
 
     h.run.restartGame();
@@ -325,26 +354,121 @@ describe('wrecks dropped on restart', () => {
     expect(h.state.wrecks.some(w => w.x === 0 && w.y === 500)).toBe(false);
     expect(h.state.wrecks.at(-1)).toMatchObject({x: 12, y: 60});
   });
+
+  it('writes the save once the replacement is final, never the corpse beside its own wreck', () => {
+    const h = harness();
+    const atSave: {equipment: unknown[]; wrecks: number}[] = [];
+    h.saveProgress.mockImplementation(() => {
+      atSave.push({equipment: [...h.state.player.equipment], wrecks: h.state.wrecks.length});
+    });
+    h.run.gameOver();
+    atSave.length = 0;
+
+    h.run.restartGame();
+
+    // One write, after the replacement shed the upgrades the wreck now holds.
+    expect(atSave).toEqual([{equipment: [null, null, null], wrecks: 1}]);
+  });
+});
+
+describe('wrecks ageing with each death', () => {
+  it('wears every standing wreck down, crumbles the spent ones, and drops the new one fresh', () => {
+    const h = harness();
+    h.state.wrecks = [
+      createWreck(3, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 1),
+      createWreck(4, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 2)
+    ];
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.wrecks.map(w => ({x: w.x, deathsLeft: w.deathsLeft}))).toEqual([
+      {x: 4, deathsLeft: 1},
+      {x: 12, deathsLeft: WRECK.lifetimeDeaths}
+    ]);
+    expect(h.toasts.saw('The wreck at (3, 90) crumbled to scrap.')).toBe(true);
+    expect(h.toasts.saw('(4, 90) crumbled')).toBe(false);
+  });
+
+  it('ages them on a hand reset too, which goes the same way', () => {
+    const h = harness();
+    h.state.wrecks = [createWreck(3, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 1)];
+
+    h.run.restartGame();
+
+    expect(h.state.wrecks.some(w => w.x === 3)).toBe(false);
+    expect(h.toasts.saw('The wreck at (3, 90) crumbled to scrap.')).toBe(true);
+  });
+
+  it('crumbles a fresh wreck on the third death after the one that dropped it', () => {
+    const h = harness();
+    h.run.gameOver();
+    h.run.restartGame();
+    const first = nth(h.state.wrecks, 0);
+    expect(first.deathsLeft).toBe(WRECK.lifetimeDeaths);
+
+    for (let death = 1; death <= WRECK.lifetimeDeaths; death++) {
+      // Each replacement dies bare, so no new wreck muddies the count.
+      h.state.player.inventory = createInventory();
+      h.run.gameOver();
+      h.run.restartGame();
+      const standing = h.state.wrecks.find(w => w.x === first.x && w.y === first.y);
+      if (death < WRECK.lifetimeDeaths) expect(standing?.deathsLeft).toBe(WRECK.lifetimeDeaths - death);
+      else expect(standing).toBeUndefined();
+    }
+  });
 });
 
 describe('resuming a saved run', () => {
-  it('parks the ship on the saved tile with a fresh tank, hull and cargo bay', () => {
+  it('resume keeps the saved fuel and hull, parked on the saved tile with no cargo', () => {
     const h = harness();
     h.state.tileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'air'}}]);
 
     h.run.resume();
 
+    // The harness ship is at 30 fuel and 25 hull: a reload is no refill.
     expect(h.state.player).toMatchObject({
       x: 12, y: 60,
-      // Tank Mk I fitted in the harness adds +50 to the starting tank.
-      fuel: STARTING.fuelMax + 50,
-      hull: STARTING.hullMax
+      fuel: 30,
+      hull: 25,
+      fuelMax: STARTING.fuelMax + 50
     });
+    expect(h.state.player.equipment).toEqual(['upgrade:tank:1', 'upgrade:cargo:1', null]);
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.cash).toBe(900);
     expect(h.toasts.saw(`${(60 - START_Y) * 10} m`)).toBe(true);
     // The camera opens on the ship instead of panning down from the home base.
     expect(h.state.camY).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['an empty tank', {fuel: 0}],
+    ['a broken hull', {hull: 0}]
+  ])('a save taken while dead (%s) resumes at home, full, as the death it recorded', (_name, vitals) => {
+    const h = harness();
+    h.state.tileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'air'}}]);
+    h.state.wrecks = [createWreck(3, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 1)];
+    Object.assign(h.state.player, vitals);
+
+    h.run.resume();
+
+    expect(h.state.player).toMatchObject({
+      x: Math.floor(WORLD_W / 2), y: START_Y,
+      fuel: STARTING.fuelMax, fuelMax: STARTING.fuelMax,
+      hull: STARTING.hullMax
+    });
+    expect(h.state.gameOver).toBe(false);
+    // The fitted upgrades went down with the ship: into a wreck on the death tile,
+    // never back aboard, and the older wreck wore down as on any death.
+    expect(h.state.player.equipment).toEqual([null, null, null]);
+    expect(h.state.wrecks).toHaveLength(1);
+    const wreck = nth(h.state.wrecks, 0);
+    expect(wreck).toMatchObject({x: 12, y: 60, deathsLeft: WRECK.lifetimeDeaths});
+    expect(countItem(wreck.inventory, 'upgrade:tank:1')).toBe(1);
+    expect(h.toasts.saw('The wreck at (3, 90) crumbled to scrap.')).toBe(true);
+    expect(h.toasts.saw('Replacement ship deployed. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
+    // Written at once, so a second reload cannot drop the same upgrades again.
+    expect(h.saveProgress).toHaveBeenCalledOnce();
   });
 
   it('digs the saved tunnels back out before placing the ship in them', () => {
@@ -425,7 +549,7 @@ describe('a full player reset', () => {
     h.state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4, scannersObtained: 2, bestMarkCrafted: 2};
     h.state.scannerDevices = [{x: 3, y: 40, timer: 9}];
     h.state.cargoContainers = [{x: 4, y: 40, inventory: createInventory()}];
-    h.state.wrecks = [{x: 5, y: 40, inventory: addOre(createInventory(), nth(ORES, 0), 1)!}];
+    h.state.wrecks = [createWreck(5, 40, addOre(createInventory(), nth(ORES, 0), 1)!)];
     h.state.stations = [createPortal(50, 100, 'Deep')];
     h.state.input.resetConfirmUntil = 999;
 
@@ -540,7 +664,7 @@ describe('a shared-world reset', () => {
   it('drops the wrecks and keeps a tunnel portal reachable by carving its tile', () => {
     const h = harness();
     h.state.stations = [dugPortal(h.state, 30, 80, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
-    h.state.wrecks = [{x: 12, y: 60, inventory: addOre(createInventory(), nth(ORES, 0), 3)!}];
+    h.state.wrecks = [createWreck(12, 60, addOre(createInventory(), nth(ORES, 0), 3)!)];
 
     h.run.clearWorldRuntime();
 
