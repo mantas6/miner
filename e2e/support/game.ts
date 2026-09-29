@@ -35,7 +35,7 @@ export async function seedSave(page: Page, partial: SaveSeed = {}, options: {onc
   await page.addInitScript(seedSaveScript(partial, options));
 }
 
-/** A plain 2-hp dirt tile directly under the spawn, replacing the cavern's stone floor. */
+/** The plain 2-hp dirt hatch directly under the spawn, as the generator lays it. */
 export const DIRT_UNDER_HOME = {x: HOME_X, y: HOME_ROW + 1, tile: {type: 'dirt', hp: 2, maxHp: 2}} as const;
 
 /**
@@ -105,10 +105,10 @@ export async function openIntro(page: Page): Promise<void> {
 }
 
 /**
- * Seed a save that replaces the stone-paved cavern floor directly under the
- * spawn with a plain 2-hp dirt tile, so a test can dig straight down without first
- * drilling through the ~5 s stone slab the generator now lays there. Call before
- * `startRun`, since the save has to be in place before the page loads.
+ * Seed a save that pins the tile directly under the spawn to the plain 2-hp dirt
+ * hatch the generator lays there, so a test that counts drill hits and fuel keeps
+ * its arithmetic even if worldgen later changes that tile. Call before `startRun`,
+ * since the save has to be in place before the page loads.
  */
 export async function seedDirtUnderHome(page: Page): Promise<void> {
   await seedSave(page, {tiles: [DIRT_UNDER_HOME]});

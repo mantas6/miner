@@ -48,6 +48,6 @@ function worldHash(): string {
 
 describe('world generation', () => {
   it('produces the pinned terrain', () => {
-    expect(worldHash()).toBe('17a054db');
+    expect(worldHash()).toBe('e43d240f');
   });
 });

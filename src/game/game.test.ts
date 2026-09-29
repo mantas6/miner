@@ -192,10 +192,10 @@ describe('booting the game', () => {
     press('s');
     renderFrame();
 
-    // The home base sits on a stone-paved floor (48 hp against a starting drill of
-    // 1), so it takes a full slab of presses to break through before the ship drops
-    // into the cleared tile — each press spends fuel drilling either way.
-    for (let attempt = 0; attempt < 60 && text('depth') === '0 m'; attempt++) {
+    // Under the ship the stone-paved floor gives way to a dirt hatch (2 hp against a
+    // starting drill of 1), so a couple of presses break through before the ship
+    // drops into the cleared tile — each press spends fuel drilling either way.
+    for (let attempt = 0; attempt < 5 && text('depth') === '0 m'; attempt++) {
       press('s');
       renderFrame();
     }

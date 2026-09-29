@@ -38,9 +38,9 @@ test.describe('boot', () => {
     await expect(page.locator('#shipBtn')).toBeVisible();
     await expect(page.locator('#infoBtn')).toBeVisible();
     // The loop has run at least once against the generated world: the scanner is
-    // reading the real tile under the ship — the stone-paved cavern floor, a
-    // decoration — instead of its pre-boot open-air placeholder.
-    await expect(page.locator('#scanner')).toContainText('decoration');
+    // reading the real tile under the ship — the cavern floor's dirt hatch — instead
+    // of its pre-boot open-air placeholder.
+    await expect(page.locator('#scanner')).toContainText('dirt');
     // Neither failure notice: the runtime reported `ready`.
     await expect(page.locator('#runtime-failure')).toHaveCount(0);
     await expect(page.locator('#app-failure')).toHaveCount(0);
@@ -61,7 +61,7 @@ test.describe('boot', () => {
     await startRun(page);
     // Wait for the loop to have drawn and synced at least once, so anything that
     // only throws from inside a frame has had its chance.
-    await expect(page.locator('#scanner')).toContainText('decoration');
+    await expect(page.locator('#scanner')).toContainText('dirt');
     expect(failures).toEqual([]);
   });
 });

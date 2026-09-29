@@ -10,11 +10,11 @@
 //
 // and the HUD rounds up, so 100 → 98.155 reads `99/100` and 96.31 reads `97/100`.
 // The ship spawns on the home-cavern floor (`HOME_ROW`, depth 0 m). That floor is
-// now paved with stone (48 hp), which would take ~5 s to drill, so the tests that
-// care about a clean one-tile dig seed a plain 2-hp dirt tile under the spawn with
-// `seedDirtUnderHome`: against a starting drill of 1 it takes exactly two hits to
-// clear and the ship then stands one tile down — 10 m. If balance moves, these
-// constants move with it.
+// paved with stone (48 hp) apart from a plain 2-hp dirt hatch right under the
+// spawn. The tests that care about a clean one-tile dig still pin that hatch with
+// `seedDirtUnderHome`, so a worldgen change cannot move their arithmetic: against
+// a starting drill of 1 it takes exactly two hits to clear and the ship then
+// stands one tile down — 10 m. If balance moves, these constants move with it.
 
 import { expect, test } from '@playwright/test';
 import { HOME_CAVERN_TOP, HOME_ROW, STATIONS, WORLD_W } from '../shared/constants';
@@ -214,8 +214,8 @@ test.describe('gameplay', () => {
   });
 
   test('the canvas keeps the keyboard while mining', async ({page}) => {
-    // A plain dirt tile under the spawn, so one keypress drills something that
-    // charges fuel rather than chipping free hits off the stone-paved floor.
+    // The plain dirt hatch under the spawn, pinned so one keypress drills
+    // something that charges fuel whatever worldgen lays there.
     await seedDirtUnderHome(page);
     await startRun(page);
     await drillDown(page);

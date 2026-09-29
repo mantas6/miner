@@ -394,9 +394,10 @@ reads 0 m at home. Three stations are seeded on the cavern floor — the Manufac
 Station, the Fuel Extractor, and a Portal named `Home` — fly onto or beside one and
 press `Space` (or click its tile) to open it. They are placed entities, not
 fixed world objects, so they can be crafted, carried and set down elsewhere too
-(see "Crafting & ship equipment"). The cavern floor is paved with Stone Blocks;
-like the cavern's air they are derived from the coordinate rather than saved, and
-drill out as usual.
+(see "Crafting & ship equipment"). The cavern floor is paved with Stone Blocks,
+except for a plain dirt hatch right under the spawn that opens onto the starter
+coal; like the cavern's air they are derived from the coordinate rather than saved,
+and drill out as usual.
 
 - **Manufacturing Station.** Stow cargo here (its stock holds up to 500 items),
   take stacks back aboard, and craft. Crafting consumes from the station stock and

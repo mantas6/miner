@@ -319,8 +319,13 @@ export function makeTile(x: number, y: number): Tile {
   if (isHomeCavern(x, y)) return {type:'air'};
   // The cavern floor is a stone-paved base: deterministic decor tiles the player
   // can drill out (~5 s) for Stone Blocks. Like the cavern it is not stored in the
-  // diff; digging through one writes air to the diff as usual.
-  if (y === HOME_ROW + 1 && Math.abs(x - HOME_X) <= HOME_CAVERN.halfWidth) return {type:'decor', decor:'stoneBlock', hp: DECOR_HP, maxHp: DECOR_HP};
+  // diff; digging through one writes air to the diff as usual. The tile under the
+  // spawn point is left as a plain dirt hatch, so the first dig down is cheap and
+  // opens straight onto the starter coal below it.
+  if (y === HOME_ROW + 1 && Math.abs(x - HOME_X) <= HOME_CAVERN.halfWidth) {
+    if (x === HOME_X) return {type:'dirt', hp: TERRAIN.dirtHp.min, maxHp: TERRAIN.dirtHp.min};
+    return {type:'decor', decor:'stoneBlock', hp: DECOR_HP, maxHp: DECOR_HP};
+  }
   // A trading post carves a cleared 3×3 air pocket for its kiosk, derived from the
   // coordinate like the cavern rather than stored in the diff.
   if (y > HOME_ROW + 1 && tradingPostPocket(x,y)) return {type:'air'};

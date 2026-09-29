@@ -372,10 +372,14 @@ describe('makeTile', () => {
     expect(cavern.every(tile => tile.type === 'air')).toBe(true);
   });
 
-  it('paves the cavern floor with stone blocks', () => {
+  it('paves the cavern floor with stone blocks around a dirt hatch under the spawn', () => {
     for (let x = HOME_X - HOME_CAVERN.halfWidth; x <= HOME_X + HOME_CAVERN.halfWidth; x++) {
+      if (x === HOME_X) continue;
       expect(makeTile(x, HOME_ROW + 1)).toEqual({type: 'decor', decor: 'stoneBlock', hp: DECOR_HP, maxHp: DECOR_HP});
     }
+    // The hatch is plain 2-hp dirt opening straight onto the starter coal below it.
+    expect(makeTile(HOME_X, HOME_ROW + 1)).toEqual({type: 'dirt', hp: 2, maxHp: 2});
+    expect(makeTile(HOME_X, HOME_ROW + 2)).toMatchObject({type: 'ore', ore: {name: 'Coal'}});
     // Just past the cavern's width the floor row is ordinary generated terrain again.
     expect(makeTile(HOME_X - HOME_CAVERN.halfWidth - 1, HOME_ROW + 1).type).not.toBe('decor');
     expect(makeTile(HOME_X + HOME_CAVERN.halfWidth + 1, HOME_ROW + 1).type).not.toBe('decor');
