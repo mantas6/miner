@@ -444,6 +444,94 @@ describe('fuel exhaustion', () => {
     expect(h.state.player.fuel).toBe(0);
     expect(h.gameOver).toHaveBeenCalledWith(expect.stringContaining('Out of fuel'));
   });
+
+  it('a drill hit that empties the tank explodes the ship immediately', () => {
+    const h = harness();
+    h.state.player.drill = 1;
+    h.state.player.fuel = DIG_COST(FUEL.dig.dig, 1) / 2;
+    h.grid.put(10, 41, dirt(3));
+
+    h.movement.move(0, 1);
+
+    // The ship never advanced, yet the run ends on this hit, not the next press.
+    expect(h.state.player.y).toBe(40);
+    expect(h.state.player.fuel).toBe(0);
+    expect(h.grid.get(10, 41)).toMatchObject({type: 'dirt', hp: 2});
+    expect(h.gameOver).toHaveBeenCalledTimes(1);
+    expect(h.gameOver).toHaveBeenCalledWith(expect.stringContaining('Out of fuel'));
+  });
+
+  it('a rock bump that empties the tank explodes the ship immediately', () => {
+    const h = harness();
+    h.state.player.fuel = DIG_COST(0, 1);
+    h.grid.put(10, 41, {type: 'rock', hp: 999});
+
+    h.movement.move(0, 1);
+
+    expect(h.state.player.fuel).toBe(0);
+    expect(h.gameOver).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not end the run twice when a hit already did', () => {
+    const h = harness();
+    h.state.player.fuel = DIG_COST(0, 1);
+    h.grid.put(10, 41, {type: 'rock', hp: 999});
+    // The bump's hull damage is what ends this run.
+    h.damage.mockImplementation(() => { h.state.gameOver = true; });
+
+    h.movement.move(0, 1);
+
+    expect(h.gameOver).not.toHaveBeenCalled();
+  });
+
+  it('leaves fuel to spare without ending the run', () => {
+    const h = harness();
+    h.state.player.fuel = DIG_COST(FUEL.dig.dig, 1) * 2;
+    h.grid.put(10, 41, dirt(3));
+
+    h.movement.move(0, 1);
+
+    expect(h.state.player.fuel).toBeGreaterThan(0);
+    expect(h.gameOver).not.toHaveBeenCalled();
+  });
+});
+
+describe('drill toasts', () => {
+  it('counts the hits left at the fitted drill power', () => {
+    const h = harness();
+    h.state.player.drill = 2;
+    h.grid.put(10, 41, dirt(9));
+
+    h.movement.move(0, 1);
+
+    // 7 hp left at 2 per hit is 4 more hits, not "7 hits left".
+    expect(h.toasts.last).toBe('Drilling... 4 hits left');
+  });
+
+  it('counts decoration and magma hits at the fitted drill power too', () => {
+    const h = harness();
+    h.state.player.drill = 3;
+    h.grid.put(10, 41, {type: 'decor', decor: 'steelPlate', hp: DECOR_HP, maxHp: DECOR_HP});
+    h.movement.move(0, 1);
+    expect(h.toasts.last).toBe(`Drilling out Steel Plate... ${Math.ceil((DECOR_HP - 3) / 3)} hits left`);
+
+    h.grid.put(10, 41, {type: 'hazard', hp: 10, maxHp: 10});
+    h.movement.move(0, 1);
+    expect(h.toasts.last).toBe('Venting magma... 3 hits left');
+  });
+
+  it('says what mined ore is worth, and where, without implying cash was paid', () => {
+    const h = harness();
+    h.state.player.drill = 5;
+    const coal = nth(ORES, 0);
+    h.grid.put(10, 41, {type: 'ore', ore: coal, hp: 1, maxHp: 1});
+    const cash = h.state.cash;
+
+    h.movement.move(0, 1);
+
+    expect(h.toasts.last).toBe(`Mined ${coal.name} (worth $${coal.value} at a trading post).`);
+    expect(h.state.cash).toBe(cash);
+  });
 });
 
 describe('open destination probing', () => {

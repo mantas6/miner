@@ -25,6 +25,7 @@ import { tileKey } from '../../shared/tile-key';
 import { itemForKind } from '../core/items';
 import { offersForPost, remainingStock, sellPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
+import type { TradeOfferView } from '../ui/store';
 import { tradingPostAt, type TradingPost } from '../world/world';
 
 /** How far a ship may stand from a post and still trade: Chebyshev ≤ 1, its own tile too. */
@@ -46,16 +47,6 @@ export function reachableTradingPost(x: number, y: number): {post: TradingPost; 
     }
   }
   return best;
-}
-
-/** One buy offer as the trade screen paints it: an item, its price, and stock left. */
-export interface TradeOfferView {
-  index: number;
-  kind: InventoryItemKind;
-  label: string;
-  color: string;
-  price: number;
-  stock: number;
 }
 
 export interface TradingSim {

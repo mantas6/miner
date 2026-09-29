@@ -90,6 +90,16 @@ describe('terrain scanner readout', () => {
     game.enemies.standingEnemy = undefined;
     expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 1 hit.');
   });
+
+  it('recounts the hits when the drill power changes under the same tile', () => {
+    const game = setup(() => ({type: 'dirt', hp: 6, maxHp: 6}));
+    game.descend(1);
+    game.state.player.drill = 1;
+    expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 6 hits.');
+
+    game.state.player.drill = 3;
+    expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 2 hits.');
+  });
 });
 
 describe('return-fuel forecast', () => {

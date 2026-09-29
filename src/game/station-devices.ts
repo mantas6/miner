@@ -126,7 +126,9 @@ export function createStationDevices(deps: StationDeviceDeps): StationDeviceSim 
     setArmed(null);
     saveProgress();
     audio.place();
-    toast(`${stationLabel(kind)} set down. Stand beside it and press it to use it.`);
+    toast(kind === 'extractor'
+      ? `${stationLabel(kind)} set down. It starts empty — load coal to make fuel.`
+      : `${stationLabel(kind)} set down. Stand beside it and press it to use it.`);
     return true;
   }
 

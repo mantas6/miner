@@ -71,6 +71,7 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
   let scanHp = NaN;
   let scanEnemyId = 0;
   let scanExplored = false;
+  let scanDrill = NaN;
   let scannerLine = '';
 
   // Return-fuel memo.
@@ -110,12 +111,13 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
     const explored = isTileExplored(state.exploredTiles, x, y);
 
     if (x !== scanX || y !== scanY || dx !== scanDx || dy !== scanDy
-      || tile !== scanTile || hp !== scanHp || enemyId !== scanEnemyId || explored !== scanExplored) {
+      || tile !== scanTile || hp !== scanHp || enemyId !== scanEnemyId || explored !== scanExplored
+      || p.drill !== scanDrill) {
       scanX = x; scanY = y; scanDx = dx; scanDy = dy;
-      scanTile = tile; scanHp = hp; scanEnemyId = enemyId; scanExplored = explored;
+      scanTile = tile; scanHp = hp; scanEnemyId = enemyId; scanExplored = explored; scanDrill = p.drill;
       scanDirection[0] = dx;
       scanDirection[1] = dy;
-      scannerLine = formatTerrainScanner({tile, direction: scanDirection, activeEnemy: enemy?.kind ?? false, explored});
+      scannerLine = formatTerrainScanner({tile, direction: scanDirection, activeEnemy: enemy?.kind ?? false, explored, drill: p.drill});
     }
     hud.scanner = scannerLine;
   }

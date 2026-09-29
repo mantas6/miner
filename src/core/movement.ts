@@ -62,6 +62,7 @@ export function movementFuelCost(normalCost: number, sprintRequested: boolean, d
   return isSprintActive(sprintRequested, destinationOpen) ? normalCost * SPRINT.fuelMultiplier : normalCost;
 }
 
+/** Fuel left after a move; never negative, since an empty tank ends the run. */
 export function fuelAfterMovement(currentFuel: number, normalCost: number, sprintRequested: boolean, destinationOpen: boolean, movingDownward: boolean): number {
-  return currentFuel - movementFuelCost(normalCost, sprintRequested, destinationOpen, movingDownward);
+  return Math.max(0, currentFuel - movementFuelCost(normalCost, sprintRequested, destinationOpen, movingDownward));
 }

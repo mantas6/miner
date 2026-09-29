@@ -28,6 +28,15 @@ describe('describeItem', () => {
     expect(describeItem('upgrade:booster:1').lines.join(' ')).toContain('sprint');
   });
 
+  it('warns that a scanner is single use', () => {
+    expect(describeItem('scanner').lines).toContain('Single use: it stays where you set it down.');
+  });
+
+  it('warns that a crafted fuel extractor starts empty', () => {
+    expect(describeItem('device:extractor').lines.join(' ')).toContain('Starts empty.');
+    expect(describeItem('device:manufacturer').lines.join(' ')).not.toContain('Starts empty.');
+  });
+
   it('tells how many drill hits clear a decoration', () => {
     expect(describeItem('decor:steelPlate').lines.join(' ')).toContain('drill hits');
   });

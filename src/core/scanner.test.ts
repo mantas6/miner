@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatTerrainScanner } from './scanner';
+import { formatTerrainScanner, hitsLeft } from './scanner';
 
 describe('terrain scanner helper', () => {
   it('distinguishes clear air and ordinary drillable dirt', () => {
@@ -25,6 +25,24 @@ describe('terrain scanner helper', () => {
       .toBe('Scanner →: dirt — drillable, 4 hits.');
     expect(formatTerrainScanner({ tile: { type: 'air' }, direction: [-1, 0], activeEnemy: true }))
       .toBe('Scanner ←: active fiend — drill it before it chews hull.');
+  });
+
+  it('counts hits at the ship\'s drill power, not raw tile hp', () => {
+    expect(formatTerrainScanner({ tile: { type: 'dirt', hp: 9, maxHp: 9 }, direction: [0, 1], drill: 3 }))
+      .toBe('Scanner ↓: dirt — drillable, 3 hits.');
+    expect(formatTerrainScanner({ tile: { type: 'dirt', hp: 9, maxHp: 9 }, direction: [0, 1], drill: 4 }))
+      .toBe('Scanner ↓: dirt — drillable, 3 hits.');
+    expect(formatTerrainScanner({ tile: { type: 'hazard', hp: 5, maxHp: 5 }, direction: [0, 1], drill: 5 }))
+      .toBe('Scanner ↓: magma — hull risk, 1 hit to vent.');
+  });
+
+  it('hitsLeft rounds up and never reports fewer than one hit', () => {
+    expect(hitsLeft(9, 2)).toBe(5);
+    expect(hitsLeft(8, 2)).toBe(4);
+    expect(hitsLeft(1, 5)).toBe(1);
+    expect(hitsLeft(0.25, 1)).toBe(1);
+    expect(hitsLeft(0, 3)).toBe(1);
+    expect(hitsLeft(2.5, 0.75)).toBe(4);
   });
 
   it('reads a decoration as drillable', () => {

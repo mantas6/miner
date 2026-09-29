@@ -117,6 +117,26 @@ describe('setting a station down', () => {
     expect(h.audio.played).toEqual(['arm', 'place']);
   });
 
+  it('warns that a freshly set-down extractor starts empty', () => {
+    const h = harness();
+
+    h.devices.toggleArmed('extractor');
+    h.devices.placeAt(40, 100);
+
+    expect(stationAt(h.state.stations, 40, 100)).toMatchObject({kind: 'extractor', coal: 0, fuel: 0});
+    expect(h.toasts.saw('Fuel Extractor set down. It starts empty — load coal to make fuel.')).toBe(true);
+  });
+
+  it('tells the player how to use a freshly set-down manufacturer', () => {
+    const h = harness();
+
+    h.devices.toggleArmed('manufacturer');
+    h.devices.placeAt(40, 100);
+
+    expect(h.toasts.saw('Manufacturing Station set down. Stand beside it and press it to use it.')).toBe(true);
+    expect(h.toasts.saw('starts empty')).toBe(false);
+  });
+
   it('ignores a press on the mine when nothing is armed', () => {
     const h = harness();
     expect(h.devices.placeAt(40, 100)).toBe(false);

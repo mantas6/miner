@@ -46,6 +46,12 @@ describe('open-space flight fuel', () => {
     expect(fuel).toBeCloseTo(49.875);
     expect(fuel).toBeLessThan(50);
   });
+
+  it('never leaves the tank below empty', () => {
+    expect(fuelAfterMovement(0.5, 3, false, false, false)).toBe(0);
+    expect(fuelAfterMovement(0, 3, true, true, false)).toBe(0);
+    expect(fuelAfterMovement(3, 3, false, false, false)).toBe(0);
+  });
 });
 
 describe('sprint movement', () => {

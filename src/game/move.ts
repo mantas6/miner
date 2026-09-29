@@ -12,6 +12,7 @@ import { decorKindForId } from '../core/decor';
 import { addItem, addOre, isFull } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { fuelAfterMovement, isOpenSpaceDestination, isTraversableTile, movementDestination, sprintCrashDamage, sprintMomentumAfterMove } from '../core/movement';
+import { hitsLeft } from '../core/scanner';
 import type {
   AirTile,
   AudioController,
@@ -129,7 +130,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       toast('Magma pocket vented — hull scorched!');
     } else {
       grid.set(nx, ny, tile);
-      toast(`Venting magma... ${Math.ceil(tile.hp)} hits left`);
+      toast(`Venting magma... ${hitsLeft(tile.hp, player.drill)} hits left`);
     }
     return 'blocked';
   }
@@ -143,7 +144,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     audio.mine();
     if (tile.hp > 0) {
       grid.set(nx, ny, tile);
-      toast(`Drilling... ${Math.max(1, tile.hp)} hits left`);
+      toast(`Drilling... ${hitsLeft(tile.hp, player.drill)} hits left`);
       return 'blocked';
     }
     if (tile.type === 'ore') {
@@ -160,7 +161,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       player.inventory = loaded;
       state.stats.oreMined++;
       saveProgress();
-      toast(`Mined ${tile.ore.name} +$${tile.ore.value}`);
+      toast(`Mined ${tile.ore.name} (worth $${tile.ore.value} at a trading post).`);
       audio.ore(tile.ore.value);
     }
     grid.set(nx, ny, {type:'air'});
@@ -185,7 +186,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     audio.mine();
     if (tile.hp > 0) {
       grid.set(nx, ny, tile);
-      toast(`Drilling out ${item.label}... ${Math.max(1, Math.ceil(tile.hp))} hits left`);
+      toast(`Drilling out ${item.label}... ${hitsLeft(tile.hp, player.drill)} hits left`);
       return 'blocked';
     }
     if (isFull(player.inventory, player.cargoMax)) {
@@ -228,8 +229,6 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     deps.revealAtPlayer();
     state.stats.maxDepth = Math.max(state.stats.maxDepth, rowDepthMeters(p.y));
     enemies.wakeEnemiesNear(p.x, p.y);
-    if (p.fuel < 0) p.fuel = 0;
-    if (p.fuel <= 0) gameOver('Out of fuel — ship exploded. Tap anywhere to restart.');
   }
 
   /**
@@ -246,10 +245,14 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     toast('Boost crash — hull buckled!');
   }
 
+  function outOfFuel(): void {
+    gameOver('Out of fuel — ship exploded. Tap anywhere to restart.');
+  }
+
   function move(dx: number, dy: number, sprinting = false): void {
     if (state.gameOver) return;
     const p = state.player;
-    if (p.fuel <= 0) { gameOver('Out of fuel — ship exploded. Tap anywhere to restart.'); return; }
+    if (p.fuel <= 0) { outOfFuel(); return; }
     const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W);
     if (nx === p.x && ny === p.y) {
       state.input.sprintMomentum = null;
@@ -279,8 +282,11 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     const momentum = state.input.sprintMomentum;
     const advanced = resolve() === 'advance';
     state.input.sprintMomentum = sprintMomentumAfterMove(advanced, sprinting, destinationOpen, dx, dy);
-    if (!advanced) { crashIntoWall(momentum, sprinting, dx, dy, nx, ny); return; }
-    advanceShip(nx, ny);
+    if (advanced) advanceShip(nx, ny);
+    else crashIntoWall(momentum, sprinting, dx, dy, nx, ny);
+    // Whatever step drained the tank — a flight, a drill bite, a rock bump —
+    // ends the run on the spot rather than on the next key press.
+    if (!state.gameOver && p.fuel <= 0) outOfFuel();
   }
 
   return {move, isOpenMovementDestination};

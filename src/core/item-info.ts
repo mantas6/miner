@@ -97,7 +97,8 @@ function describeConsumable(kind: ConsumableKind): ItemInfo {
         title,
         lines: [
           `Maps a ${SCANNER_DEVICE.size}×${SCANNER_DEVICE.size} square around it.`,
-          `Reveals one fogged tile every ${SCANNER_DEVICE.intervalSeconds} s.`
+          `Reveals one fogged tile every ${SCANNER_DEVICE.intervalSeconds} s.`,
+          'Single use: it stays where you set it down.'
         ]
       };
     case 'teleporter':
@@ -145,7 +146,7 @@ function describeStationDevice(kind: DeviceKind): ItemInfo {
     lines: [
       manufacturer
         ? 'Placeable Manufacturing Station: crafts and stores ore where you set it.'
-        : 'Placeable Fuel Extractor: burns coal into fuel and refuels a ship parked on it.',
+        : 'Placeable Fuel Extractor: burns coal into fuel and refuels a ship parked on it. Starts empty.',
       `Set it down on a cleared, explored tile; up to ${STATION_DEVICE[key].maxPlaced} of each can stand in the mine.`,
       'Lift it back into the bay with the Construction Toolkit once it is empty.'
     ]
