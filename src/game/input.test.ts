@@ -30,6 +30,7 @@ interface Harness {
   input: GameInput;
   actions: ReturnType<typeof createActionsSpy>;
   move: ReturnType<typeof vi.fn>;
+  isOpenMovementDestination: ReturnType<typeof vi.fn>;
   restartGame: ReturnType<typeof vi.fn>;
   closeShipScreen: ReturnType<typeof vi.fn>;
   closeInfoScreen: ReturnType<typeof vi.fn>;
@@ -58,6 +59,7 @@ function harness(): Harness {
     state: createInitialState(),
     actions: createActionsSpy(),
     move: vi.fn(),
+    isOpenMovementDestination: vi.fn(() => true),
     restartGame: vi.fn(),
     closeShipScreen: vi.fn(),
     closeInfoScreen: vi.fn(),
@@ -76,10 +78,7 @@ function harness(): Harness {
     toast: vi.fn(),
     tryAutoAudio: vi.fn()
   };
-  const input = createInput({
-    ...context,
-    isOpenMovementDestination: () => true
-  });
+  const input = createInput(context);
   detachers.push(input.attach());
   return {...context, input};
 }
@@ -710,5 +709,145 @@ describe('held keys', () => {
     h.state.input.lastKeyboardMove = 0;
     h.input.tick();
     expect(h.move).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('the rock bump lock', () => {
+  /** Park the ship facing rock on the right: every move there only bumps. */
+  function facingRock(): Harness {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    h.move.mockReturnValue('bumped');
+    h.isOpenMovementDestination.mockReturnValue(false);
+    return h;
+  }
+
+  /** Let the repeat delay lapse and run one tick. */
+  function repeatTick(h: Harness): void {
+    h.state.input.lastKeyboardMove = 0;
+    h.input.tick();
+  }
+
+  it('a held key stops after one rock bump', () => {
+    const h = facingRock();
+
+    press('d');
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+    expect(h.state.input.bumpLock).toEqual({direction: [1, 0], x: h.state.player.x, y: h.state.player.y});
+
+    // Still held, repeat after repeat: no second bump.
+    repeatTick(h);
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledOnce();
+  });
+
+  it('stops a held repeat after the one bump it walked into', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    h.isOpenMovementDestination.mockReturnValue(false);
+
+    // Drilling along a tunnel, then the held key meets rock.
+    h.move.mockReturnValue('drilled');
+    press('d');
+    h.input.tick();
+    h.move.mockReturnValue('bumped');
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets a fresh press bump again', () => {
+    const h = facingRock();
+
+    press('d');
+    h.input.tick();
+    release('d');
+    press('d');
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledTimes(2);
+    // …and the new bump locks the held key again.
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+  });
+
+  it('lifts the lock when the key is let go, even before the next press', () => {
+    const h = facingRock();
+
+    press('d');
+    h.input.tick();
+    release('d');
+    h.input.tick();
+    expect(h.state.input.bumpLock).toBeNull();
+  });
+
+  it('lifts the lock when the direction changes', () => {
+    // Rock on both sides of the ship.
+    const h = facingRock();
+
+    press('d');
+    h.input.tick();
+    // Left pressed on top of the held right bumps too, and locks left instead.
+    press('a');
+    h.input.tick();
+    expect(h.move).toHaveBeenLastCalledWith(-1, 0, false);
+    expect(h.state.input.bumpLock?.direction).toEqual([-1, 0]);
+
+    // Back on the still-held right: the direction changed, so it repeats once
+    // more — and that bump locks right again.
+    release('a');
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(3);
+    expect(h.move).toHaveBeenLastCalledWith(1, 0, false);
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(3);
+  });
+
+  it('lifts the lock once the ship has moved off the tile it bumped from', () => {
+    const h = facingRock();
+
+    press('d');
+    h.input.tick();
+    // Carried elsewhere with the key still down — a fall, a portal, a jump.
+    h.state.player.y += 1;
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+  });
+
+  it('lifts the lock when the rock ahead opens up', () => {
+    const h = facingRock();
+
+    press('d');
+    h.input.tick();
+    // Dynamite cleared the rock: the held key flies on.
+    h.isOpenMovementDestination.mockReturnValue(true);
+    h.move.mockReturnValue('advanced');
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+  });
+
+  it('never locks on a drill bite', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    h.isOpenMovementDestination.mockReturnValue(false);
+    h.move.mockReturnValue('drilled');
+
+    press('s');
+    h.input.tick();
+    repeatTick(h);
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(3);
+    expect(h.state.input.bumpLock).toBeNull();
+  });
+
+  it('is forgotten on a reset', () => {
+    const h = facingRock();
+
+    press('d');
+    h.input.tick();
+    h.input.reset();
+    expect(h.state.input.bumpLock).toBeNull();
   });
 });

@@ -22,6 +22,7 @@ import type {
   DormantEnemyTile,
   GameState,
   HazardTile,
+  MoveResult,
   OreTile,
   Player,
   RockTile,
@@ -30,8 +31,11 @@ import type {
 import type { EnemySim } from './enemies';
 import type { WorldGrid } from './world-grid';
 
-/** Whether the destination cleared out enough for the ship to occupy it. */
-type MoveOutcome = 'blocked' | 'advance';
+/**
+ * How a destination tile resolved a step: every `MoveResult` but the two that
+ * `move()` decides before any tile handler runs.
+ */
+type MoveOutcome = Exclude<MoveResult, 'refused' | 'none'>;
 
 interface MoveContext {
   dx: number;
@@ -51,8 +55,8 @@ interface MoveContext {
 type TileMoveHandler<T extends Tile = Tile> = (tile: T, context: MoveContext) => MoveOutcome;
 
 export interface GameMovement {
-  /** Attempt one step. `sprinting` only matters through open space. */
-  move(dx: number, dy: number, sprinting?: boolean): void;
+  /** Attempt one step and report what it did. `sprinting` only matters through open space. */
+  move(dx: number, dy: number, sprinting?: boolean): MoveResult;
   /** Whether the ship would fly (not drill) into this direction's destination. */
   isOpenMovementDestination(dx: number, dy: number): boolean;
 }
@@ -96,7 +100,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       audio.blip(150 + Math.abs(dy)*35, 0.035, 'triangle', 0.02);
       audio.lastMove = performance.now();
     }
-    return 'advance';
+    return 'advanced';
   }
 
   function bumpIntoRock(_tile: RockTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
@@ -106,14 +110,14 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     spawnDust(nx, ny, '#444857', 8);
     audio.bump();
     toast('Solid rock blocks the drill.');
-    return 'blocked';
+    return 'bumped';
   }
 
   function drillEnemyCocoon(_tile: DormantEnemyTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
     player.drillDx = dx; player.drillDy = dy; player.drillAnim = 1.65;
     useFuel(dig(FUEL.dig.enemy));
     enemies.damageEnemyTile(nx, ny);
-    return 'blocked';
+    return 'drilled';
   }
 
   function drillHazard(tile: HazardTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
@@ -132,7 +136,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       grid.set(nx, ny, tile);
       toast(`Venting magma... ${hitsLeft(tile.hp, player.drill)} hits left`);
     }
-    return 'blocked';
+    return 'drilled';
   }
 
   /** Dirt and ore share one drill pass; only ore pays out. */
@@ -145,7 +149,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     if (tile.hp > 0) {
       grid.set(nx, ny, tile);
       toast(`Drilling... ${hitsLeft(tile.hp, player.drill)} hits left`);
-      return 'blocked';
+      return 'drilled';
     }
     if (tile.type === 'ore') {
       // Ore needs room under the cargo-bay upgrade, measured in total items
@@ -156,7 +160,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
         grid.set(nx, ny, tile);
         toast('Cargo bay full. Stow it at home.');
         audio.alarm();
-        return 'blocked';
+        return 'drilled';
       }
       player.inventory = loaded;
       state.stats.oreMined++;
@@ -166,7 +170,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     }
     grid.set(nx, ny, {type:'air'});
     enemies.wakeEnemiesNear(nx, ny);
-    return 'advance';
+    return 'advanced';
   }
 
   /**
@@ -187,20 +191,20 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     if (tile.hp > 0) {
       grid.set(nx, ny, tile);
       toast(`Drilling out ${item.label}... ${hitsLeft(tile.hp, player.drill)} hits left`);
-      return 'blocked';
+      return 'drilled';
     }
     if (isFull(player.inventory, player.cargoMax)) {
       tile.hp = 1;
       grid.set(nx, ny, tile);
       audio.alarm();
       toast('Cargo bay full — clear space before recovering the decoration.');
-      return 'blocked';
+      return 'drilled';
     }
     player.inventory = addItem(player.inventory, item);
     grid.set(nx, ny, {type: 'air'});
     saveProgress();
     toast(`Recovered ${item.label}.`);
-    return 'advance';
+    return 'advanced';
   }
 
   /** Destination tile type → the drill/fly behaviour that resolves the move. */
@@ -249,14 +253,14 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     gameOver('Out of fuel — ship exploded. Tap anywhere to restart.');
   }
 
-  function move(dx: number, dy: number, sprinting = false): void {
-    if (state.gameOver) return;
+  function move(dx: number, dy: number, sprinting = false): MoveResult {
+    if (state.gameOver) return 'none';
     const p = state.player;
-    if (p.fuel <= 0) { outOfFuel(); return; }
+    if (p.fuel <= 0) { outOfFuel(); return 'none'; }
     const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W);
     if (nx === p.x && ny === p.y) {
       state.input.sprintMomentum = null;
-      return;
+      return 'none';
     }
     const tile = grid.get(nx, ny);
     const activeEnemy = enemies.enemyAt(nx, ny);
@@ -271,22 +275,24 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     p.facing = dx ? Math.sign(dx) : p.facing;
     p.drillDx = dx;
     p.drillDy = dy;
-    const resolve = (): MoveOutcome => {
-      if (activeEnemy) { p.drillAnim = 1.65; context.useFuel(context.dig(FUEL.dig.enemy)); enemies.damageEnemy(activeEnemy); return 'blocked'; }
-      if (!isTraversableTile(tile) && dy < 0) { p.drillDx = 0; p.drillDy = -1; p.drillAnim = 0.75; audio.bump(); toast('The drill cannot dig upward. Use tunnels to fly up.'); return 'blocked'; }
-      if (!isTraversableTile(tile) && dx !== 0 && dy === 0 && !grounded()) { p.drillDx = dx; p.drillDy = 0; p.drillAnim = 0.55; audio.bump(); toast('Side drilling needs solid ground underneath.'); return 'blocked'; }
+    const resolve = (): MoveResult => {
+      if (activeEnemy) { p.drillAnim = 1.65; context.useFuel(context.dig(FUEL.dig.enemy)); enemies.damageEnemy(activeEnemy); return 'drilled'; }
+      if (!isTraversableTile(tile) && dy < 0) { p.drillDx = 0; p.drillDy = -1; p.drillAnim = 0.75; audio.bump(); toast('The drill cannot dig upward. Use tunnels to fly up.'); return 'refused'; }
+      if (!isTraversableTile(tile) && dx !== 0 && dy === 0 && !grounded()) { p.drillDx = dx; p.drillDy = 0; p.drillAnim = 0.55; audio.bump(); toast('Side drilling needs solid ground underneath.'); return 'refused'; }
       return resolveDestinationTile(tile, context);
     };
     // Read the momentum before the move consumes it: the crash is paid by the
     // speed the *previous* step built up, not by this one.
     const momentum = state.input.sprintMomentum;
-    const advanced = resolve() === 'advance';
+    const result = resolve();
+    const advanced = result === 'advanced';
     state.input.sprintMomentum = sprintMomentumAfterMove(advanced, sprinting, destinationOpen, dx, dy);
     if (advanced) advanceShip(nx, ny);
     else crashIntoWall(momentum, sprinting, dx, dy, nx, ny);
     // Whatever step drained the tank — a flight, a drill bite, a rock bump —
     // ends the run on the spot rather than on the next key press.
     if (!state.gameOver && p.fuel <= 0) outOfFuel();
+    return result;
   }
 
   return {move, isOpenMovementDestination};

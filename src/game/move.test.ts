@@ -157,6 +157,40 @@ describe('blocked moves', () => {
   });
 });
 
+describe('the reported result', () => {
+  it('names what each kind of step did', () => {
+    const h = harness();
+    expect(h.movement.move(1, 0)).toBe('advanced');
+
+    // Hovering at (11, 40): no side drilling, not even into rock.
+    h.grid.put(12, 40, {type: 'rock', hp: 999});
+    expect(h.movement.move(1, 0)).toBe('refused');
+
+    h.grid.put(11, 41, {type: 'rock', hp: 999});
+    expect(h.movement.move(1, 0)).toBe('bumped');
+    expect(h.movement.move(0, 1)).toBe('bumped');
+
+    h.grid.put(11, 39, dirt(3));
+    expect(h.movement.move(0, -1)).toBe('refused');
+
+    h.grid.put(10, 40, dirt(3));
+    expect(h.movement.move(-1, 0)).toBe('drilled');
+
+    Object.assign(h.state.player, {x: 1});
+    expect(h.movement.move(-1, 0)).toBe('none');
+    h.state.gameOver = true;
+    expect(h.movement.move(1, 0)).toBe('none');
+  });
+
+  it('reports a hit on an active enemy as a drill bite', () => {
+    const h = harness();
+    h.enemies.standingEnemy = liveEnemy(10, 41);
+
+    expect(h.movement.move(0, 1)).toBe('drilled');
+    expect(h.state.player.y).toBe(40);
+  });
+});
+
 describe('crashing a boosted ship into a wall', () => {
   /** Fly one boosted tile through open air so the ship carries speed into the wall. */
   function boostInto(h: Harness, dx: number, dy: number): void {

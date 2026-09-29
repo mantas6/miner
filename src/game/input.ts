@@ -12,7 +12,7 @@
 // containment is the modal `<dialog>`'s job now, not ours.
 
 import { activeSprintDirection, keyboardMovementRepeatMs } from '../core/movement';
-import type { Direction, GameState } from '../core/types';
+import type { Direction, GameState, MoveResult } from '../core/types';
 import { overlayOf, uiStore, type OverlayId } from '../ui/store';
 import { requestViewportZoom, viewport } from './viewport';
 import { zoomAfterKey, zoomAfterWheel } from './zoom';
@@ -42,6 +42,10 @@ const movementKeys: Record<string, Direction> = {
   arrowup: [0, -1], w: [0, -1],
   arrowdown: [0, 1], s: [0, 1]
 };
+
+function sameDirection(a: Direction, b: Direction): boolean {
+  return a[0] === b[0] && a[1] === b[1];
+}
 
 /** The zoom keys and the way each steps: `+`/`=` in, `-` out. */
 const ZOOM_KEYS: Record<string, 1 | -1> = {'+': 1, '=': 1, '-': -1};
@@ -76,8 +80,8 @@ export interface GameInput {
 export interface GameInputDeps {
   state: GameState;
   actions: GameActions;
-  /** Attempt a move; the same entry point the loop uses. */
-  move(dx: number, dy: number, sprinting: boolean): void;
+  /** Attempt a move and report what it did; the same entry point the loop uses. */
+  move(dx: number, dy: number, sprinting: boolean): MoveResult;
   /** Whether the ship would fly (not drill) into this direction's destination. */
   isOpenMovementDestination(dx: number, dy: number): boolean;
   restartGame(): void;
@@ -150,6 +154,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     state.input.sprintDirection = null;
     state.input.sprintMomentum = null;
     state.input.lastKeyboardMove = 0;
+    state.input.bumpLock = null;
   }
 
   function heldKeyDirection(): Direction | null {
@@ -168,6 +173,28 @@ export function createInput(deps: GameInputDeps): GameInput {
     }
     state.input.resetConfirmUntil = state.tick + RESET_CONFIRM_TICKS;
     deps.toast('Press R again to reset progress in this run.');
+  }
+
+  /** Run one keyboard move, arming the bump lock if it only met rock. */
+  function keyboardMove(direction: Direction, sprinting: boolean): void {
+    const result = deps.move(direction[0], direction[1], sprinting);
+    const p = state.player;
+    state.input.bumpLock = result === 'bumped' ? {direction, x: p.x, y: p.y} : null;
+  }
+
+  /**
+   * Whether a held repeat in `held` is still stood down by the last rock bump.
+   * Any change lifts the lock for good: the key let go or another direction
+   * held, the ship moved off the tile it bumped from (by any means), or the
+   * rock ahead opened up (dynamite).
+   */
+  function bumpLocked(held: Direction | null, destinationOpen: boolean): boolean {
+    const lock = state.input.bumpLock;
+    if (!lock) return false;
+    const p = state.player;
+    if (held && sameDirection(held, lock.direction) && p.x === lock.x && p.y === lock.y && !destinationOpen) return true;
+    state.input.bumpLock = null;
+    return false;
   }
 
   function isPlaying(): boolean {
@@ -191,15 +218,21 @@ export function createInput(deps: GameInputDeps): GameInput {
       state.input.keyImpulse = null;
       state.input.lastKeyboardMove = now;
       state.input.sprintDirection = activeSprintDirection(!state.gameOver && sprinting, deps.isOpenMovementDestination(impulse[0], impulse[1]), impulse[0], impulse[1]);
-      deps.move(impulse[0], impulse[1], sprinting);
+      // A fresh press always acts, into rock included: the lock only holds back
+      // the auto-repeat of a key kept down.
+      keyboardMove(impulse, sprinting);
       return;
     }
     const held = heldKeyDirection();
     const destinationOpen = held ? deps.isOpenMovementDestination(held[0], held[1]) : false;
+    // A held key that bumped rock stops there: one bump per press, not one per
+    // repeat, so leaning on a key into rock (or with a fiend biting) does not keep
+    // hammering the hull.
+    if (bumpLocked(held, destinationOpen)) return;
     if (held) state.input.sprintDirection = activeSprintDirection(!state.gameOver && sprinting, destinationOpen, held[0], held[1]);
     if (held && now - state.input.lastKeyboardMove >= keyboardMovementRepeatMs(state.input.keyboardRepeatMs, sprinting, destinationOpen)) {
       state.input.lastKeyboardMove = now;
-      deps.move(held[0], held[1], sprinting);
+      keyboardMove(held, sprinting);
     }
   }
 

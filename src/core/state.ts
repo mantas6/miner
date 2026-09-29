@@ -86,6 +86,7 @@ export function createInitialState(): GameState {
       sprintMomentum: null,
       lastKeyboardMove: 0,
       keyboardRepeatMs: 105,
+      bumpLock: null,
       resetConfirmUntil: 0
     },
     player: {

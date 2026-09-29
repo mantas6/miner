@@ -29,6 +29,26 @@ export type {
 export type Direction = [number, number];
 
 /**
+ * What one attempted step did: the ship `advanced` onto the destination, the
+ * drill `drilled` it (or hit an enemy) without getting through yet, the ship
+ * `bumped` solid rock, the move was `refused` outright (no upward or ungrounded
+ * side drilling), or `none` — nothing happened (the run is over, the tank was
+ * already dry, or the world edge left nowhere to go).
+ */
+export type MoveResult = 'advanced' | 'drilled' | 'bumped' | 'refused' | 'none';
+
+/**
+ * A held direction that just bumped rock, and the tile the ship bumped it from.
+ * Auto-repeat skips that direction while the ship stays on this tile, so a held
+ * key costs one bump rather than one every repeat.
+ */
+export interface BumpLock {
+  direction: Direction;
+  x: number;
+  y: number;
+}
+
+/**
  * A list with at least one entry. Indexing past the end still reads as possibly
  * `undefined`, but element 0 does not, so a constant table typed this way always
  * has an entry to fall back on.
@@ -140,6 +160,12 @@ export interface InputState {
   sprintMomentum: Direction | null;
   lastKeyboardMove: number;
   keyboardRepeatMs: number;
+  /**
+   * Set when a keyboard move bumps rock; held repeats in that direction are
+   * skipped until the key is let go, another direction is held, the ship leaves
+   * the tile, or the rock ahead opens up. A fresh press always bumps again.
+   */
+  bumpLock: BumpLock | null;
   /** Deadline (sim tick) until which a second R press confirms a reset. */
   resetConfirmUntil: number;
 }
