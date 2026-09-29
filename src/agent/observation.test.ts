@@ -522,6 +522,26 @@ describe('buildObservation', () => {
     expect(near.hud.postHint).toBe('Trading post ≈9 tiles ↙');
   });
 
+  it('carries the return forecast and the exit it is priced to in hud.fuelReserve', () => {
+    const state = createInitialState();
+    const base = uiStore.getState();
+    // A new game is parked at home: nothing to reserve, and home is the exit.
+    expect(buildObservation({state, ui: ui(), get: tileSource({})}).hud.fuelReserve)
+      .toEqual({status: 'safe', needed: 0, margin: state.player.fuel, exit: 'Home'});
+    const deep = buildObservation({
+      state,
+      ui: ui({hud: {
+        ...base.hud,
+        fuelReserveStatus: 'caution',
+        fuelReserveNeeded: 6,
+        fuelReserveMargin: 3,
+        fuelReserveExit: 'Portal "Deep"'
+      }}),
+      get: tileSource({})
+    });
+    expect(deep.hud.fuelReserve).toEqual({status: 'caution', needed: 6, margin: 3, exit: 'Portal "Deep"'});
+  });
+
   it('carries the base fuel readout in hud.base, and null without a base', () => {
     const state = createInitialState();
     const base = uiStore.getState();

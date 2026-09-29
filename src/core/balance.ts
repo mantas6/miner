@@ -28,8 +28,9 @@ export const FUEL = Object.freeze({
     hazard: 1.15,
     dig: 0.9
   }),
-  // Return forecast: a clear-shaft ascent with a deliberately generous detour allowance.
-  returnReserveMultiplier: 2,
+  // Return forecast: a clear-flight trip to the nearest exit (home or a portal),
+  // padded by a modest detour/hover allowance.
+  returnReserveMultiplier: 1.35,
   returnReserveCautionMultiplier: 1.5,
   lowFuelFraction: 0.25,
   lowFuelWarnMs: 1400

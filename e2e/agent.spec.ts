@@ -755,6 +755,9 @@ test('Space at a portal opens the travel list and a pick jumps the ship there', 
     expect(obs.activeOverlay).toBeNull();
     expect(obs.ship.x).toBe(deep.x);
     expect(obs.ship.y).toBe(deep.y);
+    // Parked on a portal that jumps home, the return forecast is priced to it.
+    expect(obs.hud.fuelReserve.exit).toBe('Portal "Deep"');
+    expect(obs.hud.fuelReserve.needed).toBe(0);
     // The Home portal, four rows up and still explored, paints as `P`.
     expect(obs.view.rows.join('')).toContain('P');
   } finally {

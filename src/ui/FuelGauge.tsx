@@ -57,6 +57,7 @@ export function FuelGauge() {
   const status = useUiStore(state => state.hud.fuelReserveStatus);
   const needed = useUiStore(state => state.hud.fuelReserveNeeded);
   const margin = useUiStore(state => state.hud.fuelReserveMargin);
+  const exit = useUiStore(state => state.hud.fuelReserveExit);
   const atSurface = useUiStore(state => state.hud.atSurface);
   const hull = useUiStore(state => state.hud.hull);
   const hullMax = useUiStore(state => state.hud.hullMax);
@@ -69,12 +70,13 @@ export function FuelGauge() {
   const value = Math.max(0, fuel);
   const text = `${Math.ceil(value)}/${fuelMax}`;
   // The gauge no longer draws the forecast, but its wording is still the one the
-  // banner and the screen reader carry, so it stays on the accessible name.
+  // banner and the screen reader carry, so it stays on the accessible name. The
+  // trip is priced to the cheapest exit — home, or a portal to jump home from.
   const label = atSurface
     ? `Fuel ${text}`
     : status === 'urgent'
-      ? `Fuel ${text} — climb home needs ${needed}`
-      : `Fuel ${text} — ${margin} left after climbing home`;
+      ? `Fuel ${text} — reaching ${exit} needs ${needed}`
+      : `Fuel ${text} — ${margin} left after reaching ${exit}`;
 
   const fraction = fuelMax > 0 ? Math.min(1, Math.max(0, value / fuelMax)) : 0;
   // E = 0° (needle right), F = −90° (needle up); the tank fills counter-clockwise.

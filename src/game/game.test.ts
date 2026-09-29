@@ -246,7 +246,7 @@ describe('booting the game', () => {
   // Kept last: this one digs far enough to change cargo and depth for good.
   it('feeds the scanner, the return-fuel forecast and the milestone toast from one dive', () => {
     // Underground there is a climb to pay for, so the fuel gauge splits for it.
-    expect(document.getElementById('fuel')?.getAttribute('aria-label')).toContain('after climbing home');
+    expect(document.getElementById('fuel')?.getAttribute('aria-label')).toContain('after reaching Home');
     expect(text('scanner')).toMatch(/^Scanner/);
     expect(text('depthTarget')).toContain('starter Coal/Iron seam');
 

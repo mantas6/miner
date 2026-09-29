@@ -395,14 +395,18 @@ describe('store-driven HUD', () => {
     expect(needle.style.transform).toBe('rotate(-45deg)');
     expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200');
 
-    // Underground the climb home is named in the label, not drawn on the dial.
+    // Underground the trip to the nearest exit is named in the label, not drawn on the dial.
     patchHud({atSurface: false, fuelReserveStatus: 'caution', fuelReserveNeeded: 34, fuelReserveMargin: 66});
-    expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200 — 66 left after climbing home');
+    expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200 — 66 left after reaching Home');
 
-    // A dry tank rests the needle at E (pointing right); a climb it cannot pay for changes wording.
-    patchHud({fuel: 0, fuelReserveStatus: 'urgent', fuelReserveNeeded: 34, fuelReserveMargin: 0});
+    // A nearer portal takes over the naming.
+    patchHud({fuelReserveExit: 'Portal "Deep"', fuelReserveNeeded: 5, fuelReserveMargin: 95});
+    expect(gauge.getAttribute('aria-label')).toBe('Fuel 100/200 — 95 left after reaching Portal "Deep"');
+
+    // A dry tank rests the needle at E (pointing right); a trip it cannot pay for changes wording.
+    patchHud({fuel: 0, fuelReserveStatus: 'urgent', fuelReserveExit: 'Home', fuelReserveNeeded: 34, fuelReserveMargin: 0});
     expect(needle.style.transform).toBe('rotate(0deg)');
-    expect(gauge.getAttribute('aria-label')).toBe('Fuel 0/200 — climb home needs 34');
+    expect(gauge.getAttribute('aria-label')).toBe('Fuel 0/200 — reaching Home needs 34');
 
     // A full tank swings the needle all the way up to F.
     patchHud({fuel: 200});
@@ -494,7 +498,12 @@ describe('store-driven HUD', () => {
 
     patchHud({atSurface: false, fuelReserveStatus: 'urgent'});
     expect(banner.className).toMatch(/show/);
-    expect(banner.textContent).toContain('RETURN FUEL SPENT');
+    expect(banner.textContent).toBe('⚠ RETURN FUEL SPENT — climb home now');
+
+    // Priced to a portal, the banner points there instead.
+    patchHud({fuelReserveExit: 'Portal "Deep"'});
+    expect(banner.textContent).toBe('⚠ RETURN FUEL SPENT — make for Portal "Deep" now');
+    patchHud({fuelReserveExit: 'Home'});
 
     // A dry tank is the harder stop, so it takes over the wording.
     patchHud({fuelAlert: true});

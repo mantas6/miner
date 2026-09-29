@@ -4,9 +4,11 @@
 // and is asserted there; here it is the decisions and the crossing bookkeeping.
 
 import { describe, expect, it } from 'vitest';
-import { START_Y, WORLD_W } from '../../shared/constants';
+import { HOME_X, START_Y, STATIONS, WORLD_W, rowDepthMeters } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
+import { fuelExitCost } from '../core/fuel-reserve';
 import { createInitialState, isAtHome } from '../core/state';
+import { createPortal } from '../core/stations';
 import type { Enemy, Tile } from '../core/types';
 import { nth } from '../test-narrowing';
 import { tradingPostsInRange } from '../world/world';
@@ -20,6 +22,7 @@ function blankReadouts(): HudReadoutFields {
     fuelReserveStatus: 'safe',
     fuelReserveNeeded: 0,
     fuelReserveMargin: 0,
+    fuelReserveExit: '',
     depthTarget: '',
     depthTargetKind: 'starter',
     depthTargetRemaining: 0
@@ -41,18 +44,32 @@ function setup(fill: (x: number, y: number) => Tile = () => ({type: 'dirt', hp: 
     atSurface: () => isAtHome(state.player),
     toast: toasts.toast
   });
+  /**
+   * Put the ship this many tiles below the home base, all of it mapped, and —
+   * as `advanceShip` does before the frame's sync — raise the career record. One
+   * call is one frame's move, so a call further than a tile away reads as a jump.
+   */
+  function descend(tiles: number): void {
+    state.player.y = START_Y + tiles;
+    state.stats.maxDepth = Math.max(state.stats.maxDepth, rowDepthMeters(state.player.y));
+    for (let y = START_Y; y <= state.player.y + 1; y++) {
+      state.exploredTiles.add(explorationIndex(state.player.x, y));
+    }
+  }
   return {
-    state, grid, enemies, toasts, audio, hud, readouts,
+    state, grid, enemies, toasts, audio, hud, readouts, descend,
     sync() {
       readouts.sync(hud);
       return hud;
     },
-    /** Put the ship this many tiles below the home base, all of it mapped. */
-    descend(tiles: number) {
-      state.player.y = START_Y + tiles;
-      for (let y = START_Y; y <= state.player.y + 1; y++) {
-        state.exploredTiles.add(explorationIndex(state.player.x, y));
+    /** Fly one row per frame, up or down, to `tiles` below home, syncing each frame. */
+    fly(tiles: number) {
+      const step = Math.sign(tiles - (state.player.y - START_Y));
+      while (state.player.y - START_Y !== tiles) {
+        descend(state.player.y - START_Y + step);
+        readouts.sync(hud);
       }
+      return hud;
     }
   };
 }
@@ -138,28 +155,85 @@ describe('trading-post beacon', () => {
 });
 
 describe('return-fuel forecast', () => {
+  /** A dirt mine with the seeded Home portal's tile open and one field portal dug out. */
+  function withPortal(x: number, row: number, name = 'Deep') {
+    const game = setup();
+    const portal = createPortal(x, START_Y + row, name);
+    game.state.stations.push(portal);
+    game.grid.put(STATIONS.portal.x, STATIONS.portal.y, {type: 'air'});
+    game.grid.put(portal.x, portal.y, {type: 'air'});
+    return {game, portal};
+  }
+
   it('grades the climb home from depth and remaining fuel', () => {
     const game = setup();
     game.descend(10);
 
+    // 10 rows of clear flight home, padded by the allowance: 2.2 fuel.
     game.state.player.fuel = 50;
-    expect(game.sync()).toMatchObject({fuelReserveStatus: 'safe', fuelReserveNeeded: 4, fuelReserveMargin: 46});
+    expect(game.sync()).toMatchObject({fuelReserveStatus: 'safe', fuelReserveNeeded: 3, fuelReserveMargin: 47, fuelReserveExit: 'Home'});
 
-    game.state.player.fuel = 4.5;
+    game.state.player.fuel = 3;
     expect(game.sync().fuelReserveStatus).toBe('caution');
 
-    game.state.player.fuel = 3.3;
+    game.state.player.fuel = 2;
     expect(game.sync()).toMatchObject({fuelReserveStatus: 'urgent', fuelReserveMargin: 0});
   });
 
   it('has nothing to reserve at the home base and gives up once the ship is disabled', () => {
     const game = setup();
     game.state.player.fuel = 12;
-    expect(game.sync()).toMatchObject({fuelReserveStatus: 'safe', fuelReserveNeeded: 0, fuelReserveMargin: 12});
+    expect(game.sync()).toMatchObject({fuelReserveStatus: 'safe', fuelReserveNeeded: 0, fuelReserveMargin: 12, fuelReserveExit: 'Home'});
 
     game.descend(10);
     game.state.gameOver = true;
     expect(game.sync().fuelReserveStatus).toBe('urgent');
+  });
+
+  it('prices the reserve to a nearer portal, and follows a rename and a lift', () => {
+    const {game, portal} = withPortal(HOME_X, 77);
+    game.descend(80);
+    game.state.player.fuel = 10;
+
+    // Three rows under the portal, it is by far the cheaper way home.
+    const toPortal = fuelExitCost(HOME_X, START_Y + 80, portal);
+    expect(game.sync()).toMatchObject({
+      fuelReserveStatus: 'safe',
+      fuelReserveNeeded: Math.ceil(toPortal),
+      fuelReserveExit: 'Portal "Deep"'
+    });
+
+    portal.name = 'Shaft';
+    expect(game.sync().fuelReserveExit).toBe('Portal "Shaft"');
+
+    // The Construction Toolkit lifts it: the forecast falls back to the climb home.
+    game.state.stations = game.state.stations.filter(station => station !== portal);
+    expect(game.sync()).toMatchObject({fuelReserveStatus: 'urgent', fuelReserveExit: 'Home'});
+  });
+
+  it('weighs the trip across the mine, not just the climb', () => {
+    const {game} = withPortal(3, 20, 'West');
+    game.descend(20);
+
+    // Level with the portal and a tile from it: jumping home from there is cheapest.
+    game.state.player.x = 4;
+    expect(game.sync().fuelReserveExit).toBe('Portal "West"');
+
+    // Same row, but under the home cavern: the climb beats the long flight across.
+    game.state.player.x = HOME_X;
+    expect(game.sync().fuelReserveExit).toBe('Home');
+  });
+
+  it('ignores a portal buried in rock, and every field portal once home has none', () => {
+    const {game, portal} = withPortal(HOME_X, 77);
+    game.grid.put(portal.x, portal.y, {type: 'rock', hp: 999});
+    game.descend(80);
+    expect(game.sync().fuelReserveExit).toBe('Home');
+
+    const open = withPortal(HOME_X, 77);
+    open.game.state.stations = open.game.state.stations.filter(station => station.kind !== 'portal' || station === open.portal);
+    open.game.descend(80);
+    expect(open.game.sync().fuelReserveExit).toBe('Home');
   });
 });
 
@@ -171,15 +245,13 @@ describe('depth landmark tracker', () => {
     expect(game.toasts.messages).toEqual([]);
     expect(game.audio.played).toEqual([]);
 
-    game.descend(3);
-    expect(game.sync()).toMatchObject({depthTarget: 'Copper', depthTargetKind: 'ore', depthTargetRemaining: 30});
+    expect(game.fly(3)).toMatchObject({depthTarget: 'Copper', depthTargetKind: 'ore', depthTargetRemaining: 30});
     expect(game.toasts.messages).toHaveLength(1);
     expect(game.toasts.last).toContain('Depth 30 m');
     expect(game.audio.played).toEqual(['milestone']);
 
     game.sync();
-    game.descend(3);
-    game.sync();
+    game.fly(5);
     expect(game.toasts.messages).toHaveLength(1);
     expect(game.audio.played).toEqual(['milestone']);
   });
@@ -187,45 +259,84 @@ describe('depth landmark tracker', () => {
   it('does not re-announce a seam after stowing at home and diving again', () => {
     const game = setup();
     game.sync();
-    game.descend(3);
-    game.sync();
+    game.fly(3);
 
-    game.descend(0);
-    expect(game.sync().depthTargetKind).toBe('starter');
-    game.descend(3);
-    game.sync();
+    expect(game.fly(0).depthTargetKind).toBe('starter');
+    game.fly(3);
 
     expect(game.toasts.messages).toHaveLength(1);
   });
 
-  it('re-arms the announcements for the replacement ship after a death', () => {
+  it('stays silent for the replacement ship after a death: the count is the career', () => {
     const game = setup();
     game.sync();
-    game.descend(3);
-    game.sync();
+    game.fly(3);
 
     game.state.gameOver = true;
     game.sync();
     game.state.gameOver = false;
     game.descend(0);
     game.sync();
-    game.descend(3);
-    game.sync();
+    game.fly(3);
 
+    expect(game.toasts.messages).toHaveLength(1);
+    // A seam no ship has reached yet still announces.
+    game.fly(6);
     expect(game.toasts.messages).toHaveLength(2);
+    expect(game.toasts.last).toContain('Depth 60 m');
   });
 
-  it('re-arms on an explicit reset too', () => {
+  it('keeps a returning career quiet down to its depth record', () => {
+    const game = setup();
+    // A reloaded save: fresh readouts, but the record of an earlier session.
+    game.state.stats.maxDepth = 40;
+    game.sync();
+    game.fly(3);
+    expect(game.toasts.messages).toEqual([]);
+
+    game.fly(6);
+    expect(game.toasts.messages).toHaveLength(1);
+    expect(game.toasts.last).toContain('Depth 60 m');
+  });
+
+  it('only re-anchors after a portal jump, then announces the next seam dived past', () => {
     const game = setup();
     game.sync();
+
+    // Straight from home to 50 m in one frame: past the starter seam, but no dive.
+    game.descend(5);
+    expect(game.sync()).toMatchObject({depthTarget: 'Copper', depthTargetRemaining: 10});
+    expect(game.toasts.messages).toEqual([]);
+    expect(game.audio.played).toEqual([]);
+
+    game.fly(6);
+    expect(game.toasts.messages).toHaveLength(1);
+    expect(game.toasts.last).toContain('Depth 60 m');
+  });
+
+  it('treats a jump across the mine as travel even when it lands one row down', () => {
+    const game = setup();
+    game.sync();
+    game.fly(2);
+
+    // A portal twenty columns over, one row deeper, on the starter seam.
+    game.state.player.x = HOME_X - 20;
     game.descend(3);
     game.sync();
+    expect(game.toasts.messages).toEqual([]);
+  });
 
+  it('re-arms on a wiped profile', () => {
+    const game = setup();
+    game.sync();
+    game.fly(3);
+
+    // resetPlayer zeroes the stats; the readouts are reset alongside.
     game.readouts.reset();
+    game.state.stats.maxDepth = 0;
     game.descend(0);
     game.sync();
-    game.descend(3);
-    game.sync();
+    game.fly(3);
 
     expect(game.toasts.messages).toHaveLength(2);
   });

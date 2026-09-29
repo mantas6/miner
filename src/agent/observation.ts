@@ -303,7 +303,12 @@ export interface AgentObservation {
      * is already in reach (then `stationHint` names it).
      */
     postHint: string;
-    fuelReserve: {status: FuelReserveStatus; needed: number; margin: number};
+    /**
+     * The return forecast, priced to the cheapest exit: `exit` is `Home` or a
+     * field portal to jump home from (`Portal "Deep"`), `needed` the fuel the
+     * trip there costs and `margin` what is left after it.
+     */
+    fuelReserve: {status: FuelReserveStatus; needed: number; margin: number; exit: string};
     depthTarget: {name: string; kind: DepthMilestoneKind; remaining: number};
     stationHint: string;
     teleport: {count: number; usable: boolean};
@@ -686,7 +691,12 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       objective: hud.objective,
       scanner: hud.scanner,
       postHint: hud.postHint,
-      fuelReserve: {status: hud.fuelReserveStatus, needed: hud.fuelReserveNeeded, margin: hud.fuelReserveMargin},
+      fuelReserve: {
+        status: hud.fuelReserveStatus,
+        needed: hud.fuelReserveNeeded,
+        margin: hud.fuelReserveMargin,
+        exit: hud.fuelReserveExit
+      },
       depthTarget: {name: hud.depthTarget, kind: hud.depthTargetKind, remaining: hud.depthTargetRemaining},
       stationHint: hud.stationHint,
       teleport: {count: hud.teleport.count, usable: hud.teleport.usable},

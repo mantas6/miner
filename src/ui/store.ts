@@ -14,7 +14,7 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand/react';
 import { getDepthMilestone, type DepthMilestoneKind } from '../core/depth-milestone';
-import { type FuelReserveStatus } from '../core/fuel-reserve';
+import { HOME_FUEL_EXIT, fuelExitLabel, type FuelReserveStatus } from '../core/fuel-reserve';
 import { formatExpeditionObjective } from '../core/objective';
 import { formatTerrainScanner } from '../core/scanner';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
@@ -74,10 +74,12 @@ export interface HudSnapshot {
   baseFuel: number;
   baseCoal: number;
   baseAlert: boolean;
-  /** Return-fuel forecast for the climb home. */
+  /** Return-fuel forecast for the trip to the cheapest exit, home or a portal. */
   fuelReserveStatus: FuelReserveStatus;
   fuelReserveNeeded: number;
   fuelReserveMargin: number;
+  /** That exit, as the gauge names it: `Home` or `Portal "Deep"`. */
+  fuelReserveExit: string;
   /** Next depth landmark: its name, kind, and how much deeper it is. */
   depthTarget: string;
   depthTargetKind: DepthMilestoneKind;
@@ -99,7 +101,7 @@ const HUD_KEYS = [
   'atSurface', 'gameOver', 'stationHint',
   'hasBase', 'baseFuel', 'baseCoal', 'baseAlert',
   'scanner', 'postHint', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
-  'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
+  'fuelReserveExit', 'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
 
 /** One trading post the player has seen, as the Prospecting tab lists it. */
@@ -404,6 +406,7 @@ function initialHud(): HudSnapshot {
     fuelReserveStatus: 'safe',
     fuelReserveNeeded: 0,
     fuelReserveMargin: Math.floor(player.fuel),
+    fuelReserveExit: fuelExitLabel(HOME_FUEL_EXIT),
     depthTarget: milestone.target,
     depthTargetKind: milestone.kind,
     depthTargetRemaining: milestone.remainingMeters,
