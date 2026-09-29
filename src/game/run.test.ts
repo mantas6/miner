@@ -51,7 +51,7 @@ function harness(): Harness {
     x: 12, y: 60, drawX: 12, drawY: 60,
     fuel: 30, hull: 25,
     // Fitted upgrades set the maxima mid-run; a death strips them back to base.
-    equipment: ['upgrade:tank:1', 'upgrade:cargo:1'],
+    equipment: ['upgrade:tank:1', 'upgrade:cargo:1', null],
     // Ore to lose with the ship, and equipment that survives it.
     inventory: addItem(
       addOre(addOre(createInventory(), nth(ORES, 0), 99)!, nth(ORES, 1), 99)!,
@@ -155,7 +155,7 @@ describe('restarting after a death', () => {
       hull: STARTING.hullMax,
       cargoMax: STARTING.cargoMax
     });
-    expect(h.state.player.equipment).toEqual([null, null]);
+    expect(h.state.player.equipment).toEqual([null, null, null]);
     // Bay equipment is not cargo: the replacement ship keeps the teleporter.
     expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
     expect(countOres(h.state.player.inventory)).toBe(0);
@@ -304,7 +304,7 @@ describe('wrecks dropped on restart', () => {
     const h = harness();
     // Strip the ore and unfit every upgrade, leaving only surviving bay equipment.
     h.state.player.inventory = createInventory();
-    h.state.player.equipment = [null, null];
+    h.state.player.equipment = [null, null, null];
     h.run.gameOver();
 
     h.run.restartGame();

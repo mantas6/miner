@@ -11,7 +11,7 @@ import { STATION_DEVICE, createPortal, type PortalStation } from './core/station
 import { EXTRACTOR } from './core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { DECOR_HP, HOME_X, MAX_SAVED_TILE_ENTRIES, ORES, START_Y, WORLD_W } from '../shared/constants';
+import { DECOR_HP, HOME_X, MAX_SAVED_TILE_ENTRIES, ORES, SHIP_UPGRADE_SLOTS, START_Y, WORLD_W } from '../shared/constants';
 import { chestsInRange } from './world/world';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
@@ -275,22 +275,37 @@ describe('equipment persistence', () => {
   it('round-trips the fitted upgrade slots', () => {
     const stored = stubStorage();
     const state = createInitialState();
-    state.player.equipment = ['upgrade:tank:1', 'upgrade:drill:3'];
+    state.stats.bestMarkCrafted = 2;
+    state.player.equipment = ['upgrade:tank:1', 'upgrade:drill:3', 'upgrade:hull:1'];
 
     save(state);
 
-    expect(readSave(stored)).toMatchObject({version: SAVE_VERSION, equipment: ['upgrade:tank:1', 'upgrade:drill:3']});
+    expect(readSave(stored)).toMatchObject({
+      version: SAVE_VERSION,
+      equipment: ['upgrade:tank:1', 'upgrade:drill:3', 'upgrade:hull:1']
+    });
 
     const restored = createInitialState();
     load(restored);
-    expect(restored.player.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:3']);
+    expect(restored.player.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:3', 'upgrade:hull:1']);
     // The four maxima and the boost flag are derived from the fitted slots on load,
-    // not stored: Tank Mk I adds +50 fuel, Drill Mk III adds +4.
+    // not stored: Tank Mk I adds +50 fuel, Drill Mk III +3.5, Hull Mk I +50.
     expect(restored.player.fuelMax).toBe(150);
-    expect(restored.player.drill).toBe(5);
+    expect(restored.player.drill).toBe(4.5);
     expect(restored.player.cargoMax).toBe(20);
-    expect(restored.player.hullMax).toBe(100);
+    expect(restored.player.hullMax).toBe(150);
     expect(restored.player.boost).toBe(false);
+  });
+
+  it('sets the maxima on load without carrying the fit-time bonus over to fuel or hull', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:tank:2', 'upgrade:hull:2']});
+    const state = createInitialState();
+    state.player.fuel = 40;
+    state.player.hull = 30;
+
+    load(state);
+
+    expect(state.player).toMatchObject({fuelMax: 200, hullMax: 200, fuel: 40, hull: 30});
   });
 
   it('raises the boost flag on load when a booster is fitted', () => {
@@ -304,13 +319,36 @@ describe('equipment persistence', () => {
     expect(state.player.cargoMax).toBe(40);
   });
 
-  it('keeps only real, catalogued upgrades and only the first two slots', () => {
-    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:hull:2', 'upgrade:booster:1', 'upgrade:tank:3']});
+  it('pads a two-slot save out to every slot', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:drill:1', null]});
     const state = createInitialState();
 
     load(state);
 
-    expect(state.player.equipment).toEqual(['upgrade:hull:2', 'upgrade:booster:1']);
+    expect(state.player.equipment).toEqual(['upgrade:drill:1', null, null]);
+    expect(state.player.equipment).toHaveLength(SHIP_UPGRADE_SLOTS);
+  });
+
+  it('keeps only real, catalogued upgrades and only as many slots as the ship has', () => {
+    stubStorage({
+      version: SAVE_VERSION,
+      equipment: ['upgrade:hull:2', 'upgrade:booster:1', 'upgrade:tank:3', 'upgrade:drill:1'],
+      stats: {bestMarkCrafted: 2}
+    });
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.player.equipment).toEqual(['upgrade:hull:2', 'upgrade:booster:1', 'upgrade:tank:3']);
+  });
+
+  it('leaves the locked third slot empty when the career has not crafted a Mk II', () => {
+    stubStorage({version: SAVE_VERSION, equipment: ['upgrade:hull:2', 'upgrade:booster:1', 'upgrade:tank:3'], stats: {bestMarkCrafted: 1}});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.player.equipment).toEqual(['upgrade:hull:2', 'upgrade:booster:1', null]);
   });
 
   it('drops a non-upgrade, an uncatalogued tier, and a nonsense slot to null', () => {
@@ -320,7 +358,7 @@ describe('equipment persistence', () => {
     load(state);
 
     // Slot 0 is a consumable, slot 1 is a mark the catalog does not hold.
-    expect(state.player.equipment).toEqual([null, null]);
+    expect(state.player.equipment).toEqual([null, null, null]);
   });
 });
 
@@ -948,6 +986,20 @@ describe('terrain persistence', () => {
     const restored = createInitialState();
     load(restored);
     expect(restored.tileDiff).toEqual(state.tileDiff);
+  });
+
+  it('round-trips the fractional hp a fractional drill leaves behind', () => {
+    const stored = stubStorage();
+    const chipped: TileEntry = { x: 47, y: 61, tile: { type: 'dirt', hp: 6.25, maxHp: 9 } };
+    const state = createInitialState();
+    state.tileDiff = createTileDiff([chipped]);
+
+    save(state);
+    expect(readSave(stored)).toMatchObject({ tiles: [chipped] });
+
+    const restored = createInitialState();
+    load(restored);
+    expect(tileDiffEntries(restored.tileDiff)).toEqual([chipped]);
   });
 
   it('round-trips a placed decoration tile with its durability', () => {

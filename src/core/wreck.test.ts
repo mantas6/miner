@@ -22,13 +22,13 @@ import { nth } from '../test-narrowing';
 const COPPER: Ore = {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1};
 const IRON: Ore = {name: 'Iron', color: '#b7c3d0', value: 5, min: 0, max: 900, chance: 1};
 
-/** A minimal player carrying `ore` copper and the two fitted upgrades below. */
+/** A minimal player carrying `ore` copper and the three fitted upgrades below. */
 function player(overrides: Partial<Player> = {}): Pick<Player, 'x' | 'y' | 'inventory' | 'equipment'> {
   return {
     x: 20,
     y: 80,
     inventory: addItem(addOre(createInventory(), COPPER, 50)!, oreItem(IRON), 3),
-    equipment: ['upgrade:tank:1', 'upgrade:drill:2'],
+    equipment: ['upgrade:tank:1', 'upgrade:drill:2', 'upgrade:hull:1'],
     ...overrides
   } as Pick<Player, 'x' | 'y' | 'inventory' | 'equipment'>;
 }
@@ -40,12 +40,18 @@ describe('buildWreckInventory', () => {
     expect(countOres(inventory)).toBe(4); // 1 copper + 3 iron
     expect(countItem(inventory, 'upgrade:tank:1')).toBe(1);
     expect(countItem(inventory, 'upgrade:drill:2')).toBe(1);
+    expect(countItem(inventory, 'upgrade:hull:1')).toBe(1);
+  });
+
+  it('holds a full bay at three best Cargo Holds plus one item per fitted slot', () => {
+    // 20 base + 3 × 40 from Cargo Hold Mk III, and the three holds themselves.
+    expect(WRECK.capacity).toBe(20 + 3 * 40 + 3);
   });
 
   it('leaves non-ore bay equipment out — that rides out with the miner', () => {
     const p = player({
       inventory: addItem(addOre(createInventory(), COPPER, 50)!, oreItem(IRON), 1),
-      equipment: [null, null]
+      equipment: [null, null, null]
     });
     // Add a teleporter to the bay: it survives a death, so it is not wreck loot.
     p.inventory = addItem(p.inventory, {kind: 'teleporter', label: 'Teleporter', color: '#72d9ff', value: 0});
@@ -57,7 +63,7 @@ describe('buildWreckInventory', () => {
   });
 
   it('is empty for a ship with no ore and no upgrades', () => {
-    expect(buildWreckInventory({inventory: createInventory(), equipment: [null, null]})).toEqual([]);
+    expect(buildWreckInventory({inventory: createInventory(), equipment: [null, null, null]})).toEqual([]);
   });
 });
 

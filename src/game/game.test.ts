@@ -233,7 +233,7 @@ describe('booting the game', () => {
 
   it('empties the fitted-slot display when a replacement ship deploys', () => {
     // Stand in for a run that fitted an upgrade: the store still paints it.
-    act(() => { uiStore.getState().setShipEquipment(buildShipSlots(['upgrade:tank:1', null])); });
+    act(() => { uiStore.getState().setShipEquipment(buildShipSlots(['upgrade:tank:1', null, null], 0)); });
     expect(uiStore.getState().shipEquipment.some(slot => slot.kind !== null)).toBe(true);
 
     // R twice confirms a redeploy; the wreck takes the fitted upgrades with it, so

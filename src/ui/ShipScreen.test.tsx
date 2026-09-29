@@ -19,12 +19,12 @@ const pristineCommands = {...uiCommands};
 
 const COPPER = {name: 'Copper', color: '#c87a3a', value: 8, min: 0, max: 900, chance: 1};
 
-function open(): HTMLDialogElement {
+function open(bestMarkCrafted = 1): HTMLDialogElement {
   const rendered = render(<ShipScreen />);
   act(() => {
     const store = uiStore.getState();
-    // One tank fitted in slot 0, slot 1 empty.
-    store.setShipEquipment(buildShipSlots(['upgrade:tank:1', null]));
+    // One tank fitted in slot 0, slot 1 empty, slot 2 locked until a Mk II is crafted.
+    store.setShipEquipment(buildShipSlots(['upgrade:tank:1', null, null], bestMarkCrafted));
     // The bay holds an upgrade stack and an ore stack; only the upgrade shows here.
     store.setInventorySlots(buildInventorySlots(
       addItem(addItem(createInventory(), itemForKind('upgrade:cargo:2'), 3), oreItem(COPPER), 4)
@@ -45,16 +45,28 @@ afterEach(() => {
 });
 
 describe('ship equipment dialog', () => {
-  it('opens as a modal on the close button, painting the fitted slot and the empty one', () => {
+  it('opens as a modal on the close button, painting the fitted slot, the empty one and the locked one', () => {
     const dialog = open();
 
     expect(dialog.open).toBe(true);
     expect(document.activeElement?.id).toBe('shipCloseBtn');
 
     const slots = [...document.querySelectorAll('#shipSlots > li')];
-    expect(slots).toHaveLength(2);
+    expect(slots).toHaveLength(3);
     expect(nth(slots, 0).textContent).toContain('Fuel Tank Mk I');
     expect(nth(slots, 1).textContent).toContain('Empty');
+    expect(nth(slots, 2).textContent).toContain('Locked — craft a Mk II upgrade');
+    expect(document.querySelector('[data-ship-slot="2"]')?.hasAttribute('data-locked')).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('[data-ship-unequip="2"]')!.disabled).toBe(true);
+  });
+
+  it('opens the third slot once a Mk II has been crafted', () => {
+    open(2);
+
+    const third = nth([...document.querySelectorAll('#shipSlots > li')], 2);
+    expect(third.textContent).toContain('Empty');
+    expect(third.textContent).not.toContain('Locked');
+    expect(document.querySelector('[data-ship-slot="2"]')?.hasAttribute('data-locked')).toBe(false);
   });
 
   it('lists only the upgrade stacks aboard, never the ore', () => {

@@ -517,19 +517,31 @@ eight around it, and only once it is explored.
 
 ### Crafting & ship equipment
 
-- The ship carries **2 equipment slots** (`SHIP_UPGRADE_SLOTS`). Fit and unfit
-  crafted upgrades from the bay through the **Ship** button, which opens anywhere.
-  The four stat upgrades come in three marks and their bonuses are additive, so two
-  of the same upgrade stack; duplicates in both slots are allowed
-  (`src/core/ship-upgrades.ts`):
+- The ship carries **3 equipment slots** (`SHIP_UPGRADE_SLOTS`); the third stays
+  **locked** ("Locked — craft a Mk II upgrade") until any Mk II upgrade has been
+  crafted (`stats.bestMarkCrafted >= 2`), so the first Mk II is an addition rather
+  than a trade against a Mk I. Fit and unfit crafted upgrades from the bay through
+  the **Ship** button, which opens anywhere; a fit lands in the first empty open
+  slot and never in a locked one. The four stat upgrades come in three marks and
+  their bonuses are additive, so duplicates stack (`src/core/ship-upgrades.ts`):
 
   | Upgrade | Effect | Mk I | Mk II | Mk III |
   |---|---|---|---|---|
   | Fuel Tank | +fuel capacity | +50 | +100 | +200 |
   | Cargo Hold | +cargo capacity | +10 | +20 | +40 |
-  | Drill | +drill power | +1 | +2 | +4 |
+  | Drill | +drill power | +0.75 | +1.75 | +3.5 |
   | Hull Plating | +hull capacity | +50 | +100 | +200 |
   | Booster | enables the `Shift` sprint | — | — | — |
+
+  Drill bonuses are fractional so no mark is a dead zone: a single drill takes
+  9-hp dirt in 9 / 6 / 4 / 2 hits (bare, Mk I, Mk II, Mk III), and a tile's hp
+  can be left fractional between hits (it saves as-is).
+  Fitting a Fuel Tank or Hull Plating moves the current fuel or hull by the same
+  amount as its maximum — a Tank Mk I fitted adds 50 fuel once, and unfitting it
+  takes the 50 back, so an unfit/refit is neutral. A fit, unfit or swap that would
+  leave less than 1 fuel or hull is refused ("Not enough fuel to purge that
+  tank."). A save's fitted slots only set the maxima on load; a save written with
+  two slots loads padded to three.
 
   The Booster is Mk I only and carries no stat: it is the gate on the `Shift`
   sprint, which does nothing until one is fitted.
@@ -903,7 +915,7 @@ what a sighted player sees, as JSON. The top-level shape:
 - `hud`: `{cash, objective, scanner, postHint, fuelReserve{status, needed, margin, exit}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `fuelReserve` prices the flight to the cheapest exit, which `exit` names (`"Home"` or a field portal such as `"Portal \"Deep\""`): `needed` is the fuel that trip costs and `margin` what is left after it; `postHint` is the trading-post beacon (`"Trading post ≈9 tiles ↙"` for the nearest post within 12 tiles, fog ignored; empty when none is near or one is already in reach); `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank, and `null` with no extractor in the home cavern
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a grave has none)
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores, posts[{x, y, depth}]}` (`posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (slots `[{index, kind, label, locked, info}]` — `locked` the third slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores, posts[{x, y, depth}]}` (`posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
@@ -1015,7 +1027,7 @@ the boot flow gets from the splash to a live run without the browser complaining
 | `e2e/dialogs.spec.ts` | Ship, station and info dialogs opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the ship and info overlays handing the screen over rather than stacking. |
 | `e2e/focus-visible.spec.ts` | The ring drawn for `Tab` (3px, and inset on the canvas) and gone for a click that moves focus, including the focus a clicked-shut dialog restores. |
 | `e2e/failure.spec.ts` | A refused 2D context — stubbed with an init script — surfacing as the "Mine offline" notice with its detail line, its `role="alert"` and a working Reload, while the crash boundary stays out of it. |
-| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; then every info tab by `data-info-section`, the Settings flags and cheat grant, the `+`/`-` zoom and the inventory fold; plus the craft → take → fit/unfit, extractor load-coal/refuel, container store/take, dynamite arm-and-plant, trading, wreck, chest, grave, portal, toolkit and save export/import flows. |
+| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; then every info tab by `data-info-section`, the Settings flags and cheat grant, the `+`/`-` zoom and the inventory fold; plus the craft → take → fit/unfit (fuel carried with the tank, third slot locked until a Mk II craft opens it), extractor load-coal/refuel, container store/take, dynamite arm-and-plant, trading, wreck, chest, grave, portal, toolkit and save export/import flows. |
 
 Two notes on how the suite is wired:
 

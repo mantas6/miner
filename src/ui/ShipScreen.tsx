@@ -1,9 +1,10 @@
 // The ship equipment screen.
 //
 // Two lists, one rule each. On top, the fitting slots: every slot is a row that
-// either names the upgrade it holds — with an Unfit button — or reads "Empty".
+// either names the upgrade it holds — with an Unfit button — or reads "Empty"; the
+// last slot reads "Locked — craft a Mk II upgrade" until one has been crafted.
 // Below, the upgrades sitting in the cargo bay, each with a Fit button that drops
-// it into the first free slot (or swaps into the first slot when both are full).
+// it into the first free open slot (or swaps into the first slot when all are full).
 //
 // Both lists are painted from the store and both are live: the slots come from a
 // snapshot the game pushes on open and after every change, and the bay upgrades
@@ -71,13 +72,15 @@ function ShipCard() {
 
 /**
  * One fitting slot. A filled slot carries the upgrade's tooltip (and is focusable
- * for it); an empty slot has nothing to describe, so it stays a plain, un-hovered row.
+ * for it); an empty slot has nothing to describe, so it stays a plain, un-hovered
+ * row — and a locked one reads what opens it, its Unfit button disabled like an
+ * empty slot's.
  */
 function FittingSlot({slot}: {slot: ShipSlotView}) {
   if (!slot.kind) {
     return (
       <li>
-        <div className={styles.slot} data-ship-slot={slot.index}>
+        <div className={styles.slot} data-ship-slot={slot.index} data-locked={slot.locked || undefined}>
           <span className={styles.icon} aria-hidden="true" />
           <span className={styles.emptyLabel}>{slot.label}</span>
           <button

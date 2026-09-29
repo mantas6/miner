@@ -24,7 +24,11 @@ describe('describeItem', () => {
   });
 
   it('describes an upgrade with its fitted bonus', () => {
-    expect(describeItem('upgrade:drill:3').lines.join(' ')).toContain('+4 drill power');
+    // Fractional drill bonuses read as plain decimals, whole ones without zeros.
+    expect(describeItem('upgrade:drill:1').lines).toContain('+0.75 drill power when fitted.');
+    expect(describeItem('upgrade:drill:2').lines).toContain('+1.75 drill power when fitted.');
+    expect(describeItem('upgrade:drill:3').lines).toContain('+3.5 drill power when fitted.');
+    expect(describeItem('upgrade:tank:1').lines).toContain('+50 max fuel when fitted.');
     expect(describeItem('upgrade:booster:1').lines.join(' ')).toContain('sprint');
   });
 

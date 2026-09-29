@@ -64,8 +64,10 @@ const POST = firstTradingPost();
 const seedTradingPost = seedSaveScript({
   x: POST.x, y: POST.y,
   cash: 100,
-  // Fitted at the post, it grows the tank without filling it: room to buy fuel.
+  // Fitted at the post, the tank grows and its fuel with it; one drill hit into
+  // the tough dirt seeded under the post burns the room to buy fuel back.
   bay: [{kind: 'upgrade:tank:1', count: 1}],
+  tiles: [{x: POST.x, y: POST.y + 1, tile: {type: 'dirt', hp: 9, maxHp: 9}}],
   stations: [{kind: 'manufacturer', x: POST.x + 1, y: POST.y, items: [{kind: 'ore:Iron', count: 10}]}]
 });
 
@@ -166,6 +168,19 @@ const seedWorkshop = seedSaveScript({
   stations: [
     {...WORKBENCHES[0], items: [{kind: 'ore:Iron', count: 4}, {kind: 'ore:Copper', count: 2}, {kind: 'ore:Coal', count: 3}]},
     {...WORKBENCHES[1], fuel: 40}
+  ]
+});
+
+/**
+ * A two-slot save — the shape the build before the third slot wrote — with both
+ * slots fitted and the manufacturer stocked for one Mk II (3 Silver, 3 Gold). It
+ * must still load, padded to three slots, with the third locked until the craft.
+ */
+const seedMarkTwo = seedSaveScript({
+  equipment: ['upgrade:drill:1', 'upgrade:tank:1'],
+  stations: [
+    {...WORKBENCHES[0], items: [{kind: 'ore:Silver', count: 3}, {kind: 'ore:Gold', count: 3}]},
+    WORKBENCHES[1]
   ]
 });
 
@@ -422,24 +437,37 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     obs = await s.press('Escape');
     expect(obs.activeOverlay).toBeNull();
 
-    // Fit it from the Ship screen: the tank grows, and the fuel does not.
-    const fuelMaxBefore = obs.ship.fuelMax;
+    // One drill hit on the 2-hp hatch under the spawn burns a little fuel without
+    // breaking through, so the extractor below has room to pour into.
+    obs = await s.press('ArrowDown');
+    expect(obs.ship.y).toBe(HOME_ROW);
+    expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
+
+    // Fit it from the Ship screen: the tank grows, and the fuel grows with it by
+    // the same 50. The third slot stays locked — no Mk II has been crafted.
+    const {fuel: fuelBeforeFit, fuelMax: fuelMaxBefore} = obs.ship;
     obs = await s.click('shipBtn');
     if (obs.overlay?.kind !== 'ship') throw new Error('ship overlay expected');
     expect(obs.overlay.fittable.map(slot => slot.kind)).toContain('upgrade:tank:1');
+    expect(obs.overlay.slots.map(slot => slot.locked)).toEqual([false, false, true]);
+    expect(nth(obs.overlay.slots, 2).label).toBe('Locked — craft a Mk II upgrade');
     obs = await s.click({target: 'data-ship-equip', value: 'upgrade:tank:1'});
     if (obs.overlay?.kind !== 'ship') throw new Error('ship overlay expected');
     const fitted = obs.overlay.slots.find(slot => slot.kind === 'upgrade:tank:1');
     if (!fitted) throw new Error('the tank should be fitted');
+    expect(fitted.locked).toBe(false);
     expect(obs.ship.equipment[fitted.index]).toBe('upgrade:tank:1');
-    expect(obs.ship.fuelMax).toBeGreaterThan(fuelMaxBefore);
+    expect(obs.ship.fuelMax).toBe(fuelMaxBefore + 50);
+    expect(obs.ship.fuel).toBeCloseTo(fuelBeforeFit + 50);
 
-    // Unfit it by slot index, then fit it again.
+    // Unfit it by slot index — the 50 fuel goes with it — then fit it again.
     obs = await s.click({target: 'data-ship-unequip', value: String(fitted.index)});
     expect(obs.ship.equipment).not.toContain('upgrade:tank:1');
     expect(countKind(obs.bay, 'upgrade:tank:1')).toBe(1);
+    expect(obs.ship.fuel).toBeCloseTo(fuelBeforeFit);
     obs = await s.click({target: 'data-ship-equip', value: 'upgrade:tank:1'});
     expect(obs.ship.equipment).toContain('upgrade:tank:1');
+    expect(obs.ship.fuel).toBeCloseTo(fuelBeforeFit + 50);
     obs = await s.click('shipCloseBtn');
     expect(obs.activeOverlay).toBeNull();
     expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
@@ -471,6 +499,41 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     // A queued coal may convert during the click, adding its own fuel on top.
     expect(obs.overlay.fuel).toBeGreaterThanOrEqual(storedBefore + order.amount);
     expect(obs.hud.cash).toBe(cashBeforeOrder - order.cost);
+  } finally {
+    await s.close();
+  }
+});
+
+test('a two-slot save pads to three, and crafting a Mk II unlocks the third slot for the next fit', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedMarkTwo});
+  try {
+    let obs = await s.startRun();
+    expect(obs.ship.equipment).toEqual(['upgrade:drill:1', 'upgrade:tank:1', null]);
+    expect(obs.stats.bestMarkCrafted).toBe(0);
+
+    obs = await s.click('shipBtn');
+    if (obs.overlay?.kind !== 'ship') throw new Error('ship overlay expected');
+    expect(obs.overlay.slots.map(slot => slot.locked)).toEqual([false, false, true]);
+    obs = await s.click('shipCloseBtn');
+
+    // Craft a Drill Mk II and take it aboard: the career's best mark reaches 2.
+    obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    obs = await s.click({target: 'data-craft', value: 'upgrade:drill:2'});
+    expect(obs.stats.bestMarkCrafted).toBe(2);
+    obs = await s.click({target: 'data-station', value: 'take', kind: 'upgrade:drill:2'});
+    expect(countKind(obs.bay, 'upgrade:drill:2')).toBe(1);
+    obs = await s.press('Escape');
+
+    // The third slot is open now, so the fit lands there instead of swapping slot 0.
+    obs = await s.click('shipBtn');
+    if (obs.overlay?.kind !== 'ship') throw new Error('ship overlay expected');
+    expect(obs.overlay.slots.map(slot => slot.locked)).toEqual([false, false, false]);
+    expect(nth(obs.overlay.slots, 2).label).toBe('Empty');
+    obs = await s.click({target: 'data-ship-equip', value: 'upgrade:drill:2'});
+    expect(obs.ship.equipment).toEqual(['upgrade:drill:1', 'upgrade:tank:1', 'upgrade:drill:2']);
+    // Base 1 + Mk I 0.75 + Mk II 1.75.
+    expect(obs.ship.drill).toBe(3.5);
   } finally {
     await s.close();
   }
@@ -542,10 +605,15 @@ test('a trading post buys ore for cash, fills the tank for cash, and sells its s
     expect(obs.ship.x).toBe(POST.x);
     expect(obs.ship.y).toBe(POST.y);
 
-    // Fit the tank aboard: the tank grows and the fuel does not, leaving room to buy.
+    // Fit the tank aboard: it grows by 50 and so does the fuel, still full.
     obs = await s.click('shipBtn');
     obs = await s.click({target: 'data-ship-equip', value: 'upgrade:tank:1'});
     obs = await s.click('shipCloseBtn');
+    expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
+    // One drill hit into the floor burns a little fuel — room to buy — and leaves
+    // the ship where it is.
+    obs = await s.press('ArrowDown');
+    expect(obs.ship).toMatchObject({x: POST.x, y: POST.y});
     expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
 
     // The post sits under the ship; take iron aboard from the neighbouring station.

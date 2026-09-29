@@ -22,6 +22,7 @@ import { createInitialState } from '../core/state';
 import { formatExpeditionStats, type ExpeditionStatRow } from '../core/stats';
 import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
+import { isSlotLocked } from '../core/ship-upgrades';
 import { shouldBaseAlert } from '../core/hud-alerts';
 import { homeExtractor, manufacturerStock } from '../core/stations';
 import { sellPrice } from '../core/trading';
@@ -215,7 +216,12 @@ export interface ShipSlotView {
   label: string;
   /** Swatch colour; transparent for an empty slot. */
   color: string;
+  /** The slot is still locked (no Mk II crafted yet): nothing fits and nothing unfits. */
+  locked: boolean;
 }
+
+/** The label a locked fitting slot reads, naming what opens it. */
+export const LOCKED_SLOT_LABEL = 'Locked — craft a Mk II upgrade';
 
 /**
  * The modal overlay covering the mine, and everything it paints. Exactly one of
@@ -499,7 +505,7 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 export const uiStore = createStore<UiState>((set, get) => ({
   hud: initialHud(),
   inventorySlots: buildInventorySlots(createInventory()),
-  shipEquipment: buildShipSlots(initialState.player.equipment),
+  shipEquipment: buildShipSlots(initialState.player.equipment, initialState.stats.bestMarkCrafted),
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   postRows: [],
@@ -667,12 +673,16 @@ export function buildInventorySlots(inventory: Inventory): InventorySlotView[] {
   }));
 }
 
-/** Paint the ship's fitting slots for the Ship screen; empty slots read "Empty". */
-export function buildShipSlots(equipment: readonly (UpgradeKind | null)[]): ShipSlotView[] {
+/**
+ * Paint the ship's fitting slots for the Ship screen; empty slots read "Empty",
+ * and a slot `isSlotLocked` still holds shut reads `LOCKED_SLOT_LABEL`.
+ */
+export function buildShipSlots(equipment: readonly (UpgradeKind | null)[], bestMarkCrafted: number): ShipSlotView[] {
   return equipment.map((kind, index) => {
-    if (!kind) return {index, kind: null, label: 'Empty', color: 'transparent'};
+    const locked = isSlotLocked(index, bestMarkCrafted);
+    if (!kind) return {index, kind: null, label: locked ? LOCKED_SLOT_LABEL : 'Empty', color: 'transparent', locked};
     const item = itemForKind(kind);
-    return {index, kind, label: item.label, color: item.color};
+    return {index, kind, label: item.label, color: item.color, locked};
   });
 }
 

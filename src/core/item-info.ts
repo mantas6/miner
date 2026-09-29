@@ -49,8 +49,14 @@ function assertNever(value: never): never {
   throw new Error(`Undescribed item kind: ${String(value)}`);
 }
 
+/** A bonus as the tooltip prints it: "0.75", "3.5", "50" — at most two decimals, no trailing zeros. */
+function formatBonus(bonus: number): string {
+  return String(Math.round(bonus * 100) / 100);
+}
+
 /** How each upgrade family words the stat it grows. */
-function upgradeEffectLine(id: UpgradeId, bonus: number): string {
+function upgradeEffectLine(id: UpgradeId, value: number): string {
+  const bonus = formatBonus(value);
   switch (id) {
     case 'tank': return `+${bonus} max fuel when fitted.`;
     case 'cargo': return `+${bonus} cargo capacity when fitted.`;

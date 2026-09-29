@@ -39,7 +39,7 @@ import { REVEAL_FOOTPRINT } from '../core/balance';
 import type { Inventory, InventoryItemKind, UpgradeKind } from '../core/inventory';
 import type { Epitaph } from '../core/grave';
 import { isHomeStation, stationDeviceItemKind, type ManufacturerStation } from '../core/stations';
-import { equip, unequip } from '../core/ship-upgrades';
+import { equip, firstFittingSlot, unequip } from '../core/ship-upgrades';
 import { isPlaceableKind } from '../core/placement-overlay';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
 import { DYNAMITE_ITEM } from '../core/dynamite';
@@ -283,13 +283,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     else containers.openNearest();
   }
 
-  /** The slot a fit lands in when none is given: the first empty one, else slot 0. */
-  function firstFittingSlot(){
-    const empty = state.player.equipment.findIndex(slot => slot === null);
-    return empty === -1 ? 0 : empty;
-  }
   function equipUpgrade(kind: UpgradeKind, slot?: number){
-    const result = equip(state.player, slot ?? firstFittingSlot(), kind);
+    const best = state.stats.bestMarkCrafted;
+    const result = equip(state.player, slot ?? firstFittingSlot(state.player.equipment, best), kind, best);
     if (!result.ok) { audio.alarm(); return toast(result.reason); }
     scheduleSave();
     uiSync.syncShipUpgrades();

@@ -134,6 +134,11 @@ export interface AgentShipSlot {
   index: number;
   kind: UpgradeKind | null;
   label: string;
+  /**
+   * Still locked (no Mk II crafted yet, `stats.bestMarkCrafted < 2`): its unequip
+   * button is disabled and `data-ship-equip` never fits into it.
+   */
+  locked: boolean;
   /** The fitted upgrade's tooltip lines; empty for a vacant slot. */
   info: string[];
 }
@@ -439,6 +444,7 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
           index: slot.index,
           kind: slot.kind,
           label: slot.label,
+          locked: slot.locked,
           info: slot.kind ? describeItem(slot.kind).lines : []
         })),
         fittable: toSlotsWithInfo(ui.inventorySlots.filter(slot => isUpgradeKind(slot.kind)))

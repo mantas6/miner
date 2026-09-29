@@ -17,7 +17,7 @@ const player = {
   fuel: STARTING.fuel,
   fuelMax: STARTING.fuelMax,
   cargoMax: STARTING.cargoMax,
-  equipment: [null, null] as (UpgradeKind | null)[]
+  equipment: [null, null, null] as (UpgradeKind | null)[]
 };
 
 const empty = createInventory();
@@ -49,7 +49,7 @@ function rowAt(meters: number): number {
 }
 
 /** A career past its first upgrade, every earlier rung satisfied: the depth rung is what is left. */
-const upgraded = {...player, equipment: ['upgrade:tank:1', null] as (UpgradeKind | null)[]};
+const upgraded = {...player, equipment: ['upgrade:tank:1', null, null] as (UpgradeKind | null)[]};
 const veteran: ObjectiveInput = {
   player: upgraded,
   cargoCount: 0,
@@ -148,7 +148,7 @@ describe('expedition objective helper', () => {
   it('points players with an upgrade fitted toward the next ore band', () => {
     expect(nextOreMilestone(80)).toEqual({ name: 'Silver', depthMeters: 600 });
     expect(formatExpeditionObjective({
-      player: { ...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null] },
+      player: { ...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null, null] },
       cargoCount: 0,
       atSurface: false,
       bay: empty,
@@ -232,7 +232,7 @@ describe('memoised expedition objective', () => {
    */
   it('agrees with the pure formatter on every frame of a run', () => {
     const format = createExpeditionObjectiveFormatter();
-    const ship = {...player, equipment: [null, null] as (UpgradeKind | null)[]};
+    const ship = {...player, equipment: [null, null, null] as (UpgradeKind | null)[]};
     const input: ObjectiveInput = {player: ship, cargoCount: 0, atSurface: true, bay: empty, station: createInventory()};
     const frames: string[] = [];
     const check = () => {
@@ -309,7 +309,7 @@ describe('memoised expedition objective', () => {
     input.postsFound = 1;
     check();
     // Unfitting leaves an upgrade in the bay (a new bay array), then nowhere.
-    ship.equipment = [null, null];
+    ship.equipment = [null, null, null];
     input.bay = addItem(createInventory(), {kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', color: '#000', value: 0});
     check();
     input.bay = empty;

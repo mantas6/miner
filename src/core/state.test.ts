@@ -67,6 +67,6 @@ describe('player respawn', () => {
     expect(countOres(player.inventory)).toBe(0);
     // Ore gone, the two bay equipment stacks remain, and every fitting slot empties.
     expect(player.inventory).toHaveLength(2);
-    expect(player.equipment).toEqual([null, null]);
+    expect(player.equipment).toEqual([null, null, null]);
   });
 });

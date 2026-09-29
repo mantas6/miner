@@ -195,7 +195,7 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
     sync,
     syncInfoDetails,
     syncShipUpgrades() {
-      uiStore.getState().setShipEquipment(buildShipSlots(state.player.equipment));
+      uiStore.getState().setShipEquipment(buildShipSlots(state.player.equipment, state.stats.bestMarkCrafted));
     }
   };
 }

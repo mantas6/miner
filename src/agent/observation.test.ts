@@ -13,7 +13,7 @@ import { createPlacedContainer } from '../core/cargo-container';
 import { createWreck } from '../core/wreck';
 import { createScannerDevice } from '../core/scanner-device';
 import { createPlacedDynamite } from '../core/dynamite';
-import { uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
+import { buildShipSlots, uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
 import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
@@ -802,6 +802,26 @@ describe('buildObservation', () => {
     if (overlay?.kind !== 'ship') throw new Error('expected ship overlay');
     expect(overlay.fittable.map(slot => slot.kind)).toEqual(['upgrade:drill:1']);
     expect(overlay.slots.length).toBe(state.player.equipment.length);
+  });
+
+  it('marks the third fitting slot locked until a Mk II has been crafted', () => {
+    const state = createInitialState();
+    const slots = (bestMarkCrafted: number) => {
+      const overlay = buildObservation({
+        state,
+        ui: ui({overlay: {kind: 'ship'}, shipEquipment: buildShipSlots(['upgrade:tank:1', null, null], bestMarkCrafted)}),
+        get: tileSource({})
+      }).overlay;
+      if (overlay?.kind !== 'ship') throw new Error('expected ship overlay');
+      return overlay.slots;
+    };
+
+    expect(slots(1)).toEqual([
+      {index: 0, kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', locked: false, info: expect.arrayContaining(['+50 max fuel when fitted.'])},
+      {index: 1, kind: null, label: 'Empty', locked: false, info: []},
+      {index: 2, kind: null, label: 'Locked — craft a Mk II upgrade', locked: true, info: []}
+    ]);
+    expect(nth(slots(2), 2)).toMatchObject({label: 'Empty', locked: false});
   });
 
   it('mirrors the armed station device and toolkit, like any other armed tool', () => {

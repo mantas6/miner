@@ -13,6 +13,7 @@
 // This module is where ship upgrades live now: the old cash-priced shop upgrades
 // (`core/upgrades.ts`) were removed with the shop.
 
+import { SHIP_UPGRADE_SLOTS } from '../../shared/constants';
 import { STARTING } from './balance';
 import {
   addItem,
@@ -29,7 +30,34 @@ import type { Player } from './types';
 
 // Re-export rather than redefine: the slot count is a persistence-shaped constant
 // that lives in `shared/constants.ts`, but it belongs to this module's vocabulary.
-export { SHIP_UPGRADE_SLOTS } from '../../shared/constants';
+export { SHIP_UPGRADE_SLOTS };
+
+/**
+ * The mark `stats.bestMarkCrafted` must reach before the last fitting slot opens:
+ * crafting any Mk II upgrade unlocks it, so the first Mk II is an addition to the
+ * loadout rather than a trade against the Mk I it would otherwise replace.
+ */
+export const SLOT_UNLOCK_MARK = 2;
+
+/** How many fitting slots are open, given the best mark ever crafted. */
+export function unlockedSlotCount(bestMarkCrafted: number): number {
+  return bestMarkCrafted >= SLOT_UNLOCK_MARK ? SHIP_UPGRADE_SLOTS : SHIP_UPGRADE_SLOTS - 1;
+}
+
+/** Whether `slot` is still locked — the last one, before any Mk II has been crafted. */
+export function isSlotLocked(slot: number, bestMarkCrafted: number): boolean {
+  return slot >= unlockedSlotCount(bestMarkCrafted);
+}
+
+/**
+ * The slot a fit lands in when none is named: the first empty open slot, else
+ * slot 0 (a swap). A locked slot is never picked.
+ */
+export function firstFittingSlot(equipment: readonly (UpgradeKind | null)[], bestMarkCrafted: number): number {
+  const open = Math.min(equipment.length, unlockedSlotCount(bestMarkCrafted));
+  for (let slot = 0; slot < open; slot++) if (equipment[slot] === null) return slot;
+  return 0;
+}
 
 /** Which derived stat an upgrade family adds to; `null` for the boost-only booster. */
 type UpgradeStat = 'fuelMax' | 'hullMax' | 'cargoMax' | 'drill' | null;
@@ -49,7 +77,10 @@ interface UpgradeEffect {
 export const UPGRADE_EFFECTS: Record<UpgradeId, UpgradeEffect> = {
   tank: {stat: 'fuelMax', bonuses: [50, 100, 200]},
   cargo: {stat: 'cargoMax', bonuses: [10, 20, 40]},
-  drill: {stat: 'drill', bonuses: [1, 2, 4]},
+  // Fractional so every mark cuts the hit count on the dirt of its depth band:
+  // single-slot power 1 / 1.75 / 2.75 / 4.5 takes 9-hp dirt in 9 / 6 / 4 / 2 hits.
+  // Every bonus is a multiple of 1/4, so drill hp arithmetic stays exact in floats.
+  drill: {stat: 'drill', bonuses: [0.75, 1.75, 3.5]},
   hull: {stat: 'hullMax', bonuses: [50, 100, 200]},
   booster: {stat: null, bonuses: [0]}
 };
@@ -94,9 +125,11 @@ export function computeStats(equipment: readonly (UpgradeKind | null)[]): Derive
 
 /**
  * Recompute the ship's derived stats from its fitted equipment, in place. Fuel and
- * hull are clamped to their (possibly reduced) maxima, so unfitting a tank or hull
- * upgrade cannot leave a ship holding more than the smaller tank can. Returns the
- * same `player`, so callers can chain.
+ * hull are only clamped to their (possibly reduced) maxima, never topped up: this
+ * is the load / respawn path, which sets the maxima for a loadout it restores.
+ * A fit or unfit goes through `equip` / `unequip`, which carry the change in each
+ * maximum over to the current fuel and hull as well. Returns the same `player`,
+ * so callers can chain.
  */
 export function applyEquipment(player: Player): Player {
   const stats = computeStats(player.equipment);
@@ -112,6 +145,35 @@ export function applyEquipment(player: Player): Player {
 
 /** The outcome of an equip/unequip: success, or a refusal the caller can toast. */
 export type EquipResult = {ok: true} | {ok: false; reason: string};
+
+/** The current fuel and hull a loadout change leaves, or the refusal it earns. */
+type VitalsAfter = {ok: true; fuel: number; hull: number} | {ok: false; reason: string};
+
+/**
+ * Carry a loadout change over to the current fuel and hull: each moves by the
+ * same amount its maximum does, so fitting a Fuel Tank Mk I adds its 50 fuel
+ * once and unfitting it takes the 50 back — an unfit/refit cycle is neutral. A
+ * change that would drain either below 1 is refused rather than emptying the
+ * tank or breaking the hull on the spot.
+ */
+function vitalsAfter(player: Player, nextEquipment: readonly (UpgradeKind | null)[]): VitalsAfter {
+  const next = computeStats(nextEquipment);
+  const fuelDelta = next.fuelMax - player.fuelMax;
+  const hullDelta = next.hullMax - player.hullMax;
+  const fuel = player.fuel + fuelDelta;
+  const hull = player.hull + hullDelta;
+  if (fuelDelta < 0 && fuel < 1) return {ok: false, reason: 'Not enough fuel to purge that tank.'};
+  if (hullDelta < 0 && hull < 1) return {ok: false, reason: 'Not enough hull to strip that plating.'};
+  return {ok: true, fuel: Math.min(fuel, next.fuelMax), hull: Math.min(hull, next.hullMax)};
+}
+
+/** Commit a loadout change: slots, derived stats, then the carried-over vitals. */
+function commitLoadout(player: Player, nextEquipment: (UpgradeKind | null)[], vitals: {fuel: number; hull: number}): void {
+  player.equipment = nextEquipment;
+  applyEquipment(player);
+  player.fuel = vitals.fuel;
+  player.hull = vitals.hull;
+}
 
 /**
  * Whether the upgrade in `slot` can be taken off. Removing it hands the item back
@@ -138,11 +200,15 @@ function bayAfterEquip(inventory: Inventory, kind: UpgradeKind, previous: Upgrad
 /**
  * Fit `kind` into `slot`, moving one unit out of the bay. A slot that was already
  * occupied hands its upgrade back to the bay; the swap is refused when the smaller
- * post-swap `cargoMax` could not hold it. Mutates `player` (bay, slots, derived
- * stats) on success; changes nothing on refusal.
+ * post-swap `cargoMax` could not hold it, when `slot` is still locked
+ * (`isSlotLocked` against `bestMarkCrafted`), and when swapping a tank or plating
+ * out would drain the fuel or hull below 1 (`vitalsAfter`). Mutates `player`
+ * (bay, slots, derived stats, fuel and hull) on success; changes nothing on
+ * refusal.
  */
-export function equip(player: Player, slot: number, kind: UpgradeKind): EquipResult {
+export function equip(player: Player, slot: number, kind: UpgradeKind, bestMarkCrafted: number): EquipResult {
   if (slot < 0 || slot >= player.equipment.length) return {ok: false, reason: 'No such upgrade slot.'};
+  if (isSlotLocked(slot, bestMarkCrafted)) return {ok: false, reason: 'That slot is locked — craft a Mk II upgrade to open it.'};
   if (countItem(player.inventory, kind) <= 0) return {ok: false, reason: 'That upgrade is not in the cargo bay.'};
   // `slot` was bounds-checked above, so the fallback only reads an empty slot as one.
   const previous = player.equipment[slot] ?? null;
@@ -153,16 +219,18 @@ export function equip(player: Player, slot: number, kind: UpgradeKind): EquipRes
   if (totalItems(bay) > cargoMax) {
     return {ok: false, reason: 'Cargo bay has no room to swap that upgrade out.'};
   }
+  const vitals = vitalsAfter(player, nextEquipment);
+  if (!vitals.ok) return vitals;
   player.inventory = bay;
-  player.equipment = nextEquipment;
-  applyEquipment(player);
+  commitLoadout(player, nextEquipment, vitals);
   return {ok: true};
 }
 
 /**
  * Take the upgrade in `slot` off and drop it back into the bay. Refused when the
- * slot is empty, or when `canUnequip` says the bay could not hold the returned
- * upgrade at the reduced capacity.
+ * slot is empty, when `canUnequip` says the bay could not hold the returned
+ * upgrade at the reduced capacity, and when the smaller tank or hull would leave
+ * less than 1 fuel or hull (`vitalsAfter`).
  */
 export function unequip(player: Player, slot: number): EquipResult {
   const kind = player.equipment[slot];
@@ -170,8 +238,9 @@ export function unequip(player: Player, slot: number): EquipResult {
   if (!canUnequip(player, slot)) return {ok: false, reason: 'Cargo bay is too full to unfit that upgrade.'};
   const nextEquipment = player.equipment.slice();
   nextEquipment[slot] = null;
-  player.equipment = nextEquipment;
+  const vitals = vitalsAfter(player, nextEquipment);
+  if (!vitals.ok) return vitals;
   player.inventory = addItem(player.inventory, itemForKind(kind));
-  applyEquipment(player);
+  commitLoadout(player, nextEquipment, vitals);
   return {ok: true};
 }

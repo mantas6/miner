@@ -56,9 +56,11 @@ export function isHomeCavern(x: number, y: number): boolean {
 /**
  * Fitting slots the ship carries its equipped upgrades in. Duplicates are allowed
  * and bonuses stack; `applyEquipment` reads these slots to derive the
- * ship's stats. Persisted as a fixed-length `equipment` array.
+ * ship's stats. Persisted as a fixed-length `equipment` array; a shorter saved
+ * array (a save from the two-slot build) is padded with empty slots on load. The
+ * last slot stays locked until a Mk II upgrade has been crafted (`isSlotLocked`).
  */
-export const SHIP_UPGRADE_SLOTS = 2;
+export const SHIP_UPGRADE_SLOTS = 3;
 
 // Keep row-major exploration indexes exact within JavaScript's safe integers.
 export const MAX_WORLD_ROW = Math.floor(Number.MAX_SAFE_INTEGER / WORLD_W) - 1;

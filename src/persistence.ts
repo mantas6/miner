@@ -24,7 +24,7 @@ import { SCANNER_DEVICE, type ScannerDevice } from './core/scanner-device';
 import { WRECK, createWreck, type Wreck } from './core/wreck';
 import { chestKey, ledgerStacks } from './core/chest';
 import { chestAt } from './world/world';
-import { applyEquipment } from './core/ship-upgrades';
+import { applyEquipment, isSlotLocked } from './core/ship-upgrades';
 import { createDefaultStats } from './core/state';
 import { BEST_MARK_MAX } from './core/stats';
 import {
@@ -237,12 +237,18 @@ function isSavedItemKind(kind: string): boolean {
   return ORES.some(ore => ore.name === name);
 }
 
-/** The fitted upgrades, one slot each, dropping anything that is not a real upgrade. */
-function parseEquipment(value: unknown): (UpgradeKind | null)[] {
+/**
+ * The fitted upgrades, one slot each, dropping anything that is not a real
+ * upgrade. A shorter array — a save from the two-slot build — is padded with
+ * empty slots, and a slot the career has not unlocked yet (`isSlotLocked`) comes
+ * back empty: the game never fits one, so only a hand-edited save could.
+ */
+function parseEquipment(value: unknown, bestMarkCrafted: number): (UpgradeKind | null)[] {
   const slots: (UpgradeKind | null)[] = Array.from({length: SHIP_UPGRADE_SLOTS}, () => null);
   if (!Array.isArray(value)) return slots;
   for (let i = 0; i < SHIP_UPGRADE_SLOTS && i < value.length; i++) {
     const kind = value[i];
+    if (isSlotLocked(i, bestMarkCrafted)) continue;
     if (typeof kind === 'string' && isCatalogKind(kind) && isUpgradeKind(kind)) {
       slots[i] = kind;
     }
@@ -412,7 +418,7 @@ function parseProgress(raw: string | null, state: GameState): StagedProgress | n
   stats.bestMarkCrafted = Math.min(BEST_MARK_MAX, Math.floor(stats.bestMarkCrafted));
   return {
     cash: numeric(save.cash, state.cash, 0),
-    equipment: parseEquipment(save.equipment),
+    equipment: parseEquipment(save.equipment, stats.bestMarkCrafted),
     // The bay comes back one stack at a time; ore is never among it, so a fresh run
     // starts with only the equipment the last one carried.
     bay: parseKindCountStacks(save.bay, isCatalogKind),
@@ -449,7 +455,9 @@ export function load(state: GameState): void {
   state.cash = staged.cash;
   // The four ship stats are derived from fitted equipment, not stored: restore
   // the fitted slots and the bay, then `applyEquipment` recomputes `fuelMax`/
-  // `hullMax`/`cargoMax`/`drill` and `boost` from them.
+  // `hullMax`/`cargoMax`/`drill` and `boost` from them. It only clamps the
+  // current fuel and hull — the fit-time delta `equip` carries over is never
+  // re-applied here, so a reload restores maxima without granting fuel.
   p.equipment = staged.equipment;
   p.inventory = staged.bay;
   applyEquipment(p);
