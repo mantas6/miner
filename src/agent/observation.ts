@@ -215,8 +215,15 @@ export interface AgentInfoOverlay {
   objective?: {status: string; cargo: {name: string; count: number; value: number}[]};
   /** Stats: the saved career rows. */
   stats?: ExpeditionStatRow[];
-  /** Prospecting: the tip and every ore's value and depth band. */
-  prospecting?: {tip: string; ores: {name: string; value: string; depth: string}[]};
+  /**
+   * Prospecting: the tip, every ore's value and depth band, and the trading posts
+   * found so far (explored post tiles, shallowest first; depth in metres).
+   */
+  prospecting?: {
+    tip: string;
+    ores: {name: string; value: string; depth: string}[];
+    posts: {x: number; y: number; depth: number}[];
+  };
   /** Hazards: the tip and the survival guide. */
   hazards?: {tip: string; rows: DangerGuideRow[]};
   /** Controls: every row of the controls list, keys as plain text. */
@@ -290,6 +297,12 @@ export interface AgentObservation {
     cash: number;
     objective: string;
     scanner: string;
+    /**
+     * The trading-post beacon under the scanner line: "Trading post ≈9 tiles ↙" for
+     * the nearest post within 12 tiles (fog ignored); empty when none is near or one
+     * is already in reach (then `stationHint` names it).
+     */
+    postHint: string;
     fuelReserve: {status: FuelReserveStatus; needed: number; margin: number};
     depthTarget: {name: string; kind: DepthMilestoneKind; remaining: number};
     stationHint: string;
@@ -487,7 +500,8 @@ function buildInfoOverlay(ui: UiState): AgentInfoOverlay {
     case 'info-prospecting':
       overlay.prospecting = {
         tip: PROSPECTING_TIP,
-        ores: buildProspectingGuideRows().map(row => ({name: row.name, value: row.valueLabel, depth: row.depthLabel}))
+        ores: buildProspectingGuideRows().map(row => ({name: row.name, value: row.valueLabel, depth: row.depthLabel})),
+        posts: ui.postRows.map(row => ({x: row.x, y: row.y, depth: row.depthMeters}))
       };
       break;
     case 'info-hazards':
@@ -671,6 +685,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       cash: hud.cash,
       objective: hud.objective,
       scanner: hud.scanner,
+      postHint: hud.postHint,
       fuelReserve: {status: hud.fuelReserveStatus, needed: hud.fuelReserveNeeded, margin: hud.fuelReserveMargin},
       depthTarget: {name: hud.depthTarget, kind: hud.depthTargetKind, remaining: hud.depthTargetRemaining},
       stationHint: hud.stationHint,

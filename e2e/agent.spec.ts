@@ -70,6 +70,19 @@ const seedTradingPost = seedSaveScript({
 });
 
 /**
+ * The ship four rows straight above that post, in a dug-out tile with dirt under
+ * it so it sits still: out of trading reach, inside the beacon's twelve tiles.
+ */
+const seedAbovePost = seedSaveScript({
+  x: POST.x, y: POST.y - 4,
+  tiles: [
+    {x: POST.x, y: POST.y - 4, tile: {type: 'air'}},
+    {x: POST.x, y: POST.y - 3, tile: {type: 'dirt', hp: 2, maxHp: 2}}
+  ],
+  stations: WORKBENCHES
+});
+
+/**
  * The ship at the home base with a Drill Mk I fitted to its hull. Ore is never
  * persisted, so the fitted upgrade is the deterministic thing a reset will strip
  * into a wreck — exactly the loot the salvage path has to hand back. Only the two
@@ -306,6 +319,8 @@ test.describe.serial('agent harness', () => {
       for (const [tab, key] of Object.entries(field)) {
         expect(obs.overlay[key] === undefined, `${key} on ${section.id}`).toBe(tab !== section.id);
       }
+      // One tile below the home cavern no trading post has been seen yet.
+      if (section.id === 'info-prospecting') expect(obs.overlay.prospecting?.posts).toEqual([]);
     }
     if (obs.overlay?.kind !== 'info' || !obs.overlay.objective) throw new Error('the objective tab expected last');
     expect(obs.overlay.objective.status.length).toBeGreaterThan(0);
@@ -568,6 +583,31 @@ test('a trading post buys ore for cash, fills the tank for cash, and sells its s
     expect(countKind(obs.bay, offer.kind)).toBeGreaterThanOrEqual(1);
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
     expect(obs.overlay.buy[0]?.stock).toBe(offer.stock - 1);
+    await s.press('Escape');
+
+    // Parked on it, the post is in reach: the beacon is quiet and Space names it.
+    expect(obs.hud.postHint).toBe('');
+    expect(obs.hud.stationHint).toBe('Space: Trading Post');
+
+    // The Prospecting tab lists the post as found, with its depth in metres.
+    await s.click('infoBtn');
+    obs = await s.click({target: 'data-info-section', value: 'info-prospecting'});
+    if (obs.overlay?.kind !== 'info' || !obs.overlay.prospecting) throw new Error('prospecting tab expected');
+    expect(obs.overlay.prospecting.posts).toContainEqual({x: POST.x, y: POST.y, depth: (POST.y - HOME_ROW) * 10});
+  } finally {
+    await s.close();
+  }
+});
+
+test('the trading-post beacon points at a post out of reach, through the fog', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedAbovePost});
+  try {
+    const obs = await s.startRun();
+    expect(obs.ship.x).toBe(POST.x);
+    expect(obs.ship.y).toBe(POST.y - 4);
+    // The post itself is still fogged, but the beacon hears it: four tiles, straight down.
+    expect(obs.hud.postHint).toBe('Trading post ≈4 tiles ↓');
+    expect(obs.hud.stationHint).toBe('');
   } finally {
     await s.close();
   }

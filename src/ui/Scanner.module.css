@@ -18,6 +18,14 @@
 .scanner[hidden] {
   display: none;
 }
+/* The trading-post beacon: a second, quieter line under the terrain readout. */
+.postHint {
+  margin-top: 2px;
+  color: #ffe39a;
+}
+.postHint[hidden] {
+  display: none;
+}
 
 @media (max-width: 760px) {
   .scanner {

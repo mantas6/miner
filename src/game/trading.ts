@@ -24,13 +24,10 @@ import {
 } from '../core/inventory';
 import { tileKey } from '../../shared/tile-key';
 import { itemForKind } from '../core/items';
-import { fuelPurchase, fuelUnitPrice, offersForPost, remainingStock, sellPrice } from '../core/trading';
+import { TRADING_POST_REACH, fuelPurchase, fuelUnitPrice, offersForPost, remainingStock, sellPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
 import type { TradeOfferView } from '../ui/store';
 import { tradingPostAt, type TradingPost } from '../world/world';
-
-/** How far a ship may stand from a post and still trade: Chebyshev ≤ 1, its own tile too. */
-export const TRADING_POST_REACH = 1;
 
 /**
  * The post a ship at (x,y) would open with no tile named — the keyboard's answer:

@@ -16,6 +16,7 @@ import { setUiCommands, uiCommands } from './commands';
 import common from './common.module.css';
 import { activeOverlayId, buildInventorySlots, uiStore, type HudSnapshot } from './store';
 import { MinerApp } from './ui';
+import { NO_POSTS_FOUND } from '../core/post-beacon';
 import { defined, nth } from '../test-narrowing';
 import { emptyOverlay } from '../test-overlays';
 
@@ -44,7 +45,7 @@ const INFO_CONTRACT = ['info-card', 'infoCloseBtn', 'objectiveInfoStatus', 'carg
 /** The remaining panel ids, and the tab that mounts each of them. */
 const INFO_TAB_CONTRACT = [
   {tabId: 'info-tab-stats', ids: ['expeditionStats']},
-  {tabId: 'info-tab-prospecting', ids: ['prospectingGuide']},
+  {tabId: 'info-tab-prospecting', ids: ['prospectingGuide', 'prospectingPosts']},
   {tabId: 'info-tab-hazards', ids: ['dangerGuide']},
   {tabId: 'info-tab-settings', ids: ['settingsMusicBtn', 'settingsSfxBtn', 'exportSaveBtn', 'importSaveFileInput', 'importSaveText', 'importSaveBtn', 'resetGameBtn']}
 ];
@@ -473,6 +474,20 @@ describe('store-driven HUD', () => {
     expect(scanner.hidden).toBe(true);
   });
 
+  it('adds the trading-post beacon as a second scanner line only while a post is near', () => {
+    render(<MinerApp />);
+    const hint = document.getElementById('postHint') as HTMLElement;
+    expect(hint.hidden).toBe(true);
+
+    patchHud({scanner: 'Scanner ↓: dirt — drillable, 3 hits.', postHint: 'Trading post ≈9 tiles ↙'});
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toBe('Trading post ≈9 tiles ↙');
+    expect(document.getElementById('scanner')?.textContent).toBe('Scanner ↓: dirt — drillable, 3 hits.Trading post ≈9 tiles ↙');
+
+    patchHud({postHint: ''});
+    expect(hint.hidden).toBe(true);
+  });
+
   it('raises the fuel banner for a dry tank or a climb it can no longer pay for', () => {
     render(<MinerApp />);
     const banner = document.getElementById('fuel-warning') as HTMLElement;
@@ -741,6 +756,26 @@ describe('info dialog tabs', () => {
 
     fireEvent.keyDown(document.activeElement!, {key: 'End'});
     expect(document.activeElement?.id).toBe('info-tab-settings');
+  });
+});
+
+describe('prospecting tab', () => {
+  function openProspecting(): void {
+    render(<MinerApp />);
+    act(() => { uiStore.getState().showOverlay(emptyOverlay('info')); });
+    act(() => { fireEvent.click(document.getElementById('info-tab-prospecting')!); });
+  }
+
+  it('lists the trading posts found, or says where the next will turn up', () => {
+    openProspecting();
+    const list = document.getElementById('prospectingPosts') as HTMLElement;
+    expect(list.textContent).toBe(NO_POSTS_FOUND);
+
+    act(() => {
+      uiStore.getState().setPostRows([{x: 43, y: 67, depthMeters: 470}, {x: 8, y: 140, depthMeters: 1200}]);
+    });
+    const rows = [...list.querySelectorAll('li')].map(row => row.textContent);
+    expect(rows).toEqual(['470 mx 43, y 67', '1,200 mx 8, y 140']);
   });
 });
 

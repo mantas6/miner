@@ -25,6 +25,7 @@ import { itemForKind } from '../core/items';
 import { shouldBaseAlert } from '../core/hud-alerts';
 import { homeExtractor, manufacturerStock } from '../core/stations';
 import { sellPrice } from '../core/trading';
+import type { DiscoveredTradingPost } from '../core/post-beacon';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import type { Epitaph } from '../core/grave';
 import { DEFAULT_INFO_TAB, type InfoTab } from './info-navigation';
@@ -59,6 +60,12 @@ export interface HudSnapshot {
   /** Adjacent drill/flight target readout, refreshed when the target changes. */
   scanner: string;
   /**
+   * The trading-post beacon, the scanner's second line: "Trading post ≈9 tiles ↙"
+   * for the nearest post within `TRADING_POST_HINT_RADIUS`, fog or not; empty when
+   * none is that near or one is already in reach (`stationHint` names it then).
+   */
+  postHint: string;
+  /**
    * The base's fuel supply: whether an extractor still stands in the home cavern,
    * its stored fuel (whole units) and queued coal, and whether the two together
    * could no longer fill one tank (`shouldBaseAlert`).
@@ -91,9 +98,12 @@ const HUD_KEYS = [
   'fuelAlert', 'hullAlert', 'cargoAlert', 'objective',
   'atSurface', 'gameOver', 'stationHint',
   'hasBase', 'baseFuel', 'baseCoal', 'baseAlert',
-  'scanner', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
+  'scanner', 'postHint', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
+
+/** One trading post the player has seen, as the Prospecting tab lists it. */
+export type TradingPostRow = DiscoveredTradingPost;
 
 export interface CargoRow {
   name: string;
@@ -270,6 +280,8 @@ export interface UiState {
   shipEquipment: ShipSlotView[];
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
+  /** The trading posts found so far, shallowest first (Info → Prospecting). */
+  postRows: TradingPostRow[];
   /** The overlay covering the mine, with its contents, or `null`. */
   overlay: ActiveOverlay;
   infoTab: InfoTab;
@@ -323,6 +335,7 @@ export interface UiState {
   setShipEquipment(slots: ShipSlotView[]): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
+  setPostRows(rows: TradingPostRow[]): void;
   /**
    * Show one overlay with its contents, replacing whatever was up; `null` closes
    * them all. Republishing the overlay already up with unchanged contents writes
@@ -386,6 +399,8 @@ function initialHud(): HudSnapshot {
     // Nothing has been scanned before the first frame, which is exactly what the
     // scanner says about terrain it has not mapped yet.
     scanner: formatTerrainScanner({tile: {type: 'air'}, direction: [0, 1], explored: false}),
+    // The home cavern is far above the shallowest post, so the beacon starts silent.
+    postHint: '',
     fuelReserveStatus: 'safe',
     fuelReserveNeeded: 0,
     fuelReserveMargin: Math.floor(player.fuel),
@@ -422,6 +437,14 @@ function sameCargoRows(a: CargoRow[], b: CargoRow[]): boolean {
   return a.every((row, index) => {
     const other = b[index];
     return other !== undefined && row.name === other.name && row.count === other.count && row.value === other.value && row.color === other.color;
+  });
+}
+
+function samePostRows(a: TradingPostRow[], b: TradingPostRow[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((row, index) => {
+    const other = b[index];
+    return other !== undefined && row.x === other.x && row.y === other.y && row.depthMeters === other.depthMeters;
   });
 }
 
@@ -476,6 +499,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   shipEquipment: buildShipSlots(initialState.player.equipment),
   cargoRows: [],
   statRows: formatExpeditionStats({}),
+  postRows: [],
   overlay: null,
   infoTab: DEFAULT_INFO_TAB,
   saveExport: null,
@@ -518,6 +542,11 @@ export const uiStore = createStore<UiState>((set, get) => ({
   setStatRows(rows) {
     if (sameStatRows(get().statRows, rows)) return;
     set({statRows: rows});
+  },
+
+  setPostRows(rows) {
+    if (samePostRows(get().postRows, rows)) return;
+    set({postRows: rows});
   },
 
   showOverlay(overlay) {

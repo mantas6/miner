@@ -4,14 +4,15 @@
 // not to allocate when nothing moved: the HUD is filled into a reused scratch
 // snapshot that the store copies only when a field changed, the objective text is
 // rebuilt only when its inputs moved, and the inventory panel's and Info screen's
-// rows are rebuilt only when the bay (replaced on every change) or the stats (bumped
-// in place, so compared field by field) actually changed.
+// rows are rebuilt only when the bay (replaced on every change), the stats (bumped
+// in place, so compared field by field) or the explored map actually changed.
 
 import { rowDepthMeters } from '../../shared/constants';
 import { FUEL } from '../core/balance';
 import { shouldBaseAlert, shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
 import { countItem, totalItems, type Inventory } from '../core/inventory';
 import { createExpeditionObjectiveFormatter, type ObjectiveInput } from '../core/objective';
+import { discoveredTradingPosts } from '../core/post-beacon';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { isAtHome } from '../core/state';
 import { homeExtractor, manufacturerStock } from '../core/stations';
@@ -33,7 +34,7 @@ export interface UiSyncDeps {
 export interface UiSync {
   /** Publish this frame's UI state. */
   sync(): void;
-  /** Rebuild the Info screen's cargo and stat rows if they moved; `force` rebuilds regardless. */
+  /** Rebuild the Info screen's cargo, stat and trading-post rows if they moved; `force` rebuilds regardless. */
   syncInfoDetails(force?: boolean): void;
   /** Push the current fitting slots for the Ship screen to paint. */
   syncShipUpgrades(): void;
@@ -65,12 +66,30 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
       && stats.enemiesDestroyed === infoStatValues.enemiesDestroyed
       && stats.deaths === infoStatValues.deaths;
   }
+  /**
+   * The posts found only change when the map grows (a tile explored) or the search
+   * floor drops (a deeper record, or the ship's row). The explored set only ever
+   * gains tiles in place, so its size stands in for its contents; a reset hands
+   * back a fresh set.
+   */
+  let postsExplored: ReadonlySet<number> | null = null;
+  let postsExploredSize = -1;
+  let postsMaxDepth = -1;
+  let postsShipY = NaN;
   function syncInfoDetails(force = false): void {
     const store = uiStore.getState();
     const {inventory} = state.player;
     if (force || inventory !== infoInventory) {
       infoInventory = inventory;
       store.setCargoRows(buildCargoRows(inventory));
+    }
+    if (force || state.exploredTiles !== postsExplored || state.exploredTiles.size !== postsExploredSize
+      || state.stats.maxDepth !== postsMaxDepth || state.player.y !== postsShipY) {
+      postsExplored = state.exploredTiles;
+      postsExploredSize = state.exploredTiles.size;
+      postsMaxDepth = state.stats.maxDepth;
+      postsShipY = state.player.y;
+      store.setPostRows(discoveredTradingPosts(state));
     }
     if (force || !statsUnchanged(state.stats)) {
       infoStats = state.stats;

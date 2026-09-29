@@ -31,6 +31,9 @@ import { itemForKind } from './items';
 import { oreKind, type InventoryItemKind } from './inventory';
 import { rand } from '../world/world';
 
+/** How far a ship may stand from a post and still trade: Chebyshev ≤ 1, its own tile too. */
+export const TRADING_POST_REACH = 1;
+
 /** A post is a middleman: it sells finished gear for more than the ore to make it. */
 export const TRADING_MARKUP = 1.5;
 

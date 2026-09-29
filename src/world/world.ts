@@ -55,8 +55,12 @@ export interface TradingPost {
 
 /** Side of the square chunk trading-post placement is rolled per. */
 export const TRADING_POST_CHUNK = 32;
-/** Chance a qualifying chunk holds a post (~12%); tuned for an 8–16% band. */
-export const TRADING_POST_CHANCE = 0.12;
+/**
+ * Chance a qualifying chunk holds a post (30%): with under three chunk columns across
+ * the mine that is about one post per 40 rows, so a steady dive meets its first
+ * well inside the first thousand metres.
+ */
+export const TRADING_POST_CHANCE = 0.3;
 /** No post generates above this row, keeping the home cavern and shallows clear. */
 export const TRADING_POST_MIN_ROW = START_Y + 40;
 
@@ -113,6 +117,31 @@ export function tradingPostsInRange(startX: number, startY: number, endX: number
     }
   }
   return posts;
+}
+
+/**
+ * The post nearest a tile within a Chebyshev `radius` (a square of side
+ * `2·radius+1` around it), or `null` when none stands that close. Ties on the
+ * Chebyshev distance go to the smaller Manhattan distance, then to the shallower
+ * post, then to the one further left, so the answer never depends on chunk order.
+ */
+export function nearestTradingPost(x: number, y: number, radius: number): TradingPost | null {
+  let best: TradingPost | null = null;
+  let bestChebyshev = Infinity;
+  let bestManhattan = Infinity;
+  for (const post of tradingPostsInRange(x - radius, y - radius, x + radius, y + radius)) {
+    const dx = Math.abs(post.x - x), dy = Math.abs(post.y - y);
+    const chebyshev = Math.max(dx, dy), manhattan = dx + dy;
+    const closer = chebyshev < bestChebyshev
+      || (chebyshev === bestChebyshev && (manhattan < bestManhattan
+        || (manhattan === bestManhattan && best !== null && (post.y < best.y || (post.y === best.y && post.x < best.x)))));
+    if (closer) {
+      best = post;
+      bestChebyshev = chebyshev;
+      bestManhattan = manhattan;
+    }
+  }
+  return best;
 }
 
 /** Whether a natural air pocket / cave seam exists at this coordinate. */

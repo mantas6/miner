@@ -4,16 +4,19 @@
 // and is asserted there; here it is the decisions and the crossing bookkeeping.
 
 import { describe, expect, it } from 'vitest';
-import { START_Y } from '../../shared/constants';
+import { START_Y, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { createInitialState, isAtHome } from '../core/state';
 import type { Enemy, Tile } from '../core/types';
+import { nth } from '../test-narrowing';
+import { tradingPostsInRange } from '../world/world';
 import { createReadouts, type HudReadoutFields } from './readouts';
 import { createAudioStub, createEnemySimStub, createFakeGrid, createToastLog } from './test-support';
 
 function blankReadouts(): HudReadoutFields {
   return {
     scanner: '',
+    postHint: '',
     fuelReserveStatus: 'safe',
     fuelReserveNeeded: 0,
     fuelReserveMargin: 0,
@@ -99,6 +102,38 @@ describe('terrain scanner readout', () => {
 
     game.state.player.drill = 3;
     expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 2 hits.');
+  });
+});
+
+describe('trading-post beacon', () => {
+  const post = nth(tradingPostsInRange(0, 0, WORLD_W - 1, START_Y + 400), 0);
+
+  it('points at a post within twelve tiles, fog or not, and goes quiet in reach', () => {
+    const game = setup();
+    // At home there is nothing to point at.
+    expect(game.sync().postHint).toBe('');
+
+    // Nine rows above a post nobody has mapped: the beacon still hears it.
+    game.state.player.x = post.x;
+    game.state.player.y = post.y - 9;
+    expect(game.sync().postHint).toBe('Trading post ≈9 tiles ↓');
+
+    // Beside it, the Space hint takes over and the beacon falls silent.
+    game.state.player.y = post.y - 1;
+    expect(game.sync().postHint).toBe('');
+
+    // Out past the radius, silent too.
+    game.state.player.y = post.y - 13;
+    expect(game.sync().postHint).toBe('');
+  });
+
+  it('keeps the same line while the ship holds still', () => {
+    const game = setup();
+    game.state.player.x = post.x;
+    game.state.player.y = post.y - 5;
+    const first = game.sync().postHint;
+    game.hud.postHint = 'stale';
+    expect(game.sync().postHint).toBe(first);
   });
 });
 

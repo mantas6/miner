@@ -455,13 +455,23 @@ and drill out as usual.
 
 ### Trading posts
 
-Deep in the mine (below `START_Y + 40`, roughly 12% of 32×32 chunks) stand
-**trading posts** — kiosks in a cleared air pocket, never near the home cavern.
-Like the home cavern, a post is *derived* from its coordinate rather than stored
+Deep in the mine (below `START_Y + 40`, roughly 30% of 32×32 chunks — about one
+post per 40 rows, the first around 470 m) stand **trading posts** — kiosks in a
+cleared air pocket, never near the home cavern. Like the home cavern, a post is
+*derived* from its coordinate rather than stored
 (`tradingPostAt`/`tradingPostPocket` in `src/world/world.ts`), so it survives death,
 reload and world reset; only the stock a player has bought is persisted, in
 `state.tradeLedger`. Fly onto or beside one and press `Space` (or click its tile) to
 open it.
+
+- **Finding one.** A post is a beacon: within 12 tiles on either axis
+  (`TRADING_POST_HINT_RADIUS`), a second line under the scanner points at the
+  nearest — "Trading post ≈9 tiles ↙", the larger axis distance and an 8-way arrow
+  (`formatPostHint` in `src/core/post-beacon.ts`). It ignores the fog on purpose, so
+  it leads to posts you have not seen, and goes quiet once one is in reach and the
+  `Space` hint names it. Every post you have seen (its tile explored) is listed on
+  the Info screen's **Prospecting** tab with its depth and coordinates
+  (`discoveredTradingPosts`).
 
 - **Sell.** A post buys any ore at the ore table's own `value`, with no limit — the
   Sell column lists the ore aboard, whole-stack or one at a time, and the takings
@@ -873,10 +883,10 @@ what a sighted player sees, as JSON. The top-level shape:
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `placement`: while a placeable device is armed, `{kind, target, valid, sites[]}` — the valid `sites` the canvas grid tints green around the ship, and the hovered/last-pressed `target` tile with whether the device fits there (`null` with no target); `null` when nothing placeable is armed (the toolkit included)
 - `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the tooltips their buttons carry (the next action, or why sound is blocked; the accessible names stay a fixed "Music" / "Sound effects"); `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail
-- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank, and `null` with no extractor in the home cavern
+- `hud`: `{cash, objective, scanner, postHint, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `postHint` is the trading-post beacon (`"Trading post ≈9 tiles ↙"` for the nearest post within 12 tiles, fog ignored; empty when none is near or one is already in reach); `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank, and `null` with no extractor in the home cavern
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a grave has none)
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores}`, `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores, posts[{x, y, depth}]}` (`posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in

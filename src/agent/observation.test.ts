@@ -332,6 +332,9 @@ describe('buildObservation', () => {
     const prospecting = info({infoTab: 'info-prospecting'});
     expect(prospecting.prospecting?.tip.length).toBeGreaterThan(0);
     expect(prospecting.prospecting?.ores.some(ore => ore.name === 'Coal')).toBe(true);
+    expect(prospecting.prospecting?.posts).toEqual([]);
+    const found = info({infoTab: 'info-prospecting', postRows: [{x: 43, y: 67, depthMeters: 470}]});
+    expect(found.prospecting?.posts).toEqual([{x: 43, y: 67, depth: 470}]);
 
     const hazards = info({infoTab: 'info-hazards'});
     expect(hazards.hazards?.rows.length).toBeGreaterThan(0);
@@ -504,6 +507,19 @@ describe('buildObservation', () => {
       get: tileSource({})
     });
     expect(obs.hud.teleport).toEqual({count: 2, usable: true});
+  });
+
+  it('carries the trading-post beacon in hud.postHint', () => {
+    const state = createInitialState();
+    const base = uiStore.getState();
+    // A new game starts in the home cavern, far above any post.
+    expect(buildObservation({state, ui: ui(), get: tileSource({})}).hud.postHint).toBe('');
+    const near = buildObservation({
+      state,
+      ui: ui({hud: {...base.hud, postHint: 'Trading post ≈9 tiles ↙'}}),
+      get: tileSource({})
+    });
+    expect(near.hud.postHint).toBe('Trading post ≈9 tiles ↙');
   });
 
   it('carries the base fuel readout in hud.base, and null without a base', () => {

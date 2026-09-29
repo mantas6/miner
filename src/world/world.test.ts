@@ -15,6 +15,7 @@ import {
   rand,
   naturalAirPocket,
   makeTile,
+  nearestTradingPost,
   oreForDepthRoll,
   oreSpawnChanceAtDepth,
   starterOreForCoordinate,
@@ -147,7 +148,7 @@ function firstPostInBand() {
 }
 
 describe('trading posts', () => {
-  it('places a post in 8–16% of qualifying chunks, over a sampled interior band', () => {
+  it('places a post in 22–38% of qualifying chunks, over a sampled interior band', () => {
     // The middle column of chunks (x 32..63) sits well inside the world's side
     // walls, so no post is ever rejected for lack of room — the density there is
     // exactly the placement roll.
@@ -165,8 +166,35 @@ describe('trading posts', () => {
       if (found) withPost++;
     }
     const density = withPost / chunks;
-    expect(density).toBeGreaterThanOrEqual(0.08);
-    expect(density).toBeLessThanOrEqual(0.16);
+    expect(density).toBeGreaterThanOrEqual(0.22);
+    expect(density).toBeLessThanOrEqual(0.38);
+  });
+
+  it('stands a post within the first thousand metres of the mine', () => {
+    const first = tradingPostsInRange(0, 0, WORLD_W - 1, START_Y + 100);
+    expect(first.length).toBeGreaterThan(0);
+  });
+
+  it('finds the nearest post within a Chebyshev radius, and nothing beyond it', () => {
+    const post = firstPostInBand();
+    expect(nearestTradingPost(post.x, post.y, 0)).toBe(post);
+    // Twelve tiles off on both axes is still Chebyshev 12; thirteen is out of reach.
+    const x = post.x + (post.x + 12 <= WORLD_W - 1 ? 12 : -12);
+    expect(nearestTradingPost(x, post.y - 12, 12)).toBe(post);
+    expect(nearestTradingPost(x, post.y - 12, 11)).toBeNull();
+    expect(nearestTradingPost(post.x, post.y - 13, 12)).toBeNull();
+    // Whatever the radius, the answer agrees with a brute-force scan of the square.
+    for (const [cx, cy] of [[post.x - 5, post.y + 3], [post.x + 2, post.y - 9], [10, TRADING_POST_MIN_ROW + 200]] as const) {
+      let best: {x: number; y: number} | null = null;
+      let bestKey = Infinity;
+      for (let y = cy - 12; y <= cy + 12; y++) for (let x = cx - 12; x <= cx + 12; x++) {
+        const found = tradingPostAt(x, y);
+        if (!found) continue;
+        const key = Math.max(Math.abs(x - cx), Math.abs(y - cy)) * 1000 + Math.abs(x - cx) + Math.abs(y - cy);
+        if (key < bestKey) { bestKey = key; best = found; }
+      }
+      expect(nearestTradingPost(cx, cy, 12)).toEqual(best);
+    }
   });
 
   it('derives the same post from a coordinate every time', () => {

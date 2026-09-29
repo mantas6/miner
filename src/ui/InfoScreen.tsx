@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { DANGER_TIP, buildDangerGuideRows } from '../core/danger';
+import { NO_POSTS_FOUND } from '../core/post-beacon';
 import { PROSPECTING_TIP, buildProspectingGuideRows } from '../core/prospecting';
 import { GAME_RESET_CONFIRMATION } from '../persistence-reset';
 import { DeveloperPanel } from './DeveloperPanel';
@@ -154,6 +155,7 @@ function StatsPanel() {
 }
 
 function ProspectingPanel() {
+  const postRows = useUiStore(state => state.postRows);
   return (
     <section id="info-prospecting" role="tabpanel" aria-labelledby="info-tab-prospecting" tabIndex={-1}>
       <h3 id="prospecting-title">Prospecting Guide</h3>
@@ -167,6 +169,17 @@ function ProspectingPanel() {
             <span className={styles.oreDepth}>{row.depthLabel}</span>
           </li>
         ))}
+      </ul>
+      <h3 id="prospecting-posts-title">Trading posts found</h3>
+      <ul id="prospectingPosts" className={styles.prospectingPosts} aria-labelledby="prospecting-posts-title">
+        {postRows.length === 0
+          ? <li className={styles.emptyCargo}>{NO_POSTS_FOUND}</li>
+          : postRows.map(row => (
+            <li key={`${row.x},${row.y}`}>
+              <span className={styles.oreName}>{row.depthMeters.toLocaleString('en-US')} m</span>
+              <span className={styles.oreDepth}>x {row.x}, y {row.y}</span>
+            </li>
+          ))}
       </ul>
     </section>
   );

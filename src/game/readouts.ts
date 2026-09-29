@@ -1,7 +1,7 @@
-// Derived HUD readouts: the terrain scanner, the return-fuel forecast, and the
-// depth-milestone tracker.
+// Derived HUD readouts: the terrain scanner, the trading-post beacon, the
+// return-fuel forecast, and the depth-milestone tracker.
 //
-// All three live in `src/core` as pure formatters, but each needs live world
+// All four live in `src/core` as pure formatters, but each needs live world
 // data the loop owns. This module is the one place that feeds them, so they are
 // evaluated from `uiSync.sync()` (`ui-sync.ts`) alongside every other HUD field
 // instead of being scattered through the move handlers.
@@ -20,6 +20,7 @@ import {
   type DepthMilestoneKind
 } from '../core/depth-milestone';
 import { getFuelReserveForecast, type FuelReserveStatus } from '../core/fuel-reserve';
+import { tradingPostHint } from '../core/post-beacon';
 import { formatTerrainScanner } from '../core/scanner';
 import type { AudioController, Direction, GameState, Tile } from '../core/types';
 import type { EnemySim } from './enemies';
@@ -28,6 +29,8 @@ import type { WorldGrid } from './world-grid';
 /** The slice of the HUD snapshot this module owns. */
 export interface HudReadoutFields {
   scanner: string;
+  /** The trading-post beacon under the scanner line; empty when none is near. */
+  postHint: string;
   fuelReserveStatus: FuelReserveStatus;
   /** Fuel the conservative climb home would cost, rounded up. */
   fuelReserveNeeded: number;
@@ -73,6 +76,11 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
   let scanExplored = false;
   let scanDrill = NaN;
   let scannerLine = '';
+
+  // Trading-post beacon memo: posts never move, so the ship's tile is the whole input.
+  let postX = NaN;
+  let postY = NaN;
+  let postLine = '';
 
   // Return-fuel memo.
   let reserveFuel = NaN;
@@ -120,6 +128,15 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
       scannerLine = formatTerrainScanner({tile, direction: scanDirection, activeEnemy: enemy?.kind ?? false, explored, drill: p.drill});
     }
     hud.scanner = scannerLine;
+  }
+
+  function syncPostHint(hud: HudReadoutFields): void {
+    const p = state.player;
+    if (p.x !== postX || p.y !== postY) {
+      postX = p.x; postY = p.y;
+      postLine = tradingPostHint(p.x, p.y);
+    }
+    hud.postHint = postLine;
   }
 
   function syncFuelReserve(hud: HudReadoutFields): void {
@@ -190,6 +207,7 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
       if (wasGameOver && !state.gameOver) reset();
       wasGameOver = state.gameOver;
       syncScanner(hud);
+      syncPostHint(hud);
       syncFuelReserve(hud);
       syncMilestone(hud);
     },
