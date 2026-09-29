@@ -443,6 +443,20 @@ describe('parking on the extractor to refuel', () => {
     expect(h.audio.played).not.toContain('refuel');
   });
 
+  it('tops up a crumb silently: no "Refueled +0" when the pour rounds to nothing', () => {
+    const h = harness();
+    park(h.state, 'extractor');
+    h.state.player.fuel = h.state.player.fuelMax - 0.125;
+    extractor(h.state).fuel = 50;
+
+    h.sim.tick();
+
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
+    expect(extractor(h.state).fuel).toBe(49.875);
+    expect(h.toasts.saw('Refueled')).toBe(false);
+    expect(h.audio.played).not.toContain('refuel');
+  });
+
   it('stays silent when the store is empty', () => {
     const h = harness();
     park(h.state, 'extractor');

@@ -1,9 +1,12 @@
 // The HUD's one-line objective: a ladder of rungs, the first that applies wins.
 //
+//   0. the ship is lost             → deploy a new one
 //   1. underground on low fuel      → fly to the cheapest exit (home, or a portal home)
 //   2. the bay is full              → stow it at home (or sell it, once a post is known)
 //   3. at home, the base running dry → feed the Fuel Extractor coal
-//   4. no ship upgrade yet          → the Fuel Tank Mk I nudge
+//      a crafted upgrade in the bay or stock, a slot empty → fit it;
+//      nothing fitted and a wreck holds an upgrade → salvage it
+//   4. no ship upgrade yet          → the Fuel Tank Mk I nudge (mine, stow, craft)
 //   5. a Mk II is craftable, none made yet → craft it
 //   6. a Portal is craftable (or held) and none stands in the field → set one down deep
 //   7. 600 m reached, never a Scanner → craft one: ore hides in the fog
@@ -22,6 +25,8 @@ import { canCraft, RECIPES, type Recipe } from './crafting';
 import { fuelExitLabel, type FuelExit } from './fuel-reserve';
 import { isBaseLow } from './hud-alerts';
 import { CORE_DRILL_KIND, countItem, isUpgradeKind, oreKind, type Inventory, type InventoryItemKind } from './inventory';
+import { itemForKind } from './items';
+import { hasEmptyOpenSlot } from './ship-upgrades';
 import type { Ore, Player } from './types';
 
 type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'cargoMax' | 'equipment'>;
@@ -53,6 +58,10 @@ export interface ObjectiveInput {
   postsFound?: number;
   /** The exit the fuel reserve is priced to; home when left out. */
   nearestExit?: Pick<FuelExit, 'kind' | 'name'> | null;
+  /** The ship is lost (`state.gameOver`): every other rung waits for a new one. */
+  gameOver?: boolean;
+  /** A standing wreck that still holds a ship upgrade, or `null`. */
+  wreckWithUpgrade?: {x: number; y: number} | null;
 }
 
 /** The first ship upgrade the guidance nudges a fresh save toward crafting. */
@@ -111,10 +120,38 @@ interface HoldFacts {
   coreDrillFitted: boolean;
   /** The Core Drill aboard or stored, waiting to be fitted. */
   coreDrillHeld: boolean;
+  /**
+   * A crafted upgrade waiting to be fitted — the bay's first, else the stock's —
+   * or `null`. The Core Drill is left to its own late-game rung.
+   */
+  unfitted: {label: string; stored: boolean} | null;
+  /** The bay and the stock together cover the Fuel Tank Mk I: stow, then craft. */
+  firstUpgradeWithBay: boolean;
 }
 
 function craftable(recipe: Recipe | undefined, station: Inventory): boolean {
   return recipe !== undefined && canCraft(station, recipe);
+}
+
+/** Whether the bay and the stock together hold every input a recipe needs. */
+function craftableTogether(recipe: Recipe | undefined, bay: Inventory, station: Inventory): boolean {
+  return recipe !== undefined
+    && recipe.inputs.every(input => countItem(bay, input.kind) + countItem(station, input.kind) >= input.count);
+}
+
+/** The first upgrade in `stock` bar the Core Drill, as its label, or `null`. */
+function fittableLabel(stock: Inventory): string | null {
+  for (const stack of stock) {
+    if (isUpgradeKind(stack.kind) && stack.kind !== CORE_DRILL_KIND) return itemForKind(stack.kind).label;
+  }
+  return null;
+}
+
+function unfittedUpgrade(bay: Inventory, station: Inventory): HoldFacts['unfitted'] {
+  const aboard = fittableLabel(bay);
+  if (aboard) return {label: aboard, stored: false};
+  const stored = fittableLabel(station);
+  return stored ? {label: stored, stored: true} : null;
 }
 
 function craftFacts(station: Inventory): CraftFacts {
@@ -140,12 +177,15 @@ function holdFacts(player: ObjectivePlayer, bay: Inventory, station: Inventory):
     uranium: holds(bay, station, URANIUM),
     fuelCell: holds(bay, station, 'fuelCell'),
     coreDrillFitted: player.equipment.includes(CORE_DRILL_KIND),
-    coreDrillHeld: holds(bay, station, CORE_DRILL_KIND)
+    coreDrillHeld: holds(bay, station, CORE_DRILL_KIND),
+    unfitted: unfittedUpgrade(bay, station),
+    firstUpgradeWithBay: craftableTogether(firstUpgradeRecipe, bay, station)
   };
 }
 
 type Rung =
-  | 'refuel' | 'stow' | 'base' | 'firstUpgrade' | 'markTwo' | 'portal' | 'scanner' | 'post'
+  | 'lost' | 'refuel' | 'stow' | 'base' | 'fit' | 'salvage'
+  | 'firstUpgrade' | 'markTwo' | 'portal' | 'scanner' | 'post'
   | 'coreDrill' | 'fuelCell' | 'record' | 'depth' | 'richest' | 'deeper';
 
 /** One evaluated rung: which, plus every value its text reads. */
@@ -153,16 +193,16 @@ interface ObjectiveStep {
   rung: Rung;
   /**
    * The rung's wording: refuel 0 home / 1 portal; stow 0 home / 1 or a post;
-   * base 0 no extractor / 1 load coal / 2 mine coal; firstUpgrade 0 mine / 1 craft;
-   * portal 0 craft / 1 set down; coreDrill 0 craft / 1 fit; depth 0 mind the trip
-   * home / 1 a portal stands.
+   * base 0 no extractor / 1 load coal / 2 mine coal; fit 0 aboard / 1 in stock;
+   * firstUpgrade 0 mine / 1 craft / 2 stow and craft; portal 0 craft / 1 set down;
+   * coreDrill 0 craft / 1 fit; depth 0 mind the trip home / 1 a portal stands.
    */
   variant: number;
-  /** Coal aboard (base 1) or the extractor's stored fuel (base 2). */
+  /** Coal aboard (base 1), the extractor's stored fuel (base 2), or the wreck's x (salvage). */
   amount: number;
-  /** The exit label (refuel) or the ore name (depth, richest). */
+  /** The exit label (refuel), the upgrade's label (fit) or the ore name (depth, richest). */
   name: string;
-  /** The ore band's depth (depth), or the record to beat (record), in metres. */
+  /** The ore band's depth (depth), the record to beat (record) in metres, or the wreck's y (salvage). */
   depth: number;
 }
 
@@ -185,6 +225,9 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, held: HoldFacts, ou
   const postsFound = input.postsFound ?? 0;
   const fieldPortals = input.fieldPortals ?? 0;
 
+  // 0. A lost ship has one thing left to do.
+  if (input.gameOver) return setStep(out, 'lost');
+
   // 1. Out of fuel underground: the cheapest way back, whatever else is going on.
   if (!input.atSurface && player.fuel <= player.fuelMax * FUEL.lowFuelFraction) {
     const exit = input.nearestExit;
@@ -204,8 +247,19 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, held: HoldFacts, ou
     return setStep(out, 'base', 2, Math.floor(base.fuel));
   }
 
-  // 4. The first upgrade.
-  if (!held.upgrade) return setStep(out, 'firstUpgrade', crafts.firstUpgrade ? 1 : 0);
+  // A crafted upgrade does nothing until it is fitted, so fit it while a slot is free.
+  if (held.unfitted && hasEmptyOpenSlot(player.equipment, input.bestMarkCrafted ?? 0)) {
+    return setStep(out, 'fit', held.unfitted.stored ? 1 : 0, 0, held.unfitted.label);
+  }
+
+  // A bare ship whose upgrades went down with the last one: get them back first.
+  const wreck = input.wreckWithUpgrade;
+  if (wreck && player.equipment.every(slot => slot === null)) return setStep(out, 'salvage', 0, wreck.x, '', wreck.y);
+
+  // 4. The first upgrade: mine for it, stow what is aboard, then craft.
+  if (!held.upgrade) {
+    return setStep(out, 'firstUpgrade', crafts.firstUpgrade ? 1 : held.firstUpgradeWithBay ? 2 : 0);
+  }
 
   // 5. The first Mk II, once its materials are in the stock.
   if (crafts.markTwo && (input.bestMarkCrafted ?? 0) < 2) return setStep(out, 'markTwo');
@@ -251,6 +305,8 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, held: HoldFacts, ou
 /** The objective line for an evaluated rung. */
 function formatStep(step: ObjectiveStep): string {
   switch (step.rung) {
+    case 'lost':
+      return 'Objective: press R (or tap the mine) to deploy a new ship.';
     case 'refuel':
       return step.variant === 1
         ? `Objective: fly to ${step.name} and jump home to refuel.`
@@ -263,10 +319,16 @@ function formatStep(step: ObjectiveStep): string {
       if (step.variant === 0) return 'Objective: set a Fuel Extractor down in the home cavern.';
       if (step.variant === 1) return `Objective: load the ${step.amount} coal aboard into the Fuel Extractor.`;
       return `Objective: mine Coal — the Fuel Extractor is down to ${step.amount} fuel.`;
-    case 'firstUpgrade':
+    case 'fit':
       return step.variant === 1
-        ? `Objective: craft ${FIRST_UPGRADE_LABEL} at the Manufacturing Station.`
-        : `Objective: mine Iron and Copper for ${FIRST_UPGRADE_LABEL}.`;
+        ? `Objective: take the ${step.name} from the station and fit it from the Ship screen.`
+        : `Objective: fit the ${step.name} from the Ship screen.`;
+    case 'salvage':
+      return `Objective: salvage the wreck at (${step.amount}, ${step.depth}) — it holds your upgrades.`;
+    case 'firstUpgrade':
+      if (step.variant === 1) return `Objective: craft ${FIRST_UPGRADE_LABEL} at the Manufacturing Station.`;
+      if (step.variant === 2) return `Objective: stow your ore and craft ${FIRST_UPGRADE_LABEL}.`;
+      return `Objective: mine Iron and Copper for ${FIRST_UPGRADE_LABEL}.`;
     case 'markTwo':
       return 'Objective: craft a Mk II upgrade at the Manufacturing Station.';
     case 'portal':

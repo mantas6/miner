@@ -34,7 +34,8 @@ export function hitsLeft(hp: number, drill: number): number {
   return Math.max(1, Math.ceil(hp / drill));
 }
 
-function hitsLabel(hp: number, drill: number): string {
+/** "1 hit" / "3 hits": `hitsLeft` with the noun agreeing — the scanner line's and the drill toasts'. */
+export function hitsLabel(hp: number, drill: number): string {
   const hits = hitsLeft(hp, drill);
   return `${hits} ${hits === 1 ? 'hit' : 'hits'}`;
 }

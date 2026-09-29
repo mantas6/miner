@@ -582,6 +582,16 @@ describe('drill toasts', () => {
     expect(h.toasts.last).toBe('Drilling... 4 hits left');
   });
 
+  it('says "1 hit left", not "1 hits left"', () => {
+    const h = harness();
+    h.state.player.drill = 2;
+    h.grid.put(10, 41, dirt(3));
+
+    h.movement.move(0, 1);
+
+    expect(h.toasts.last).toBe('Drilling... 1 hit left');
+  });
+
   it('counts decoration and magma hits at the fitted drill power too', () => {
     const h = harness();
     h.state.player.drill = 3;

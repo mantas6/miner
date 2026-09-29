@@ -156,16 +156,70 @@ describe('expedition objective helper', () => {
     })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
   });
 
-  it('counts an upgrade waiting in the bay or station as progress made', () => {
-    const bay = addItem(createInventory(), oreItem(ORES.find(o => o.name === 'Iron')!), 0);
-    const withUpgrade = addItem(createInventory(), {kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', color: '#000', value: 0});
+  it('counts an upgrade waiting in the station as progress made once no slot is free', () => {
+    const full = {...player, y: START_Y + 8, equipment: ['upgrade:drill:1', 'upgrade:hull:1', null] as (UpgradeKind | null)[]};
     expect(formatExpeditionObjective({
-      player: { ...player, y: START_Y + 8 },
+      player: full,
       cargoCount: 0,
       atSurface: false,
-      bay,
-      station: withUpgrade
+      bay: empty,
+      station: withItem('upgrade:tank:1'),
+      bestMarkCrafted: 1
     })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
+  });
+
+  describe('a crafted upgrade waiting to be fitted', () => {
+    it('sends a stored one from the station to the Ship screen', () => {
+      expect(formatExpeditionObjective({...veteran, atSurface: true, station: withItem('upgrade:drill:1')}))
+        .toBe('Objective: take the Drill Mk I from the station and fit it from the Ship screen.');
+      // A bare ship too: the fresh-save nudge gives way to fitting what was made.
+      expect(formatExpeditionObjective({player, cargoCount: 0, atSurface: true, bay: empty, station: withItem('upgrade:tank:1')}))
+        .toBe('Objective: take the Fuel Tank Mk I from the station and fit it from the Ship screen.');
+    });
+
+    it('asks for one aboard to be fitted, ahead of one in stock', () => {
+      expect(formatExpeditionObjective({...veteran, bay: withItem('upgrade:cargo:1'), station: withItem('upgrade:drill:1')}))
+        .toBe('Objective: fit the Cargo Hold Mk I from the Ship screen.');
+    });
+
+    it('waits for a free slot: the locked third does not count', () => {
+      const full = {...upgraded, equipment: ['upgrade:tank:1', 'upgrade:drill:1', null] as (UpgradeKind | null)[]};
+      expect(formatExpeditionObjective({...veteran, player: full, bay: withItem('upgrade:cargo:1')})).toContain('dig toward');
+      expect(formatExpeditionObjective({...veteran, player: full, bay: withItem('upgrade:cargo:1'), bestMarkCrafted: 2}))
+        .toBe('Objective: fit the Cargo Hold Mk I from the Ship screen.');
+    });
+
+    it('leaves the Core Drill to its own rung', () => {
+      expect(formatExpeditionObjective({...veteran, station: withItem('upgrade:drill:4')}))
+        .toBe('Objective: fit the Core Drill from the Ship screen.');
+      // Past the Scanner line with none ever held, that rung still comes first.
+      const deep = {...veteran, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH, scannersObtained: 0};
+      expect(formatExpeditionObjective({...deep, bay: withItem('upgrade:drill:4')})).toContain('craft a Scanner');
+    });
+  });
+
+  it('points a bare ship at the wreck holding its upgrades', () => {
+    const bare: ObjectiveInput = {player, cargoCount: 0, atSurface: true, bay: empty, station: empty, wreckWithUpgrade: {x: 48, y: 96}};
+    expect(formatExpeditionObjective(bare)).toBe('Objective: salvage the wreck at (48, 96) — it holds your upgrades.');
+    // Something fitted already, or no such wreck: the ladder carries on.
+    expect(formatExpeditionObjective({...veteran, wreckWithUpgrade: {x: 48, y: 96}})).toContain('dig toward');
+    expect(formatExpeditionObjective({...bare, wreckWithUpgrade: null})).toBe('Objective: mine Iron and Copper for Fuel Tank Mk I.');
+  });
+
+  it('asks for the ore aboard to be stowed when bay and stock cover the first upgrade', () => {
+    const input: ObjectiveInput = {player, cargoCount: 6, atSurface: true, bay: tankMaterials(), station: empty};
+    expect(formatExpeditionObjective(input)).toBe('Objective: stow your ore and craft Fuel Tank Mk I.');
+    expect(formatExpeditionObjective({...input, bay: withOre('Iron', 4), station: withOre('Copper', 2)}))
+      .toBe('Objective: stow your ore and craft Fuel Tank Mk I.');
+    // Still short between them: keep mining.
+    expect(formatExpeditionObjective({...input, bay: withOre('Iron', 3), station: withOre('Copper', 2)}))
+      .toBe('Objective: mine Iron and Copper for Fuel Tank Mk I.');
+  });
+
+  it('tells a lost ship to deploy a new one, over every other rung', () => {
+    const dead = {...veteran, gameOver: true, player: {...upgraded, y: rowAt(760), fuel: 0}, cargoCount: upgraded.cargoMax};
+    expect(formatExpeditionObjective(dead)).toBe('Objective: press R (or tap the mine) to deploy a new ship.');
+    expect(formatExpeditionObjective({...dead, gameOver: false})).toBe('Objective: fly home and refuel at the Fuel Extractor.');
   });
 
   it('asks for a Mk II once one is craftable and none has been made', () => {
@@ -353,6 +407,24 @@ describe('memoised expedition objective', () => {
     input.bay = addItem(createInventory(), {kind: 'upgrade:tank:1', label: 'Fuel Tank Mk I', color: '#000', value: 0});
     check();
     input.bay = empty;
+    check();
+    // Lost with a wreck holding the upgrades, redeployed bare, salvaged, stowed.
+    input.gameOver = true;
+    check();
+    input.gameOver = false;
+    input.wreckWithUpgrade = {x: 48, y: 96};
+    check();
+    input.wreckWithUpgrade = {x: 40, y: 96};
+    check();
+    input.wreckWithUpgrade = null;
+    input.bay = tankMaterials();
+    check();
+    input.station = input.bay;
+    input.bay = empty;
+    check();
+    input.station = withItem('upgrade:tank:1');
+    check();
+    input.station = empty;
     check();
     // The late game: Uranium, then a cell, then the Core Drill's ores, crafted,
     // fitted, and the record deepening under it.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FUEL } from './balance';
-import { formatTerrainScanner, hitsLeft } from './scanner';
+import { formatTerrainScanner, hitsLabel, hitsLeft } from './scanner';
 
 describe('terrain scanner helper', () => {
   it('distinguishes clear air and ordinary drillable dirt', () => {
@@ -44,6 +44,12 @@ describe('terrain scanner helper', () => {
     expect(hitsLeft(0.25, 1)).toBe(1);
     expect(hitsLeft(0, 3)).toBe(1);
     expect(hitsLeft(2.5, 0.75)).toBe(4);
+  });
+
+  it('hitsLabel agrees the noun with the count', () => {
+    expect(hitsLabel(1, 1)).toBe('1 hit');
+    expect(hitsLabel(0.5, 2)).toBe('1 hit');
+    expect(hitsLabel(3, 1)).toBe('3 hits');
   });
 
   it('flags the hover surcharge on a drillable side target, derived from the balance constant', () => {

@@ -373,7 +373,8 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     // Park on an extractor and it keeps the tank topped up for as long as the ship
     // stays: every tick pours whatever the store holds and the tank has room for.
     // The toast and cue mark the arrival only, so a coal converting mid-visit tops
-    // up quietly. Nothing to move (full tank, empty store) is silent throughout.
+    // up quietly. Nothing to move (full tank, empty store) is silent throughout,
+    // and so is a pour that rounds to nothing — no "Refueled +0" for a crumb.
     const parked = extractorUnderShip();
     if (parked) {
       const moved = pourFuel(parked);
@@ -381,7 +382,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
         if (open === parked) repaint();
         // The save is debounced, so a top-up per converted coal costs one write.
         saveProgress();
-        if (!wasOnExtractor) {
+        if (!wasOnExtractor && Math.round(moved) >= 1) {
           audio.refuel();
           toast(`Refueled +${Math.round(moved)} from the extractor.`);
         }

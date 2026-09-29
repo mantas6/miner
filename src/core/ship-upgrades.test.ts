@@ -15,6 +15,7 @@ import {
   computeStats,
   equip,
   firstFittingSlot,
+  hasEmptyOpenSlot,
   isSlotLocked,
   unequip,
   unlockedSlotCount,
@@ -68,6 +69,15 @@ describe('the fitting slots', () => {
     expect(firstFittingSlot(['upgrade:tank:1', 'upgrade:drill:1', null], LOCKED)).toBe(0);
     expect(firstFittingSlot(['upgrade:tank:1', 'upgrade:drill:1', null], UNLOCKED)).toBe(2);
     expect(firstFittingSlot(['upgrade:tank:1', 'upgrade:drill:1', 'upgrade:hull:1'], UNLOCKED)).toBe(0);
+  });
+
+  it('tells an empty open slot from a full or locked one', () => {
+    expect(hasEmptyOpenSlot([null, null, null], LOCKED)).toBe(true);
+    expect(hasEmptyOpenSlot(['upgrade:tank:1', null, null], LOCKED)).toBe(true);
+    // Only the locked third is empty: nothing to fit into.
+    expect(hasEmptyOpenSlot(['upgrade:tank:1', 'upgrade:drill:1', null], LOCKED)).toBe(false);
+    expect(hasEmptyOpenSlot(['upgrade:tank:1', 'upgrade:drill:1', null], UNLOCKED)).toBe(true);
+    expect(hasEmptyOpenSlot(['upgrade:tank:1', 'upgrade:drill:1', 'upgrade:hull:1'], UNLOCKED)).toBe(false);
   });
 });
 

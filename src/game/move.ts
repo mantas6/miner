@@ -20,7 +20,7 @@ import {
   sprintCrashDamage,
   sprintMomentumAfterMove
 } from '../core/movement';
-import { hitsLeft } from '../core/scanner';
+import { hitsLabel } from '../core/scanner';
 import type {
   AirTile,
   AudioController,
@@ -137,7 +137,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
       toast('Magma pocket vented — hull scorched!');
     } else {
       grid.set(nx, ny, tile);
-      toast(`Venting magma... ${hitsLeft(tile.hp, player.drill)} hits left`);
+      toast(`Venting magma... ${hitsLabel(tile.hp, player.drill)} left`);
     }
     return 'drilled';
   }
@@ -151,7 +151,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     audio.mine();
     if (tile.hp > 0) {
       grid.set(nx, ny, tile);
-      toast(`Drilling... ${hitsLeft(tile.hp, player.drill)} hits left`);
+      toast(`Drilling... ${hitsLabel(tile.hp, player.drill)} left`);
       return 'drilled';
     }
     if (tile.type === 'ore') {
@@ -193,7 +193,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     audio.mine();
     if (tile.hp > 0) {
       grid.set(nx, ny, tile);
-      toast(`Drilling out ${item.label}... ${hitsLeft(tile.hp, player.drill)} hits left`);
+      toast(`Drilling out ${item.label}... ${hitsLabel(tile.hp, player.drill)} left`);
       return 'drilled';
     }
     if (isFull(player.inventory, player.cargoMax)) {

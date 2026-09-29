@@ -59,6 +59,13 @@ export function firstFittingSlot(equipment: readonly (UpgradeKind | null)[], bes
   return 0;
 }
 
+/** Whether an open (unlocked) slot stands empty, so a fit would add rather than swap. */
+export function hasEmptyOpenSlot(equipment: readonly (UpgradeKind | null)[], bestMarkCrafted: number): boolean {
+  const open = Math.min(equipment.length, unlockedSlotCount(bestMarkCrafted));
+  for (let slot = 0; slot < open; slot++) if (equipment[slot] === null) return true;
+  return false;
+}
+
 /** Which derived stat an upgrade family adds to; `null` for the boost-only booster. */
 type UpgradeStat = 'fuelMax' | 'hullMax' | 'cargoMax' | 'drill' | null;
 

@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ORES, START_Y, WORLD_W } from '../../shared/constants';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { addItem, createInventory, oreItem } from '../core/inventory';
+import { itemForKind } from '../core/items';
 import { createInitialState } from '../core/state';
+import { createWreck } from '../core/wreck';
 import { createPortal, homeExtractor } from '../core/stations';
 import { nth } from '../test-narrowing';
 import { uiStore } from '../ui/store';
@@ -48,6 +50,30 @@ describe('objective inputs', () => {
     state.player.inventory = addItem(createInventory(), oreItem(ORES.find(ore => ore.name === 'Coal')!), 3);
     sync.sync();
     expect(uiStore.getState().hud.objective).toBe('Objective: load the 3 coal aboard into the Fuel Extractor.');
+  });
+
+  it('tells a lost ship to deploy a new one', () => {
+    const {state, sync} = setup();
+    state.player.y = START_Y + 50;
+    state.player.fuel = 0;
+    state.gameOver = true;
+    sync.sync();
+    expect(uiStore.getState().hud.objective).toBe('Objective: press R (or tap the mine) to deploy a new ship.');
+  });
+
+  it('points a bare ship at the newest wreck still holding an upgrade', () => {
+    const {state, sync} = setup();
+    const ore = createWreck(40, START_Y + 30, addItem(createInventory(), oreItem(ORES.find(o => o.name === 'Iron')!), 3));
+    const upgrades = createWreck(48, START_Y + 76, addItem(createInventory(), itemForKind('upgrade:tank:1')));
+    state.wrecks = [upgrades, ore];
+    sync.sync();
+    expect(uiStore.getState().hud.objective).toBe(`Objective: salvage the wreck at (48, ${START_Y + 76}) — it holds your upgrades.`);
+
+    // Salvaged into the bay: now it wants fitting.
+    state.wrecks = [ore];
+    state.player.inventory = addItem(createInventory(), itemForKind('upgrade:tank:1'));
+    sync.sync();
+    expect(uiStore.getState().hud.objective).toBe('Objective: fit the Fuel Tank Mk I from the Ship screen.');
   });
 
   it('points a ship low on fuel at the portal the reserve is priced to', () => {

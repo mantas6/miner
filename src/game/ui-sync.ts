@@ -10,7 +10,7 @@
 import { rowDepthMeters } from '../../shared/constants';
 import { FUEL } from '../core/balance';
 import { shouldBaseAlert, shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
-import { countItem, totalItems, type Inventory } from '../core/inventory';
+import { countItem, isUpgradeKind, totalItems, type Inventory } from '../core/inventory';
 import { createExpeditionObjectiveFormatter, type ObjectiveInput } from '../core/objective';
 import { discoveredTradingPosts, type DiscoveredTradingPost } from '../core/post-beacon';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
@@ -19,6 +19,7 @@ import { fieldPortalCount, homeExtractor, manufacturerStock } from '../core/stat
 import { formatExpeditionStats } from '../core/stats';
 import { TELEPORTER_ITEM, canUsePortableTeleporter } from '../core/teleporter';
 import type { AudioController, GameState, GameStats } from '../core/types';
+import type { Wreck } from '../core/wreck';
 import { buildCargoRows, buildInventorySlots, buildShipSlots, uiStore, type HudSnapshot } from '../ui/store';
 import { interactHint, nearestInteractable } from './interactables';
 import type { HudReadouts } from './readouts';
@@ -38,6 +39,20 @@ export interface UiSync {
   syncInfoDetails(force?: boolean): void;
   /** Push the current fitting slots for the Ship screen to paint. */
   syncShipUpgrades(): void;
+}
+
+/**
+ * The newest standing wreck still holding a ship upgrade, or `null` — what the
+ * objective's salvage rung points at. At most a handful of wrecks, each a few
+ * stacks, walked without allocating.
+ */
+function latestWreckWithUpgrade(wrecks: readonly Wreck[]): Wreck | null {
+  for (let i = wrecks.length - 1; i >= 0; i--) {
+    const wreck = wrecks[i];
+    if (!wreck) continue;
+    for (const stack of wreck.inventory) if (isUpgradeKind(stack.kind)) return wreck;
+  }
+  return null;
 }
 
 export function createUiSync(deps: UiSyncDeps): UiSync {
@@ -161,6 +176,8 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
     objectiveScratch.bestMarkCrafted = state.stats.bestMarkCrafted;
     objectiveScratch.postsFound = currentPosts().length;
     objectiveScratch.nearestExit = readouts.fuelExit;
+    objectiveScratch.gameOver = state.gameOver;
+    objectiveScratch.wreckWithUpgrade = latestWreckWithUpgrade(state.wrecks);
     hudScratch.objective = formatObjective(objectiveScratch);
     hudScratch.atSurface = surf;
     hudScratch.gameOver = state.gameOver;
