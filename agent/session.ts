@@ -452,9 +452,15 @@ interface SessionBindings {
  * then report the first failure.
  */
 async function closeSession({browser, context, ownedServer}: SessionBindings): Promise<void> {
+  // The context must shut before its browser: closing the browser disposes every
+  // context it owns, so a concurrent `context.close()` races it and rejects.
+  const shutBrowser = async () => {
+    const contextClosed = await Promise.allSettled([context?.close()]);
+    await browser?.close();
+    if (contextClosed[0].status === 'rejected') throw contextClosed[0].reason;
+  };
   const results = await Promise.allSettled([
-    context?.close(),
-    browser?.close(),
+    shutBrowser(),
     // Only shut the server this session started; a reused one belongs to someone else.
     ownedServer?.close()
   ]);
