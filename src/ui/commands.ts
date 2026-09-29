@@ -49,6 +49,8 @@ export interface UiCommands {
   sellToPost(kind: InventoryItemKind, single?: boolean): void;
   /** Buy one of `kind` from the open trading post, deducting cash. */
   buyFromPost(kind: InventoryItemKind): void;
+  /** Fill the tank with as much fuel as the wallet covers, at the open trading post. */
+  buyFuelFromPost(): void;
   /** Shut the transfer menu; also what the dialog's own close request reports. */
   closeContainer(): void;
   /** Move a stack of this kind out of the bay into the open container; `single` moves one. */
@@ -101,6 +103,10 @@ export interface UiCommands {
   loadCoal(): void;
   /** Top the ship's tank up from the extractor's stored fuel. */
   refuelFromExtractor(): void;
+  /** Buy one home Supply item into the open home-cavern manufacturer's stock. */
+  buySupply(kind: InventoryItemKind): void;
+  /** Order fuel for cash into the open home extractor's store. */
+  buyExtractorFuel(): void;
   openInfo(): void;
   closeInfo(): void;
   toggleMusic(): void;
@@ -156,6 +162,7 @@ function noopCommands(): UiCommands {
     closeTrade: noop,
     sellToPost: noop,
     buyFromPost: noop,
+    buyFuelFromPost: noop,
     closeContainer: noop,
     storeInContainer: noop,
     takeFromContainer: noop,
@@ -179,6 +186,8 @@ function noopCommands(): UiCommands {
     craft: noop,
     loadCoal: noop,
     refuelFromExtractor: noop,
+    buySupply: noop,
+    buyExtractorFuel: noop,
     openInfo: noop,
     closeInfo: noop,
     toggleMusic: noop,

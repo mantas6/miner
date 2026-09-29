@@ -8,12 +8,22 @@ import { tileKey } from '../../shared/tile-key';
 import { RECIPES } from './crafting';
 import { itemForKind } from './items';
 import { oreKind } from './inventory';
+import { EXTRACTOR } from './balance';
 import {
+  EXTRACTOR_FUEL_ORDER,
+  FUEL_TRADE_MARKUP,
+  HOME_SUPPLY_MARKUP,
+  SUPPLY_POOL,
   TRADING_MARKUP,
   buyPrice,
+  extractorFuelOrder,
+  fuelPurchase,
+  fuelUnitPrice,
+  isSupplyKind,
   offersForPost,
   remainingStock,
-  sellPrice
+  sellPrice,
+  supplyPrice
 } from './trading';
 
 /** A row deep enough that every buy tier is eligible. */
@@ -43,6 +53,11 @@ describe('buy prices', () => {
     // Stone Block ×2 ← 1 Coal: each block is half a Coal's value, marked up.
     const coal = itemForKind(oreKind('Coal')).value;
     expect(buyPrice('decor:stoneBlock')).toBe(Math.max(1, Math.round(coal / 2 * TRADING_MARKUP)));
+  });
+
+  it('takes another seller\'s markup when one is named', () => {
+    expect(buyPrice('repairKit', 2)).toBe(72);
+    expect(buyPrice('repairKit', TRADING_MARKUP)).toBe(buyPrice('repairKit'));
   });
 
   it('prices richer gear above cheaper gear', () => {
@@ -105,5 +120,61 @@ describe('remainingStock', () => {
   it('ignores a ledger entry whose length no longer matches the offers', () => {
     const key = tileKey(40, DEEP);
     expect(remainingStock({[key]: [5]}, 40, DEEP, offers)).toEqual(offers.map(o => o.stock));
+  });
+});
+
+describe('fuel for cash', () => {
+  it('prices a unit off the coal it would be made from, marked up', () => {
+    const coal = itemForKind(oreKind('Coal')).value;
+    expect(fuelUnitPrice()).toBeCloseTo(coal / EXTRACTOR.fuelPerCoal * FUEL_TRADE_MARKUP);
+    // Mining the coal always beats buying the fuel it would have made.
+    expect(fuelUnitPrice() * EXTRACTOR.fuelPerCoal).toBeGreaterThan(coal);
+    expect(fuelUnitPrice()).toBeCloseTo(0.29, 2);
+  });
+
+  it('fills the whole gap when the wallet covers it, rounding the cost down', () => {
+    expect(fuelPurchase(60, 100, 1000, 0.29)).toEqual({amount: 40, cost: 11}); // 11.6 → 11
+    // A fractional gap is topped off exactly.
+    expect(fuelPurchase(59.5, 100, 1000, 0.29)).toEqual({amount: 40.5, cost: 11});
+  });
+
+  it('buys only whole units a thin wallet covers', () => {
+    // $2 buys six units at $0.29 (6 × 0.29 = 1.74 → $1).
+    expect(fuelPurchase(0, 100, 2, 0.29)).toEqual({amount: 6, cost: 1});
+  });
+
+  it('never charges less than a dollar, and never more than the wallet', () => {
+    expect(fuelPurchase(98, 100, 5, 0.29)).toEqual({amount: 2, cost: 1});
+    for (let cash = 0; cash < 40; cash++) {
+      const {cost} = fuelPurchase(0, 500, cash, fuelUnitPrice());
+      expect(cost).toBeLessThanOrEqual(cash);
+    }
+  });
+
+  it('buys nothing for a full tank or an empty wallet', () => {
+    expect(fuelPurchase(100, 100, 1000, 0.29)).toEqual({amount: 0, cost: 0});
+    // Within a unit of full counts as full.
+    expect(fuelPurchase(99.5, 100, 1000, 0.29)).toEqual({amount: 0, cost: 0});
+    expect(fuelPurchase(0, 100, 0, 0.29)).toEqual({amount: 0, cost: 0});
+  });
+
+  it('orders an extractor batch, capped by the store and the wallet', () => {
+    expect(extractorFuelOrder(0, 10_000).amount).toBe(EXTRACTOR_FUEL_ORDER);
+    expect(extractorFuelOrder(EXTRACTOR.fuelCap - 30, 10_000).amount).toBe(30);
+    expect(extractorFuelOrder(EXTRACTOR.fuelCap, 10_000)).toEqual({amount: 0, cost: 0});
+    expect(extractorFuelOrder(0, 0)).toEqual({amount: 0, cost: 0});
+    expect(extractorFuelOrder(0, 10_000).cost).toBe(Math.floor(EXTRACTOR_FUEL_ORDER * fuelUnitPrice()));
+  });
+});
+
+describe('the home Supply', () => {
+  it('sells the four basics at the home markup, dearer than a post', () => {
+    expect([...SUPPLY_POOL]).toEqual(['repairKit', 'dynamite', 'scanner', 'container']);
+    for (const kind of SUPPLY_POOL) {
+      expect(isSupplyKind(kind)).toBe(true);
+      expect(supplyPrice(kind)).toBe(buyPrice(kind, HOME_SUPPLY_MARKUP));
+      expect(supplyPrice(kind)).toBeGreaterThan(buyPrice(kind));
+    }
+    expect(isSupplyKind('teleporter')).toBe(false);
   });
 });

@@ -2,10 +2,11 @@
 //
 // Two columns. On the left, Sell: every ore stack aboard, each with a Sell button
 // that empties the stack for cash and a "1" that sells a single unit. On the right,
-// Buy: the post's 2–3 offers, each a finished item with its price and remaining
-// stock, its button live only while the player can afford it, the post still has
-// one, and the bay has room. The header carries the wallet, which is the whole point
-// of the screen.
+// Buy: first the fuel row, which fills the tank as far as the wallet reaches and is
+// never out of stock; then the post's 2–3 offers, each a finished item with its
+// price and remaining stock, its button live only while the player can afford it,
+// the post still has one, and the bay has room. The header carries the wallet,
+// which is the whole point of the screen.
 //
 // Everything is painted from the store and is live: the sell side is the same bay
 // stacks the HUD panel shows, synced every frame; the buy side is pushed by the game
@@ -15,6 +16,7 @@
 // The `<dialog>` itself, its focus and its close requests are `ModalShell`'s.
 
 import { isOreKind, type InventoryItemKind } from '../core/inventory';
+import { fuelPurchase, fuelUnitPrice } from '../core/trading';
 import { uiCommands } from './commands';
 import { overlayOf, useUiStore, type InventorySlotView, type TradeOfferView } from './store';
 import { CardHeader, ModalShell } from './ModalShell';
@@ -73,6 +75,7 @@ function TradeCard() {
               <span>Limited stock — once it is gone, it is gone.</span>
             </div>
             <ul id="tradeBuy" className={styles.slots}>
+              <FuelRow cash={cash} />
               {buyOffers.length === 0 && (
                 <li className={styles.empty}><span className={styles.emptyLabel}>Nothing for sale</span></li>
               )}
@@ -111,6 +114,40 @@ function SellRow({slot}: {slot: InventorySlotView}) {
           aria-label={`Sell one ${slot.label}`}
           onClick={() => sell(slot.kind, true)}
         >1</button>
+      </div>
+    </li>
+  );
+}
+
+/** Swatch for the fuel row, the amber of a fuel light. */
+const FUEL_COLOR = '#e0a13a';
+
+/**
+ * Fuel for cash: fills the tank as far as the wallet reaches. Not a stocked offer —
+ * a post never runs dry of fuel — so it is its own row, dead only while the tank is
+ * full or the wallet cannot cover one unit.
+ */
+function FuelRow({cash}: {cash: number}) {
+  const fuel = useUiStore(state => state.hud.fuel);
+  const fuelMax = useUiStore(state => state.hud.fuelMax);
+  const unitPrice = fuelUnitPrice();
+  const {amount, cost} = fuelPurchase(fuel, fuelMax, cash, unitPrice);
+  const full = fuelMax - fuel < 1;
+  const poured = Math.round(amount);
+  return (
+    <li>
+      <div className={styles.slot} title={`Fuel: $${unitPrice.toFixed(2)} a unit.`}>
+        <span className={styles.icon} style={{background: FUEL_COLOR}} aria-hidden="true" />
+        <span className={styles.label}>Fill tank</span>
+        <span className={styles.stock}>{full ? 'Full' : `+${poured}`}</span>
+        <button
+          id="tradeFuelBtn"
+          type="button"
+          className={styles.action}
+          disabled={amount <= 0}
+          aria-label={amount > 0 ? `Fill tank +${poured} for $${cost}` : 'Fill tank'}
+          onClick={() => uiCommands.buyFuelFromPost()}
+        >{amount > 0 ? `$${cost}` : '—'}</button>
       </div>
     </li>
   );

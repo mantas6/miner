@@ -6,7 +6,10 @@
 // in the bay, and "Refuel ship (+n)" tops the tank up from stored fuel. Each names
 // the amount it would move and goes dead when that amount is zero. A ship parked
 // on the extractor tile is kept topped up on its own, fresh conversions included;
-// the button is for a ship working the extractor from the tile beside it.
+// the button is for a ship working the extractor from the tile beside it. The
+// base's own extractor adds a third: "Buy fuel (+n) $c" orders up to
+// `EXTRACTOR_FUEL_ORDER` fuel into the store for cash, dead while the store is full
+// or the wallet cannot cover a unit.
 //
 // Everything is painted from the store: the buffers and progress animate as the
 // fixed-step extractor tick pushes fresh values in while the screen is open, and
@@ -18,6 +21,7 @@
 
 import { EXTRACTOR } from '../core/balance';
 import { oreKind } from '../core/inventory';
+import { extractorFuelOrder } from '../core/trading';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
 import { overlayOf, useUiStore } from './store';
@@ -41,6 +45,8 @@ function ExtractorCard() {
   const coal = useUiStore(state => overlayOf(state, 'extractor')?.extractor.coal ?? 0);
   const fuel = useUiStore(state => overlayOf(state, 'extractor')?.extractor.fuel ?? 0);
   const progress = useUiStore(state => overlayOf(state, 'extractor')?.extractor.progress ?? 0);
+  const supply = useUiStore(state => overlayOf(state, 'extractor')?.extractor.supply ?? false);
+  const cash = useUiStore(state => state.hud.cash);
   // The ship's tank, off the HUD snapshot the loop refreshes every frame.
   const playerFuel = useUiStore(state => state.hud.fuel);
   const fuelMax = useUiStore(state => state.hud.fuelMax);
@@ -54,6 +60,7 @@ function ExtractorCard() {
   const secondsToNext = converting
     ? Math.max(1, Math.ceil((EXTRACTOR.ticksPerCoal - progress) / TICKS_PER_SECOND))
     : 0;
+  const order = extractorFuelOrder(fuel, cash);
 
   return (
     <div id="extractor-card" className={styles.card}>
@@ -101,6 +108,17 @@ function ExtractorCard() {
           >
             Refuel ship (+{refuelAmount})
           </button>
+          {supply && (
+            <button
+              id="extractorBuyFuelBtn"
+              type="button"
+              className={styles.wide}
+              disabled={order.amount <= 0}
+              onClick={() => uiCommands.buyExtractorFuel()}
+            >
+              {order.amount > 0 ? `Buy fuel (+${Math.round(order.amount)}) $${order.cost}` : 'Buy fuel'}
+            </button>
+          )}
         </div>
       </div>
     </div>

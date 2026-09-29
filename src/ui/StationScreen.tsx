@@ -7,6 +7,9 @@
 // stack or a single unit back aboard. Below, the recipes: one row each, its inputs
 // listed, a Craft button that is live only while the station holds the materials
 // and names what is missing when it does not (aria-disabled, so it stays focusable).
+// The home-cavern Manufacturer adds a Supply counter between the two: a short list
+// of basics (`SUPPLY_POOL`) bought for cash straight into the station stock, each
+// button dead while the wallet cannot cover its price.
 //
 // Everything is painted from the store and is live: the station stock and the bay
 // are snapshots the game pushes on open and after every change, so the screen
@@ -17,9 +20,10 @@
 
 import { useMemo } from 'react';
 import { canCraft, missingInputs, RECIPES, type Recipe } from '../core/crafting';
-import { addItem, createInventory, type Inventory } from '../core/inventory';
+import { addItem, createInventory, type Inventory, type InventoryItemKind } from '../core/inventory';
 import { recipeInputLines } from '../core/item-info';
 import { itemForKind } from '../core/items';
+import { SUPPLY_POOL, supplyPrice } from '../core/trading';
 import { uiCommands } from './commands';
 import { overlayOf, useUiStore, type InventorySlotView } from './store';
 import { CardHeader, ModalShell } from './ModalShell';
@@ -46,6 +50,7 @@ function slotsToInventory(slots: InventorySlotView[]): Inventory {
 function StationCard() {
   const stationSlots = useUiStore(state => overlayOf(state, 'station')?.slots ?? NO_SLOTS);
   const baySlots = useUiStore(state => state.inventorySlots);
+  const supply = useUiStore(state => overlayOf(state, 'station')?.supply ?? false);
   const stock = useMemo(() => slotsToInventory(stationSlots), [stationSlots]);
 
   return (
@@ -93,6 +98,7 @@ function StationCard() {
             </ul>
           </div>
         </section>
+        {supply && <SupplySection />}
         <section className={styles.recipes} aria-labelledby="recipes-title">
           <div className={styles.columnHeading}>
             <h3 id="recipes-title">Recipes</h3>
@@ -140,6 +146,45 @@ function TransferRow({slot, action}: {slot: InventorySlotView; action: 'stow' | 
           aria-label={`${verb} one ${slot.label}`}
           onClick={() => move(slot.kind, true)}
         >1</button>
+      </div>
+    </li>
+  );
+}
+
+/** The home base's Supply counter: basics for cash, delivered into the station stock. */
+function SupplySection() {
+  const cash = useUiStore(state => state.hud.cash);
+  return (
+    <section className={styles.recipes} aria-labelledby="supply-title">
+      <div className={styles.columnHeading}>
+        <h3 id="supply-title">Supply</h3>
+        <span>Bought for cash into the station stock. Take them aboard.</span>
+      </div>
+      <ul id="supplyList" className={styles.slots}>
+        {SUPPLY_POOL.map(kind => <SupplyRow key={kind} kind={kind} cash={cash} />)}
+      </ul>
+    </section>
+  );
+}
+
+/** One Supply item: its price on the button, which is dead while it is unaffordable. */
+function SupplyRow({kind, cash}: {kind: InventoryItemKind; cash: number}) {
+  const item = itemForKind(kind);
+  const price = supplyPrice(kind);
+  const tooltip = useItemTooltip(kind);
+  return (
+    <li>
+      <div className={styles.slot} {...tooltip}>
+        <span className={styles.icon} style={{background: item.color}} aria-hidden="true" />
+        <span className={styles.label}>{item.label}</span>
+        <button
+          type="button"
+          className={styles.action}
+          data-supply={kind}
+          disabled={cash < price}
+          aria-label={`Buy ${item.label} for $${price}`}
+          onClick={() => uiCommands.buySupply(kind)}
+        >${price}</button>
       </div>
     </li>
   );

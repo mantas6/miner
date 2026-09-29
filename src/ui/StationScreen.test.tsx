@@ -12,6 +12,7 @@ import { StationScreen } from './StationScreen';
 import { setUiCommands, uiCommands } from './commands';
 import { buildInventorySlots, uiStore } from './store';
 import { nth } from '../test-narrowing';
+import { SUPPLY_POOL, supplyPrice } from '../core/trading';
 
 const pristine = {...uiStore.getState()};
 const pristineCommands = {...uiCommands};
@@ -19,13 +20,14 @@ const pristineCommands = {...uiCommands};
 const IRON = {name: 'Iron', color: '#8a7f75', value: 12, min: 0, max: 900, chance: 1};
 const COAL = {name: 'Coal', color: '#343434', value: 8, min: 0, max: 900, chance: 1};
 
-function open(): HTMLDialogElement {
+function open(supply = false, cash = 0): HTMLDialogElement {
   const rendered = render(<StationScreen />);
   act(() => {
     const store = uiStore.getState();
+    uiStore.setState({hud: {...store.hud, cash}});
     // The station holds three iron; the bay holds two coal.
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem(COAL), 2)));
-    store.showOverlay({kind: 'station', slots: buildInventorySlots(addItem(createInventory(), oreItem(IRON), 3))});
+    store.showOverlay({kind: 'station', slots: buildInventorySlots(addItem(createInventory(), oreItem(IRON), 3)), supply});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -114,6 +116,34 @@ describe('manufacturing station dialog', () => {
     expect(label('[data-station="stow-one"][data-station-kind="ore:Coal"]')).toBe('Stow one Coal');
   });
 
+  it('shows no Supply counter at a manufacturer away from the base', () => {
+    open(false, 10_000);
+    expect(document.getElementById('supplyList')).toBeNull();
+    expect(document.querySelector('[data-supply]')).toBeNull();
+  });
+
+  it('lists the home Supply with prices, live only while the wallet covers them', () => {
+    const buySupply = vi.fn();
+    setUiCommands({buySupply});
+    const cash = supplyPrice('dynamite');
+    open(true, cash);
+
+    const rows = [...document.querySelectorAll<HTMLButtonElement>('#supplyList [data-supply]')];
+    expect(rows.map(row => row.dataset.supply)).toEqual([...SUPPLY_POOL]);
+    for (const row of rows) {
+      const price = supplyPrice(row.dataset.supply as (typeof SUPPLY_POOL)[number]);
+      expect(row.textContent).toBe(`$${price}`);
+      expect(row.disabled).toBe(cash < price);
+    }
+    const dynamite = document.querySelector<HTMLButtonElement>('[data-supply="dynamite"]')!;
+    expect(dynamite.getAttribute('aria-label')).toBe(`Buy Dynamite for $${cash}`);
+    expect(dynamite.disabled).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>('[data-supply="container"]')!.disabled).toBe(true);
+
+    fireEvent.click(dynamite);
+    expect(buySupply).toHaveBeenCalledWith('dynamite');
+  });
+
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {
     const closeStation = vi.fn();
     setUiCommands({closeStation});
@@ -121,7 +151,7 @@ describe('manufacturing station dialog', () => {
     expect(document.getElementById('station-card')).toBeNull();
 
     act(() => {
-      uiStore.getState().showOverlay({kind: 'station', slots: []});
+      uiStore.getState().showOverlay({kind: 'station', slots: [], supply: false});
     });
     expect(document.getElementById('station-card')).not.toBeNull();
 

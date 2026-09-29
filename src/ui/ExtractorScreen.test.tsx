@@ -9,6 +9,7 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXTRACTOR } from '../core/balance';
+import { EXTRACTOR_FUEL_ORDER, extractorFuelOrder } from '../core/trading';
 import { addItem, createInventory, oreItem } from '../core/inventory';
 import { ExtractorScreen } from './ExtractorScreen';
 import { setUiCommands, uiCommands } from './commands';
@@ -23,15 +24,15 @@ const COAL = {name: 'Coal', color: '#343434', value: 8, min: 0, max: 900, chance
 /** The ship's tank, as the HUD snapshot the screen reads it from carries it. */
 type ShipFuel = {fuel: number; fuelMax: number};
 
-function open(options: {extractor?: Partial<ExtractorView>; player?: Partial<ShipFuel>; bayCoal?: number} = {}): HTMLDialogElement {
+function open(options: {extractor?: Partial<ExtractorView>; player?: Partial<ShipFuel>; bayCoal?: number; cash?: number} = {}): HTMLDialogElement {
   const rendered = render(<ExtractorScreen />);
   act(() => {
     const store = uiStore.getState();
-    uiStore.setState({hud: {...store.hud, fuel: 100, fuelMax: 100, ...options.player}});
+    uiStore.setState({hud: {...store.hud, fuel: 100, fuelMax: 100, cash: options.cash ?? 0, ...options.player}});
     store.setInventorySlots(
       options.bayCoal ? buildInventorySlots(addItem(createInventory(), oreItem(COAL), options.bayCoal)) : []
     );
-    store.showOverlay({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0, ...options.extractor}});
+    store.showOverlay({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0, supply: false, ...options.extractor}});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -108,6 +109,33 @@ describe('fuel extractor dialog', () => {
 
     fireEvent.click(document.getElementById('refuelBtn')!);
     expect(refuelFromExtractor).toHaveBeenCalledOnce();
+  });
+
+  it('offers no fuel order at an extractor away from the base', () => {
+    open({extractor: {supply: false}, cash: 10_000});
+    expect(document.getElementById('extractorBuyFuelBtn')).toBeNull();
+  });
+
+  it('orders fuel into the base extractor for cash, naming the amount and cost', () => {
+    const buyExtractorFuel = vi.fn();
+    setUiCommands({buyExtractorFuel});
+    open({extractor: {fuel: 0, supply: true}, cash: 1000});
+    const button = document.getElementById('extractorBuyFuelBtn') as HTMLButtonElement;
+    const {cost} = extractorFuelOrder(0, 1000);
+
+    expect(button.textContent).toBe(`Buy fuel (+${EXTRACTOR_FUEL_ORDER}) $${cost}`);
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    expect(buyExtractorFuel).toHaveBeenCalledOnce();
+  });
+
+  it('disables the fuel order with a full store or an empty wallet', () => {
+    open({extractor: {fuel: EXTRACTOR.fuelCap, supply: true}, cash: 1000});
+    expect((document.getElementById('extractorBuyFuelBtn') as HTMLButtonElement).disabled).toBe(true);
+
+    cleanup();
+    open({extractor: {fuel: 0, supply: true}, cash: 0});
+    expect((document.getElementById('extractorBuyFuelBtn') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {

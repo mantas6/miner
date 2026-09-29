@@ -64,6 +64,8 @@ const POST = firstTradingPost();
 const seedTradingPost = seedSaveScript({
   x: POST.x, y: POST.y,
   cash: 100,
+  // Fitted at the post, it grows the tank without filling it: room to buy fuel.
+  bay: [{kind: 'upgrade:tank:1', count: 1}],
   stations: [{kind: 'manufacturer', x: POST.x + 1, y: POST.y, items: [{kind: 'ore:Iron', count: 10}]}]
 });
 
@@ -142,10 +144,12 @@ const seedSaveOnce = seedSaveScript({cash: 250, stations: WORKBENCHES}, {once: t
 
 /**
  * The home workbenches, the manufacturer stocked for a Fuel Tank Mk I (4 Iron,
- * 2 Copper) with coal to spare, and the extractor holding fuel — so one run can
- * craft, take, fit, load coal and refuel without a dig.
+ * 2 Copper) with coal to spare, the extractor holding fuel, and cash in the wallet
+ * — so one run can buy Supply, craft, take, fit, load coal, refuel and order fuel
+ * without a dig.
  */
 const seedWorkshop = seedSaveScript({
+  cash: 500,
   stations: [
     {...WORKBENCHES[0], items: [{kind: 'ore:Iron', count: 4}, {kind: 'ore:Copper', count: 2}, {kind: 'ore:Coal', count: 3}]},
     {...WORKBENCHES[1], fuel: 40}
@@ -372,14 +376,26 @@ test.describe.serial('agent harness', () => {
   });
 });
 
-test('a crafted upgrade is taken from the station, fitted, unfitted, and the extractor loads coal and refuels', async () => {
+test('a crafted upgrade is taken from the station, fitted, unfitted, and the extractor loads coal, refuels and takes a fuel order', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedWorkshop});
   try {
     await s.startRun();
 
-    // Craft a Fuel Tank Mk I at the manufacturer and take it aboard, with the coal.
+    // The home manufacturer runs the Supply counter: buy a stick of dynamite into its stock.
     let obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
     if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(obs.overlay.supply.map(row => row.kind)).toEqual(['repairKit', 'dynamite', 'scanner', 'container']);
+    const dynamite = obs.overlay.supply.find(row => row.kind === 'dynamite');
+    if (!dynamite) throw new Error('a dynamite Supply row expected');
+    expect(dynamite.affordable).toBe(true);
+    expect(dynamite.info.length).toBeGreaterThan(0);
+    const cashBeforeSupply = obs.hud.cash;
+    obs = await s.click({target: 'data-supply', value: 'dynamite'});
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(obs.overlay.stock, 'dynamite')).toBe(1);
+    expect(obs.hud.cash).toBe(cashBeforeSupply - dynamite.price);
+
+    // Craft a Fuel Tank Mk I at the manufacturer and take it aboard, with the coal.
     expect(obs.overlay.recipes.find(recipe => recipe.output === 'upgrade:tank:1')?.craftable).toBe(true);
     obs = await s.click({target: 'data-craft', value: 'upgrade:tank:1'});
     if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
@@ -426,6 +442,20 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     const refuel = obs.overlay.refuelAmount;
     obs = await s.click('refuelBtn');
     expect(Math.round(obs.ship.fuel)).toBe(Math.round(fuelBefore + refuel));
+
+    // The base extractor takes fuel ordered for cash into its store.
+    if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
+    const order = obs.overlay.fuelOrder;
+    if (!order) throw new Error('the home extractor should quote a fuel order');
+    expect(order.amount).toBeGreaterThan(0);
+    expect(order.cost).toBeGreaterThan(0);
+    const storedBefore = obs.overlay.fuel;
+    const cashBeforeOrder = obs.hud.cash;
+    obs = await s.click('extractorBuyFuelBtn');
+    if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
+    // A queued coal may convert during the click, adding its own fuel on top.
+    expect(obs.overlay.fuel).toBeGreaterThanOrEqual(storedBefore + order.amount);
+    expect(obs.hud.cash).toBe(cashBeforeOrder - order.cost);
   } finally {
     await s.close();
   }
@@ -489,13 +519,19 @@ test('a container stores and returns a stack, and armed dynamite plants on a val
   }
 });
 
-test('a trading post buys ore for cash and sells its stock into the bay', async () => {
+test('a trading post buys ore for cash, fills the tank for cash, and sells its stock into the bay', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedTradingPost});
   try {
     await s.startRun();
     let obs = await s.observe();
     expect(obs.ship.x).toBe(POST.x);
     expect(obs.ship.y).toBe(POST.y);
+
+    // Fit the tank aboard: the tank grows and the fuel does not, leaving room to buy.
+    obs = await s.click('shipBtn');
+    obs = await s.click({target: 'data-ship-equip', value: 'upgrade:tank:1'});
+    obs = await s.click('shipCloseBtn');
+    expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
 
     // The post sits under the ship; take iron aboard from the neighbouring station.
     obs = await s.pressTile(POST.x + 1, POST.y);
@@ -511,6 +547,19 @@ test('a trading post buys ore for cash and sells its stock into the bay', async 
     obs = await s.click({target: 'data-trade', value: 'sell', kind: 'ore:Iron'});
     expect(obs.hud.cash).toBeGreaterThan(cashBefore);
     expect(countKind(obs.bay, 'ore:Iron')).toBe(0);
+
+    // The fuel row quotes the fill the wallet covers; tradeFuelBtn buys it.
+    if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
+    const fill = obs.overlay.fuel;
+    expect(fill.unitPrice).toBeGreaterThan(0);
+    expect(fill.amount).toBe(Math.round(obs.ship.fuelMax - obs.ship.fuel));
+    expect(fill.cost).toBeGreaterThan(0);
+    const cashBeforeFuel = obs.hud.cash;
+    obs = await s.click('tradeFuelBtn');
+    expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
+    expect(obs.hud.cash).toBe(cashBeforeFuel - fill.cost);
+    if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
+    expect(obs.overlay.fuel).toMatchObject({amount: 0, cost: 0});
 
     // Buy an offered item; it lands in the bay and its stock drops.
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');

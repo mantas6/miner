@@ -10,8 +10,8 @@ const EMPTY: {[K in OverlayId]: () => OverlayOf<K>} = {
   container: () => ({kind: 'container', slots: []}),
   wreck: () => ({kind: 'wreck', slots: []}),
   chest: () => ({kind: 'chest', slots: []}),
-  station: () => ({kind: 'station', slots: []}),
-  extractor: () => ({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0}}),
+  station: () => ({kind: 'station', slots: [], supply: false}),
+  extractor: () => ({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0, supply: false}}),
   trade: () => ({kind: 'trade', offers: []}),
   portal: () => ({kind: 'portal', portal: {mode: 'travel', destinations: []}}),
   grave: () => ({kind: 'grave', epitaph: {name: 'A. Miner', born: 2001, died: 2042, cause: 'Lost in the dark.'}})

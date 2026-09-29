@@ -9,7 +9,7 @@ import { START_Y, WORLD_W } from '../../shared/constants';
 import { tileKey } from '../../shared/tile-key';
 import { addItem, countItem, createInventory, oreItem, oreKind, type Inventory } from '../core/inventory';
 import { createInitialState } from '../core/state';
-import { offersForPost, remainingStock } from '../core/trading';
+import { fuelPurchase, fuelUnitPrice, offersForPost, remainingStock } from '../core/trading';
 import type { GameState, Ore } from '../core/types';
 import { tradingPostAt, type TradingPost } from '../world/world';
 import { createTrading, type TradingSim } from './trading';
@@ -201,6 +201,69 @@ describe('buying gear', () => {
 
     expect(countItem(h.state.player.inventory, offer.kind)).toBe(0);
     expect(h.toasts.saw('Cargo bay is full')).toBe(true);
+  });
+});
+
+describe('buying fuel', () => {
+  it('fills the tank for cash, charging the fuel price', () => {
+    const h = harness(1000);
+    h.state.player.fuel = h.state.player.fuelMax - 40;
+    h.trading.openAt(h.post.x, h.post.y);
+    const expected = fuelPurchase(h.state.player.fuel, h.state.player.fuelMax, 1000, fuelUnitPrice());
+
+    h.trading.buyFuel();
+
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
+    expect(expected.amount).toBe(40);
+    expect(h.state.cash).toBe(1000 - expected.cost);
+    expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.audio.played).toEqual(['refuel']);
+    expect(h.toasts.saw(`Bought 40 fuel for $${expected.cost}`)).toBe(true);
+  });
+
+  it('buys only as much as a thin wallet covers', () => {
+    const h = harness(2);
+    h.state.player.fuel = 10;
+    h.trading.openAt(h.post.x, h.post.y);
+
+    h.trading.buyFuel();
+
+    const units = Math.floor(2 / fuelUnitPrice());
+    expect(h.state.player.fuel).toBe(10 + units);
+    expect(h.state.cash).toBeGreaterThanOrEqual(0);
+    expect(h.state.cash).toBeLessThan(2);
+  });
+
+  it('refuses when the tank is already full', () => {
+    const h = harness(1000);
+    h.trading.openAt(h.post.x, h.post.y);
+
+    h.trading.buyFuel();
+
+    expect(h.state.cash).toBe(1000);
+    expect(h.toasts.saw('Fuel tank already full')).toBe(true);
+    expect(h.audio.played).toEqual(['alarm']);
+  });
+
+  it('refuses when the wallet cannot cover one unit', () => {
+    const h = harness(0);
+    h.state.player.fuel = 10;
+    h.trading.openAt(h.post.x, h.post.y);
+
+    h.trading.buyFuel();
+
+    expect(h.state.player.fuel).toBe(10);
+    expect(h.toasts.saw('Not enough cash for fuel')).toBe(true);
+  });
+
+  it('does nothing with no post open', () => {
+    const h = harness(1000);
+    h.state.player.fuel = 10;
+
+    h.trading.buyFuel();
+
+    expect(h.state.player.fuel).toBe(10);
+    expect(h.state.cash).toBe(1000);
   });
 });
 

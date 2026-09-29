@@ -17,13 +17,18 @@
 // its inputs — marked up by `TRADING_MARKUP`. That keeps every price sane relative
 // to the ore the player is selling to afford it, and tunes with the recipe table.
 //
+// Cash has two more sinks, priced here too: fuel (at a post into the tank, at home
+// into the Fuel Extractor), priced off the coal it would take to make it; and the
+// home Supply, the base Manufacturer's short list of basics at a steeper markup.
+//
 // Everything here is pure and DOM-free.
 
 import { START_Y } from '../../shared/constants';
 import { tileKey } from '../../shared/tile-key';
+import { EXTRACTOR } from './balance';
 import { RECIPES } from './crafting';
 import { itemForKind } from './items';
-import type { InventoryItemKind } from './inventory';
+import { oreKind, type InventoryItemKind } from './inventory';
 import { rand } from '../world/world';
 
 /** A post is a middleman: it sells finished gear for more than the ore to make it. */
@@ -75,13 +80,84 @@ function recipeOreValue(kind: InventoryItemKind): number {
 }
 
 /**
- * A post's buy price for one item: its recipe's ore-value per unit made, marked
- * up. A recipe that yields several units (two Stone Blocks from one Coal) spreads
- * its inputs across all of them, so one unit never costs the whole batch.
+ * A buy price for one item: its recipe's ore-value per unit made, marked up — by
+ * a post's `TRADING_MARKUP` unless another seller (the home Supply) names its own.
+ * A recipe that yields several units (two Stone Blocks from one Coal) spreads its
+ * inputs across all of them, so one unit never costs the whole batch.
  */
-export function buyPrice(kind: InventoryItemKind): number {
+export function buyPrice(kind: InventoryItemKind, markup = TRADING_MARKUP): number {
   const made = RECIPES.find(entry => entry.output === kind)?.count ?? 1;
-  return Math.max(1, Math.round(recipeOreValue(kind) / Math.max(1, made) * TRADING_MARKUP));
+  return Math.max(1, Math.round(recipeOreValue(kind) / Math.max(1, made) * markup));
+}
+
+/**
+ * Fuel for cash — at a post straight into the tank, or at home into the Fuel
+ * Extractor's store. It is priced off Coal, the ore it is made from: one coal's
+ * value spread over the fuel it converts to, marked up so mining coal always
+ * beats buying the fuel it would have made.
+ */
+export const FUEL_TRADE_MARKUP = 2;
+
+/** What one unit of bought fuel costs, in dollars (fractional: ~$0.29). */
+export function fuelUnitPrice(): number {
+  return itemForKind(oreKind('Coal')).value / EXTRACTOR.fuelPerCoal * FUEL_TRADE_MARKUP;
+}
+
+/** A fuel order: how much fuel it pours, and the whole dollars it costs. */
+export interface FuelPurchase {
+  amount: number;
+  cost: number;
+}
+
+const NO_FUEL: FuelPurchase = Object.freeze({amount: 0, cost: 0});
+
+/**
+ * The biggest fuel order `cash` covers, filling `fuel` toward `fuelMax`.
+ *
+ * The wallet buys whole units: an order is never less than one, so a tank within
+ * a unit of full — or a wallet that cannot pay for one — buys nothing. When the
+ * wallet covers the whole gap the order fills it exactly (a fractional top-off
+ * included); otherwise it buys as many whole units as the cash allows. The cost
+ * is rounded *down* to whole dollars (never below $1), so a partial fill is never
+ * charged more than the fuel it pours.
+ */
+export function fuelPurchase(fuel: number, fuelMax: number, cash: number, unitPrice: number): FuelPurchase {
+  const room = Math.max(0, fuelMax - fuel);
+  if (room < 1 || !(unitPrice > 0)) return NO_FUEL;
+  const affordable = Math.floor(cash / unitPrice);
+  if (affordable < 1) return NO_FUEL;
+  const amount = affordable >= room ? room : affordable;
+  // The epsilon keeps a product like 55 × (8 / 55 × 2) = 15.999… from flooring a dollar short.
+  const cost = Math.max(1, Math.floor(amount * unitPrice + 1e-9));
+  return cost > cash ? NO_FUEL : {amount, cost};
+}
+
+/** The most fuel one "Buy fuel" press orders into the home extractor. */
+export const EXTRACTOR_FUEL_ORDER = 100;
+
+/**
+ * One extractor fuel order: up to `EXTRACTOR_FUEL_ORDER` into the store holding
+ * `stored`, capped by `EXTRACTOR.fuelCap` and by what `cash` covers.
+ */
+export function extractorFuelOrder(stored: number, cash: number): FuelPurchase {
+  const target = Math.min(EXTRACTOR.fuelCap, stored + EXTRACTOR_FUEL_ORDER);
+  return fuelPurchase(stored, target, cash, fuelUnitPrice());
+}
+
+/** Home Supply's markup: the base sells the basics, dearer than a post, for convenience. */
+export const HOME_SUPPLY_MARKUP = 2;
+
+/** What the home-cavern Manufacturer's Supply section sells, in list order. */
+export const SUPPLY_POOL: readonly InventoryItemKind[] = Object.freeze(['repairKit', 'dynamite', 'scanner', 'container']);
+
+/** One home Supply item's price. */
+export function supplyPrice(kind: InventoryItemKind): number {
+  return buyPrice(kind, HOME_SUPPLY_MARKUP);
+}
+
+/** Whether the home Supply sells `kind`. */
+export function isSupplyKind(kind: InventoryItemKind): boolean {
+  return SUPPLY_POOL.includes(kind);
 }
 
 /**

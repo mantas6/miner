@@ -176,12 +176,21 @@ export function firstManufacturer(stations: readonly PlacedStation[]): Manufactu
 }
 
 /**
+ * Whether a station stands inside the home cavern — part of the base, which is
+ * where the home Supply and ordered fuel are delivered. Stations set down
+ * elsewhere in the mine are field stations.
+ */
+export function isHomeStation(station: PlacedStation): boolean {
+  return isHomeCavern(station.x, station.y);
+}
+
+/**
  * The base's fuel extractor: the first one standing inside the home cavern, or
  * `null` once none does (the Construction Toolkit can lift the seeded one away).
  * Extractors set down elsewhere in the mine are field stations, not the base.
  */
 export function homeExtractor(stations: readonly PlacedStation[]): ExtractorStation | null {
-  return stations.find((s): s is ExtractorStation => s.kind === 'extractor' && isHomeCavern(s.x, s.y)) ?? null;
+  return stations.find((s): s is ExtractorStation => s.kind === 'extractor' && isHomeStation(s)) ?? null;
 }
 
 /** Every portal standing in the mine, in placement order. */

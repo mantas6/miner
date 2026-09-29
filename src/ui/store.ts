@@ -186,6 +186,8 @@ export interface ExtractorView {
   fuel: number;
   /** Ticks toward the current coal, so the screen can word "next in Xs". */
   progress: number;
+  /** The base's extractor: it takes fuel ordered for cash (`extractorBuyFuelBtn`). */
+  supply: boolean;
 }
 
 /**
@@ -224,8 +226,11 @@ export type Overlay =
   | {kind: 'wreck'; slots: InventorySlotView[]}
   /** The open chest's contents, in the same shape. Take-only. */
   | {kind: 'chest'; slots: InventorySlotView[]}
-  /** The manufacturing station's stock, in the inventory-slot shape. */
-  | {kind: 'station'; slots: InventorySlotView[]}
+  /**
+   * The manufacturing station's stock, in the inventory-slot shape, and whether it
+   * is the home-cavern one that runs the Supply counter (`SUPPLY_POOL`).
+   */
+  | {kind: 'station'; slots: InventorySlotView[]; supply: boolean}
   /** The fuel extractor's buffers. */
   | {kind: 'extractor'; extractor: ExtractorView}
   /** The open trading post's buy offers. The sell side is the bay's ore, read from `inventorySlots`. */
@@ -443,11 +448,12 @@ function sameOverlay(current: ActiveOverlay, next: ActiveOverlay): boolean {
     case 'container':
     case 'wreck':
     case 'chest':
-    case 'station':
       return sameInventorySlots((current as typeof next).slots, next.slots);
+    case 'station':
+      return (current as typeof next).supply === next.supply && sameInventorySlots((current as typeof next).slots, next.slots);
     case 'extractor': {
       const a = (current as typeof next).extractor, b = next.extractor;
-      return a.coal === b.coal && a.fuel === b.fuel && a.progress === b.progress;
+      return a.coal === b.coal && a.fuel === b.fuel && a.progress === b.progress && a.supply === b.supply;
     }
     case 'trade':
       return sameTradeOffers((current as typeof next).offers, next.offers);

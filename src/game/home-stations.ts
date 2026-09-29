@@ -1,5 +1,6 @@
-// The mine's stations: opening them, moving cargo across, crafting, and the
-// extractor's coal/fuel transfers.
+// The mine's stations: opening them, moving cargo across, crafting, the
+// extractor's coal/fuel transfers, and the base's cash sinks — the home Supply
+// on the home-cavern Manufacturer and fuel ordered into the home extractor.
 //
 // `core/stations.ts` holds the rules (which station a parked ship can reach, what
 // a transfer is allowed to move) and `core/crafting.ts` the recipe table; this is
@@ -24,16 +25,19 @@ import {
   type Recipe
 } from '../core/crafting';
 import {
+  addItem,
   findStack,
   oreKind,
   removeItem,
+  roomLeft,
   totalItems,
-  type Inventory,
   type InventoryItemKind
 } from '../core/inventory';
+import { EXTRACTOR } from '../core/balance';
 import { itemForKind } from '../core/items';
 import {
   STATION_CAPACITY,
+  isHomeStation,
   nearestStation,
   stationAt,
   isStationReachable,
@@ -45,6 +49,7 @@ import {
   type ManufacturerStation,
   type PlacedStation
 } from '../core/stations';
+import { extractorFuelOrder, isSupplyKind, supplyPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
 import type { PortalsSim } from './portals';
 
@@ -54,6 +59,13 @@ export interface ExtractorView {
   fuel: number;
   /** Ticks toward the current coal, so the screen can word "next in Xs". */
   progress: number;
+  /** Whether this is the base's extractor, which takes fuel ordered for cash. */
+  supply: boolean;
+}
+
+/** The extractor screen's view of one extractor. */
+export function extractorView(station: ExtractorStation): ExtractorView {
+  return {coal: station.coal, fuel: station.fuel, progress: station.progress, supply: isHomeStation(station)};
 }
 
 export interface HomeStationsSim {
@@ -77,6 +89,10 @@ export interface HomeStationsSim {
   loadCoal(): void;
   /** Top the ship's tank up from the open extractor's stored fuel. */
   refuel(): void;
+  /** Buy one of a home Supply item into the open home-cavern manufacturer's stock. */
+  buySupply(kind: InventoryItemKind): void;
+  /** Order fuel for cash into the open home extractor's store (`extractorFuelOrder`). */
+  buyExtractorFuel(): void;
   /** One fixed 60 Hz step: run every extractor, and tidy up after a lost ship. */
   tick(): void;
 }
@@ -86,8 +102,10 @@ export interface HomeStationsDeps {
   audio: AudioController;
   toast(message: string): void;
   saveProgress(): void;
-  /** Show the manufacturing screen for this stock, or take it away with `null`. */
-  setStationUi(inventory: Inventory | null): void;
+  /** Move the wallet (negative to spend); the caller saves. */
+  addCash(amount: number): void;
+  /** Show the manufacturing screen for this station, or take it away with `null`. */
+  setStationUi(station: ManufacturerStation | null): void;
   /** Show the extractor screen with these buffers, or take it away with `null`. */
   setExtractorUi(view: ExtractorView | null): void;
   /** The portal sim: a press on a portal tile opens its travel list. */
@@ -114,13 +132,9 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
       return deps.portals.openTravel(station);
     }
     open = station;
-    if (station.kind === 'manufacturer') deps.setStationUi(station.inventory);
+    if (station.kind === 'manufacturer') deps.setStationUi(station);
     else deps.setExtractorUi(extractorView(station));
     return true;
-  }
-
-  function extractorView(station: ExtractorStation): ExtractorView {
-    return {coal: station.coal, fuel: station.fuel, progress: station.progress};
   }
 
   function close(): void {
@@ -134,7 +148,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
   /** Re-publish the open screen's data after a change. */
   function repaint(): void {
     if (!open) return;
-    if (open.kind === 'manufacturer') deps.setStationUi(open.inventory);
+    if (open.kind === 'manufacturer') deps.setStationUi(open);
     else if (open.kind === 'extractor') deps.setExtractorUi(extractorView(open));
   }
 
@@ -269,6 +283,54 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     toast(`Loaded ${loaded} coal into the extractor.`);
   }
 
+  function buySupply(kind: InventoryItemKind): void {
+    const manufacturer = openManufacturer();
+    if (!manufacturer || state.gameOver) return;
+    if (!isSupplyKind(kind)) return;
+    const label = itemForKind(kind).label;
+    if (!isHomeStation(manufacturer)) {
+      audio.alarm();
+      return toast('Supply is only sold at the home base\'s Manufacturing Station.');
+    }
+    const price = supplyPrice(kind);
+    if (state.cash < price) {
+      audio.alarm();
+      return toast(`Not enough cash for ${label} ($${price}).`);
+    }
+    if (roomLeft(manufacturer.inventory, STATION_CAPACITY) <= 0) {
+      audio.alarm();
+      return toast(`Station stock is full at ${STATION_CAPACITY} items. Take something out first.`);
+    }
+    deps.addCash(-price);
+    manufacturer.inventory = addItem(manufacturer.inventory, itemForKind(kind), 1);
+    repaint();
+    saveProgress();
+    audio.buy();
+    toast(`Bought ${label} for $${price}. Take it from the station.`);
+  }
+
+  function buyExtractorFuel(): void {
+    const extractor = openExtractor();
+    if (!extractor || state.gameOver) return;
+    if (!isHomeStation(extractor)) {
+      audio.alarm();
+      return toast('Fuel is only delivered to the home base\'s Fuel Extractor.');
+    }
+    const {amount, cost} = extractorFuelOrder(extractor.fuel, state.cash);
+    if (amount <= 0) {
+      audio.alarm();
+      return toast(EXTRACTOR.fuelCap - extractor.fuel < 1
+        ? `The extractor's store is full at ${EXTRACTOR.fuelCap} fuel.`
+        : 'Not enough cash to order fuel.');
+    }
+    deps.addCash(-cost);
+    extractor.fuel = Math.min(EXTRACTOR.fuelCap, extractor.fuel + amount);
+    repaint();
+    saveProgress();
+    audio.buy();
+    toast(`Ordered ${Math.round(amount)} fuel into the extractor for $${cost}.`);
+  }
+
   /** Pour as much stored fuel into the tank as it will take. Returns the amount moved. */
   function pourFuel(extractor: ExtractorStation): number {
     const p = state.player;
@@ -356,6 +418,8 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     craft,
     loadCoal,
     refuel,
+    buySupply,
+    buyExtractorFuel,
     tick
   };
 }

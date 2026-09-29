@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
-import { STATIONS } from '../../shared/constants';
+import { START_Y, STATIONS } from '../../shared/constants';
 import { EXTRACTOR } from '../core/balance';
 import { addItem, countItem, createInventory, oreKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { createInitialState } from '../core/state';
 import {
   STATION_CAPACITY,
+  createExtractor,
+  createManufacturer,
   firstManufacturer,
   type ExtractorStation,
   type ManufacturerStation
 } from '../core/stations';
+import { EXTRACTOR_FUEL_ORDER, extractorFuelOrder, supplyPrice } from '../core/trading';
 import type { GameState } from '../core/types';
 import { createHomeStations, type HomeStationsSim } from './home-stations';
 import { createAudioStub, createPortalsSimStub, createToastLog, type AudioStub, type PortalsSimStub } from './test-support';
@@ -23,6 +26,13 @@ interface Harness {
   setStationUi: ReturnType<typeof vi.fn>;
   setExtractorUi: ReturnType<typeof vi.fn>;
   portals: PortalsSimStub;
+}
+
+/** A harness whose wallet starts at `cash`. */
+function harnessWithCash(cash: number): Harness {
+  const h = harness();
+  h.state.cash = cash;
+  return h;
 }
 
 function harness(): Harness {
@@ -41,6 +51,7 @@ function harness(): Harness {
     audio: context.audio,
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
+    addCash: (amount: number) => { state.cash += amount; },
     setStationUi: context.setStationUi,
     setExtractorUi: context.setExtractorUi,
     portals: context.portals
@@ -74,7 +85,7 @@ describe('opening the stations', () => {
 
     expect(h.sim.openNearest()).toBe(true);
     expect(h.sim.openStation?.kind).toBe('manufacturer');
-    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state).inventory);
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state));
 
     expect(h.sim.openNearest()).toBe(true);
     expect(h.sim.openStation).toBeNull();
@@ -88,7 +99,7 @@ describe('opening the stations', () => {
 
     expect(h.sim.openNearest()).toBe(true);
     expect(h.sim.openStation?.kind).toBe('extractor');
-    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 0, fuel: 0, progress: 0});
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 0, fuel: 0, progress: 0, supply: true});
   });
 
   it('refuses when no station is in reach', () => {
@@ -176,7 +187,7 @@ describe('moving cargo through the station', () => {
     expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(6);
     expect(h.state.player.inventory).toHaveLength(0);
     expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state).inventory);
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state));
     expect(h.audio.played).toEqual(['stow']);
   });
 
@@ -196,7 +207,7 @@ describe('moving cargo through the station', () => {
     // The coal was never asked for, so it stays in the bay.
     expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(4);
     expect(h.saveProgress).toHaveBeenCalled();
-    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state).inventory);
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state));
   });
 
   it('stows a single unit when asked, leaving the rest of the stack aboard', () => {
@@ -290,7 +301,7 @@ describe('the fuel extractor transfers', () => {
 
     expect(extractor(h.state).coal).toBe(7);
     expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(0);
-    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0, progress: 0});
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 7, fuel: 0, progress: 0, supply: true});
   });
 
   it('loads only what the hopper has room for, leaving the rest aboard', () => {
@@ -446,7 +457,7 @@ describe('the extractor tick', () => {
 
     h.sim.tick();
 
-    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 2, fuel: 0, progress: 1});
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 2, fuel: 0, progress: 1, supply: true});
   });
 
   it('does nothing on a steady tick with an empty extractor', () => {
@@ -474,5 +485,148 @@ describe('a lost ship', () => {
 
     expect(h.sim.openStation).toBeNull();
     expect(h.setStationUi).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe('the home Supply counter', () => {
+  it('buys a Supply item for cash into the home manufacturer\'s stock', () => {
+    const price = supplyPrice('repairKit');
+    const h = harnessWithCash(price + 5);
+    park(h.state, 'manufacturer');
+    h.sim.openNearest();
+
+    h.sim.buySupply('repairKit');
+
+    expect(h.state.cash).toBe(5);
+    expect(countItem(manufacturer(h.state).inventory, 'repairKit')).toBe(1);
+    // It lands in the station, not the bay.
+    expect(countItem(h.state.player.inventory, 'repairKit')).toBe(0);
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state));
+    expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.audio.played).toEqual(['buy']);
+    expect(h.toasts.saw(`Bought Repair Kit for $${price}`)).toBe(true);
+  });
+
+  it('refuses when the wallet cannot cover the price', () => {
+    const h = harnessWithCash(supplyPrice('scanner') - 1);
+    park(h.state, 'manufacturer');
+    h.sim.openNearest();
+
+    h.sim.buySupply('scanner');
+
+    expect(h.state.cash).toBe(supplyPrice('scanner') - 1);
+    expect(countItem(manufacturer(h.state).inventory, 'scanner')).toBe(0);
+    expect(h.toasts.saw('Not enough cash for Scanner')).toBe(true);
+    expect(h.audio.played).toEqual(['alarm']);
+  });
+
+  it('refuses a purchase the full station stock has no room for', () => {
+    const h = harnessWithCash(10_000);
+    park(h.state, 'manufacturer');
+    manufacturer(h.state).inventory = addItem(createInventory(), itemForKind(oreKind('Coal')), STATION_CAPACITY);
+    h.sim.openNearest();
+
+    h.sim.buySupply('dynamite');
+
+    expect(h.state.cash).toBe(10_000);
+    expect(countItem(manufacturer(h.state).inventory, 'dynamite')).toBe(0);
+    expect(h.toasts.saw('Station stock is full')).toBe(true);
+  });
+
+  it('refuses an item the Supply does not sell', () => {
+    const h = harnessWithCash(10_000);
+    park(h.state, 'manufacturer');
+    h.sim.openNearest();
+
+    h.sim.buySupply('teleporter');
+
+    expect(h.state.cash).toBe(10_000);
+    expect(countItem(manufacturer(h.state).inventory, 'teleporter')).toBe(0);
+  });
+
+  it('sells nothing at a manufacturer set down away from the base', () => {
+    const h = harnessWithCash(10_000);
+    const field = createManufacturer(10, START_Y + 200);
+    h.state.stations.push(field);
+    Object.assign(h.state.player, {x: field.x, y: field.y});
+    h.sim.openNearest();
+    expect(h.sim.openStation).toBe(field);
+
+    h.sim.buySupply('repairKit');
+
+    expect(h.state.cash).toBe(10_000);
+    expect(countItem(field.inventory, 'repairKit')).toBe(0);
+    expect(h.toasts.saw('only sold at the home base')).toBe(true);
+  });
+});
+
+describe('ordering fuel into the home extractor', () => {
+  it('orders a batch of fuel into the store for cash', () => {
+    const h = harnessWithCash(1000);
+    park(h.state, 'extractor');
+    extractor(h.state).fuel = 0;
+    h.sim.openNearest();
+    const order = extractorFuelOrder(0, 1000);
+    expect(order.amount).toBe(EXTRACTOR_FUEL_ORDER);
+
+    h.sim.buyExtractorFuel();
+
+    expect(extractor(h.state).fuel).toBe(EXTRACTOR_FUEL_ORDER);
+    expect(h.state.cash).toBe(1000 - order.cost);
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 0, fuel: EXTRACTOR_FUEL_ORDER, progress: 0, supply: true});
+    expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.audio.played).toEqual(['buy']);
+    expect(h.toasts.saw(`Ordered ${EXTRACTOR_FUEL_ORDER} fuel into the extractor for $${order.cost}`)).toBe(true);
+  });
+
+  it('orders only what the store has room for', () => {
+    const h = harnessWithCash(1000);
+    park(h.state, 'extractor');
+    extractor(h.state).fuel = EXTRACTOR.fuelCap - 30;
+    h.sim.openNearest();
+
+    h.sim.buyExtractorFuel();
+
+    expect(extractor(h.state).fuel).toBe(EXTRACTOR.fuelCap);
+  });
+
+  it('refuses when the store is full', () => {
+    const h = harnessWithCash(1000);
+    park(h.state, 'extractor');
+    extractor(h.state).fuel = EXTRACTOR.fuelCap;
+    h.sim.openNearest();
+
+    h.sim.buyExtractorFuel();
+
+    expect(h.state.cash).toBe(1000);
+    expect(h.toasts.saw('store is full')).toBe(true);
+    expect(h.audio.played).toEqual(['alarm']);
+  });
+
+  it('refuses when the wallet is empty', () => {
+    const h = harnessWithCash(0);
+    park(h.state, 'extractor');
+    extractor(h.state).fuel = 0;
+    h.sim.openNearest();
+
+    h.sim.buyExtractorFuel();
+
+    expect(extractor(h.state).fuel).toBe(0);
+    expect(h.toasts.saw('Not enough cash')).toBe(true);
+  });
+
+  it('delivers nothing to an extractor set down away from the base', () => {
+    const h = harnessWithCash(1000);
+    const field = createExtractor(10, START_Y + 200);
+    h.state.stations.push(field);
+    Object.assign(h.state.player, {x: field.x, y: field.y});
+    h.sim.openNearest();
+    expect(h.setExtractorUi).toHaveBeenLastCalledWith({coal: 0, fuel: 0, progress: 0, supply: false});
+
+    h.sim.buyExtractorFuel();
+
+    expect(field.fuel).toBe(0);
+    expect(h.state.cash).toBe(1000);
+    expect(h.toasts.saw('only delivered to the home base')).toBe(true);
   });
 });

@@ -19,6 +19,7 @@ import { START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 import { appendToast, buildObservation, MAX_VIEW_RADIUS, VIEW_LEGEND } from './observation';
 import { nth } from '../test-narrowing';
+import { EXTRACTOR_FUEL_ORDER, SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, supplyPrice } from '../core/trading';
 
 /** A tile grid backed by a map; anything unset reads as plain dirt. */
 function tileSource(overrides: Record<string, Tile>) {
@@ -542,7 +543,7 @@ describe('buildObservation', () => {
 
     const overlay = buildObservation({
       state,
-      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3)]}}),
+      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3)], supply: false}}),
       get: tileSource({})
     }).overlay;
 
@@ -561,6 +562,28 @@ describe('buildObservation', () => {
     const repairKit = overlay.recipes.find(r => r.output === 'repairKit');
     expect(repairKit?.info.length).toBeGreaterThan(0);
     expect(repairKit?.info.some(line => line.includes('Iron 3/3'))).toBe(true);
+    // Away from the base there is no Supply counter.
+    expect(overlay.supply).toEqual([]);
+  });
+
+  it('mirrors the home Supply rows with their prices and affordability', () => {
+    const state = createInitialState();
+    const cash = supplyPrice('dynamite');
+    const overlay = buildObservation({
+      state,
+      ui: ui({overlay: {kind: 'station', slots: [], supply: true}, hud: {...uiStore.getState().hud, cash}}),
+      get: tileSource({})
+    }).overlay;
+
+    if (overlay?.kind !== 'station') throw new Error('expected station overlay');
+    expect(overlay.supply.map(row => row.kind)).toEqual([...SUPPLY_POOL]);
+    for (const row of overlay.supply) {
+      expect(row.price).toBe(supplyPrice(row.kind));
+      expect(row.affordable).toBe(cash >= row.price);
+      expect(row.label).toBeTruthy();
+      expect(row.info.length).toBeGreaterThan(0);
+    }
+    expect(overlay.supply.find(row => row.kind === 'dynamite')?.affordable).toBe(true);
   });
 
   it('keeps the top-level bay lean, with no tooltip info on its slots', () => {
@@ -638,6 +661,24 @@ describe('buildObservation', () => {
     expect(overlay.buy).toMatchObject([{kind: 'repairKit', label: 'Repair Kit', price: 54, stock: 2}]);
     expect(nth(overlay.sell, 0).info.length).toBeGreaterThan(0);
     expect(nth(overlay.buy, 0).info.length).toBeGreaterThan(0);
+    // A full tank: the fuel row buys nothing, but still quotes a unit.
+    expect(overlay.fuel).toEqual({unitPrice: Math.round(fuelUnitPrice() * 100) / 100, amount: 0, cost: 0});
+  });
+
+  it('mirrors the trade fuel row: the fill a tank short of fuel would buy', () => {
+    const state = createInitialState();
+    state.player.fuelMax = 100;
+    state.player.fuel = 60;
+    const overlay = buildObservation({
+      state,
+      ui: ui({overlay: {kind: 'trade', offers: []}, hud: {...uiStore.getState().hud, cash: 200}}),
+      get: tileSource({})
+    }).overlay;
+
+    if (overlay?.kind !== 'trade') throw new Error('expected trade overlay');
+    const {cost} = fuelPurchase(60, 100, 200, fuelUnitPrice());
+    expect(overlay.fuel).toMatchObject({amount: 40, cost});
+    expect(cost).toBeGreaterThan(0);
   });
 
   it('mirrors the extractor overlay with the refuel amount the screen would show', () => {
@@ -646,7 +687,7 @@ describe('buildObservation', () => {
     state.player.fuelMax = 100;
     const overlay = buildObservation({
       state,
-      ui: ui({overlay: {kind: 'extractor', extractor: {coal: 5, fuel: 40, progress: 10}}}),
+      ui: ui({overlay: {kind: 'extractor', extractor: {coal: 5, fuel: 40, progress: 10, supply: false}}}),
       get: tileSource({})
     }).overlay;
 
@@ -655,6 +696,25 @@ describe('buildObservation', () => {
     expect(overlay.coal).toBe(5);
     // Room in the tank is 50, but only 40 fuel is stored.
     expect(overlay.refuelAmount).toBe(40);
+    // A field extractor takes no fuel orders.
+    expect(overlay.fuelOrder).toBeNull();
+  });
+
+  it('mirrors the base extractor\'s fuel order: what the button would buy right now', () => {
+    const state = createInitialState();
+    const view = (fuel: number, cash: number) => {
+      const overlay = buildObservation({
+        state,
+        ui: ui({overlay: {kind: 'extractor', extractor: {coal: 0, fuel, progress: 0, supply: true}}, hud: {...uiStore.getState().hud, cash}}),
+        get: tileSource({})
+      }).overlay;
+      if (overlay?.kind !== 'extractor') throw new Error('expected extractor overlay');
+      return overlay.fuelOrder;
+    };
+
+    expect(view(0, 1000)).toEqual({amount: EXTRACTOR_FUEL_ORDER, cost: extractorFuelOrder(0, 1000).cost});
+    expect(view(EXTRACTOR.fuelCap, 1000)).toEqual({amount: 0, cost: 0});
+    expect(view(0, 0)).toEqual({amount: 0, cost: 0});
   });
 
   it('mirrors the ship overlay, listing bay upgrades as fittable', () => {

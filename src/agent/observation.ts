@@ -24,7 +24,7 @@ import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
 import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
-import { sellPrice } from '../core/trading';
+import { SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, sellPrice, supplyPrice } from '../core/trading';
 import { chestAt, graveAt, tradingPostAt } from '../world/world';
 import { chestContents, isChestLooted } from '../core/chest';
 import {
@@ -119,6 +119,16 @@ export interface AgentRecipe {
   info: string[];
 }
 
+/** One home Supply row: an item bought for cash into the station stock (`data-supply` = kind). */
+export interface AgentSupplyRow {
+  kind: InventoryItemKind;
+  label: string;
+  price: number;
+  /** The wallet covers the price (the button is live). */
+  affordable: boolean;
+  info: string[];
+}
+
 /** One ship fitting slot, as the Ship screen paints it. */
 export interface AgentShipSlot {
   index: number;
@@ -142,8 +152,27 @@ export interface NotableTile {
 
 /** The one open overlay, mirrored only while it is up. */
 export type AgentOverlay =
-  | {kind: 'station'; bay: AgentSlot[]; stock: AgentSlot[]; recipes: AgentRecipe[]}
-  | {kind: 'extractor'; coal: number; fuel: number; progress: number; refuelAmount: number}
+  | {
+      kind: 'station';
+      bay: AgentSlot[];
+      stock: AgentSlot[];
+      recipes: AgentRecipe[];
+      /** The home Supply counter's rows; empty at a Manufacturer outside the home cavern. */
+      supply: AgentSupplyRow[];
+    }
+  | {
+      kind: 'extractor';
+      coal: number;
+      fuel: number;
+      progress: number;
+      refuelAmount: number;
+      /**
+       * What extractorBuyFuelBtn would order into the store right now (whole
+       * dollars; `amount` 0 when the store is full or the wallet short). `null`
+       * away from the base's extractor, where the button is not shown.
+       */
+      fuelOrder: {amount: number; cost: number} | null;
+    }
   | {kind: 'ship'; slots: AgentShipSlot[]; fittable: AgentSlot[]}
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
   | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]}
@@ -155,6 +184,11 @@ export type AgentOverlay =
       cash: number;
       sell: {kind: InventoryItemKind; label: string; count: number; price: number; info: string[]}[];
       buy: {kind: InventoryItemKind; label: string; price: number; stock: number; info: string[]}[];
+      /**
+       * The fuel row (tradeFuelBtn): the price of one unit, and the fill it would
+       * buy right now — `amount` 0 when the tank is full or the wallet short.
+       */
+      fuel: {unitPrice: number; amount: number; cost: number};
     }
   | {
       kind: 'portal';
@@ -330,6 +364,13 @@ function resolveInputs(inputs: {kind: InventoryItemKind; count: number}[]): Agen
   return inputs.map(input => ({kind: input.kind, count: input.count, label: itemForKind(input.kind).label}));
 }
 
+/** The trade screen's fuel row: a unit's price, and what a fill would pour and cost. */
+function tradeFuel(state: GameState, cash: number): {unitPrice: number; amount: number; cost: number} {
+  const unitPrice = fuelUnitPrice();
+  const {amount, cost} = fuelPurchase(state.player.fuel, state.player.fuelMax, cash, unitPrice);
+  return {unitPrice: Math.round(unitPrice * 100) / 100, amount: Math.round(amount), cost};
+}
+
 /** The one open overlay's mirror, or `null` when the mine is uncovered. */
 function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
   const overlay = ui.overlay;
@@ -351,13 +392,27 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
             missing: craftable ? [] : resolveInputs(missingInputs(stock, recipe)),
             info: [...describeItem(recipe.output).lines, ...recipeInputLines(recipe, stock)]
           };
-        })
+        }),
+        supply: overlay.supply
+          ? SUPPLY_POOL.map(kind => {
+              const price = supplyPrice(kind);
+              return {kind, label: itemForKind(kind).label, price, affordable: ui.hud.cash >= price, info: describeItem(kind).lines};
+            })
+          : []
       };
     }
     case 'extractor': {
-      const {coal, fuel, progress} = overlay.extractor;
+      const {coal, fuel, progress, supply} = overlay.extractor;
       const refuelAmount = Math.round(Math.min(fuel, Math.max(0, state.player.fuelMax - state.player.fuel)));
-      return {kind: 'extractor', coal, fuel, progress, refuelAmount};
+      const order = supply ? extractorFuelOrder(fuel, ui.hud.cash) : null;
+      return {
+        kind: 'extractor',
+        coal,
+        fuel,
+        progress,
+        refuelAmount,
+        fuelOrder: order ? {amount: Math.round(order.amount), cost: order.cost} : null
+      };
     }
     case 'ship':
       return {
@@ -384,7 +439,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         sell: ui.inventorySlots
           .filter(slot => isOreKind(slot.kind))
           .map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, price: sellPrice(slot.kind), info: describeItem(slot.kind).lines})),
-        buy: overlay.offers.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock, info: describeItem(offer.kind).lines}))
+        buy: overlay.offers.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock, info: describeItem(offer.kind).lines})),
+        fuel: tradeFuel(state, ui.hud.cash)
       };
     case 'portal': {
       const {portal} = overlay;

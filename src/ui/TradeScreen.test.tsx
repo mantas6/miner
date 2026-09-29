@@ -8,6 +8,7 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addItem, createInventory, oreItem } from '../core/inventory';
+import { fuelPurchase, fuelUnitPrice } from '../core/trading';
 import { TradeScreen } from './TradeScreen';
 import { setUiCommands, uiCommands } from './commands';
 import { buildInventorySlots, uiStore, type TradeOfferView } from './store';
@@ -24,11 +25,11 @@ const OFFERS: TradeOfferView[] = [
 ];
 
 /** Open the screen with a wallet, a stack of ore aboard, and the offers above. */
-function open(cash = 500, cargo = 0, cargoMax = 20): HTMLDialogElement {
+function open(cash = 500, cargo = 0, cargoMax = 20, fuel = 100, fuelMax = 100): HTMLDialogElement {
   const rendered = render(<TradeScreen />);
   act(() => {
     const store = uiStore.getState();
-    uiStore.setState({hud: {...store.hud, cash, cargo, cargoMax}});
+    uiStore.setState({hud: {...store.hud, cash, cargo, cargoMax, fuel, fuelMax}});
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem(IRON), 4)));
     store.showOverlay({kind: 'trade', offers: OFFERS});
   });
@@ -99,6 +100,35 @@ describe('trading-post dialog', () => {
     // A full bay disables even an affordable, in-stock offer.
     open(500, 20, 20);
     expect(control('buy', 'repairKit').disabled).toBe(true);
+  });
+
+  it('heads the Buy column with a fuel row that fills the tank as far as the wallet reaches', () => {
+    const buyFuelFromPost = vi.fn();
+    setUiCommands({buyFuelFromPost});
+    open(500, 0, 20, 60, 100);
+    const button = document.getElementById('tradeFuelBtn') as HTMLButtonElement;
+    const {cost} = fuelPurchase(60, 100, 500, fuelUnitPrice());
+
+    // The first row of the Buy list, ahead of the stocked offers.
+    expect(document.querySelector('#tradeBuy > li')!.contains(button)).toBe(true);
+    expect(button.closest('li')!.textContent).toContain('Fill tank');
+    expect(button.closest('li')!.textContent).toContain('+40');
+    expect(button.textContent).toBe(`$${cost}`);
+    expect(button.getAttribute('aria-label')).toBe(`Fill tank +40 for $${cost}`);
+    expect(button.disabled).toBe(false);
+
+    fireEvent.click(button);
+    expect(buyFuelFromPost).toHaveBeenCalledOnce();
+  });
+
+  it('disables the fuel row with a full tank, or a wallet that cannot cover one unit', () => {
+    open(500, 0, 20, 100, 100);
+    expect((document.getElementById('tradeFuelBtn') as HTMLButtonElement).disabled).toBe(true);
+    expect(document.getElementById('tradeFuelBtn')!.closest('li')!.textContent).toContain('Full');
+
+    cleanup();
+    open(0, 0, 20, 10, 100);
+    expect((document.getElementById('tradeFuelBtn') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {

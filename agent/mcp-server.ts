@@ -162,7 +162,12 @@ function instructions(): string {
     '    `alert` means the two could no longer fill a tank — go mine coal.',
     '  - Trading Posts (T) stand deep in the mine: sell ore for cash there, and buy',
     '    a small, limited stock of gear. `hud.cash` is your wallet; the open post\'s',
-    '    sell prices and buy offers are in the `trade` overlay.',
+    '    sell prices and buy offers are in the `trade` overlay. tradeFuelBtn fills the',
+    '    tank for cash (`trade.fuel`: unitPrice, and the amount/cost a fill buys now).',
+    '  - Spend cash at home too: the home Manufacturer\'s Supply (`station.supply`,',
+    '    click data-supply with the kind) sells repair kits, dynamite, scanners and',
+    '    containers into its stock, and the home extractor\'s extractorBuyFuelBtn',
+    '    orders fuel into its store (`extractor.fuelOrder`).',
     '  - A lost or reset ship leaves a wreck (W) on the tile it died on, holding the',
     '    ore and fitted upgrades that did not survive — up to 5 stand at once, oldest',
     '    dropped. Fly back, press its tile (or `c` alongside it), and salvage with',
@@ -328,13 +333,16 @@ server.registerTool(
     description:
       'Click one allowlisted UI control. Use `target` for an id (e.g. "shipBtn", ' +
       '"stationCloseBtn") or an attribute name (e.g. "data-craft"); pass `value` for ' +
-      'attribute controls (e.g. target "data-craft", value "upgrade:drill:1"); the ' +
+      'attribute controls (e.g. target "data-craft", value "upgrade:drill:1"; at the home ' +
+      'Manufacturer target "data-supply", value e.g. "repairKit", buys a Supply item for ' +
+      'cash into the station stock); the ' +
       'transfer controls also need `kind` — the station (target "data-station", value ' +
       '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal"), the cargo container ' +
       '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"; ' +
       'a wreck or chest menu takes only "take"|"take-one", and lootAllBtn hauls it all), ' +
       'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +
-      '"ore:Iron" to sell or "repairKit" to buy). A portal travel/respawn row is target ' +
+      '"ore:Iron" to sell or "repairKit" to buy; tradeFuelBtn fills the tank for cash). ' +
+      'extractorBuyFuelBtn orders fuel for cash into the home Fuel Extractor. A portal travel/respawn row is target ' +
       '"data-portal", value the destination "x,y" (e.g. "48,20"). An info tab is target ' +
       '"data-info-section", value e.g. "info-settings". data-ship-unequip takes the ' +
       '0-based fitting-slot index (e.g. "0"). The cheat grants data-developer-grant-ores ' +

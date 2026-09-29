@@ -38,7 +38,7 @@ import { createIntroShowcase, type IntroShowcase } from './intro-showcase';
 import { REVEAL_FOOTPRINT } from '../core/balance';
 import type { Inventory, InventoryItemKind, UpgradeKind } from '../core/inventory';
 import type { Epitaph } from '../core/grave';
-import { stationDeviceItemKind } from '../core/stations';
+import { isHomeStation, stationDeviceItemKind, type ManufacturerStation } from '../core/stations';
 import { equip, unequip } from '../core/ship-upgrades';
 import { isPlaceableKind } from '../core/placement-overlay';
 import { CARGO_CONTAINER_ITEM } from '../core/cargo-container';
@@ -66,7 +66,7 @@ import { createCargoContainers, type CargoContainerSim } from './cargo-container
 import { createWrecks, type WreckSim } from './wrecks';
 import { createChests, type ChestSim } from './chests';
 import { createGraves, type GraveSim } from './graves';
-import { createHomeStations, type HomeStationsSim } from './home-stations';
+import { createHomeStations, extractorView, type HomeStationsSim } from './home-stations';
 import { createPortalsSim, type PortalsSim } from './portals';
 import { createTrading, type TradingSim } from './trading';
 import { createStationDevices, type StationDeviceSim } from './station-devices';
@@ -211,8 +211,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   // Each feature module drives its screen through one of these: show these
   // contents, or take the screen away with `null`. The screens that cover the
   // mine with nothing of the mine left to aim at stand an armed placement down.
-  const setStationUi = overlays.publisher('station', (inventory: Inventory) =>
-    ({kind: 'station', slots: buildInventorySlots(inventory)}), {standDown: true});
+  const setStationUi = overlays.publisher('station', (station: ManufacturerStation) =>
+    ({kind: 'station', slots: buildInventorySlots(station.inventory), supply: isHomeStation(station)}), {standDown: true});
   const setExtractorUi = overlays.publisher('extractor', (extractor: ExtractorView) =>
     ({kind: 'extractor', extractor}), {standDown: true});
   const setPortalUi = overlays.publisher('portal', (portal: PortalView) =>
@@ -331,6 +331,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closeTrade: () => trading.close(),
       sellToPost: (kind, single) => trading.sell(kind, single),
       buyFromPost: kind => trading.buy(kind),
+      buyFuelFromPost: () => trading.buyFuel(),
       closePortal: () => portals.close(),
       renamePortal: name => portals.rename(name),
       travelToPortal: (x, y) => portals.travelTo(x, y),
@@ -348,6 +349,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       craft: recipe => homeStations.craft(recipe),
       loadCoal: () => homeStations.loadCoal(),
       refuelFromExtractor: () => homeStations.refuel(),
+      buySupply: kind => homeStations.buySupply(kind),
+      buyExtractorFuel: () => homeStations.buyExtractorFuel(),
       openInfo: openInfoScreen,
       closeInfo: closeInfoScreen,
       // The switches are the only pure-UI commands with no cue of their own; every
@@ -704,6 +707,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       audio,
       toast,
       saveProgress: scheduleSave,
+      addCash,
       setStationUi,
       setExtractorUi,
       portals
@@ -744,8 +748,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       state,
       openStation: () => homeStations.openStation,
       scheduleSave,
-      repaintStation: station => setStationUi(station.inventory),
-      repaintExtractor: station => setExtractorUi({coal: station.coal, fuel: station.fuel, progress: station.progress}),
+      repaintStation: station => setStationUi(station),
+      repaintExtractor: station => setExtractorUi(extractorView(station)),
       toast
     });
     gameInput = createInput({

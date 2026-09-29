@@ -23,12 +23,12 @@ export const ID_TARGETS: ReadonlySet<string> = new Set([
   'shipCloseBtn',
   // Station screen.
   'stowAllBtn', 'stationCloseBtn',
-  // Fuel extractor screen.
-  'loadCoalBtn', 'refuelBtn', 'extractorCloseBtn',
+  // Fuel extractor screen (extractorBuyFuelBtn only at the base's extractor).
+  'loadCoalBtn', 'refuelBtn', 'extractorBuyFuelBtn', 'extractorCloseBtn',
   // Cargo container / wreck / chest screen.
   'cargoCloseBtn', 'lootAllBtn',
   // Trading-post screen.
-  'tradeCloseBtn',
+  'tradeFuelBtn', 'tradeCloseBtn',
   // Grave stone.
   'graveOkBtn',
   // Portal screen.
@@ -48,7 +48,7 @@ export const ID_TARGETS: ReadonlySet<string> = new Set([
 
 /** Attribute controls, each needing a value (some need a value and a kind). */
 export const ATTR_TARGETS: ReadonlySet<string> = new Set([
-  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-info-section', 'data-cargo', 'data-station', 'data-trade', 'data-portal'
+  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-supply', 'data-info-section', 'data-cargo', 'data-station', 'data-trade', 'data-portal'
 ]);
 
 /**

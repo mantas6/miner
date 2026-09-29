@@ -1,4 +1,5 @@
-// Trading posts: opening one, selling ore for cash, and buying its limited stock.
+// Trading posts: opening one, selling ore for cash, buying its limited stock, and
+// filling the tank with fuel for cash (unlimited, priced by `fuelUnitPrice`).
 //
 // `core/trading.ts` holds the rules (what a post offers, at what price, from what
 // pool) and `world.ts` derives the post itself from its coordinate; this is the
@@ -23,7 +24,7 @@ import {
 } from '../core/inventory';
 import { tileKey } from '../../shared/tile-key';
 import { itemForKind } from '../core/items';
-import { offersForPost, remainingStock, sellPrice } from '../core/trading';
+import { fuelPurchase, fuelUnitPrice, offersForPost, remainingStock, sellPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
 import type { TradeOfferView } from '../ui/store';
 import { tradingPostAt, type TradingPost } from '../world/world';
@@ -62,6 +63,8 @@ export interface TradingSim {
   sell(kind: InventoryItemKind, single?: boolean): void;
   /** Buy one of an offered item, deducting cash and drawing down the post's stock. */
   buy(kind: InventoryItemKind): void;
+  /** Fill the tank with as much fuel as the wallet covers (`fuelPurchase`). */
+  buyFuel(): void;
   /** One fixed 60 Hz step: only a lost ship to tidy up after. */
   tick(): void;
 }
@@ -193,6 +196,24 @@ export function createTrading(deps: TradingDeps): TradingSim {
     toast(`Bought ${offer.label} for $${offer.price}.`);
   }
 
+  function buyFuel(): void {
+    if (!open || state.gameOver) return;
+    const p = state.player;
+    const unitPrice = fuelUnitPrice();
+    const {amount, cost} = fuelPurchase(p.fuel, p.fuelMax, state.cash, unitPrice);
+    if (amount <= 0) {
+      audio.alarm();
+      return toast(p.fuelMax - p.fuel < 1
+        ? 'Fuel tank already full.'
+        : `Not enough cash for fuel ($${unitPrice.toFixed(2)} a unit).`);
+    }
+    deps.addCash(-cost);
+    p.fuel = Math.min(p.fuelMax, p.fuel + amount);
+    saveProgress();
+    audio.refuel();
+    toast(`Bought ${Math.round(amount)} fuel for $${cost}.`);
+  }
+
   function tick(): void {
     if (state.gameOver) { close(); return; }
     // The reach it took to open the post is what keeps it open.
@@ -208,6 +229,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
     close,
     sell,
     buy,
+    buyFuel,
     tick
   };
 }
