@@ -14,7 +14,7 @@
 // manufacturer's stock, the extractor's timed conversion, and the placement rules
 // a carried device answers. Everything here is pure and DOM-free.
 
-import { STATIONS } from '../../shared/constants';
+import { STATIONS, isHomeCavern } from '../../shared/constants';
 import { EXTRACTOR } from './balance';
 import {
   addItem,
@@ -173,6 +173,15 @@ export function nearestStation(
 /** The first manufacturer among the stations, or `null` when there is none. */
 export function firstManufacturer(stations: readonly PlacedStation[]): ManufacturerStation | null {
   return stations.find((s): s is ManufacturerStation => s.kind === 'manufacturer') ?? null;
+}
+
+/**
+ * The base's fuel extractor: the first one standing inside the home cavern, or
+ * `null` once none does (the Construction Toolkit can lift the seeded one away).
+ * Extractors set down elsewhere in the mine are field stations, not the base.
+ */
+export function homeExtractor(stations: readonly PlacedStation[]): ExtractorStation | null {
+  return stations.find((s): s is ExtractorStation => s.kind === 'extractor' && isHomeCavern(s.x, s.y)) ?? null;
 }
 
 /** Every portal standing in the mine, in placement order. */

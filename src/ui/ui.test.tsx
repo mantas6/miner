@@ -408,6 +408,23 @@ describe('store-driven HUD', () => {
     expect(needle.style.transform).toBe('rotate(-90deg)');
   });
 
+  it('paints the base supply line under the hull, lit when low and gone without a base', () => {
+    render(<MinerApp />);
+
+    patchHud({hasBase: true, baseFuel: 320, baseCoal: 4, baseAlert: false});
+    const line = document.getElementById('baseFuel') as HTMLElement;
+    expect(document.getElementById('baseFuelLabel')?.textContent).toBe('320 · 4 coal');
+    expect(line.textContent).toBe('Base320 · 4 coal');
+    expect(line.previousElementSibling?.id).toBe('hull');
+    expect(line.className).not.toMatch(/alert/);
+
+    patchHud({baseFuel: 40, baseCoal: 0, baseAlert: true});
+    expect(document.getElementById('baseFuel')?.className).toMatch(/alert/);
+
+    patchHud({hasBase: false});
+    expect(document.getElementById('baseFuel')).toBeNull();
+  });
+
   it('shows the underground actions and dispatches the ones it shows', () => {
     const useTeleporter = vi.fn();
     setUiCommands({useTeleporter});

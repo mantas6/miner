@@ -340,7 +340,7 @@ describe('the fuel extractor transfers', () => {
 });
 
 describe('parking on the extractor to refuel', () => {
-  it('pours stored fuel into the tank once on arrival, capped by the tank', () => {
+  it('pours stored fuel into the tank on arrival, capped by the tank', () => {
     const h = harness();
     park(h.state, 'extractor');
     h.state.player.fuel = h.state.player.fuelMax - 30;
@@ -354,19 +354,29 @@ describe('parking on the extractor to refuel', () => {
     expect(h.audio.played).toEqual(['refuel']);
   });
 
-  it('does not pour again on a second tick while still parked', () => {
+  it('keeps topping up from fresh conversions while parked, toasting only on arrival', () => {
     const h = harness();
     park(h.state, 'extractor');
-    h.state.player.fuel = h.state.player.fuelMax - 30;
-    extractor(h.state).fuel = 50;
+    h.state.player.fuel = 10;
+    // Less stored than the tank needs, and one coal queued to convert.
+    Object.assign(extractor(h.state), {fuel: 20, coal: 1, progress: 0});
 
     h.sim.tick();
-    extractor(h.state).fuel = 40;
-    h.sim.tick();
+    expect(h.state.player.fuel).toBe(30);
+    expect(extractor(h.state).fuel).toBe(0);
+    expect(h.toasts.saw('Refueled +20 from the extractor')).toBe(true);
+    expect(h.audio.played).toEqual(['refuel']);
+    const toastsAfterArrival = h.toasts.messages.length;
 
-    // Tank stayed full, and the store the second tick topped up is untouched.
-    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
-    expect(extractor(h.state).fuel).toBe(40);
+    // Stay parked while the coal burns: its fuel pours straight into the tank.
+    for (let i = 0; i < EXTRACTOR.ticksPerCoal; i++) h.sim.tick();
+
+    expect(h.state.player.fuel).toBe(30 + EXTRACTOR.fuelPerCoal);
+    expect(extractor(h.state)).toMatchObject({coal: 0, fuel: 0});
+    // Quietly: no second toast or cue for the mid-visit top-up, but it is saved.
+    expect(h.toasts.messages).toHaveLength(toastsAfterArrival);
+    expect(h.audio.played).toEqual(['refuel']);
+    expect(h.saveProgress).toHaveBeenCalled();
   });
 
   it('pours again after leaving and returning', () => {

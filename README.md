@@ -341,7 +341,9 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
   dialog restores to the button that opened it — draws nothing, while a session
   driven from the keyboard keeps its ring. `e2e/focus-visible.spec.ts` pins both.
 - **State outside the canvas.** The bottom-left panel is an analog fuel gauge over
-  plain fuel and hull readouts, each a visible `current/max` number; the other
+  plain fuel and hull readouts, each a visible `current/max` number, and a "Base"
+  line with the home extractor's stored fuel and queued coal (flashing once the two
+  could no longer fill a tank, hidden when no extractor stands at home); the other
   readouts are text, the toast and the
   fuel banner are live regions, and `#game-status` politely announces the ship's
   situation — at home base, in the mine, holds full, hull critical, ship lost. It is
@@ -425,11 +427,14 @@ and drill out as usual.
   | Lamp Panel (decor) | 1 Copper + 1 Coal |
 
 - **Fuel Extractor.** Fuel comes from coal now, not a pump. Load coal here and it
-  converts on the simulation's own clock — 1 coal → 20 fuel every 180 ticks (~3 s),
-  banked up to a 500-fuel store (`EXTRACTOR` in `src/core/balance.ts`). The
-  conversion runs whether or not you are watching; parking on the extractor tile
-  tops the tank up from the store on its own, and "Refuel ship" tops the tank up
-  from the screen.
+  converts on the simulation's own clock — 1 coal → 55 fuel every 180 ticks (~3 s),
+  banked up to a 500-fuel store (`EXTRACTOR` in `src/core/balance.ts`). A coal
+  repays its digging several times over (`src/core/balance.test.ts` pins the
+  margin), so coal runs are what keep the base supplied once the seeded store is
+  spent. The conversion runs whether or not you are watching; a ship parked on the
+  extractor tile is kept topped up from the store for as long as it stays, fresh
+  conversions included, and "Refuel ship" tops the tank up from the screen. The HUD's
+  "Base" line reads the home extractor's store and hopper at a glance.
 
 - **Portal.** The `Home` portal is the near end of the travel network. Open it to
   see the travel list of every other built portal — name, depth and distance — and
@@ -850,7 +855,7 @@ what a sighted player sees, as JSON. The top-level shape:
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `placement`: while a placeable device is armed, `{kind, target, valid, sites[]}` — the valid `sites` the canvas grid tints green around the ship, and the hovered/last-pressed `target` tile with whether the device fits there (`null` with no target); `null` when nothing placeable is armed (the toolkit included)
 - `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the tooltips their buttons carry (the next action, or why sound is blocked; the accessible names stay a fixed "Music" / "Sound effects"); `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail
-- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now
+- `hud`: `{cash, objective, scanner, fuelReserve{status, needed, margin}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank, and `null` with no extractor in the home cavern
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a grave has none)
 - `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`), `extractor` (coal, fuel, progress, refuelAmount), `ship` (slots, fittable), `container` (ship, container), `wreck` (ship, wreck), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]`), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores}`, `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.

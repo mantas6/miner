@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HOME_ROW, STATIONS } from '../../shared/constants';
+import { HOME_ROW, HOME_X, STATIONS } from '../../shared/constants';
 import { EXTRACTOR } from './balance';
 import { explorationIndex } from '../../shared/exploration-codec';
 import {
@@ -8,6 +8,7 @@ import {
   createExtractor,
   createInitialStations,
   createManufacturer,
+  homeExtractor,
   isStationReachable,
   manufacturerStock,
   nearestStation,
@@ -90,6 +91,21 @@ describe('the primary manufacturer stock', () => {
     manufacturer.inventory = inventory([oreKind('Iron'), 4]);
     expect(countItem(manufacturerStock([manufacturer]), oreKind('Iron'))).toBe(4);
     expect(manufacturerStock([createExtractor(2, 2)])).toHaveLength(0);
+  });
+});
+
+describe('the base extractor', () => {
+  it('is the seeded extractor on the home-cavern floor', () => {
+    const stations = createInitialStations();
+    expect(homeExtractor(stations)).toBe(stationAt(stations, STATIONS.extractor.x, STATIONS.extractor.y));
+  });
+
+  it('skips extractors set down out in the mine, and is null without one at home', () => {
+    const field = createExtractor(10, HOME_ROW + 40);
+    expect(homeExtractor([field])).toBeNull();
+    const home = createExtractor(HOME_X - 4, HOME_ROW);
+    expect(homeExtractor([field, home])).toBe(home);
+    expect(homeExtractor([createManufacturer(STATIONS.extractor.x, STATIONS.extractor.y)])).toBeNull();
   });
 });
 

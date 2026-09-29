@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { ORES } from '../../shared/constants';
-import { STARTING } from './balance';
+import { EXTRACTOR, STARTING } from './balance';
 import { addOre, createInventory, oreKind, removeItem } from './inventory';
 import { createInitialState } from './state';
+import { homeExtractor } from './stations';
 import {
   isAtOrAboveCapacity,
   isBelowWarningFraction,
+  shouldBaseAlert,
   shouldCargoBarFlash,
   shouldFuelBarFlash,
   shouldHullBarFlash
@@ -70,5 +72,38 @@ describe('HUD alert flashing thresholds', () => {
     state.gameOver = true;
     expect(shouldCargoBarFlash(state)).toBe(false);
     expect(isAtOrAboveCapacity(0, 0)).toBe(false);
+  });
+});
+
+describe('the base fuel alert', () => {
+  it('stays quiet while the home extractor could still fill a tank', () => {
+    const state = alertState();
+    // A new game's seeded store is full.
+    expect(shouldBaseAlert(state)).toBe(false);
+
+    Object.assign(homeExtractor(state.stations)!, {fuel: state.player.fuelMax, coal: 0});
+    expect(shouldBaseAlert(state)).toBe(false);
+  });
+
+  it('counts queued coal at its conversion value', () => {
+    const state = alertState();
+    const base = homeExtractor(state.stations)!;
+    Object.assign(base, {fuel: state.player.fuelMax - EXTRACTOR.fuelPerCoal, coal: 1});
+    expect(shouldBaseAlert(state)).toBe(false);
+
+    base.fuel -= 1;
+    expect(shouldBaseAlert(state)).toBe(true);
+  });
+
+  it('measures against the fitted tank, not the starting one', () => {
+    const state = alertState({ fuelMax: 150 });
+    Object.assign(homeExtractor(state.stations)!, {fuel: 120, coal: 0});
+    expect(shouldBaseAlert(state)).toBe(true);
+  });
+
+  it('raises the alert when no extractor stands in the home cavern', () => {
+    const state = alertState();
+    state.stations = state.stations.filter(station => station.kind !== 'extractor');
+    expect(shouldBaseAlert(state)).toBe(true);
   });
 });

@@ -4,9 +4,9 @@
 // read as `n / cap` — and, while a coal is burning, how long until the next unit
 // of fuel lands. Below sit the two transfers: "Load coal (n)" queues every coal
 // in the bay, and "Refuel ship (+n)" tops the tank up from stored fuel. Each names
-// the amount it would move and goes dead when that amount is zero. The tank also
-// tops up on its own the moment the ship parks on the extractor tile; the button
-// is there to top off again while parked as more fuel converts.
+// the amount it would move and goes dead when that amount is zero. A ship parked
+// on the extractor tile is kept topped up on its own, fresh conversions included;
+// the button is for a ship working the extractor from the tile beside it.
 //
 // Everything is painted from the store: the buffers and progress animate as the
 // fixed-step extractor tick pushes fresh values in while the screen is open, and

@@ -45,8 +45,10 @@ const ledY = eY + 4;
 
 /**
  * The bottom-left HUD panel: an analog fuel gauge over plain fuel and hull
- * readouts, each a caption and a `current/max` number. The cargo bar is gone —
- * the objective line and the spoken status carry a full hold.
+ * readouts, each a caption and a `current/max` number, and one line for the
+ * base's supply — the home extractor's stored fuel and queued coal — lit up when
+ * the two together could no longer fill a tank. The cargo bar is gone — the
+ * objective line and the spoken status carry a full hold.
  */
 export function FuelGauge() {
   const fuel = useUiStore(state => state.hud.fuel);
@@ -59,6 +61,10 @@ export function FuelGauge() {
   const hull = useUiStore(state => state.hud.hull);
   const hullMax = useUiStore(state => state.hud.hullMax);
   const hullAlert = useUiStore(state => state.hud.hullAlert);
+  const hasBase = useUiStore(state => state.hud.hasBase);
+  const baseFuel = useUiStore(state => state.hud.baseFuel);
+  const baseCoal = useUiStore(state => state.hud.baseCoal);
+  const baseAlert = useUiStore(state => state.hud.baseAlert);
 
   const value = Math.max(0, fuel);
   const text = `${Math.ceil(value)}/${fuelMax}`;
@@ -126,6 +132,12 @@ export function FuelGauge() {
         <span className={styles.caption}>Hull</span>
         <span id="hullLabel" className={styles.value}>{`${Math.ceil(hullValue)}/${hullMax}`}</span>
       </div>
+      {hasBase && (
+        <div id="baseFuel" className={clsx(styles.line, baseAlert && styles.alert)}>
+          <span className={styles.caption}>Base</span>
+          <span id="baseFuelLabel" className={styles.value}>{`${baseFuel} · ${baseCoal} coal`}</span>
+        </div>
+      )}
     </div>
   );
 }

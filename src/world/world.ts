@@ -151,6 +151,12 @@ export function oreSpawnChanceAtDepth(row: number): number {
   return base * Math.min(maxMultiplier, 1 + row / rowDivisor);
 }
 
+/** How many hit points an ore tile on this absolute row starts with (`TERRAIN.oreHp`). */
+export function oreHpAtRow(row: number): number {
+  const {min, rowDivisor, base} = TERRAIN.oreHp;
+  return Math.max(min, Math.ceil((row / rowDivisor) + base));
+}
+
 export function oreForDepthRoll(row: number, roll: number) {
   const eligible = ORES.filter(ore => row >= ore.min && row <= ore.max);
   const totalWeight = eligible.reduce((total, ore) => total + ore.chance, 0);
@@ -342,8 +348,7 @@ export function makeTile(x: number, y: number): Tile {
     ore = oreForDepthRoll(y, rand(x + 73, y - 47));
   }
   if (ore) {
-    const {min, rowDivisor, base} = TERRAIN.oreHp;
-    const hp = Math.max(min, Math.ceil((y/rowDivisor)+base));
+    const hp = oreHpAtRow(y);
     return {type:'ore', ore, hp, maxHp: hp};
   }
   const {rock, hazard, enemy, dirtHp} = TERRAIN;

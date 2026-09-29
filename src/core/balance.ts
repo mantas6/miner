@@ -73,10 +73,14 @@ export const ENEMY = Object.freeze({
  * The fuel extractor's timed coal → fuel conversion: every `ticksPerCoal` steps
  * it burns one queued coal into `fuelPerCoal` stored fuel. `fuelCap` bounds the
  * buffer.
+ *
+ * `fuelPerCoal` must clearly out-earn what harvesting one coal costs (digging to
+ * it and through it), or coal is break-even and the seeded store is the whole
+ * early-game fuel budget. `balance.test.ts` pins that margin.
  */
 export const EXTRACTOR = Object.freeze({
   ticksPerCoal: 180,
-  fuelPerCoal: 20,
+  fuelPerCoal: 55,
   fuelCap: 500
 });
 

@@ -97,9 +97,11 @@ export interface HomeStationsDeps {
 export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
   const {state, audio, toast, saveProgress} = deps;
   let open: PlacedStation | null = null;
-  // Auto-refuel fires once when the ship arrives on an extractor tile, and re-arms
-  // the moment it leaves. A respawn drops the ship on the spawn tile, not on an
-  // extractor, so the flag re-arms on its own — no reset hook needed.
+  // A ship parked on an extractor tile is refuelled every tick — so fuel a coal
+  // converts while it waits lands in the tank at once — but only the pour on
+  // arrival toasts and plays the cue; later top-ups are silent. The flag re-arms
+  // the moment the ship leaves. A respawn drops the ship on the spawn tile, not on
+  // an extractor, so it re-arms on its own — no reset hook needed.
   let wasOnExtractor = false;
 
   function show(station: PlacedStation): boolean {
@@ -303,16 +305,21 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     // and a ship that has left its reach (a fall, a harness tile press) is no longer
     // working it: the reach it took to open the screen is what keeps it open.
     if (open && (!state.stations.includes(open) || !isStationReachable(open, state.player.x, state.player.y))) close();
-    // Park on an extractor and it tops the tank up on the spot — once per visit,
-    // re-armed on leaving. Silent when there is nothing to move (full tank, empty store).
+    // Park on an extractor and it keeps the tank topped up for as long as the ship
+    // stays: every tick pours whatever the store holds and the tank has room for.
+    // The toast and cue mark the arrival only, so a coal converting mid-visit tops
+    // up quietly. Nothing to move (full tank, empty store) is silent throughout.
     const parked = extractorUnderShip();
-    if (parked && !wasOnExtractor) {
+    if (parked) {
       const moved = pourFuel(parked);
       if (moved > 0) {
         if (open === parked) repaint();
+        // The save is debounced, so a top-up per converted coal costs one write.
         saveProgress();
-        audio.refuel();
-        toast(`Refueled +${Math.round(moved)} from the extractor.`);
+        if (!wasOnExtractor) {
+          audio.refuel();
+          toast(`Refueled +${Math.round(moved)} from the extractor.`);
+        }
       }
     }
     wasOnExtractor = parked !== null;

@@ -22,7 +22,8 @@ import { createInitialState } from '../core/state';
 import { formatExpeditionStats, type ExpeditionStatRow } from '../core/stats';
 import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
-import { manufacturerStock } from '../core/stations';
+import { shouldBaseAlert } from '../core/hud-alerts';
+import { homeExtractor, manufacturerStock } from '../core/stations';
 import { sellPrice } from '../core/trading';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import type { Epitaph } from '../core/grave';
@@ -57,6 +58,15 @@ export interface HudSnapshot {
   teleport: {count: number; usable: boolean};
   /** Adjacent drill/flight target readout, refreshed when the target changes. */
   scanner: string;
+  /**
+   * The base's fuel supply: whether an extractor still stands in the home cavern,
+   * its stored fuel (whole units) and queued coal, and whether the two together
+   * could no longer fill one tank (`shouldBaseAlert`).
+   */
+  hasBase: boolean;
+  baseFuel: number;
+  baseCoal: number;
+  baseAlert: boolean;
   /** Return-fuel forecast for the climb home. */
   fuelReserveStatus: FuelReserveStatus;
   fuelReserveNeeded: number;
@@ -80,6 +90,7 @@ const HUD_KEYS = [
   'cash', 'depthMeters', 'fuel', 'fuelMax', 'hull', 'hullMax', 'cargo', 'cargoMax',
   'fuelAlert', 'hullAlert', 'cargoAlert', 'objective',
   'atSurface', 'gameOver', 'stationHint',
+  'hasBase', 'baseFuel', 'baseCoal', 'baseAlert',
   'scanner', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
   'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
@@ -339,6 +350,7 @@ const initialState = createInitialState();
 function initialHud(): HudSnapshot {
   const player = initialState.player;
   const milestone = getDepthMilestone(player.y);
+  const base = homeExtractor(initialState.stations);
   return {
     cash: initialState.cash,
     depthMeters: 0,
@@ -362,6 +374,10 @@ function initialHud(): HudSnapshot {
     gameOver: false,
     stationHint: '',
     teleport: {count: countItem(player.inventory, TELEPORTER_ITEM.kind), usable: false},
+    hasBase: base !== null,
+    baseFuel: Math.floor(base?.fuel ?? 0),
+    baseCoal: base?.coal ?? 0,
+    baseAlert: shouldBaseAlert(initialState),
     // Nothing has been scanned before the first frame, which is exactly what the
     // scanner says about terrain it has not mapped yet.
     scanner: formatTerrainScanner({tile: {type: 'air'}, direction: [0, 1], explored: false}),

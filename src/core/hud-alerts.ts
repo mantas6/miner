@@ -1,5 +1,6 @@
-import { FUEL, HULL } from './balance';
+import { EXTRACTOR, FUEL, HULL } from './balance';
 import { totalItems } from './inventory';
+import { homeExtractor } from './stations';
 import type { GameState } from './types';
 
 /**
@@ -31,4 +32,15 @@ export function shouldHullBarFlash(state: GameState): boolean {
 /** Whether the cargo readout should flash its full-bay warning. */
 export function shouldCargoBarFlash(state: GameState): boolean {
   return !state.gameOver && isAtOrAboveCapacity(totalItems(state.player.inventory), state.player.cargoMax);
+}
+
+/**
+ * Whether the base's fuel is running out: the home extractor's stored fuel plus
+ * what its queued coal will still convert into could not fill one tank. A base
+ * with no extractor left in the home cavern has nothing to refuel from at all.
+ */
+export function shouldBaseAlert(state: Pick<GameState, 'stations' | 'player'>): boolean {
+  const base = homeExtractor(state.stations);
+  if (!base) return true;
+  return base.fuel + base.coal * EXTRACTOR.fuelPerCoal < state.player.fuelMax;
 }

@@ -260,6 +260,12 @@ export interface AgentObservation {
     depthTarget: {name: string; kind: DepthMilestoneKind; remaining: number};
     stationHint: string;
     teleport: {count: number; usable: boolean};
+    /**
+     * The base's fuel supply (the HUD's "Base" line): the home extractor's stored
+     * fuel and queued coal, and `alert` when the two could no longer fill a tank.
+     * `null` once no extractor stands in the home cavern.
+     */
+    base: {fuel: number; coal: number; alert: boolean} | null;
     alerts: {fuel: boolean; hull: boolean; cargo: boolean};
     announcement: string;
     /** The HUD inventory panel is folded shut (inventoryToggleBtn opens it again). */
@@ -613,6 +619,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       depthTarget: {name: hud.depthTarget, kind: hud.depthTargetKind, remaining: hud.depthTargetRemaining},
       stationHint: hud.stationHint,
       teleport: {count: hud.teleport.count, usable: hud.teleport.usable},
+      base: hud.hasBase ? {fuel: hud.baseFuel, coal: hud.baseCoal, alert: hud.baseAlert} : null,
       alerts: {fuel: hud.fuelAlert, hull: hud.hullAlert, cargo: hud.cargoAlert},
       announcement: hud.announcement,
       inventoryCollapsed: ui.inventoryCollapsed

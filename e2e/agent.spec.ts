@@ -766,17 +766,22 @@ test('the construction toolkit lifts a placed extractor, and it can be set back 
     let obs = await s.observe();
     expect(obs.view.rows.join('')).toContain('X');
     expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Fuel Extractor')).toBe(true);
+    // The HUD's base line reads the empty home extractor, and flags it as unable to fill a tank.
+    expect(obs.hud.base).toEqual({fuel: 0, coal: 0, alert: true});
 
     // Arm the toolkit from its slot and lift the empty extractor into the bay.
     await s.click('toolkitSlotBtn');
     obs = await s.pressTile(46, 20);
     expect(obs.view.rows.join('')).not.toContain('X');
     expect(obs.bay.some(slot => slot.kind === 'device:extractor')).toBe(true);
+    // No extractor stands at home any more, so there is no base line.
+    expect(obs.hud.base).toBeNull();
 
     // The lifted extractor is aboard; arm it and set it back down where it was.
     await s.click('extractorSlotBtn');
     obs = await s.pressTile(46, 20);
     expect(obs.view.rows.join('')).toContain('X');
+    expect(obs.hud.base).toEqual({fuel: 0, coal: 0, alert: true});
   } finally {
     await s.close();
   }

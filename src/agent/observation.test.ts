@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { explorationIndex } from '../../shared/exploration-codec';
+import { EXTRACTOR } from '../core/balance';
 import { addItem, createInventory, oreItem, oreKind, totalItems } from '../core/inventory';
 import { chestLoot } from '../core/chest';
 import { createInitialState } from '../core/state';
@@ -502,6 +503,35 @@ describe('buildObservation', () => {
       get: tileSource({})
     });
     expect(obs.hud.teleport).toEqual({count: 2, usable: true});
+  });
+
+  it('carries the base fuel readout in hud.base, and null without a base', () => {
+    const state = createInitialState();
+    const base = uiStore.getState();
+    // A new game's HUD starts on the seeded, full home extractor.
+    expect(buildObservation({state, ui: ui(), get: tileSource({})}).hud.base)
+      .toEqual({fuel: EXTRACTOR.fuelCap, coal: 0, alert: false});
+
+    const withBase = buildObservation({
+      state,
+      ui: ui({hud: {...base.hud, hasBase: true, baseFuel: 320, baseCoal: 4, baseAlert: false}}),
+      get: tileSource({})
+    });
+    expect(withBase.hud.base).toEqual({fuel: 320, coal: 4, alert: false});
+
+    const low = buildObservation({
+      state,
+      ui: ui({hud: {...base.hud, hasBase: true, baseFuel: 12, baseCoal: 0, baseAlert: true}}),
+      get: tileSource({})
+    });
+    expect(low.hud.base).toEqual({fuel: 12, coal: 0, alert: true});
+
+    const without = buildObservation({
+      state,
+      ui: ui({hud: {...base.hud, hasBase: false, baseAlert: true}}),
+      get: tileSource({})
+    });
+    expect(without.hud.base).toBeNull();
   });
 
   it('mirrors the station overlay only while it is open, with recipe affordances', () => {

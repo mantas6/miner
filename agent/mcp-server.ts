@@ -22,6 +22,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { openGameSession, type ClickTarget, type GameSession } from './session';
 import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
+import { EXTRACTOR } from '../src/core/balance';
 import { RECIPES } from '../src/core/crafting';
 import { itemForKind } from '../src/core/items';
 import { MAX_ZOOM, MIN_ZOOM } from '../src/game/zoom';
@@ -154,8 +155,11 @@ function instructions(): string {
     'PLAY TIPS:',
     '  - Keep a fuel reserve: `hud.fuelReserve` tells you the fuel needed to climb',
     '    back to the surface and your current margin. Running dry underground is fatal.',
-    '  - Return to the surface to refuel and craft; the Fuel Extractor refuels the',
-    '    ship, the Manufacturer crafts and stores.',
+    '  - Return to the surface to refuel and craft; the Manufacturer crafts and stores.',
+    '    Parking on the Fuel Extractor (X) keeps the tank topped up while you stay.',
+    `    Load coal into it: each coal converts to ${EXTRACTOR.fuelPerCoal} fuel, well over what digging`,
+    '    one costs. `hud.base` is the home extractor\'s stored fuel and queued coal;',
+    '    `alert` means the two could no longer fill a tank — go mine coal.',
     '  - Trading Posts (T) stand deep in the mine: sell ore for cash there, and buy',
     '    a small, limited stock of gear. `hud.cash` is your wallet; the open post\'s',
     '    sell prices and buy offers are in the `trade` overlay.',

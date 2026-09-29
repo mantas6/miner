@@ -9,12 +9,12 @@
 
 import { rowDepthMeters } from '../../shared/constants';
 import { FUEL } from '../core/balance';
-import { shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
+import { shouldBaseAlert, shouldCargoBarFlash, shouldFuelBarFlash, shouldHullBarFlash } from '../core/hud-alerts';
 import { countItem, totalItems, type Inventory } from '../core/inventory';
 import { createExpeditionObjectiveFormatter, type ObjectiveInput } from '../core/objective';
 import { formatShipStatusAnnouncement } from '../core/ship-status';
 import { isAtHome } from '../core/state';
-import { manufacturerStock } from '../core/stations';
+import { homeExtractor, manufacturerStock } from '../core/stations';
 import { formatExpeditionStats } from '../core/stats';
 import { TELEPORTER_ITEM, canUsePortableTeleporter } from '../core/teleporter';
 import type { AudioController, GameState, GameStats } from '../core/types';
@@ -108,6 +108,13 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
     hudScratch.fuelAlert = lowFuel;
     hudScratch.hullAlert = shouldHullBarFlash(state);
     hudScratch.cargoAlert = shouldCargoBarFlash(state);
+    // The base readout: what the home extractor has banked and queued. Whole units
+    // of fuel, so a fractional top-up does not repaint the line every frame.
+    const base = homeExtractor(state.stations);
+    hudScratch.hasBase = base !== null;
+    hudScratch.baseFuel = base ? Math.floor(base.fuel) : 0;
+    hudScratch.baseCoal = base ? base.coal : 0;
+    hudScratch.baseAlert = shouldBaseAlert(state);
     objectiveScratch.player = p;
     objectiveScratch.cargoCount = hudScratch.cargo;
     objectiveScratch.atSurface = surf;
