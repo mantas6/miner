@@ -213,7 +213,12 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
   // contents, or take the screen away with `null`. The screens that cover the
   // mine with nothing of the mine left to aim at stand an armed placement down.
   const setStationUi = overlays.publisher('station', (station: ManufacturerStation) =>
-    ({kind: 'station', slots: buildInventorySlots(station.inventory), supply: isHomeStation(station)}), {standDown: true});
+    ({
+      kind: 'station',
+      slots: buildInventorySlots(station.inventory),
+      supply: isHomeStation(station),
+      bestMarkCrafted: state.stats.bestMarkCrafted
+    }), {standDown: true});
   const setExtractorUi = overlays.publisher('extractor', (extractor: ExtractorView) =>
     ({kind: 'extractor', extractor}), {standDown: true});
   const setPortalUi = overlays.publisher('portal', (portal: PortalView) =>

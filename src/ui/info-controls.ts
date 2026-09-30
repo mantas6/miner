@@ -9,6 +9,7 @@
 import { HULL, REVEAL_FOOTPRINT } from '../core/balance';
 import { CARGO_CONTAINER } from '../core/cargo-container';
 import { DYNAMITE } from '../core/dynamite';
+import { FUEL_CELL_FUEL } from '../core/items';
 import { HOVER_DRILL_SURCHARGE_PERCENT } from '../core/movement';
 import { SCANNER_DEVICE } from '../core/scanner-device';
 
@@ -34,11 +35,11 @@ export const CONTROL_ROWS: readonly ControlRow[] = [
   {keys: [key('Space')], action: 'Use what the ship is parked beside: the Manufacturing Station to stow cargo and craft, the Fuel Extractor to refuel, a Portal to travel, a Trading Post to sell and buy, or a grave to read it'},
   {keys: [key('E'), text(' / '), control('Dynamite slot'), text(' then a mine tile')], action: `Plant one carried stick on explored, cleared ground. It blows a ${DYNAMITE.radius}-tile radius after a ${DYNAMITE.fuseSeconds}-second fuse: blasts yield no cargo, and a ship still inside the radius takes hull damage. Escape cancels.`},
   {keys: [key('T'), text(' / '), control('Teleport button')], action: 'With a teleporter in the cargo bay, open the portal list (the portals out of reach) and pick one to jump straight there; the trip spends one teleporter. Travel between built portals is otherwise free.'},
-  {keys: [control('Scanner slot'), text(' then a mine tile')], action: `Deploy one carried scanner onto explored, cleared ground; it maps its ${SCANNER_DEVICE.size}×${SCANNER_DEVICE.size} surroundings, one fogged tile every ${SCANNER_DEVICE.intervalSeconds} seconds, then goes inert. Escape cancels.`},
+  {keys: [control('Scanner slot'), text(' then a mine tile')], action: `Deploy one carried scanner onto explored, cleared ground; it maps its ${SCANNER_DEVICE.size}×${SCANNER_DEVICE.size} surroundings, one fogged tile every ${SCANNER_DEVICE.intervalSeconds} seconds, then crumbles away and leaves the tile clear. Escape cancels.`},
   {keys: [control('Container, station or decoration slot'), text(' then a mine tile')], action: 'Set one carried cargo container, Manufacturing Station, Fuel Extractor, Portal or decoration down on explored, cleared ground. Escape cancels.'},
   {keys: [control('Toolkit slot'), text(' then a station')], action: 'Pack an empty station, portal or container the ship can reach back into the cargo bay. Escape cancels.'},
   {keys: [control('Repair Kit slot')], action: `Spend one kit to restore ${Math.round(HULL.repairKitFraction * 100)}% of max hull.`},
-  {keys: [control('Fuel Cell slot')], action: 'Spend one cell to fill the tank to full.'},
+  {keys: [control('Fuel Cell slot')], action: `Spend one cell for +${FUEL_CELL_FUEL} fuel, up to a full tank.`},
   {keys: [key('C'), text(' / press the crate')], action: `Open the placed container, wreck or chest the ship is on or beside. Press a stack in either column to move it across; a crate holds up to ${CARGO_CONTAINER.capacity} items and keeps them through death and reload, and anything taken back aboard still obeys the cargo-bay limit.`},
   {keys: [key('+'), text(' / '), key('-'), text(' / wheel')], action: 'Zoom the mine view in and out'},
   {keys: [key('Esc')], action: 'Close the open screen, or cancel an armed placement'},

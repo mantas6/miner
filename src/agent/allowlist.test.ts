@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { DECOR_IDS } from '../../shared/constants';
+import { RECIPES, recipeId } from '../core/crafting';
 import { allSlotButtonIds } from '../ui/inventory-slot-ids';
 import { addressedAttributes, ATTR_TARGETS, FLAG_ATTR_TARGETS, ID_TARGETS, KIND_TARGETS } from '../../agent/targets';
 import { nth } from '../test-narrowing';
@@ -218,6 +219,18 @@ describe('harness allowlist', () => {
     expect(ATTR_TARGETS.has('data-craft-ship')).toBe(true);
     expect(KIND_TARGETS.has('data-craft-ship')).toBe(false);
     expect(addressedAttributes().has('data-craft-ship')).toBe(true);
+  });
+
+  it('reaches every recipe row by a distinct data-craft value, the deep alternates by their :alt id', () => {
+    const craft = interactive.filter(element => element.file === 'StationScreen.tsx'
+      && element.attributes.some(attr => attr.name === 'data-craft'));
+    expect(craft).toHaveLength(1);
+    // The Craft button carries the row's `recipeId`, not the bare output kind two rows share.
+    expect(nth(craft, 0).attributes.find(attr => attr.name === 'data-craft')?.expression).toBe('id');
+    expect(ATTR_TARGETS.has('data-craft')).toBe(true);
+    const ids = RECIPES.map(recipeId);
+    expect(new Set(ids).size).toBe(RECIPES.length);
+    expect(ids).toEqual(expect.arrayContaining(['device:portal', 'device:portal:alt', 'teleporter', 'teleporter:alt']));
   });
 
   it('declares every attribute target in exactly one form', () => {

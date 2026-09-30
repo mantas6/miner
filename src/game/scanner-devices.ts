@@ -133,25 +133,27 @@ export function createScannerDevices(deps: ScannerDeviceDeps): ScannerDeviceSim 
     // Collected rather than revealed one at a time: two devices that fire on the
     // same step should cost one fog invalidation and one save.
     let revealed: number[] | null = null;
-    let fired: ScannerDevice[] | null = null;
+    let due: ScannerDevice[] | null = null;
     for (const device of devices) {
       const index = tickScannerDevice(device, state.exploredTiles, random);
-      if (index === null) continue;
-      (revealed ??= []).push(index);
-      (fired ??= []).push(device);
+      // The timer rolls back to 0 only on a firing step — the one step in each
+      // interval a device is worth checking for being finished, whether it had a
+      // tile left to report or the ship's own footprint had mapped the last of it.
+      if (device.timer === 0) (due ??= []).push(device);
+      if (index !== null) (revealed ??= []).push(index);
     }
-    if (!revealed || !fired) return;
-    deps.revealTiles(revealed);
-    // A device that had nothing left never fires, so "fired and is now finished"
-    // is the one step on which it announces itself — exactly once.
-    const finished = fired.filter(device => isScannerDone(device, state.exploredTiles)).length;
-    for (let announced = 0; announced < finished; announced++) {
-      toast('Scanner finished its survey and went inert.');
+    if (revealed) deps.revealTiles(revealed);
+    if (!due) return;
+    // A finished device crumbles away, leaving the tile it stood on clear: a spent
+    // scanner in a shaft would otherwise block the fall route for good.
+    const finished = due.filter(device => isScannerDone(device, state.exploredTiles));
+    if (finished.length === 0) return;
+    state.scannerDevices = devices.filter(device => !finished.includes(device));
+    for (let announced = 0; announced < finished.length; announced++) {
+      toast('Scanner finished its survey and crumbled away.');
     }
-    if (finished > 0) {
-      audio.surveyDone();
-      saveProgress();
-    }
+    audio.surveyDone();
+    saveProgress();
   }
 
   return {

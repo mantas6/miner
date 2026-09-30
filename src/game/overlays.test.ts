@@ -32,8 +32,8 @@ afterEach(() => {
 
 describe('the overlay session', () => {
   it('cues the open once, however often the screen is repainted', () => {
-    session.raise({kind: 'station', slots: [], supply: false});
-    session.raise({kind: 'station', slots: [SLOT], supply: false});
+    session.raise({kind: 'station', slots: [], supply: false, bestMarkCrafted: 0});
+    session.raise({kind: 'station', slots: [SLOT], supply: false, bestMarkCrafted: 0});
 
     expect(audio.played).toEqual(['open']);
     expect(clearKeys).toHaveBeenCalledTimes(2);
@@ -77,11 +77,11 @@ describe('the overlay session', () => {
   });
 
   it('writes nothing to the store for a repaint that changed nothing', () => {
-    session.raise({kind: 'station', slots: [SLOT], supply: false});
+    session.raise({kind: 'station', slots: [SLOT], supply: false, bestMarkCrafted: 0});
     const listener = vi.fn<() => void>();
     const unsubscribe = uiStore.subscribe(listener);
 
-    session.raise({kind: 'station', slots: [{...SLOT}], supply: false});
+    session.raise({kind: 'station', slots: [{...SLOT}], supply: false, bestMarkCrafted: 0});
     session.raise({kind: 'extractor', extractor: {coal: 1, fuel: 2, progress: 3, supply: false}});
     session.raise({kind: 'extractor', extractor: {coal: 1, fuel: 2, progress: 3, supply: false}});
     unsubscribe();

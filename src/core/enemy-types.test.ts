@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { HULL } from './balance';
-import { DANGER } from '../../shared/constants';
+import { HULL, TERRAIN } from './balance';
+import { DANGER, START_Y, rowDepthMeters } from '../../shared/constants';
 import { ENEMY_TYPES, enemyBiteCooldown, enemyBiteDamage, enemyHealth, enemyKindForDepthRoll, enemyMoveDelay } from './enemy-types';
+import { FIXED_STEP_MS } from './fixed-step';
+import { computeStats } from './ship-upgrades';
+import { createInitialState } from './state';
 import { makeTile } from '../world/world';
 
-describe('enemy variants', () => {
-  const sampledKinds = (row: number) => new Set(
-    Array.from({length: 1000}, (_, index) => enemyKindForDepthRoll(row, (index + .5) / 1000))
-  );
+/** Every kind a row's dormant-enemy roll can come up with. */
+const sampledKinds = (row: number) => new Set(
+  Array.from({length: 1000}, (_, index) => enemyKindForDepthRoll(row, (index + .5) / 1000))
+);
 
+describe('enemy variants', () => {
   it('keeps shallow enemies approachable and gates variety by depth', () => {
     expect(sampledKinds(DANGER.enemyMinRow)).toEqual(new Set(['tunnelFiend']));
     expect(sampledKinds(ENEMY_TYPES.skitterling.minRow)).toEqual(new Set(['tunnelFiend', 'skitterling']));
@@ -52,3 +56,48 @@ describe('enemy variants', () => {
     );
   });
 });
+
+describe('Abyss Stalkers against the Core Breaker', () => {
+  /** A stalker's hp where it wakes, as worldgen rolls it (`makeTile`). */
+  const stalkerHp = (row: number) => enemyHealth('abyssStalker', Math.max(
+    TERRAIN.enemy.hpMin, Math.ceil(TERRAIN.enemy.hpBase + row / TERRAIN.enemy.hpRowDivisor)
+  ));
+  // The last hull with Hull Plating Mk III and the Core Drill: 450 hull, drill 11.
+  const rig = computeStats('corebreaker', ['upgrade:hull:3', 'upgrade:drill:4']);
+  const kit = rig.hullMax * HULL.repairKitFraction;
+  /** Steps between two drill hits under a held key. */
+  const hitSteps = createInitialState().input.keyboardRepeatMs / FIXED_STEP_MS;
+  /** Half a second to turn onto a stalker and start drilling once it is alongside. */
+  const reactionSteps = 30;
+
+  /** The hull one stalker at `row` chews off before the drill kills it. */
+  function fightCost(row: number): number {
+    const hits = Math.ceil(stalkerHp(row) / rig.drill);
+    const fightSteps = reactionSteps + (hits - 1) * hitSteps;
+    // It bites on contact, then again every time its cooldown runs out.
+    const bites = 1 + Math.floor(fightSteps / (enemyBiteCooldown('abyssStalker') + 1));
+    return bites * enemyBiteDamage('abyssStalker', row);
+  }
+
+  it('wakes inside the deepest ore bands, from 8800 m', () => {
+    expect(ENEMY_TYPES.abyssStalker.minRow).toBe(START_Y + 880);
+    expect(rowDepthMeters(ENEMY_TYPES.abyssStalker.minRow)).toBe(8800);
+    expect(sampledKinds(START_Y + 879).has('abyssStalker')).toBe(false);
+    expect(sampledKinds(START_Y + 880).has('abyssStalker')).toBe(true);
+  });
+
+  it('lets a 450-hull Core Breaker take three on a full hull and a fourth with a kit', () => {
+    expect(rig).toMatchObject({hullMax: 450, drill: 11});
+    const row = ENEMY_TYPES.abyssStalker.minRow;
+    expect(stalkerHp(row)).toBe(37);
+    expect(enemyBiteDamage('abyssStalker', row)).toBe(38);
+    // Two or three bites a fight: it hurts, and a careless pilot feels it.
+    expect(fightCost(row)).toBeGreaterThanOrEqual(2 * 38);
+    expect(3 * fightCost(row)).toBeLessThan(rig.hullMax);
+    expect(4 * fightCost(row)).toBeGreaterThan(rig.hullMax);
+    expect(4 * fightCost(row)).toBeLessThan(rig.hullMax + kit);
+    // A thousand metres deeper they bite harder, and three still leave the hull standing.
+    expect(3 * fightCost(START_Y + 980)).toBeLessThan(rig.hullMax);
+  });
+});
+

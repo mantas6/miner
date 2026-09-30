@@ -269,10 +269,11 @@ export type Overlay =
   /** The open chest's contents, in the same shape. Take-only. */
   | {kind: 'chest'; slots: InventorySlotView[]}
   /**
-   * The manufacturing station's stock, in the inventory-slot shape, and whether it
-   * is the home-cavern one that runs the Supply counter (`SUPPLY_POOL`).
+   * The manufacturing station's stock, in the inventory-slot shape, whether it
+   * is the home-cavern one that runs the Supply counter (`SUPPLY_POOL`), and the
+   * best mark ever crafted — which recipes are unlocked (`unlockedRecipes`).
    */
-  | {kind: 'station'; slots: InventorySlotView[]; supply: boolean}
+  | {kind: 'station'; slots: InventorySlotView[]; supply: boolean; bestMarkCrafted: number}
   /** The fuel extractor's buffers. */
   | {kind: 'extractor'; extractor: ExtractorView}
   /**
@@ -514,7 +515,9 @@ function sameOverlay(current: ActiveOverlay, next: ActiveOverlay): boolean {
     case 'wreck':
       return (current as typeof next).deathsLeft === next.deathsLeft && sameInventorySlots((current as typeof next).slots, next.slots);
     case 'station':
-      return (current as typeof next).supply === next.supply && sameInventorySlots((current as typeof next).slots, next.slots);
+      return (current as typeof next).supply === next.supply
+        && (current as typeof next).bestMarkCrafted === next.bestMarkCrafted
+        && sameInventorySlots((current as typeof next).slots, next.slots);
     case 'extractor': {
       const a = (current as typeof next).extractor, b = next.extractor;
       return a.coal === b.coal && a.fuel === b.fuel && a.progress === b.progress && a.supply === b.supply;

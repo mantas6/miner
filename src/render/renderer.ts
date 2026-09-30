@@ -860,7 +860,8 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
    * Deployed scanners, as a lit dish on a tripod. A working one draws a progress
    * arc that fills as it charges toward its next reveal, and a finished one has
    * lost it — so "still mapping" and "spent" are one glance apart without a label
-   * on the canvas.
+   * on the canvas. A spent one only stands until its next firing step, when it
+   * crumbles away (`game/scanner-devices.ts`).
    */
   function drawScannerDevices(camX: number, camY: number) {
     const devices = state.scannerDevices;

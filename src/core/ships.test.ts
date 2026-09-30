@@ -105,6 +105,14 @@ describe('the ladder', () => {
     ]);
   });
 
+  it('bills the two late hulls at several deep trips each, the Prospector unchanged', () => {
+    const bill = (id: 'prospector' | 'leviathan' | 'corebreaker') =>
+      shipFor(id).inputs.map(input => [itemForKind(input.kind).label, input.count]);
+    expect(bill('prospector')).toEqual([['Silver', 12], ['Gold', 10], ['Ruby', 4]]);
+    expect(bill('leviathan')).toEqual([['Ruby', 16], ['Emerald', 12], ['Alienite', 8]]);
+    expect(bill('corebreaker')).toEqual([['Alienite', 12], ['Uranium', 8], ['Core Shard', 6]]);
+  });
+
   it('is checked against station stock with the recipe helpers', () => {
     const hauler = shipFor('hauler');
     let stock = createInventory();

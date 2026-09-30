@@ -102,8 +102,8 @@ export interface UiCommands {
   stowStack(kind: InventoryItemKind, single?: boolean): void;
   /** Take a stack (or one unit) of `kind` back out of the station stock. */
   takeFromStation(kind: InventoryItemKind, single?: boolean): void;
-  /** Craft a recipe at the station, by table index or output kind. */
-  craft(recipe: number | InventoryItemKind): void;
+  /** Craft a recipe at the station, by table index or row id (`recipeId`: output kind, `:alt` for an alternate). */
+  craft(recipe: number | string): void;
   /** Build the next hull on the ship ladder at the station and move the ship into it. */
   craftShip(id: ShipId): void;
   /** Queue every coal aboard into the extractor. */

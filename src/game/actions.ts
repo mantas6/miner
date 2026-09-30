@@ -13,7 +13,7 @@
 
 import { HULL } from '../core/balance';
 import { countItem, removeItem } from '../core/inventory';
-import { ITEM_CATALOG } from '../core/items';
+import { ITEM_CATALOG, fuelCellFill } from '../core/items';
 import { portalDestinations } from '../core/portal';
 import { teleportersCarried } from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
@@ -28,8 +28,8 @@ export interface GameActions {
    */
   useRepairKit(): void;
   /**
-   * Spend one fuel cell from the bay to fill the tank. Refused with a full tank
-   * or with none aboard.
+   * Spend one fuel cell from the bay: `FUEL_CELL_FUEL` into the tank, capped at
+   * full. Refused with a full tank or with none aboard.
    */
   useFuelCell(): void;
 }
@@ -93,12 +93,14 @@ export function createActions(deps: GameActionsDeps): GameActions {
       audio.alarm();
       return toast('Fuel tank already full.');
     }
-    const added = Math.ceil(p.fuelMax - p.fuel);
-    p.fuel = p.fuelMax;
+    const added = fuelCellFill(p.fuel, p.fuelMax);
+    p.fuel += added;
     p.inventory = removeItem(p.inventory, ITEM_CATALOG.fuelCell.kind);
     saveProgress();
     audio.refuel();
-    toast(`Fuel cell used — tank full (+${added} fuel).`);
+    toast(p.fuel >= p.fuelMax
+      ? `Fuel cell used — tank full (+${Math.ceil(added)} fuel).`
+      : `Fuel cell used — +${Math.round(added)} fuel.`);
   }
 
   return {

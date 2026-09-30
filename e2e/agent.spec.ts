@@ -192,11 +192,16 @@ const seedWorkshop = seedSaveScript({
 /**
  * A Mk I career with the two open slots fitted and the manufacturer stocked for
  * one Drill Mk II (3 Silver, 3 Gold): the third slot is locked until that craft.
+ * The stock also holds a Deep Portal's bill (2 Ruby, 2 Emerald, 2 Iron), which
+ * the same craft unlocks.
  */
 const seedMarkTwo = seedSaveScript({
   equipment: ['upgrade:drill:1', 'upgrade:tank:1', null],
   stations: [
-    {...WORKBENCHES[0], items: [{kind: 'ore:Silver', count: 3}, {kind: 'ore:Gold', count: 3}]},
+    {...WORKBENCHES[0], items: [
+      {kind: 'ore:Silver', count: 3}, {kind: 'ore:Gold', count: 3},
+      {kind: 'ore:Ruby', count: 2}, {kind: 'ore:Emerald', count: 2}, {kind: 'ore:Iron', count: 2}
+    ]},
     WORKBENCHES[1]
   ]
 });
@@ -559,7 +564,7 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
   }
 });
 
-test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks it for the next fit', async () => {
+test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks it and the deep recipes', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedMarkTwo});
   try {
     let obs = await s.startRun();
@@ -574,10 +579,27 @@ test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks i
     // Craft a Drill Mk II and take it aboard: the career's best mark reaches 2.
     obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
     if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    // The deep alternates are not listed yet, and their row cannot be pressed.
+    expect(obs.overlay.recipes.some(recipe => recipe.id.endsWith(':alt'))).toBe(false);
+    await expect(s.click({target: 'data-craft', value: 'device:portal:alt'})).rejects.toThrow(/not rendered/);
     obs = await s.click({target: 'data-craft', value: 'upgrade:drill:2'});
     expect(obs.stats.bestMarkCrafted).toBe(2);
     obs = await s.click({target: 'data-station', value: 'take', kind: 'upgrade:drill:2'});
     expect(countKind(obs.bay, 'upgrade:drill:2')).toBe(1);
+
+    // The Mk II unlocked the Deep Portal and the Deep Teleporter beside the standard rows.
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    const portals = obs.overlay.recipes.filter(recipe => recipe.output === 'device:portal');
+    expect(portals.map(recipe => [recipe.id, recipe.label, recipe.craftable])).toEqual([
+      ['device:portal', 'Portal', false],
+      ['device:portal:alt', 'Deep Portal', true]
+    ]);
+    expect(obs.overlay.recipes.find(recipe => recipe.id === 'teleporter:alt')).toMatchObject({label: 'Deep Teleporter', craftable: false});
+    obs = await s.click({target: 'data-craft', value: 'device:portal:alt'});
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(obs.overlay.stock, 'device:portal')).toBe(1);
+    expect(countKind(obs.overlay.stock, 'ore:Ruby')).toBe(0);
+    expect(obs.toasts.some(toast => toast.message.startsWith('Crafted 1 × Portal'))).toBe(true);
     obs = await s.press('Escape');
 
     // The third slot is open now, so the fit lands there instead of swapping slot 0.
@@ -650,7 +672,7 @@ test('the Shipyard builds the Hauler from station stock, and a lost ship keeps t
   }
 });
 
-test('a Fuel Cell fills a part-empty tank from its slot, and the Core Drill is crafted and fitted, then the next hull named', async () => {
+test('a Fuel Cell tops up a part-empty tank from its slot, and the Core Drill is crafted and fitted, then the next hull named', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedLateGame});
   try {
     let obs = await s.startRun();
@@ -658,9 +680,10 @@ test('a Fuel Cell fills a part-empty tank from its slot, and the Core Drill is c
     expect(countKind(obs.bay, 'fuelCell')).toBe(1);
     expect(obs.hud.objective).toBe('Objective: craft the Core Drill at the Manufacturing Station.');
 
-    // The slot button spends the cell and fills the tank.
+    // The slot button spends the cell: its fixed measure more than covers the 120 missing.
     obs = await s.click('fuelCellSlotBtn');
     expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
+    expect(obs.toasts.some(toast => toast.message.includes('tank full (+120 fuel)'))).toBe(true);
     expect(countKind(obs.bay, 'fuelCell')).toBe(0);
 
     // Craft the Core Drill and a pair of cells from the last Uranium, and take both aboard.

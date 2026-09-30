@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { canCraft, craft, fitsAfterCraft, missingInputs, RECIPES, type Recipe } from './crafting';
+import {
+  DEEP_RECIPE_MARK,
+  RECIPES,
+  canCraft,
+  craft,
+  findRecipe,
+  fitsAfterCraft,
+  isRecipeUnlocked,
+  missingInputs,
+  recipeId,
+  recipeLabel,
+  standardRecipe,
+  unlockedRecipes,
+  type Recipe
+} from './crafting';
 import { addItem, countItem, createInventory, oreKind, totalItems, type Inventory } from './inventory';
 import { isCatalogKind, itemForKind } from './items';
 
@@ -57,6 +71,51 @@ describe('the recipe table', () => {
     for (const id of ['cargo', 'drill', 'hull']) {
       expect(bill(`upgrade:${id}:2`)).toEqual([{kind: oreKind('Silver'), count: 3}, {kind: oreKind('Gold'), count: 3}]);
     }
+  });
+});
+
+describe('the deep alternates', () => {
+  const deepPortal = findRecipe('device:portal:alt')!;
+  const deepTeleporter = findRecipe('teleporter:alt')!;
+
+  it('makes the same Portal and Teleporter from deep ore, under their own names', () => {
+    expect(deepPortal).toMatchObject({output: 'device:portal', count: 1, alt: true, label: 'Deep Portal'});
+    expect(deepPortal.inputs).toEqual([
+      {kind: oreKind('Ruby'), count: 2}, {kind: oreKind('Emerald'), count: 2}, {kind: oreKind('Iron'), count: 2}
+    ]);
+    expect(deepTeleporter).toMatchObject({output: 'teleporter', count: 1, alt: true, label: 'Deep Teleporter'});
+    expect(deepTeleporter.inputs).toEqual([{kind: oreKind('Emerald'), count: 1}, {kind: oreKind('Alienite'), count: 1}]);
+    const after = craft(ores(['Ruby', 2], ['Emerald', 2], ['Iron', 2]), deepPortal);
+    expect(countItem(after!, 'device:portal')).toBe(1);
+    expect(totalItems(after!)).toBe(1);
+  });
+
+  it('gives every row a distinct id, the alternates an `:alt` suffix', () => {
+    const ids = RECIPES.map(recipeId);
+    expect(new Set(ids).size).toBe(RECIPES.length);
+    expect(recipeId(deepPortal)).toBe('device:portal:alt');
+    expect(recipeId(standardRecipe('device:portal')!)).toBe('device:portal');
+    for (const recipe of RECIPES) expect(findRecipe(recipeId(recipe))).toBe(recipe);
+    expect(findRecipe('bogus')).toBeUndefined();
+    expect(recipeLabel(standardRecipe('device:portal')!)).toBe('Portal');
+    expect(recipeLabel(deepTeleporter)).toBe('Deep Teleporter');
+  });
+
+  it('keeps each alternate after its standard row, so a lookup by output finds the standard bill', () => {
+    for (const output of ['device:portal', 'teleporter'] as const) {
+      const standard = standardRecipe(output)!;
+      expect(standard.alt).toBeUndefined();
+      expect(RECIPES.find(recipe => recipe.output === output)).toBe(standard);
+    }
+  });
+
+  it('unlocks with the first Mk II, and only the alternates are ever locked', () => {
+    expect(DEEP_RECIPE_MARK).toBe(2);
+    expect(isRecipeUnlocked(deepPortal, 1)).toBe(false);
+    expect(isRecipeUnlocked(deepPortal, 2)).toBe(true);
+    expect(unlockedRecipes(0)).toEqual(RECIPES.filter(recipe => !recipe.alt));
+    expect(unlockedRecipes(1)).toHaveLength(RECIPES.length - 2);
+    expect(unlockedRecipes(DEEP_RECIPE_MARK)).toEqual(RECIPES);
   });
 });
 

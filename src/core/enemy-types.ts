@@ -32,8 +32,15 @@ export const ENEMY_TYPES: Record<EnemyKind, EnemyTypeDefinition> = {
     healthMultiplier: 1.65, moveDelayAdjustment: 4, biteMultiplier: 1.55, biteCooldown: 30,
     colors: ['#d9ecff', '#657b91', '#202b3a'], glow: '#8ec9ff'
   },
+  // Stalkers wake from 8800 m, inside the Uranium and Core Shard bands the Core
+  // Drill and the Core Breaker are mined from, so the last hull has something to
+  // fight (they used to start at 9820 m, below every ore band). At their
+  // shallowest a stalker has 37 hp and bites for 38 every 19 steps: a Core Breaker
+  // with Hull Plating Mk III and the Core Drill (450 hull, drill 11) kills one in
+  // four hits and takes two or three bites doing it, so it survives three on a
+  // full hull and a fourth with a Repair Kit — `enemy-types.test.ts` pins that.
   abyssStalker: {
-    kind: 'abyssStalker', name: 'Abyss Stalker', minRow: START_Y + 982,
+    kind: 'abyssStalker', name: 'Abyss Stalker', minRow: START_Y + 880,
     healthMultiplier: 1.25, moveDelayAdjustment: -2, biteMultiplier: 1.25, biteCooldown: 18,
     colors: ['#f6b8ff', '#8749ba', '#27123e'], glow: '#df76ff'
   }

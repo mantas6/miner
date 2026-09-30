@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ORES } from '../../shared/constants';
 import { describeItem } from './item-info';
 import { oreKind, type InventoryItemKind } from './inventory';
-import { ITEM_CATALOG } from './items';
+import { FUEL_CELL_FUEL, ITEM_CATALOG } from './items';
 
 /** Every non-ore catalog kind, plus one stack of every ore. */
 const catalogKinds = Object.keys(ITEM_CATALOG) as InventoryItemKind[];
@@ -36,11 +36,11 @@ describe('describeItem', () => {
 
   it('says a fuel cell fills the tank', () => {
     expect(describeItem('fuelCell')).toMatchObject({title: 'Fuel Cell'});
-    expect(describeItem('fuelCell').lines).toContain('Refills the tank to full when used.');
+    expect(describeItem('fuelCell').lines).toContain(`Adds +${FUEL_CELL_FUEL} fuel when used, up to a full tank.`);
   });
 
   it('warns that a scanner is single use', () => {
-    expect(describeItem('scanner').lines).toContain('Single use: it stays where you set it down.');
+    expect(describeItem('scanner').lines).toContain('Single use: it crumbles away once its square is mapped.');
   });
 
   it('warns that a crafted fuel extractor starts empty', () => {

@@ -54,7 +54,10 @@ function ore(name: string, count: number): RecipeInput {
 
 /**
  * The single tunable ship table. Each hull adds one fitting slot and a bigger
- * base on every stat, so a swap never shrinks the bay or the tank.
+ * base on every stat, so a swap never shrinks the bay or the tank. The two late
+ * hulls cost several deep trips each (a playtest hauled 31 Alienite and 17
+ * Uranium in two), so the Core Breaker no longer lands one trip after the Core
+ * Drill.
  */
 export const SHIPS: Readonly<Record<ShipId, ShipDef>> = {
   scout: {
@@ -80,13 +83,13 @@ export const SHIPS: Readonly<Record<ShipId, ShipDef>> = {
     id: 'leviathan', label: 'Leviathan', slots: 6,
     base: {fuelMax: 275, hullMax: 200, cargoMax: 55, drill: 3},
     hull: ['#dcc8ff', '#9a6ff0', '#4a2a98'],
-    inputs: [ore('Ruby', 8), ore('Emerald', 6), ore('Alienite', 4)]
+    inputs: [ore('Ruby', 16), ore('Emerald', 12), ore('Alienite', 8)]
   },
   corebreaker: {
     id: 'corebreaker', label: 'Core Breaker', slots: 7,
     base: {fuelMax: 350, hullMax: 250, cargoMax: 70, drill: 4},
     hull: ['#ffbfa8', '#f0603f', '#8a1f12'],
-    inputs: [ore('Alienite', 6), ore('Uranium', 4), ore('Core Shard', 3)]
+    inputs: [ore('Alienite', 12), ore('Uranium', 8), ore('Core Shard', 6)]
   }
 };
 

@@ -33,7 +33,27 @@ export interface Recipe {
   output: InventoryItemKind;
   count: number;
   inputs: RecipeInput[];
+  /**
+   * A second route to an output the table already makes: its row carries its own
+   * id (`recipeId`, the output plus `:alt`) so both rows can be pressed.
+   */
+  alt?: boolean;
+  /** The row's own name, when it is not just the output's label ("Deep Portal"). */
+  label?: string;
+  /**
+   * The best mark ever crafted (`stats.bestMarkCrafted`) before the recipe is
+   * offered at all; left out, it is always on the list.
+   */
+  unlockMark?: number;
 }
+
+/**
+ * The mark that unlocks the deep recipes: the first Mk II crafted, the same
+ * milestone that opens a hull's last slot. By then the career is into Ruby and
+ * past the Silver and Gold bands the standard Portal and Teleporter are built
+ * from, so the deep routes take the ore it is actually digging.
+ */
+export const DEEP_RECIPE_MARK = 2;
 
 /** Shorthand: an ore-input line by ore name. */
 function ore(name: string, count: number): RecipeInput {
@@ -48,6 +68,13 @@ function ore(name: string, count: number): RecipeInput {
  * the Silver band; the drill alone has a fourth, the Core Drill, made from the
  * deepest ores. Iron is the early bottleneck (every Mk I and the Hauler want it),
  * so the kit and the container lean on over-supplied Copper instead.
+ *
+ * The Teleporter and the Portal each have a deep alternate (`alt`), unlocked with
+ * the first Mk II (`DEEP_RECIPE_MARK`): the standard bills want Silver and Gold,
+ * which stop spawning long before the deep game, so the Deep Teleporter and the
+ * Deep Portal make the same item from the Emerald, Ruby and Alienite a deep trip
+ * brings home. An alternate always follows its standard row, so a lookup by
+ * output (the post prices, the objective) finds the standard bill first.
  */
 export const RECIPES: Recipe[] = [
   {output: 'repairKit', count: 1, inputs: [ore('Iron', 2), ore('Copper', 1)]},
@@ -55,11 +82,19 @@ export const RECIPES: Recipe[] = [
   {output: 'scanner', count: 1, inputs: [ore('Copper', 2), ore('Silver', 1)]},
   {output: 'container', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
   {output: 'teleporter', count: 1, inputs: [ore('Silver', 3), ore('Gold', 2)]},
+  {
+    output: 'teleporter', count: 1, inputs: [ore('Emerald', 1), ore('Alienite', 1)],
+    alt: true, label: 'Deep Teleporter', unlockMark: DEEP_RECIPE_MARK
+  },
   {output: 'fuelCell', count: 2, inputs: [ore('Uranium', 1)]},
 
   {output: 'device:manufacturer', count: 1, inputs: [ore('Iron', 8), ore('Copper', 4), ore('Silver', 2)]},
   {output: 'device:extractor', count: 1, inputs: [ore('Iron', 6), ore('Copper', 4), ore('Coal', 2)]},
   {output: 'device:portal', count: 1, inputs: [ore('Silver', 3), ore('Gold', 3), ore('Iron', 2)]},
+  {
+    output: 'device:portal', count: 1, inputs: [ore('Ruby', 2), ore('Emerald', 2), ore('Iron', 2)],
+    alt: true, label: 'Deep Portal', unlockMark: DEEP_RECIPE_MARK
+  },
   {output: 'toolkit', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
 
   {output: 'upgrade:tank:1', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
@@ -86,6 +121,39 @@ export const RECIPES: Recipe[] = [
   {output: 'decor:copperTrim', count: 1, inputs: [ore('Copper', 2)]},
   {output: 'decor:lampPanel', count: 1, inputs: [ore('Copper', 1), ore('Coal', 1)]}
 ];
+
+/**
+ * A recipe's row id — the `data-craft` value its Craft button carries and the
+ * name a craft command takes: the output kind, plus `:alt` for an alternate.
+ */
+export function recipeId(recipe: Recipe): string {
+  return recipe.alt ? `${recipe.output}:alt` : recipe.output;
+}
+
+/** The name a recipe row is listed under: its own label, else its output's. */
+export function recipeLabel(recipe: Recipe): string {
+  return recipe.label ?? itemForKind(recipe.output).label;
+}
+
+/** Whether a recipe is on offer yet, given the best mark ever crafted. */
+export function isRecipeUnlocked(recipe: Recipe, bestMarkCrafted: number): boolean {
+  return bestMarkCrafted >= (recipe.unlockMark ?? 0);
+}
+
+/** The recipes a Manufacturer lists at `bestMarkCrafted`, in table order. */
+export function unlockedRecipes(bestMarkCrafted: number): Recipe[] {
+  return RECIPES.filter(recipe => isRecipeUnlocked(recipe, bestMarkCrafted));
+}
+
+/** The recipe a row id names (`recipeId`), or `undefined`. */
+export function findRecipe(id: string): Recipe | undefined {
+  return RECIPES.find(recipe => recipeId(recipe) === id);
+}
+
+/** The standard (non-alternate) recipe for an output, or `undefined` when nothing makes it. */
+export function standardRecipe(output: InventoryItemKind): Recipe | undefined {
+  return RECIPES.find(recipe => recipe.output === output && !recipe.alt);
+}
 
 /**
  * Anything built from a list of inputs: a recipe, or a hull on the ship ladder

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HULL } from '../core/balance';
 import { addItem, countItem, createInventory } from '../core/inventory';
-import { ITEM_CATALOG } from '../core/items';
+import { FUEL_CELL_FUEL, ITEM_CATALOG } from '../core/items';
 import { createInitialState } from '../core/state';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import type { GameState } from '../core/types';
@@ -82,7 +82,7 @@ describe('using a repair kit', () => {
 });
 
 describe('using a fuel cell', () => {
-  it('fills the tank to full and spends one cell', () => {
+  it('tops a nearly empty small tank up to full and spends one cell', () => {
     const h = harness();
     h.state.player.fuel = 30;
     h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.fuelCell, 2);
@@ -94,6 +94,19 @@ describe('using a fuel cell', () => {
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.audio.played).toEqual(['refuel']);
     expect(h.toasts.saw(`+${h.state.player.fuelMax - 30} fuel`)).toBe(true);
+  });
+
+  it('pours a fixed measure into a big tank, not a full refill', () => {
+    const h = harness();
+    h.state.player.fuelMax = 1000;
+    h.state.player.fuel = 100;
+    h.state.player.inventory = addItem(createInventory(), ITEM_CATALOG.fuelCell, 1);
+
+    h.actions.useFuelCell();
+
+    expect(h.state.player.fuel).toBe(100 + FUEL_CELL_FUEL);
+    expect(countItem(h.state.player.inventory, ITEM_CATALOG.fuelCell.kind)).toBe(0);
+    expect(h.toasts.saw(`Fuel cell used — +${FUEL_CELL_FUEL} fuel.`)).toBe(true);
   });
 
   it('refuses with a full tank and with none aboard, warning audibly', () => {

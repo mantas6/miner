@@ -44,8 +44,8 @@ function tankMaterials(): Inventory {
 }
 
 /** The materials a Mk II upgrade (and a Portal, less the Iron) needs: 3 Silver + 3 Gold. */
-function markTwoMaterials(): Inventory {
-  return withOre('Gold', 3, withOre('Silver', 3));
+function markTwoMaterials(base: Inventory = createInventory()): Inventory {
+  return withOre('Gold', 3, withOre('Silver', 3, base));
 }
 
 /** A row `meters` below the home floor. */
@@ -332,6 +332,18 @@ describe('expedition objective helper', () => {
     expect(formatExpeditionObjective({...made, station: portalStock, fieldPortals: 1})).not.toContain('Portal');
   });
 
+  it('names the Deep Portal and its bill once the deep recipes are unlocked and it is stocked', () => {
+    const deepStock = withOre('Iron', 2, withOre('Emerald', 2, withOre('Ruby', 2)));
+    expect(formatExpeditionObjective({...veteran, station: deepStock, bestMarkCrafted: 2}))
+      .toBe('Objective: craft a Deep Portal (2 Ruby + 2 Emerald + 2 Iron) and set it down deep — a free ride home.');
+    // Still locked before the first Mk II: the ladder carries on.
+    expect(formatExpeditionObjective({...veteran, station: deepStock, bestMarkCrafted: 1})).not.toContain('Portal');
+    // The standard bill stocked too: the plain Portal is named first.
+    expect(formatExpeditionObjective({...veteran, station: withOre('Iron', 2, markTwoMaterials(deepStock)), bestMarkCrafted: 2}))
+      .toBe('Objective: craft a Portal and set it down deep — a free ride home.');
+    expect(formatExpeditionObjective({...veteran, station: deepStock, bestMarkCrafted: 2, fieldPortals: 1})).not.toContain('Portal');
+  });
+
   it('asks for a Scanner past the Silver line when the career never had one', () => {
     const deep = {...veteran, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH, scannersObtained: 0};
     expect(formatExpeditionObjective(deep))
@@ -349,7 +361,7 @@ describe('expedition objective helper', () => {
   });
 
   it('turns Uranium the Core Drill can spare into a Fuel Cell nudge until a cell is held', () => {
-    const text = 'Objective: craft Fuel Cells (1 Uranium → 2 cells) for the deep runs.';
+    const text = 'Objective: craft Fuel Cells (1 Uranium → 2 cells, +250 fuel each) for the deep runs.';
     // The Core Drill still to make keeps back the 2 Uranium it takes.
     expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 2)})).toContain('dig toward');
     expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 3)})).toBe(text);
@@ -361,14 +373,14 @@ describe('expedition objective helper', () => {
   });
 
   it('keeps back the Uranium the next hull takes too', () => {
-    // A Leviathan's next hull, the Core Breaker, takes 4 more on top of the drill's 2.
+    // A Leviathan's next hull, the Core Breaker, takes 8 more on top of the drill's 2.
     const leviathan = {...veteran, player: {...upgraded, ship: 'leviathan' as ShipId}};
-    expect(formatExpeditionObjective({...leviathan, station: withOre('Uranium', 6)})).not.toContain('Fuel Cells');
-    expect(formatExpeditionObjective({...leviathan, station: withOre('Uranium', 7)})).toContain('Fuel Cells');
-    // With the drill made and fitted, only the hull's 4 are kept.
+    expect(formatExpeditionObjective({...leviathan, station: withOre('Uranium', 10)})).not.toContain('Fuel Cells');
+    expect(formatExpeditionObjective({...leviathan, station: withOre('Uranium', 11)})).toContain('Fuel Cells');
+    // With the drill made and fitted, only the hull's 8 are kept.
     const drilled = {...leviathan, player: {...leviathan.player, equipment: ['upgrade:drill:4', null, null] as (UpgradeKind | null)[]}};
-    expect(formatExpeditionObjective({...drilled, station: withOre('Uranium', 4)})).toContain('build the Core Breaker');
-    expect(formatExpeditionObjective({...drilled, station: withOre('Uranium', 5)})).toContain('Fuel Cells');
+    expect(formatExpeditionObjective({...drilled, station: withOre('Uranium', 8)})).toContain('build the Core Breaker');
+    expect(formatExpeditionObjective({...drilled, station: withOre('Uranium', 9)})).toContain('Fuel Cells');
   });
 
   it('asks for the Core Drill once its ores are stocked, ahead of spending the Uranium on cells', () => {
@@ -428,7 +440,7 @@ describe('expedition objective helper', () => {
   it('with the Core Drill fitted, names the next hull before anything else', () => {
     const drilled = {...veteran, player: {...upgraded, ship: 'leviathan' as ShipId, equipment: ['upgrade:drill:4', null, null] as (UpgradeKind | null)[]}};
     expect(formatExpeditionObjective({...drilled, maxDepthMeters: 9840}))
-      .toBe('Objective: build the Core Breaker at the Manufacturing Station (still needs 6 Alienite, 4 Uranium, 3 Core Shard).');
+      .toBe('Objective: build the Core Breaker at the Manufacturing Station (still needs 12 Alienite, 8 Uranium, 6 Core Shard).');
   });
 
   it('with the Core Drill fitted in the last hull, points past the depth record at the next 1000 m', () => {

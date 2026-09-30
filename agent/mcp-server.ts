@@ -24,9 +24,9 @@ import { openGameSession, type ClickTarget, type GameSession } from './session';
 import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
 import { EXTRACTOR, HULL } from '../src/core/balance';
 import { COCOON_WAKE_RADIUS } from '../src/core/enemy-exposure';
-import { RECIPES } from '../src/core/crafting';
+import { RECIPES, recipeId, recipeLabel } from '../src/core/crafting';
 import { EXTRACTOR_FUEL_ORDER, FUEL_DEPTH_METERS, POST_REPAIR_KIT_STOCK, extractorFuelOrderPrice } from '../src/core/trading';
-import { itemForKind } from '../src/core/items';
+import { FUEL_CELL_FUEL, itemForKind } from '../src/core/items';
 import { HOVER_DRILL_SURCHARGE_PERCENT } from '../src/core/movement';
 import { SHIPS, SHIP_ORDER } from '../src/core/ships';
 import { MAX_ZOOM, MIN_ZOOM } from '../src/game/zoom';
@@ -47,13 +47,18 @@ function legendText(): string {
   return Object.entries(VIEW_LEGEND).map(([glyph, name]) => `${glyph}=${name}`).join('  ');
 }
 
-/** The recipe table as text, e.g. `Dynamite ×1 ← 2 Coal, 1 Iron`, generated from data. */
+/**
+ * The recipe table as text, e.g. `Dynamite ×1 ← 2 Coal, 1 Iron`, generated from
+ * data. A deep alternate names its `data-craft` id and what it unlocks with.
+ */
 function recipesText(): string {
   return RECIPES.map(recipe => {
-    const output = itemForKind(recipe.output).label;
     const count = recipe.count > 1 ? ` ×${recipe.count}` : '';
     const inputs = recipe.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ');
-    return `  ${output}${count} \u2190 ${inputs}`;
+    const alt = recipe.alt
+      ? ` (makes a ${itemForKind(recipe.output).label}; data-craft "${recipeId(recipe)}"; listed once a Mk II is crafted)`
+      : '';
+    return `  ${recipeLabel(recipe)}${count} \u2190 ${inputs}${alt}`;
   }).join('\n');
 }
 
@@ -120,8 +125,8 @@ function instructions(): string {
     '    station, container or portal back into the bay. Placed stations show as',
     '    M / X / P in the view and notable.',
     '  Spent with one click: repairKitSlotBtn uses a Repair Kit on the hull, and',
-    '    fuelCellSlotBtn uses a Fuel Cell (crafted from Uranium) to fill the tank —',
-    '    refused while the tank is already full.',
+    `    fuelCellSlotBtn uses a Fuel Cell (crafted from Uranium) for +${FUEL_CELL_FUEL} fuel, up to a`,
+    '    full tank — refused while the tank is already full.',
     '  Naming a portal: in the travel overlay, `click` portalNameInput to focus it,',
     '    `type` the new name (max 16 chars), then `click` portalNameSaveBtn (Enter also',
     '    saves). The new name echoes back in `overlay.name` and the portal notable.',
@@ -190,6 +195,8 @@ function instructions(): string {
     '',
     'CRAFTING RECIPES (at the Manufacturer; consume from and produce into station stock):',
     recipesText(),
+    '  The open station lists only the unlocked rows in `overlay.recipes`; click data-craft',
+    '  with a row\'s `id` (its output kind, plus ":alt" for a deep alternate).',
     '',
     'SHIPYARD (every Manufacturer, `station.shipyard`): a one-way ladder of hulls, each with',
     '  one more fitting slot and a bigger base tank, hull, bay and drill:',
@@ -218,7 +225,9 @@ function instructions(): string {
     '    holds) — mine coal, or order fuel once the career is deeper than Coal grows.',
     '  - Trading Posts (T) stand deep in the mine: sell ore for cash there, and buy',
     `    a small, limited stock of gear — every post keeps ${POST_REPAIR_KIT_STOCK} Repair Kits on the shelf`,
-    '    beside its rolled offers. `hud.cash` is your wallet; the open post\'s',
+    '    beside its rolled offers; deeper posts roll dearer gear (Mk II parts from',
+    '    2300 m, Mk III from 5400 m, Fuel Cells and the Core Drill from 7000 m).',
+    '    `hud.cash` is your wallet; the open post\'s',
     '    sell prices and buy offers are in the `trade` overlay. tradeFuelBtn fills the',
     '    tank for cash (`trade.fuel`: unitPrice, and the amount/cost a fill buys now).',
     `    A post's fuel costs more the deeper it stands (home price × (1 + depth / ${FUEL_DEPTH_METERS} m));`,
@@ -400,7 +409,8 @@ server.registerTool(
     description:
       'Click one allowlisted UI control. Use `target` for an id (e.g. "shipBtn", ' +
       '"stationCloseBtn") or an attribute name (e.g. "data-craft"); pass `value` for ' +
-      'attribute controls (e.g. target "data-craft", value "upgrade:drill:1"; at the home ' +
+      'attribute controls (e.g. target "data-craft", value "upgrade:drill:1" — a deep alternate ' +
+      'recipe row takes its `overlay.recipes[].id`, e.g. "device:portal:alt" for the Deep Portal; at the home ' +
       'Manufacturer target "data-supply", value e.g. "repairKit", buys a Supply item for ' +
       'cash into the station stock); the ' +
       'transfer controls also need `kind` — the station (target "data-station", value ' +

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { START_Y, STATIONS } from '../../shared/constants';
 import { EXTRACTOR } from '../core/balance';
-import { addItem, countItem, createInventory, oreKind } from '../core/inventory';
+import { addItem, countItem, createInventory, oreKind, totalItems } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { applyEquipment, swapHull, unlockedSlotCount } from '../core/ship-upgrades';
 import { slotsFor } from '../core/ships';
@@ -314,6 +314,29 @@ describe('crafting at the station', () => {
     h.sim.craft('upgrade:hull:3');
     expect(h.state.stats.bestMarkCrafted).toBe(2);
     expect(h.state.stats.scannersObtained).toBe(2);
+  });
+
+  it('crafts the Deep Portal by its :alt id once a Mk II is made, and refuses it before', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    manufacturer(h.state).inventory = [ore('Ruby', 2), ore('Emerald', 2), ore('Iron', 2)].reduce(
+      (inv, stack) => addItem(inv, itemForKind(stack.kind), stack.count), createInventory()
+    );
+    h.sim.openNearest();
+
+    h.sim.craft('device:portal:alt');
+    expect(countItem(manufacturer(h.state).inventory, 'device:portal')).toBe(0);
+    expect(h.toasts.saw('Craft a Mk II upgrade first to unlock the Deep Portal')).toBe(true);
+    expect(h.audio.played).toEqual(['alarm']);
+
+    h.state.stats.bestMarkCrafted = 2;
+    // The standard row wants Silver and Gold the stock has none of.
+    h.sim.craft('device:portal');
+    expect(h.toasts.saw('Not enough materials for Portal')).toBe(true);
+    h.sim.craft('device:portal:alt');
+    expect(countItem(manufacturer(h.state).inventory, 'device:portal')).toBe(1);
+    expect(totalItems(manufacturer(h.state).inventory)).toBe(1);
+    expect(h.toasts.saw('Crafted 1 × Portal')).toBe(true);
   });
 
   it('opens the last slot from the Silver band: a Fuel Tank Mk II takes no Gold', () => {

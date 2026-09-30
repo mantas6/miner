@@ -30,9 +30,9 @@
 import { START_Y, rowDepthMeters } from '../../shared/constants';
 import { tileKey } from '../../shared/tile-key';
 import { EXTRACTOR, HULL } from './balance';
-import { RECIPES } from './crafting';
+import { standardRecipe } from './crafting';
 import { itemForKind } from './items';
-import { oreKind, type InventoryItemKind } from './inventory';
+import { CORE_DRILL_KIND, oreKind, type InventoryItemKind } from './inventory';
 import { rand } from '../world/world';
 
 /** How far a ship may stand from a post and still trade: Chebyshev ≤ 1, its own tile too. */
@@ -68,9 +68,14 @@ interface PoolEntry {
 /**
  * The depth-tiered pool a post draws its rolled buy offers from. The base wares
  * are stocked at any post; upgrades and the pricier tools appear only deeper, so a
- * deep post is worth the trip. Rows are `START_Y + n`, so the tiers move with the
- * home row exactly like the ore bands do. The Repair Kit is not in it: every post
- * keeps its own kit shelf (`POST_REPAIR_KIT`) on top of whatever it rolls.
+ * deep post is worth the trip. Each upgrade tier opens with the band of the ore
+ * its bill first wants: the Mk II parts with Ruby (2300 m, where the Prospector's
+ * bill starts), the Mk III parts with Alienite (5400 m), and the Fuel Cell and the
+ * Core Drill with Uranium (7000 m) — the late-game gear, priced in the thousands,
+ * that gives a deep trip's cash somewhere to go. Rows are `START_Y + n`, so the
+ * tiers move with the home row exactly like the ore bands do. The Repair Kit is
+ * not in it: every post keeps its own kit shelf (`POST_REPAIR_KIT`) on top of
+ * whatever it rolls.
  */
 const BUY_POOL: readonly PoolEntry[] = [
   {kind: 'dynamite', minRow: START_Y + 40},
@@ -82,15 +87,24 @@ const BUY_POOL: readonly PoolEntry[] = [
   {kind: 'upgrade:hull:1', minRow: START_Y + 80},
   {kind: 'toolkit', minRow: START_Y + 120},
   {kind: 'teleporter', minRow: START_Y + 160},
-  {kind: 'upgrade:drill:2', minRow: START_Y + 260},
-  {kind: 'upgrade:tank:2', minRow: START_Y + 260},
-  {kind: 'upgrade:cargo:2', minRow: START_Y + 260},
-  {kind: 'upgrade:hull:2', minRow: START_Y + 260}
+  {kind: 'upgrade:drill:2', minRow: START_Y + 230},
+  {kind: 'upgrade:tank:2', minRow: START_Y + 230},
+  {kind: 'upgrade:cargo:2', minRow: START_Y + 230},
+  {kind: 'upgrade:hull:2', minRow: START_Y + 230},
+  {kind: 'upgrade:drill:3', minRow: START_Y + 540},
+  {kind: 'upgrade:tank:3', minRow: START_Y + 540},
+  {kind: 'upgrade:cargo:3', minRow: START_Y + 540},
+  {kind: 'upgrade:hull:3', minRow: START_Y + 540},
+  {kind: 'fuelCell', minRow: START_Y + 700},
+  {kind: CORE_DRILL_KIND, minRow: START_Y + 700}
 ];
 
-/** The ore-value of an item's crafting recipe inputs; 0 for an item with no recipe. */
+/**
+ * The ore-value of an item's standard crafting recipe inputs; 0 for an item with
+ * no recipe. A deep alternate (the Deep Portal) never reprices its output.
+ */
 function recipeOreValue(kind: InventoryItemKind): number {
-  const recipe = RECIPES.find(entry => entry.output === kind);
+  const recipe = standardRecipe(kind);
   if (!recipe) return 0;
   return recipe.inputs.reduce((sum, input) => sum + input.count * itemForKind(input.kind).value, 0);
 }
@@ -102,7 +116,7 @@ function recipeOreValue(kind: InventoryItemKind): number {
  * inputs across all of them, so one unit never costs the whole batch.
  */
 export function buyPrice(kind: InventoryItemKind, markup = TRADING_MARKUP): number {
-  const made = RECIPES.find(entry => entry.output === kind)?.count ?? 1;
+  const made = standardRecipe(kind)?.count ?? 1;
   return Math.max(1, Math.round(recipeOreValue(kind) / Math.max(1, made) * markup));
 }
 

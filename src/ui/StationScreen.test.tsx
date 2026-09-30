@@ -21,7 +21,7 @@ const IRON = {name: 'Iron', color: '#8a7f75', value: 12, min: 0, max: 900, chanc
 const COAL = {name: 'Coal', color: '#343434', value: 8, min: 0, max: 900, chance: 1};
 const COPPER = {name: 'Copper', color: '#c47b45', value: 16, min: 0, max: 900, chance: 1};
 
-function open(supply = false, cash = 0): HTMLDialogElement {
+function open(supply = false, cash = 0, bestMarkCrafted = 0): HTMLDialogElement {
   const rendered = render(<StationScreen />);
   act(() => {
     const store = uiStore.getState();
@@ -29,7 +29,7 @@ function open(supply = false, cash = 0): HTMLDialogElement {
     // The station holds three iron and a copper; the bay holds two coal.
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem(COAL), 2)));
     const stock = addItem(addItem(createInventory(), oreItem(IRON), 3), oreItem(COPPER), 1);
-    store.showOverlay({kind: 'station', slots: buildInventorySlots(stock), supply});
+    store.showOverlay({kind: 'station', slots: buildInventorySlots(stock), supply, bestMarkCrafted});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -88,7 +88,29 @@ describe('manufacturing station dialog', () => {
     expect(repairKitCraft.getAttribute('aria-disabled')).toBe('false');
     expect(repairKitCraft.getAttribute('aria-label')).toBe('Craft Repair Kit');
     fireEvent.click(repairKitCraft);
-    expect(craft).toHaveBeenCalledWith(0);
+    expect(craft).toHaveBeenCalledWith('repairKit');
+  });
+
+  it('lists the deep alternates only once a Mk II is crafted, each pressed by its own :alt id', () => {
+    open();
+    expect(document.querySelector('[data-craft="device:portal:alt"]')).toBeNull();
+    expect(document.querySelector('[data-craft="teleporter:alt"]')).toBeNull();
+    expect(document.querySelector('[data-craft="device:portal"]')).not.toBeNull();
+    cleanup();
+
+    const craft = vi.fn();
+    setUiCommands({craft});
+    open(false, 0, 2);
+    const standard = document.querySelector<HTMLButtonElement>('[data-craft="device:portal"]')!;
+    const deep = document.querySelector<HTMLButtonElement>('[data-craft="device:portal:alt"]')!;
+    expect(standard.getAttribute('aria-label')).toBe('Craft Portal');
+    expect(deep.getAttribute('aria-label')).toBe('Craft Deep Portal');
+    expect(deep.closest('li')!.textContent).toContain('Deep Portal');
+    // Its own shortfall, read off its own bill: the stock's Iron covers the Iron.
+    expect(document.getElementById(deep.getAttribute('aria-describedby')!)?.textContent).toBe('Need 2 Ruby, 2 Emerald');
+    expect(document.querySelector('[data-craft="teleporter:alt"]')?.getAttribute('aria-label')).toBe('Craft Deep Teleporter');
+    fireEvent.click(deep);
+    expect(craft).toHaveBeenCalledWith('device:portal:alt');
   });
 
   it('disables a recipe the station cannot afford and names the shortfall', () => {
@@ -167,7 +189,7 @@ describe('manufacturing station dialog', () => {
       const stock = [['Iron', 16], ['Copper', 10], ['Silver', 6]].reduce(
         (inventory, [name, count]) => addItem(inventory, oreItem({...IRON, name: name as string}), count as number), createInventory()
       );
-      uiStore.getState().showOverlay({kind: 'station', slots: buildInventorySlots(stock), supply: false});
+      uiStore.getState().showOverlay({kind: 'station', slots: buildInventorySlots(stock), supply: false, bestMarkCrafted: 0});
     });
     expect(build.getAttribute('aria-disabled')).toBe('false');
     expect(document.getElementById(build.getAttribute('aria-describedby')!)?.textContent).toBe('16 Iron · 10 Copper · 6 Silver');
@@ -189,7 +211,7 @@ describe('manufacturing station dialog', () => {
     expect(document.getElementById('station-card')).toBeNull();
 
     act(() => {
-      uiStore.getState().showOverlay({kind: 'station', slots: [], supply: false});
+      uiStore.getState().showOverlay({kind: 'station', slots: [], supply: false, bestMarkCrafted: 0});
     });
     expect(document.getElementById('station-card')).not.toBeNull();
 

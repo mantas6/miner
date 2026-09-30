@@ -11,7 +11,8 @@
 //   5. no ship upgrade yet          → the Fuel Tank Mk I nudge (mine, stow, craft)
 //   6. a Mk II (or, after one, a Mk III) is craftable → craft it
 //   7. the next hull on the ladder is buildable, or half its bill is stocked → build it
-//   8. a Portal is craftable (or held) and none stands in the field → set one down deep
+//   8. a Portal is craftable (or held; the Deep Portal once unlocked) and none
+//      stands in the field → set one down deep
 //   9. 600 m reached, never a Scanner → craft or buy one: ore hides in the fog
 //  10. 400 m reached, no trading post found → go find one
 //  11. the late game: craft (then fit) the Core Drill; turn spare Uranium into Fuel
@@ -27,7 +28,7 @@
 
 import { FUEL, HULL } from './balance';
 import { ORES, START_Y, rowDepthMeters } from '../../shared/constants';
-import { canCraft, missingInputs, RECIPES, type HasInputs, type Recipe } from './crafting';
+import { canCraft, isRecipeUnlocked, missingInputs, RECIPES, standardRecipe, type HasInputs, type Recipe } from './crafting';
 import { fuelExitLabel, type FuelExit } from './fuel-reserve';
 import { isBaseLow } from './hud-alerts';
 import {
@@ -41,7 +42,7 @@ import {
   type UpgradeKind,
   type UpgradeTier
 } from './inventory';
-import { itemForKind } from './items';
+import { FUEL_CELL_FUEL, itemForKind } from './items';
 import { hasEmptyOpenSlot } from './ship-upgrades';
 import { SHIPS, nextShip, type ShipId } from './ships';
 import { EXTRACTOR_FUEL_ORDER, POST_REPAIR_KIT, buyPrice, extractorFuelOrderPrice, supplyPrice } from './trading';
@@ -108,7 +109,9 @@ export const SHIP_OBJECTIVE_SHARE = 0.5;
 const firstUpgradeRecipe = RECIPES.find(entry => entry.output === FIRST_UPGRADE);
 const markTwoRecipes = RECIPES.filter(entry => isUpgradeKind(entry.output) && entry.output.endsWith(':2'));
 const markThreeRecipes = RECIPES.filter(entry => isUpgradeKind(entry.output) && entry.output.endsWith(':3'));
-const portalRecipe = RECIPES.find(entry => entry.output === 'device:portal');
+const portalRecipe = standardRecipe('device:portal');
+/** The Deep Portal: the same Portal from deep ore, once the first Mk II is crafted. */
+const deepPortalRecipe = RECIPES.find(entry => entry.output === 'device:portal' && entry.alt);
 const coreDrillRecipe = RECIPES.find(entry => entry.output === CORE_DRILL_KIND);
 const repairKitRecipe = RECIPES.find(entry => entry.output === 'repairKit');
 const scannerRecipe = RECIPES.find(entry => entry.output === 'scanner');
@@ -131,6 +134,7 @@ const REPAIR_KIT_PRICE = supplyPrice(REPAIR_KIT);
 /** Every post keeps Repair Kits on the shelf (`POST_REPAIR_KIT`), at the post markup. */
 const POST_REPAIR_KIT_PRICE = buyPrice(POST_REPAIR_KIT);
 const SCANNER_BILL = billText(scannerRecipe);
+const DEEP_PORTAL_BILL = billText(deepPortalRecipe);
 const SCANNER_PRICE = supplyPrice('scanner');
 /** What one extractor fuel order costs at the home price, in whole dollars (posts charge more the deeper they stand). */
 const FUEL_ORDER_PRICE = extractorFuelOrderPrice();
@@ -185,6 +189,8 @@ interface CraftFacts {
   markTwo: boolean;
   markThree: boolean;
   portal: boolean;
+  /** The Deep Portal's bill is stocked (whether it is unlocked is the ladder's call). */
+  deepPortal: boolean;
   coreDrill: boolean;
 }
 
@@ -265,6 +271,7 @@ function craftFacts(station: Inventory): CraftFacts {
     markTwo: markTwoRecipes.some(recipe => canCraft(station, recipe)),
     markThree: markThreeRecipes.some(recipe => canCraft(station, recipe)),
     portal: craftable(portalRecipe, station),
+    deepPortal: craftable(deepPortalRecipe, station),
     coreDrill: craftable(coreDrillRecipe, station)
   };
 }
@@ -321,8 +328,9 @@ interface ObjectiveStep {
    * stock / 2 craft or buy at home / 3 go home for one / 4 or a post; stow 0 home /
    * 1 or a post; base 0 no extractor / 1 load coal / 2 mine coal / 3 order fuel;
    * fit 0 aboard / 1 in stock; firstUpgrade 0 mine / 1 craft / 2 stow and craft;
-   * portal 0 craft / 1 set down; coreDrill 0 craft / 1 fit; band 0 none mined yet,
-   * here / 1 work it; depth 0 mind the trip home / 1 a portal stands.
+   * portal 0 craft / 1 set down / 2 craft the Deep Portal; coreDrill 0 craft /
+   * 1 fit; band 0 none mined yet, here / 1 work it; depth 0 mind the trip home /
+   * 1 a portal stands.
    */
   variant: number;
   /**
@@ -417,8 +425,13 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, ships: ShipFacts, h
   // 7. The next hull, once it is buildable or half its bill is stocked.
   if (ships.next && (ships.buildable || ships.halfway)) return shipStep(out, ships);
 
-  // 8. A field portal: a free ride home from the deep.
-  if (fieldPortals === 0 && (held.portal || crafts.portal)) return setStep(out, 'portal', held.portal ? 1 : 0);
+  // 8. A field portal: a free ride home from the deep — from Silver and Gold, or,
+  // once the deep recipes are unlocked, from the Ruby and Emerald of the deep game.
+  if (fieldPortals === 0) {
+    if (held.portal) return setStep(out, 'portal', 1);
+    if (crafts.portal) return setStep(out, 'portal', 0);
+    if (crafts.deepPortal && deepPortalRecipe && isRecipeUnlocked(deepPortalRecipe, bestMark)) return setStep(out, 'portal', 2);
+  }
 
   // 9. Past the Silver line with no Scanner ever: the richer ore is behind the fog.
   if (careerDepth >= SCANNER_OBJECTIVE_DEPTH && (input.scannersObtained ?? 0) === 0 && !held.scanner) {
@@ -512,9 +525,9 @@ function formatStep(step: ObjectiveStep): string {
         ? `Objective: build the ${step.name} at the Manufacturing Station (still needs ${step.detail}).`
         : `Objective: build the ${step.name} at the Manufacturing Station.`;
     case 'portal':
-      return step.variant === 1
-        ? 'Objective: set the Portal down deep — a free ride home.'
-        : 'Objective: craft a Portal and set it down deep — a free ride home.';
+      if (step.variant === 1) return 'Objective: set the Portal down deep — a free ride home.';
+      if (step.variant === 2) return `Objective: craft a Deep Portal (${DEEP_PORTAL_BILL}) and set it down deep — a free ride home.`;
+      return 'Objective: craft a Portal and set it down deep — a free ride home.';
     case 'scanner':
       return `Objective: craft a Scanner (${SCANNER_BILL}) or buy one from Supply for $${SCANNER_PRICE} — Silver hides beside shafts, so dig sideways galleries.`;
     case 'post':
@@ -524,7 +537,7 @@ function formatStep(step: ObjectiveStep): string {
         ? 'Objective: fit the Core Drill from the Ship screen.'
         : 'Objective: craft the Core Drill at the Manufacturing Station.';
     case 'fuelCell':
-      return 'Objective: craft Fuel Cells (1 Uranium → 2 cells) for the deep runs.';
+      return `Objective: craft Fuel Cells (1 Uranium → 2 cells, +${FUEL_CELL_FUEL} fuel each) for the deep runs.`;
     case 'record':
       return `Objective: you have the deepest rig there is — set a depth record past ${step.depth} m.`;
     case 'band': {

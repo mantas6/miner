@@ -8,7 +8,7 @@
 // catalog.
 //
 // The consumable entries are the single source of truth for the four devices, the
-// repair kit and the fuel cell; `dynamite.ts`, `scanner-device.ts`, `teleporter.ts`, and
+// repair kit and the fuel cell (whose measure, `FUEL_CELL_FUEL`, lives here too); `dynamite.ts`, `scanner-device.ts`, `teleporter.ts`, and
 // `cargo-container.ts` re-export their own item from here rather than restating
 // it. The module depends only on `inventory.ts` types and the ore table, so it
 // sits at the bottom of the import graph with nothing importing back into it.
@@ -98,6 +98,18 @@ export const ITEM_CATALOG: Record<NonOreKind, InventoryItem> = {
   ...DECOR_ITEMS,
   ...upgradeItems()
 };
+
+/**
+ * What one Fuel Cell pours into the tank: a fixed measure rather than a full
+ * tank, so a stack of cells stretches a deep trip without making fuel irrelevant
+ * to a 1000-unit late-game tank. One Uranium still makes two.
+ */
+export const FUEL_CELL_FUEL = 250;
+
+/** The fuel one cell adds to a tank at `fuel` of `fuelMax`: its measure, capped by the room left. */
+export function fuelCellFill(fuel: number, fuelMax: number): number {
+  return Math.max(0, Math.min(FUEL_CELL_FUEL, fuelMax - fuel));
+}
 
 /** Whether a kind names a real non-ore item, so a save's stack can be trusted. */
 export function isCatalogKind(kind: string): kind is NonOreKind {

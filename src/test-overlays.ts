@@ -11,7 +11,7 @@ const EMPTY: {[K in OverlayId]: () => OverlayOf<K>} = {
   container: () => ({kind: 'container', slots: []}),
   wreck: () => ({kind: 'wreck', slots: [], deathsLeft: 3}),
   chest: () => ({kind: 'chest', slots: []}),
-  station: () => ({kind: 'station', slots: [], supply: false}),
+  station: () => ({kind: 'station', slots: [], supply: false, bestMarkCrafted: 0}),
   extractor: () => ({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0, supply: false}}),
   trade: () => ({kind: 'trade', offers: [], fuelPrice: fuelUnitPrice()}),
   portal: () => ({kind: 'portal', portal: {mode: 'travel', destinations: []}}),

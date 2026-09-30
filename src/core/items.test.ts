@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ORES } from '../../shared/constants';
-import { ITEM_CATALOG, isCatalogKind, itemForKind } from './items';
+import { FUEL_CELL_FUEL, ITEM_CATALOG, fuelCellFill, isCatalogKind, itemForKind } from './items';
 import {
   isDecorKind,
   isOreKind,
@@ -60,6 +60,21 @@ describe('the item catalog', () => {
     expect(ITEM_CATALOG['decor:lampPanel'].label).toBe('Lamp Panel');
     expect(ITEM_CATALOG.repairKit.label).toBe('Repair Kit');
     expect(ITEM_CATALOG.fuelCell.label).toBe('Fuel Cell');
+  });
+});
+
+describe('the fuel cell', () => {
+  it('pours a fixed 250 fuel, not a full tank', () => {
+    expect(FUEL_CELL_FUEL).toBe(250);
+    expect(fuelCellFill(100, 1000)).toBe(250);
+    expect(fuelCellFill(0, 875)).toBe(250);
+  });
+
+  it('stops at a full tank, and pours nothing into one', () => {
+    expect(fuelCellFill(30, 100)).toBe(70);
+    expect(fuelCellFill(800, 875)).toBe(75);
+    expect(fuelCellFill(875, 875)).toBe(0);
+    expect(fuelCellFill(900, 875)).toBe(0);
   });
 });
 

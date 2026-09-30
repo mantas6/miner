@@ -23,8 +23,11 @@ import {
   canCraft,
   consumeInputs,
   craft as craftRecipe,
+  findRecipe,
+  isRecipeUnlocked,
   missingInputs,
   RECIPES,
+  recipeLabel,
   type Recipe
 } from '../core/crafting';
 import {
@@ -90,7 +93,11 @@ export interface HomeStationsSim {
   /** Take a stack (or one unit) of `kind` back out of the station stock. */
   take(kind: InventoryItemKind, single?: boolean): void;
   /** Craft a recipe, by table index or by output kind, at the open manufacturer. */
-  craft(recipe: number | InventoryItemKind): void;
+  /**
+   * Craft a recipe at the station, by table index or row id (`recipeId`: the
+   * output kind, `:alt` for an alternate). A recipe still locked is refused.
+   */
+  craft(recipe: number | string): void;
   /**
    * Build hull `id` at the open manufacturer from its stock and move the ship into
    * it. Only the next hull up the ladder (`nextShip`) can be built.
@@ -250,16 +257,19 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     toast(`Took ${moved} × ${itemForKind(kind).label} aboard.`);
   }
 
-  function craft(reference: number | InventoryItemKind): void {
+  function craft(reference: number | string): void {
     const manufacturer = openManufacturer();
     if (!manufacturer || state.gameOver) return;
-    const recipe: Recipe | undefined = typeof reference === 'number'
-      ? RECIPES[reference]
-      : RECIPES.find(entry => entry.output === reference);
+    const recipe: Recipe | undefined = typeof reference === 'number' ? RECIPES[reference] : findRecipe(reference);
     if (!recipe) return;
+    // The screen never lists a locked recipe; this is the guard for a stale press.
+    if (!isRecipeUnlocked(recipe, state.stats.bestMarkCrafted)) {
+      audio.alarm();
+      return toast(`Craft a Mk II upgrade first to unlock the ${recipeLabel(recipe)}.`);
+    }
     if (!canCraft(manufacturer.inventory, recipe)) {
       audio.alarm();
-      return toast(`Not enough materials for ${itemForKind(recipe.output).label}.`);
+      return toast(`Not enough materials for ${recipeLabel(recipe)}.`);
     }
     // The only other refusal: the batch would push the stock past its capacity.
     const result = craftRecipe(manufacturer.inventory, recipe, STATION_CAPACITY);

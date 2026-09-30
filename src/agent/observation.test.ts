@@ -664,7 +664,7 @@ describe('buildObservation', () => {
 
     const overlay = buildObservation({
       state,
-      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3), {...oreSlot('Copper', 1), index: 1}], supply: false}}),
+      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3), {...oreSlot('Copper', 1), index: 1}], supply: false, bestMarkCrafted: 0}}),
       get: tileSource({})
     }).overlay;
 
@@ -686,6 +686,27 @@ describe('buildObservation', () => {
     expect(repairKit?.info.some(line => line.includes('Copper 1/1'))).toBe(true);
     // Away from the base there is no Supply counter.
     expect(overlay.supply).toEqual([]);
+    // Every row names its data-craft id; before a Mk II the deep alternates are not listed.
+    expect(repairKit?.id).toBe('repairKit');
+    expect(overlay.recipes.some(r => r.id.endsWith(':alt'))).toBe(false);
+  });
+
+  it('lists the deep alternates beside the standard rows once a Mk II is crafted', () => {
+    const overlay = buildObservation({
+      state: createInitialState(),
+      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Ruby', 2), {...oreSlot('Emerald', 2), index: 1}, {...oreSlot('Iron', 2), index: 2}], supply: false, bestMarkCrafted: 2}}),
+      get: tileSource({})
+    }).overlay;
+    if (overlay?.kind !== 'station') throw new Error('expected station overlay');
+    const portals = overlay.recipes.filter(r => r.output === 'device:portal');
+    expect(portals.map(r => [r.id, r.label, r.craftable])).toEqual([
+      ['device:portal', 'Portal', false],
+      ['device:portal:alt', 'Deep Portal', true]
+    ]);
+    const deepTeleporter = overlay.recipes.find(r => r.id === 'teleporter:alt');
+    expect(deepTeleporter).toMatchObject({output: 'teleporter', label: 'Deep Teleporter', craftable: false});
+    expect(deepTeleporter?.missing.map(input => [input.label, input.count])).toEqual([['Alienite', 1]]);
+    expect(deepTeleporter?.inputs.map(input => [input.label, input.count])).toEqual([['Emerald', 1], ['Alienite', 1]]);
   });
 
   it('mirrors the Shipyard: the hull flown now, and the next one priced from the stock', () => {
@@ -693,7 +714,7 @@ describe('buildObservation', () => {
     const shipyard = (slots: InventorySlotView[], ship = buildShipView('scout')) => {
       const overlay = buildObservation({
         state,
-        ui: ui({overlay: {kind: 'station', slots, supply: false}, ship}),
+        ui: ui({overlay: {kind: 'station', slots, supply: false, bestMarkCrafted: 0}, ship}),
         get: tileSource({})
       }).overlay;
       if (overlay?.kind !== 'station') throw new Error('expected station overlay');
@@ -766,7 +787,7 @@ describe('buildObservation', () => {
     const cash = supplyPrice('dynamite');
     const overlay = buildObservation({
       state,
-      ui: ui({overlay: {kind: 'station', slots: [], supply: true}, hud: {...uiStore.getState().hud, cash}}),
+      ui: ui({overlay: {kind: 'station', slots: [], supply: true, bestMarkCrafted: 0}, hud: {...uiStore.getState().hud, cash}}),
       get: tileSource({})
     }).overlay;
 

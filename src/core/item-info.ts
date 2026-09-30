@@ -32,7 +32,7 @@ import {
   type UpgradeId,
   type UpgradeKind
 } from './inventory';
-import { itemForKind } from './items';
+import { FUEL_CELL_FUEL, itemForKind } from './items';
 import { formatDepthBandLabel } from './prospecting';
 import { SCANNER_DEVICE } from './scanner-device';
 import { upgradeBonus } from './ship-upgrades';
@@ -104,7 +104,7 @@ function describeConsumable(kind: ConsumableKind): ItemInfo {
         lines: [
           `Maps a ${SCANNER_DEVICE.size}×${SCANNER_DEVICE.size} square around it.`,
           `Reveals one fogged tile every ${SCANNER_DEVICE.intervalSeconds} s.`,
-          'Single use: it stays where you set it down.'
+          'Single use: it crumbles away once its square is mapped.'
         ]
       };
     case 'teleporter':
@@ -131,7 +131,7 @@ function describeConsumable(kind: ConsumableKind): ItemInfo {
     case 'fuelCell':
       return {
         title,
-        lines: ['Refills the tank to full when used.', 'Spent from its inventory slot; refused while the tank is full.']
+        lines: [`Adds +${FUEL_CELL_FUEL} fuel when used, up to a full tank.`, 'Spent from its inventory slot; refused while the tank is full.']
       };
     default:
       return assertNever(kind);

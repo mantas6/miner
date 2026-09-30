@@ -18,7 +18,7 @@
 
 import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { isTileExplored } from '../../shared/exploration-codec';
-import { canCraft, missingInputs, RECIPES } from '../core/crafting';
+import { canCraft, missingInputs, recipeId, recipeLabel, unlockedRecipes } from '../core/crafting';
 import { getEnemyType } from '../core/enemy-types';
 import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
@@ -108,9 +108,18 @@ export interface AgentRecipeInput {
   label: string;
 }
 
-/** One station recipe, with the affordances derived from the station stock. */
+/**
+ * One station recipe the screen lists (locked ones are left out), with the
+ * affordances derived from the station stock.
+ */
 export interface AgentRecipe {
+  /**
+   * The row's `data-craft` value: the output kind, or the output plus `:alt` for
+   * a deep alternate (e.g. "device:portal:alt", the Deep Portal).
+   */
+  id: string;
   output: InventoryItemKind;
+  /** The row's name: the output's label, or the alternate's own ("Deep Portal"). */
   label: string;
   inputs: AgentRecipeInput[];
   /** The station holds every input right now. */
@@ -515,11 +524,12 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         kind: 'station',
         bay: toSlotsWithInfo(ui.inventorySlots),
         stock: toSlotsWithInfo(overlay.slots),
-        recipes: RECIPES.map(recipe => {
+        recipes: unlockedRecipes(overlay.bestMarkCrafted).map(recipe => {
           const craftable = canCraft(stock, recipe);
           return {
+            id: recipeId(recipe),
             output: recipe.output,
-            label: itemForKind(recipe.output).label,
+            label: recipeLabel(recipe),
             inputs: resolveInputs(recipe.inputs),
             craftable,
             missing: craftable ? [] : resolveInputs(missingInputs(stock, recipe)),

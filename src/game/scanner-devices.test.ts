@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { explorationIndex } from '../../shared/exploration-codec';
 import { addItem, countItem, createInventory } from '../core/inventory';
-import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice, scannerFootprint } from '../core/scanner-device';
+import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice, scannerFootprint, scannerPendingTiles } from '../core/scanner-device';
 import { createInitialState } from '../core/state';
 import type { GameState } from '../core/types';
 import { createScannerDevices, type ScannerDeviceSim } from './scanner-devices';
@@ -185,23 +185,52 @@ describe('a deployed scanner at work', () => {
     expect(scannerFootprint(nth(h.state.scannerDevices, 0))).toContain(nth(h.revealTiles.mock.calls, 0)[0][0]);
   });
 
-  it('maps its whole square, then announces that it has gone inert', () => {
+  it('maps its whole square, then crumbles away, leaving its tile clear', () => {
     const h = harness();
     h.scanners.toggleArmed();
     h.scanners.placeAt(40, 100);
-    const footprint = scannerFootprint(nth(h.state.scannerDevices, 0));
+    const device = nth(h.state.scannerDevices, 0);
+    const footprint = scannerFootprint(device);
+    const pending = scannerPendingTiles(device, h.state.exploredTiles).length;
 
-    for (let reveal = 0; reveal < footprint.length; reveal++) runInterval(h.scanners);
+    for (let reveal = 0; reveal < pending - 1; reveal++) runInterval(h.scanners);
+    // One tile left: still standing, still working.
+    expect(h.state.scannerDevices).toHaveLength(1);
+    h.saveProgress.mockClear();
 
+    runInterval(h.scanners);
     expect(footprint.every(index => h.state.exploredTiles.has(index))).toBe(true);
-    expect(h.toasts.messages.filter(message => message.includes('went inert'))).toHaveLength(1);
+    expect(h.state.scannerDevices).toEqual([]);
+    expect(h.toasts.messages.filter(message => message.includes('crumbled away'))).toHaveLength(1);
     expect(h.audio.played.filter(cue => cue === 'surveyDone')).toHaveLength(1);
+    expect(h.saveProgress).toHaveBeenCalledOnce();
 
-    // And it keeps its place in the mine without ever reporting again.
+    // Gone for good: nothing reports again, and the tile takes a new device.
     const reveals = h.revealTiles.mock.calls.length;
     runInterval(h.scanners);
     expect(h.revealTiles.mock.calls.length).toBe(reveals);
-    expect(h.state.scannerDevices).toHaveLength(1);
+    h.state.player.inventory = addItem(createInventory(), SCANNER_ITEM, 1);
+    h.scanners.toggleArmed();
+    expect(h.scanners.placeAt(40, 100)).toBe(true);
+  });
+
+  it('crumbles on its next firing step once the ship has mapped its square for it', () => {
+    const h = harness();
+    h.scanners.toggleArmed();
+    h.scanners.placeAt(40, 100);
+    const device = nth(h.state.scannerDevices, 0);
+    const other = createScannerDevice(10, 300);
+    h.state.scannerDevices.push(other);
+    for (const index of scannerFootprint(device)) h.state.exploredTiles.add(index);
+
+    for (let step = 0; step < SCANNER_DEVICE.intervalTicks - 1; step++) h.scanners.tick();
+    expect(h.state.scannerDevices).toHaveLength(2);
+
+    h.scanners.tick();
+    // Nothing left to reveal for the finished one; the working one fires as usual.
+    expect(h.state.scannerDevices).toEqual([other]);
+    expect(h.toasts.saw('crumbled away')).toBe(true);
+    expect(h.revealTiles).toHaveBeenCalledTimes(1);
   });
 
   it('batches two devices firing on the same step into one reveal', () => {

@@ -7,6 +7,9 @@
 // stack or a single unit back aboard. Below, the recipes: one row each, its inputs
 // listed, a Craft button that is live only while the station holds the materials
 // and names what is missing when it does not (aria-disabled, so it stays focusable).
+// A recipe still locked (the deep alternates, before the first Mk II) is not listed
+// at all; once unlocked, an alternate sits under its own name beside the standard
+// row, its Craft button told apart by the `:alt` on its `data-craft` id.
 // The home-cavern Manufacturer adds a Supply counter between the two: a short list
 // of basics (`SUPPLY_POOL`) bought for cash straight into the station stock, each
 // button dead while the wallet cannot cover its price. Every Manufacturer carries a
@@ -22,7 +25,7 @@
 // The `<dialog>` itself, its focus and its close requests are `ModalShell`'s.
 
 import { useMemo } from 'react';
-import { canCraft, missingInputs, RECIPES, type Recipe } from '../core/crafting';
+import { canCraft, missingInputs, recipeId, recipeLabel, unlockedRecipes, type Recipe } from '../core/crafting';
 import { addItem, createInventory, type Inventory, type InventoryItemKind } from '../core/inventory';
 import { recipeInputLines } from '../core/item-info';
 import { itemForKind } from '../core/items';
@@ -55,7 +58,9 @@ function StationCard() {
   const stationSlots = useUiStore(state => overlayOf(state, 'station')?.slots ?? NO_SLOTS);
   const baySlots = useUiStore(state => state.inventorySlots);
   const supply = useUiStore(state => overlayOf(state, 'station')?.supply ?? false);
+  const bestMark = useUiStore(state => overlayOf(state, 'station')?.bestMarkCrafted ?? 0);
   const stock = useMemo(() => slotsToInventory(stationSlots), [stationSlots]);
+  const recipes = useMemo(() => unlockedRecipes(bestMark), [bestMark]);
 
   return (
     <div id="station-card" className={styles.card}>
@@ -110,8 +115,8 @@ function StationCard() {
             <span>Crafted items land in the station stock. Take them aboard.</span>
           </div>
           <ul id="recipeList" className={styles.slots}>
-            {RECIPES.map((recipe, index) => (
-              <RecipeRow key={recipe.output} recipe={recipe} index={index} stock={stock} />
+            {recipes.map(recipe => (
+              <RecipeRow key={recipeId(recipe)} recipe={recipe} stock={stock} />
             ))}
           </ul>
         </section>
@@ -250,19 +255,21 @@ function ShipRow({ship, next, stock}: {ship: ShipView; next: ShipId; stock: Inve
  * reaches the sim, whose refusal toast names what is missing. The harness reads
  * `aria-disabled` as disabled too, so an agent click is still refused up front.
  */
-function RecipeRow({recipe, index, stock}: {recipe: Recipe; index: number; stock: Inventory}) {
+function RecipeRow({recipe, stock}: {recipe: Recipe; stock: Inventory}) {
   const item = itemForKind(recipe.output);
+  const id = recipeId(recipe);
+  const label = recipeLabel(recipe);
   const affordable = canCraft(stock, recipe);
   const missing = affordable ? [] : missingInputs(stock, recipe);
   const inputs = recipe.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(' · ');
   const tooltip = useItemTooltip(recipe.output, recipeInputLines(recipe, stock));
-  const inputsId = `recipe-inputs-${recipe.output}`;
+  const inputsId = `recipe-inputs-${id}`;
   return (
     <li>
       <div className={styles.recipe} {...tooltip}>
         <span className={styles.icon} style={{background: item.color}} aria-hidden="true" />
         <span className={styles.recipeText}>
-          <span className={styles.label}>{item.label}</span>
+          <span className={styles.label}>{label}</span>
           <span id={inputsId} className={styles.recipeInputs}>
             {affordable
               ? inputs
@@ -272,11 +279,11 @@ function RecipeRow({recipe, index, stock}: {recipe: Recipe; index: number; stock
         <button
           type="button"
           className={styles.action}
-          data-craft={recipe.output}
-          aria-label={`Craft ${item.label}`}
+          data-craft={id}
+          aria-label={`Craft ${label}`}
           aria-describedby={inputsId}
           aria-disabled={!affordable}
-          onClick={() => uiCommands.craft(index)}
+          onClick={() => uiCommands.craft(id)}
         >Craft</button>
       </div>
     </li>

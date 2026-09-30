@@ -34,7 +34,7 @@ import {
   supplyPrice
 } from './trading';
 
-/** A row deep enough that every buy tier is eligible. */
+/** A row deep enough for the upgrade tiers up to Mk II. */
 const DEEP = START_Y + 400;
 /** A row where only the base tier (repair kit, dynamite, scanner, container) is eligible. */
 const SHALLOW = START_Y + 50;
@@ -121,6 +121,68 @@ describe('offersForPost', () => {
       sawUpgrade = offersForPost(x, DEEP).some(o => o.kind.startsWith('upgrade:'));
     }
     expect(sawUpgrade).toBe(true);
+  });
+});
+
+describe('the buy pool by depth', () => {
+  /** Every kind some post along `row` stocks. */
+  function stockedAlong(row: number): Set<string> {
+    const kinds = new Set<string>();
+    for (let x = 0; x < 90; x++) for (let dy = 0; dy < 40; dy++) {
+      for (const offer of offersForPost(x, row + dy)) kinds.add(offer.kind);
+    }
+    return kinds;
+  }
+  /** Every kind some post exactly on `row` stocks. */
+  function stockedOn(row: number): Set<string> {
+    const kinds = new Set<string>();
+    for (let x = 0; x < 90; x++) for (const offer of offersForPost(x, row)) kinds.add(offer.kind);
+    return kinds;
+  }
+  const MARK_TWO = ['upgrade:drill:2', 'upgrade:tank:2', 'upgrade:cargo:2', 'upgrade:hull:2'];
+  const MARK_THREE = ['upgrade:drill:3', 'upgrade:tank:3', 'upgrade:cargo:3', 'upgrade:hull:3'];
+  const LATE = ['fuelCell', 'upgrade:drill:4'];
+
+  it('opens the Mk II parts with the Ruby band', () => {
+    const ruby = START_Y + 230;
+    expect(MARK_TWO.some(kind => stockedOn(ruby - 1).has(kind))).toBe(false);
+    for (const kind of MARK_TWO) expect(stockedAlong(ruby).has(kind), kind).toBe(true);
+  });
+
+  it('opens the Mk III parts with the Alienite band', () => {
+    const alienite = START_Y + 540;
+    expect(MARK_THREE.some(kind => stockedOn(alienite - 1).has(kind))).toBe(false);
+    for (const kind of MARK_THREE) expect(stockedAlong(alienite).has(kind), kind).toBe(true);
+  });
+
+  it('opens the Fuel Cell and the Core Drill with the Uranium band', () => {
+    const uranium = START_Y + 700;
+    expect(LATE.some(kind => stockedOn(uranium - 1).has(kind))).toBe(false);
+    for (const kind of LATE) expect(stockedAlong(uranium).has(kind), kind).toBe(true);
+  });
+
+  it('prices the late gear at the post markup of its ore, in the thousands', () => {
+    // Mk III ← 2 Ruby + 2 Emerald + 1 Alienite (270 + 440 + 360 = 1070) × 1.5.
+    expect(buyPrice('upgrade:hull:3')).toBe(1605);
+    // Core Drill ← 3 Core Shard + 2 Uranium + 2 Alienite (2940 + 1240 + 720) × 1.5.
+    expect(buyPrice('upgrade:drill:4')).toBe(7350);
+    // One Uranium makes two cells: 620 / 2 × 1.5.
+    expect(buyPrice('fuelCell')).toBe(465);
+    const offers = offersForPost(40, START_Y + 900);
+    for (const offer of offers) expect(offer.price).toBe(buyPrice(offer.kind));
+  });
+
+  it('prices a Portal and a Teleporter off their standard bills, never the deep alternates', () => {
+    // Portal ← 3 Silver + 3 Gold + 2 Iron (108 + 210 + 24 = 342) × 1.5.
+    expect(buyPrice('device:portal')).toBe(513);
+    // Teleporter ← 3 Silver + 2 Gold (108 + 140 = 248) × 1.5.
+    expect(buyPrice('teleporter')).toBe(372);
+  });
+
+  it('keeps the kit shelf first at every depth', () => {
+    for (const row of [START_Y + 540, START_Y + 700, START_Y + 900]) {
+      expect(nth(offersForPost(33, row), 0).kind).toBe('repairKit');
+    }
   });
 });
 
