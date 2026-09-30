@@ -121,8 +121,9 @@ function NameEditor({name}: {name: string}) {
 }
 
 /**
- * How much of a tank a respawn at a portal deploys with: "full tank" at home,
- * "½ tank" at a field portal, or the units when the share is anything else.
+ * How much of a tank a respawn at a portal deploys with: "full tank" when the
+ * home extractor covers one, "½ tank" at a field portal or from a dry store, or
+ * the units when the share is anything else.
  * `fuelMax` is the hull's bare base tank — the replacement keeps the hull but not
  * its fitted upgrades.
  */

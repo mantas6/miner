@@ -4,7 +4,7 @@ import { RESPAWN, STARTING } from '../core/balance';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
 import { applyEquipment, swapHull } from '../core/ship-upgrades';
 import { createInitialState } from '../core/state';
-import { createPortal } from '../core/stations';
+import { createExtractor, createPortal, homeExtractor, type ExtractorStation } from '../core/stations';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import { WRECK, createWreck } from '../core/wreck';
 import type { GameState } from '../core/types';
@@ -136,9 +136,16 @@ describe('death consequences', () => {
   });
 });
 
+/** The base's fuel extractor at its home-cavern tile, holding `fuel` in its store. */
+function homeExtractorHolding(fuel: number): ExtractorStation {
+  return {...createExtractor(STATIONS.extractor.x, STATIONS.extractor.y), fuel};
+}
+
 describe('restarting after a death', () => {
   it('keeps cash and stats but loses cargo, fitted upgrades, position and fuel burn', () => {
     const h = harness();
+    const store = homeExtractorHolding(180);
+    h.state.stations = [store];
     h.run.gameOver();
 
     h.run.restartGame();
@@ -149,32 +156,63 @@ describe('restarting after a death', () => {
     expect(h.state.player).toMatchObject({
       x: Math.floor(WORLD_W / 2),
       y: START_Y,
-      // The fitted upgrades go down with the ship, so the maxima fall back to base.
+      // The fitted upgrades go down with the ship, so the maxima fall back to base;
+      // the tank is filled out of the extractor's store, and the hull comes back half whole.
       fuel: STARTING.fuelMax,
       fuelMax: STARTING.fuelMax,
-      hull: STARTING.hullMax,
+      hull: STARTING.hullMax * RESPAWN.hullFraction,
+      hullMax: STARTING.hullMax,
       cargoMax: STARTING.cargoMax
     });
+    expect(store.fuel).toBe(80);
     expect(h.state.player.equipment).toEqual([null, null, null]);
     // Bay equipment is not cargo: the replacement ship keeps the teleporter.
     expect(countItem(h.state.player.inventory, TELEPORTER_ITEM.kind)).toBe(1);
     expect(countOres(h.state.player.inventory)).toBe(0);
     expect(h.state.gameOver).toBe(false);
     expect(h.input.reset).toHaveBeenCalled();
-    // The lost ore and upgrades are left in a wreck, not simply lost.
-    expect(h.toasts.saw('left in the wreck at (12, 60)')).toBe(true);
+    // The lost ore and upgrades are left in a wreck, not simply lost, and the toast
+    // names what the replacement deployed with and where its fuel came from.
+    expect(h.toasts.last).toBe('Replacement ship deployed with 100/100 fuel drawn from the extractor, hull 50 %. '
+      + 'Cargo and fitted upgrades left in the wreck at (12, 60).');
   });
 
-  it('keeps the hull through a death, with every one of its slots empty and a full base tank', () => {
+  it('tops a store too dry for half a tank up to that share, and says how much it drew', () => {
+    const h = harness();
+    const store = homeExtractorHolding(20);
+    h.state.stations = [store];
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.player.fuel).toBe(STARTING.fuelMax * RESPAWN.homeFuelFraction);
+    expect(store.fuel).toBe(0);
+    expect(h.toasts.saw('Replacement ship deployed with 50/100 fuel (20 drawn from the extractor), hull 50 %.')).toBe(true);
+  });
+
+  it('deploys on half a tank with no fuel stored at the base', () => {
+    const h = harness();
+    // The harness clears the stations: no extractor stands at the base at all.
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.player.fuel).toBe(STARTING.fuelMax * RESPAWN.homeFuelFraction);
+    expect(h.toasts.saw('Replacement ship deployed with 50/100 fuel (no fuel stored at the base), hull 50 %.')).toBe(true);
+  });
+
+  it('keeps the hull through a death, with every one of its slots empty and half its base hull', () => {
     const h = harness();
     swapHull(h.state.player, 'prospector');
+    h.state.stations = [homeExtractorHolding(500)];
     h.run.gameOver();
 
     h.run.restartGame();
 
     expect(h.state.player.ship).toBe('prospector');
     expect(h.state.player.equipment).toEqual([null, null, null, null, null]);
-    expect(h.state.player).toMatchObject({fuel: 200, fuelMax: 200, hull: 150, hullMax: 150, cargoMax: 40, drill: 2});
+    expect(h.state.player).toMatchObject({fuel: 200, fuelMax: 200, hull: 75, hullMax: 150, cargoMax: 40, drill: 2});
+    expect(homeExtractor(h.state.stations)?.fuel).toBe(300);
   });
 
   it('keeps the drawn-down trading stock through a death', () => {
@@ -217,12 +255,52 @@ describe('restarting after a death', () => {
     expect(h.state.tileDiff).toEqual(createTileDiff([dug, cracked]));
   });
 
-  it('stays quiet about a replacement when a live run is reset by hand', () => {
+});
+
+describe('scuttling a live ship by hand (R-R)', () => {
+  it('counts as a death, and redeploys on the same rationed fuel and hull', () => {
     const h = harness();
+    const store = homeExtractorHolding(60);
+    h.state.stations = [store];
 
     h.run.restartGame();
 
-    expect(h.toasts.saw('Replacement ship')).toBe(false);
+    expect(h.state.stats.deaths).toBe(1);
+    expect(h.toasts.saw('Ship scuttled.')).toBe(true);
+    expect(h.audio.played).toContain('explosion');
+    expect(h.state.gameOver).toBe(false);
+    // No free refill and no free repair: the tank came out of the store, the hull is half.
+    expect(h.state.player).toMatchObject({fuel: 60, hull: STARTING.hullMax * RESPAWN.hullFraction});
+    expect(store.fuel).toBe(0);
+    expect(h.toasts.last).toBe('Replacement ship deployed with 60/100 fuel drawn from the extractor, hull 50 %. '
+      + 'Cargo and fitted upgrades left in the wreck at (12, 60).');
+  });
+
+  it('saves the scuttled ship broken, so a reload before the redeploy settles it as the death', () => {
+    const h = harness();
+    h.state.stations = [dugPortal(h.state, 30, 80, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
+    const atSave: number[] = [];
+    h.saveProgress.mockImplementation(() => { atSave.push(h.state.player.hull); });
+
+    h.run.restartGame();
+
+    // The respawn prompt is up, and the game-over write holds a broken hull.
+    expect(h.portals.openRespawn).toHaveBeenCalledOnce();
+    expect(h.state.gameOver).toBe(true);
+    expect(h.state.stats.deaths).toBe(1);
+    expect(atSave).toEqual([0]);
+  });
+
+  it('counts each scuttle once, and a restart after a death adds none', () => {
+    const h = harness();
+
+    h.run.restartGame();
+    h.run.restartGame();
+    expect(h.state.stats.deaths).toBe(2);
+
+    h.run.gameOver();
+    h.run.restartGame();
+    expect(h.state.stats.deaths).toBe(3);
   });
 });
 
@@ -252,26 +330,41 @@ describe('redeploying at a portal after a restart', () => {
       y: 80,
       fuel: STARTING.fuelMax * RESPAWN.portalFuelFraction,
       fuelMax: STARTING.fuelMax,
-      // The hull always comes back whole.
-      hull: STARTING.hullMax
+      hull: STARTING.hullMax * RESPAWN.hullFraction
     });
     expect(h.state.gameOver).toBe(false);
-    expect(h.toasts.saw('Replacement ship deployed at Portal "Deep" with 50/100 fuel. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
+    expect(h.toasts.saw('Replacement ship deployed at Portal "Deep" with 50/100 fuel, hull 50 %. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
   });
 
-  it('hands out a full tank at a portal in the home cavern', () => {
+  it('never draws on the home extractor at a field portal', () => {
     const h = harness();
-    h.state.stations = [createPortal(STATIONS.portal.x, STATIONS.portal.y, 'Home')];
+    const store = homeExtractorHolding(300);
+    h.state.stations = [store, dugPortal(h.state, 30, 80, 'Deep')];
     h.run.gameOver();
 
     h.run.restartGame();
 
-    expect(h.state.player).toMatchObject({x: STATIONS.portal.x, y: STATIONS.portal.y, fuel: STARTING.fuelMax, hull: STARTING.hullMax});
-    expect(h.toasts.saw('Replacement ship deployed. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
-    expect(h.toasts.saw('with 50/100 fuel')).toBe(false);
+    expect(h.state.player).toMatchObject({x: 30, y: 80, fuel: STARTING.fuelMax * RESPAWN.portalFuelFraction});
+    expect(store.fuel).toBe(300);
   });
 
-  it('words a hand reset at a field portal with its half tank, wreck or none', () => {
+  it('draws from the extractor at a portal in the home cavern', () => {
+    const h = harness();
+    const store = homeExtractorHolding(300);
+    h.state.stations = [store, createPortal(STATIONS.portal.x, STATIONS.portal.y, 'Home')];
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.player).toMatchObject({
+      x: STATIONS.portal.x, y: STATIONS.portal.y,
+      fuel: STARTING.fuelMax, hull: STARTING.hullMax * RESPAWN.hullFraction
+    });
+    expect(store.fuel).toBe(200);
+    expect(h.toasts.saw('Replacement ship deployed with 100/100 fuel drawn from the extractor, hull 50 %. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
+  });
+
+  it('words a scuttle at a field portal with its half tank, wreck or none', () => {
     const h = harness();
     h.state.stations = [dugPortal(h.state, 30, 80, 'Deep')];
     h.state.player.inventory = createInventory();
@@ -281,7 +374,7 @@ describe('redeploying at a portal after a restart', () => {
 
     expect(h.state.wrecks).toEqual([]);
     expect(h.state.player.fuel).toBe(50);
-    expect(h.toasts.saw('Ship reset at Portal "Deep" with 50/100 fuel.')).toBe(true);
+    expect(h.toasts.saw('Replacement ship deployed at Portal "Deep" with 50/100 fuel, hull 50 %. Cargo and fitted upgrades lost.')).toBe(true);
   });
 
   it('raises the no-close prompt with two or more portals, and the pick rebuilds', () => {
@@ -300,12 +393,12 @@ describe('redeploying at a portal after a restart', () => {
     const onPick = nth(vi.mocked(h.portals.openRespawn).mock.calls, 0)[0] as (at: {x: number; y: number}) => void;
     onPick({x: 50, y: 100});
 
-    // A field portal: the replacement deploys with half the base tank.
+    // A field portal: the replacement deploys with half the base tank and hull.
     expect(h.state.player).toMatchObject({
       x: 50,
       y: 100,
       fuel: STARTING.fuelMax * RESPAWN.portalFuelFraction,
-      hull: STARTING.hullMax
+      hull: STARTING.hullMax * RESPAWN.hullFraction
     });
     expect(h.state.gameOver).toBe(false);
     // The wreck is dropped at the death tile before the world is rebuilt.
@@ -332,13 +425,13 @@ describe('wrecks dropped on restart', () => {
     expect(h.saveProgress).toHaveBeenCalled();
   });
 
-  it('a hand reset leaves a wreck too, worded for a scrapping rather than a death', () => {
+  it('a scuttle leaves a wreck too, like any other death', () => {
     const h = harness();
 
     h.run.restartGame();
 
     expect(h.state.wrecks).toHaveLength(1);
-    expect(h.toasts.saw('Ship reset. Cargo and fitted upgrades left in the wreck at (12, 60)')).toBe(true);
+    expect(h.toasts.saw('Cargo and fitted upgrades left in the wreck at (12, 60)')).toBe(true);
   });
 
   it('drops no wreck when there is nothing to leave behind', () => {
@@ -402,13 +495,20 @@ describe('wrecks ageing with each death', () => {
     expect(h.toasts.saw('(4, 90) crumbled')).toBe(false);
   });
 
-  it('ages them on a hand reset too, which goes the same way', () => {
+  it('ages them on a scuttle (R-R) too, which is counted as the death it is', () => {
     const h = harness();
-    h.state.wrecks = [createWreck(3, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 1)];
+    h.state.wrecks = [
+      createWreck(3, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 1),
+      createWreck(4, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 2)
+    ];
 
     h.run.restartGame();
 
-    expect(h.state.wrecks.some(w => w.x === 3)).toBe(false);
+    expect(h.state.stats.deaths).toBe(1);
+    expect(h.state.wrecks.map(w => ({x: w.x, deathsLeft: w.deathsLeft}))).toEqual([
+      {x: 4, deathsLeft: 1},
+      {x: 12, deathsLeft: WRECK.lifetimeDeaths}
+    ]);
     expect(h.toasts.saw('The wreck at (3, 90) crumbled to scrap.')).toBe(true);
   });
 
@@ -456,8 +556,10 @@ describe('resuming a saved run', () => {
   it.each([
     ['an empty tank', {fuel: 0}],
     ['a broken hull', {hull: 0}]
-  ])('a save taken while dead (%s) resumes at home, full, as the death it recorded', (_name, vitals) => {
+  ])('a save taken while dead (%s) resumes at home, drawing on the extractor, as the death it recorded', (_name, vitals) => {
     const h = harness();
+    const store = homeExtractorHolding(150);
+    h.state.stations = [store];
     h.state.tileDiff = createTileDiff([{x: 12, y: 60, tile: {type: 'air'}}]);
     h.state.wrecks = [createWreck(3, 90, addOre(createInventory(), nth(ORES, 0), 1)!, 1)];
     Object.assign(h.state.player, vitals);
@@ -467,8 +569,9 @@ describe('resuming a saved run', () => {
     expect(h.state.player).toMatchObject({
       x: Math.floor(WORLD_W / 2), y: START_Y,
       fuel: STARTING.fuelMax, fuelMax: STARTING.fuelMax,
-      hull: STARTING.hullMax
+      hull: STARTING.hullMax * RESPAWN.hullFraction
     });
+    expect(store.fuel).toBe(50);
     expect(h.state.gameOver).toBe(false);
     // The fitted upgrades went down with the ship: into a wreck on the death tile,
     // never back aboard, and the older wreck wore down as on any death.
@@ -478,7 +581,7 @@ describe('resuming a saved run', () => {
     expect(wreck).toMatchObject({x: 12, y: 60, deathsLeft: WRECK.lifetimeDeaths});
     expect(countItem(wreck.inventory, 'upgrade:tank:1')).toBe(1);
     expect(h.toasts.saw('The wreck at (3, 90) crumbled to scrap.')).toBe(true);
-    expect(h.toasts.saw('Replacement ship deployed. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
+    expect(h.toasts.saw('Replacement ship deployed with 100/100 fuel drawn from the extractor, hull 50 %. Cargo and fitted upgrades left in the wreck at (12, 60).')).toBe(true);
     // Written at once, so a second reload cannot drop the same upgrades again.
     expect(h.saveProgress).toHaveBeenCalledOnce();
   });

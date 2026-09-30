@@ -5,8 +5,17 @@ import { DYNAMITE_ITEM } from './dynamite';
 import { addItem, addOre, countItem, countOres, createInventory } from './inventory';
 import { applyEquipment, swapHull } from './ship-upgrades';
 import { slotsFor } from './ships';
-import { createInitialState, respawnFuelAt, respawnFuelFraction, respawnFuelUnits, respawnPlayer } from './state';
+import {
+  createInitialState,
+  homeStoredFuel,
+  isHomeSpawn,
+  respawnPlayer,
+  respawnShare,
+  respawnVitals
+} from './state';
+import { homeExtractor, type ExtractorStation } from './stations';
 import { TELEPORTER_ITEM } from './teleporter';
+import type { GameState } from './types';
 import { nth } from '../test-narrowing';
 
 describe('initial game state', () => {
@@ -34,6 +43,13 @@ describe('initial game state', () => {
   });
 });
 
+/** The home extractor of a fresh state, its store set to `fuel`. */
+function homeStore(state: GameState, fuel: number): ExtractorStation {
+  const extractor = homeExtractor(state.stations)!;
+  extractor.fuel = fuel;
+  return extractor;
+}
+
 describe('player respawn', () => {
   it('restores the ship, clears cargo, and strips the fitted upgrades', () => {
     const state = createInitialState();
@@ -51,14 +67,14 @@ describe('player respawn', () => {
       TELEPORTER_ITEM
     );
 
-    respawnPlayer(player);
+    respawnPlayer(player, state.stations);
 
     expect(player).toMatchObject({
       x: Math.floor(WORLD_W / 2),
       y: START_Y,
       fuel: STARTING.fuelMax,
       fuelMax: STARTING.fuelMax,
-      hull: STARTING.hullMax,
+      hull: STARTING.hullMax * RESPAWN.hullFraction,
       hullMax: STARTING.hullMax,
       cargoMax: STARTING.cargoMax,
       drill: STARTING.drill
@@ -71,20 +87,70 @@ describe('player respawn', () => {
     expect(player.equipment).toEqual([null, null, null]);
   });
 
-  it('fills the given share of the base tank, and always the whole hull', () => {
-    const player = createInitialState().player;
-    player.equipment = ['upgrade:tank:1', null, null];
+  it('draws a full base tank out of the home extractor, leaving the store that much lower', () => {
+    const state = createInitialState();
+    const store = homeStore(state, 180);
+    Object.assign(state.player, {fuel: 0, hull: 0});
+
+    expect(respawnPlayer(state.player, state.stations)).toEqual({fuel: 100, hull: 50, drawn: 100});
+
+    expect(state.player).toMatchObject({fuel: STARTING.fuelMax, hull: STARTING.hullMax * RESPAWN.hullFraction});
+    expect(store.fuel).toBe(80);
+  });
+
+  it('drains a store short of a full tank, and never deploys under the reserve share', () => {
+    const state = createInitialState();
+    const store = homeStore(state, 70.5);
+
+    expect(respawnPlayer(state.player, state.stations)).toMatchObject({fuel: 70, drawn: 70});
+    expect(store.fuel).toBe(0.5);
+
+    // A store that cannot cover half a tank gives up what it has; the ship still
+    // deploys on half a tank.
+    store.fuel = 20;
+    expect(respawnPlayer(state.player, state.stations)).toMatchObject({fuel: 50, drawn: 20});
+    expect(store.fuel).toBe(0);
+  });
+
+  it('deploys on the reserve share from a dry store, or with no home extractor at all', () => {
+    const state = createInitialState();
+    homeStore(state, 0);
+
+    expect(respawnPlayer(state.player, state.stations)).toEqual({fuel: 50, hull: 50, drawn: 0});
+    expect(state.player.fuel).toBe(STARTING.fuelMax * RESPAWN.homeFuelFraction);
+
+    state.stations = state.stations.filter(station => station.kind !== 'extractor');
+    expect(respawnPlayer(state.player, state.stations)).toEqual({fuel: 50, hull: 50, drawn: 0});
+  });
+
+  it('keeps half the base tank and half the hull at a field portal, drawing nothing', () => {
+    const state = createInitialState();
+    const store = homeStore(state, 300);
+    const player = state.player;
+    player.equipment = ['upgrade:tank:1', 'upgrade:hull:1', null];
     applyEquipment(player);
     Object.assign(player, {fuel: 0, hull: 0});
 
-    respawnPlayer(player, {x: 30, y: 80}, RESPAWN.portalFuelFraction);
+    expect(respawnPlayer(player, state.stations, {x: 30, y: 80})).toEqual({fuel: 50, hull: 50, drawn: 0});
 
     expect(player).toMatchObject({
       x: 30, y: 80,
       fuel: STARTING.fuelMax * RESPAWN.portalFuelFraction,
       fuelMax: STARTING.fuelMax,
-      hull: STARTING.hullMax
+      hull: STARTING.hullMax * RESPAWN.hullFraction,
+      hullMax: STARTING.hullMax
     });
+    expect(store.fuel).toBe(300);
+  });
+
+  it('draws at the base\'s own Home portal, which stands in the home cavern', () => {
+    const state = createInitialState();
+    const store = homeStore(state, 300);
+
+    respawnPlayer(state.player, state.stations, {x: STATIONS.portal.x, y: STATIONS.portal.y});
+
+    expect(state.player).toMatchObject({x: STATIONS.portal.x, fuel: STARTING.fuelMax});
+    expect(store.fuel).toBe(200);
   });
 });
 
@@ -95,40 +161,52 @@ describe('hull survival', () => {
   });
 
   it('keeps the hull through a respawn, with every one of its slots empty and its own base', () => {
-    const player = createInitialState().player;
+    const state = createInitialState();
+    const player = state.player;
     swapHull(player, 'hauler');
     player.equipment = ['upgrade:tank:1', 'upgrade:hull:1', null, null];
     applyEquipment(player);
     Object.assign(player, {fuel: 0, hull: 0});
 
-    respawnPlayer(player);
+    respawnPlayer(player, state.stations);
 
     expect(player.ship).toBe('hauler');
     expect(player.equipment).toEqual([null, null, null, null]);
-    expect(player).toMatchObject({fuel: 150, fuelMax: 150, hull: 125, hullMax: 125, cargoMax: 30});
+    expect(player).toMatchObject({fuel: 150, fuelMax: 150, hull: 62, hullMax: 125, cargoMax: 30});
   });
 });
 
-describe('respawn fuel', () => {
-  it('is a full tank at home and half of one at a field portal', () => {
-    expect(respawnFuelFraction()).toBe(1);
-    // The base's own portal stands in the home cavern: home rules.
-    expect(respawnFuelFraction({x: STATIONS.portal.x, y: STATIONS.portal.y})).toBe(1);
-    expect(respawnFuelFraction({x: 30, y: 80})).toBe(RESPAWN.portalFuelFraction);
-
-    expect(respawnFuelAt('scout')).toBe(STARTING.fuelMax);
-    expect(respawnFuelAt('scout', {x: 30, y: 80})).toBe(50);
+describe('respawn vitals', () => {
+  it('knows home from the field: the home cavern and its Home portal are home', () => {
+    expect(isHomeSpawn()).toBe(true);
+    expect(isHomeSpawn({x: STATIONS.portal.x, y: STATIONS.portal.y})).toBe(true);
+    expect(isHomeSpawn({x: 30, y: 80})).toBe(false);
   });
 
-  it('is measured against the bare base tank of the hull that survives', () => {
-    expect(respawnFuelAt('hauler')).toBe(150);
-    expect(respawnFuelAt('hauler', {x: 30, y: 80})).toBe(75);
+  it('draws the home tank from the store and hands out a fixed half at a field portal', () => {
+    expect(respawnVitals('scout', undefined, 500)).toEqual({fuel: 100, hull: 50, drawn: 100});
+    expect(respawnVitals('scout', undefined, 60)).toEqual({fuel: 60, hull: 50, drawn: 60});
+    expect(respawnVitals('scout', undefined, 10)).toEqual({fuel: 50, hull: 50, drawn: 10});
+    expect(respawnVitals('scout', undefined, 0)).toEqual({fuel: 50, hull: 50, drawn: 0});
+    expect(respawnVitals('scout', {x: 30, y: 80}, 500)).toEqual({fuel: 50, hull: 50, drawn: 0});
   });
 
-  it('deals in whole units and never deploys an empty tank', () => {
-    expect(respawnFuelUnits(150, 0.5)).toBe(75);
-    expect(respawnFuelUnits(99, 0.5)).toBe(49);
-    expect(respawnFuelUnits(100, 0)).toBe(1);
-    expect(respawnFuelUnits(100, 2)).toBe(100);
+  it('is measured against the bare base tank and hull of the hull that survives', () => {
+    expect(respawnVitals('hauler', undefined, 500)).toEqual({fuel: 150, hull: 62, drawn: 150});
+    expect(respawnVitals('hauler', {x: 30, y: 80}, 500)).toEqual({fuel: 75, hull: 62, drawn: 0});
+  });
+
+  it('reads the home extractor\'s store, or nothing without one', () => {
+    const state = createInitialState();
+    homeStore(state, 123);
+    expect(homeStoredFuel(state.stations)).toBe(123);
+    expect(homeStoredFuel([])).toBe(0);
+  });
+
+  it('deals in whole units and never deploys an empty tank or hull', () => {
+    expect(respawnShare(150, 0.5)).toBe(75);
+    expect(respawnShare(99, 0.5)).toBe(49);
+    expect(respawnShare(100, 0)).toBe(1);
+    expect(respawnShare(100, 2)).toBe(100);
   });
 });

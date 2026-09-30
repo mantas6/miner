@@ -24,7 +24,7 @@ import {
   sanitizePortalName,
   type PortalDestination
 } from '../core/portal';
-import { respawnFuelAt } from '../core/state';
+import { homeStoredFuel, respawnVitals } from '../core/state';
 import type { PortalStation } from '../core/stations';
 import { TELEPORTER_ITEM, createTeleportEffect, movePlayerTo } from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
@@ -135,8 +135,9 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
         name: portal.name,
         depthMeters: rowDepthMeters(portal.y),
         distance: Math.abs(portal.x - from.x) + Math.abs(portal.y - from.y),
-        // What the replacement would deploy with there: full at home, half out in the field.
-        respawnFuel: respawnFuelAt(state.player.ship, portal)
+        // What the replacement would deploy with there: at home what the extractor
+        // can pay for (half a tank at least), half a tank out in the field.
+        respawnFuel: respawnVitals(state.player.ship, portal, homeStoredFuel(state.stations)).fuel
       }))
       .sort((a, b) => a.distance - b.distance);
     publish();

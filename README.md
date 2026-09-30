@@ -330,7 +330,7 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 | Cargo, stats and guides | — | Info / Cargo button |
 | Close the portal travel/teleporter list | `Space` or `Escape` | × button or the backdrop |
 | Close a dialog | `Escape` | × button or the backdrop |
-| Redeploy mid-run | `R`, then `R` again within 3.5 s | — |
+| Scuttle mid-run (counts as a death) | `R`, then `R` again within 3.5 s | — |
 | Restart after game over | `R` | Click/tap outside the dialogs |
 | Choose where to redeploy (with two or more portals; the prompt cannot be dismissed) | — | Press a portal row |
 | Toggle the music / the sound effects | — | Note / speaker HUD buttons, or Info / Cargo → Settings; a trusted pointer/touch gesture may auto-enable |
@@ -637,14 +637,14 @@ eight around it, and only once it is explored.
   a small, limited stock of gear, or fill the tank for cash; only the drawn-down
   stock persists, in `state.tradeLedger`.
 - **Wrecks** (`src/core/wreck.ts`, `src/game/wrecks.ts`) are the corpse loot a lost
-  run leaves behind. When a ship dies — or is scrapped by a hand `R`-reset — the ore
+  run leaves behind. When a ship dies — or is scuttled by a hand `R`-`R` — the ore
   it carried and the upgrades fitted to its hull do not survive the replacement, so
   the run drops them as a greyed-out wreck (`W`) on the tile the ship stood on. Fly
   back down, press the wreck from an adjacent tile — or `C` while on or beside it —
   to open a take-only salvage menu: press a stack (or its "1" button) to haul it
   aboard, or **Loot all** to take everything that fits in one press. A wreck vanishes
   the moment it is emptied; up to five stand at once, the oldest dropped past the cap.
-  They survive reload, but not for ever: every later death or hand reset wears each
+  They survive reload, but not for ever: every later death or scuttle wears each
   standing wreck down by one (`WRECK.lifetimeDeaths` = 3, `ageWrecks`), and the one
   that brings it to zero crumbles it to scrap ("The wreck at (x, y) crumbled to
   scrap."). The salvage menu and the observation (`notable` detail "2 items,
@@ -687,7 +687,8 @@ eight around it, and only once it is explored.
   the trading stock you have drawn down, the mine you dug, where you parked, and
   the fuel and hull you parked with) is saved locally; death keeps your cash, bay
   equipment, home base, drawn-down trading stock and stats, and costs you the cargo
-  aboard, the upgrades fitted to the ship, and your position.
+  aboard, the upgrades fitted to the ship, your position, half the hull, and the
+  replacement's fuel out of the extractor.
 - The camera zoom is remembered too, but as a preference rather than progress:
   it is stored under `stalinload:zoom-settings:v1` (`src/game/zoom-settings.ts`),
   clamped back into the 0.5x–2x range on load, and survives a death, a fresh
@@ -695,9 +696,12 @@ eight around it, and only once it is explored.
 
 ### Death and redeploying
 
-A lost ship — from a destroyed hull, an empty tank or a hand `R`-reset — wears
-every standing wreck down by one death, drops its own wreck, rebuilds the world,
-and redeploys a fresh ship. Where the replacement lands depends on how many
+A lost ship — from a destroyed hull, an empty tank or a hand `R`-`R` scuttle —
+counts as a death (`stats.deaths`), wears every standing wreck down by one death,
+drops its own wreck, rebuilds the world, and redeploys a fresh ship. A scuttle
+goes through `gameOver` like any other death (`restartGame` in `src/game/run.ts`
+scuttles a live ship first), so it is never a free refill or repair. Where the
+replacement lands depends on how many
 portals are built (`restartGame` in `src/game/run.ts`, `respawnPortals` in
 `src/core/portal.ts`):
 
@@ -708,13 +712,22 @@ portals are built (`restartGame` in `src/game/run.ts`, `respawnPortals` in
   continue until a destination is chosen. Picking one drops the wreck, rebuilds the
   world, and spawns the ship at that portal.
 
-The replacement always has a whole hull, but its tank depends on where it lands
-(`RESPAWN` in `src/core/balance.ts`, `respawnFuelFraction` in `src/core/state.ts`):
-a full base tank of its hull at home — the home cavern, its `Home` portal included — and half of one
-(`portalFuelFraction` 0.5) at a portal out in the field, so a death beside a deep
-portal still costs a trip home to refuel. Each respawn row says which ("full
-tank" / "½ tank"; `respawnFuel` in the observation), and the toast names it:
-"Replacement ship deployed at Portal "Deep" with 50/100 fuel."
+The replacement's vitals are shares of its hull's bare base tank and hull
+(`RESPAWN` in `src/core/balance.ts`, `respawnVitals` in `src/core/state.ts`):
+
+- **Hull.** Half of the base maximum (`hullFraction` 0.5), wherever it lands.
+- **Fuel at home** (the home cavern, its `Home` portal included). Drawn out of the
+  home extractor's store, up to a full base tank, leaving the store that much
+  lower (`hud.base.fuel`). A store too dry to cover half a tank gives up what it
+  has and the ship still deploys on half of one (`homeFuelFraction` 0.5), so a
+  dry base never strands a new ship.
+- **Fuel at a field portal.** Half a base tank (`portalFuelFraction` 0.5), drawing
+  nothing, so a death beside a deep portal still costs a trip home to refuel.
+
+Each respawn row prices its tank ("full tank" / "½ tank" / "80/100 fuel";
+`respawnFuel` in the observation), and the toast names what was drawn and kept:
+"Replacement ship deployed with 100/100 fuel drawn from the extractor, hull 50 %."
+or "Replacement ship deployed at Portal "Deep" with 50/100 fuel, hull 50 %."
 
 ## Soundtrack
 

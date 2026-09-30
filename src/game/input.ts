@@ -164,7 +164,11 @@ export function createInput(deps: GameInputDeps): GameInput {
     return null;
   }
 
-  /** R resets a finished run outright, but asks for confirmation mid-run. */
+  /**
+   * R redeploys after a death outright, but asks for confirmation mid-run: the
+   * second press scuttles the live ship, which the restart counts as a death
+   * like any other (`restartGame` in `run.ts`).
+   */
   function requestReset(): void {
     if (state.gameOver) { deps.restartGame(); return; }
     if (state.tick < state.input.resetConfirmUntil) {
@@ -172,7 +176,7 @@ export function createInput(deps: GameInputDeps): GameInput {
       return;
     }
     state.input.resetConfirmUntil = state.tick + RESET_CONFIRM_TICKS;
-    deps.toast('Press R again to reset progress in this run.');
+    deps.toast('Press R again to scuttle the ship. It counts as a death.');
   }
 
   /** Run one keyboard move, arming the bump lock if it only met rock. */

@@ -210,7 +210,7 @@ export type AgentOverlay =
   /** `ship`: the hull whose slots these are, as the screen's heading names it. */
   | {kind: 'ship'; ship: AgentShipClass; slots: AgentShipSlot[]; fittable: AgentSlot[]}
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
-  /** `deathsLeft`: each further death (or hand reset) takes one off; the one that reaches 0 crumbles it. */
+  /** `deathsLeft`: each further death (a scuttle included) takes one off; the one that reaches 0 crumbles it. */
   | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]; deathsLeft: number}
   | {kind: 'chest'; ship: AgentSlot[]; chest: AgentSlot[]}
   /** A grave's stone: who lies there, the years they lived, and how the mine took them. */
@@ -235,8 +235,9 @@ export type AgentOverlay =
       name?: string;
       /**
        * `respawnFuel` (respawn mode only): the absolute fuel units the replacement
-       * ship deploys with at that portal — the full base tank at home, half of it at
-       * a field portal.
+       * ship deploys with at that portal — at home what the extractor's store
+       * covers of the base tank (never under half of it), half of it at a field
+       * portal.
        */
       destinations: {x: number; y: number; name: string; depth: number; distance: number; respawnFuel?: number}[];
     }

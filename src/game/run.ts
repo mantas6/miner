@@ -5,8 +5,10 @@
 // The rules worth remembering:
 //   * hull damage that empties the hull ends the run exactly once;
 //   * death keeps cash and stats, and loses cargo, fitted upgrades and position;
-//     the replacement gets a full tank at home and half of one at a field portal,
-//     and every older wreck wears down by one death;
+//     the replacement's tank is drawn from the home extractor at home (half a
+//     tank at a field portal), its hull comes back half whole, and every older
+//     wreck wears down by one death;
+//   * a hand `R`-`R` reset of a live ship is a scuttle: a death like any other;
 //   * a boot keeps the position, fuel and hull the save recorded, because only
 //     dying costs them — a save taken while dead is settled as that death;
 //   * a player-data wipe keeps the mine and its live enemies, and never rewinds
@@ -15,7 +17,7 @@
 import { START_Y, rowDepthMeters } from '../../shared/constants';
 import { removeOres } from '../core/inventory';
 import { respawnPortals } from '../core/portal';
-import { createInitialState, isAtHome, placeAtHome, respawnFuelFraction, respawnPlayer } from '../core/state';
+import { createInitialState, isAtHome, placeAtHome, respawnPlayer, type RespawnVitals } from '../core/state';
 import { portals, type PortalStation } from '../core/stations';
 import { ageWrecks, dropWreck, type Wreck } from '../core/wreck';
 import { applyTileEntries, tileDiffEntries } from '../world/tile-diff';
@@ -45,10 +47,11 @@ export interface GameRun {
   clearWorldRuntime(): void;
   /**
    * Redeploy the ship at `at` (a portal) or the home base; `full` (the default)
-   * also wipes all player data, keeping the mine. Never saves — the caller does.
+   * instead wipes all player data, keeping the mine, and starts a new game's
+   * ship at home. Never saves — the caller does.
    */
   resetPlayer(full?: boolean, at?: SpawnAt): void;
-  /** R or a tap after death: a whole new world. */
+  /** R or a tap after death, or a confirmed R-R that scuttles a live ship: a whole new world. */
   restartGame(): void;
   /** End the run once, banking the death. */
   gameOver(message?: string): void;
@@ -89,43 +92,62 @@ export function createRun(deps: GameRunDeps): GameRun {
   }
 
   /**
-   * The one ship redeploy, and — with `full` — the one player-data wipe. A plain
-   * redeploy (`full` false, the death/restart path) keeps every piece of
-   * progress; a full wipe returns everything the player owns to a new game's
-   * values while the mine itself — terrain, tile diff, live enemies — is left
-   * standing. Neither writes the save: the caller does, once the state is final.
+   * The one ship redeploy, and — with `full` — the one player-data wipe. Neither
+   * writes the save: the caller does, once the state is final.
    *
    * `state.tick` is never rewound. Enemy move and bite cooldowns are stamped
    * with absolute ticks, so rewinding the clock would freeze every live enemy
    * until it caught back up.
    */
   function resetPlayer(full = true, at?: SpawnAt): void {
+    if (full) wipePlayerData();
+    else deployReplacement(at);
+  }
+
+  /**
+   * Return everything the player owns to a new game's values — the fresh ship at
+   * home on a new game's full tank and hull — while the mine itself (terrain,
+   * tile diff, live enemies) is left standing.
+   */
+  function wipePlayerData(): void {
+    const fresh = createInitialState();
+    state.cash = fresh.cash;
+    state.stats = fresh.stats;
+    // Bought equipment lives in the bay and the fitted upgrades in the slots, so
+    // a fresh ship, maxima already derived for its empty loadout, is the wipe.
+    Object.assign(state.player, fresh.player);
+    state.scannerDevices = fresh.scannerDevices;
+    state.placedDynamite = fresh.placedDynamite;
+    state.cargoContainers = fresh.cargoContainers;
+    state.wrecks = fresh.wrecks;
+    // Back to the two home stations and the Home portal: everything crafted and
+    // placed since was player property.
+    state.stations = fresh.stations;
+    // A full player wipe drops the drawn-down trading stock too; a plain death
+    // leaves it, so a post the player emptied stays emptied.
+    state.tradeLedger = fresh.tradeLedger;
+    // Likewise every chest the player opened comes back full.
+    state.chestLedger = fresh.chestLedger;
+    state.input = fresh.input;
+    state.exploredTiles.clear();
+    deps.invalidateFog();
+    settleRedeploy();
+  }
+
+  /**
+   * Deploy a replacement at `at` or home, keeping every piece of progress: its
+   * tank drawn from the home extractor (or half of one at a field portal) and
+   * half a hull (`respawnVitals`). Returns what it deployed with.
+   */
+  function deployReplacement(at?: SpawnAt): RespawnVitals {
+    const vitals = respawnPlayer(state.player, state.stations, at);
+    settleRedeploy();
+    return vitals;
+  }
+
+  /** The tail a wipe and a replacement share: fog, camera, and a live run. */
+  function settleRedeploy(): void {
     state.teleportEffect = null;
-    if (full) {
-      const fresh = createInitialState();
-      state.cash = fresh.cash;
-      state.stats = fresh.stats;
-      // Bought equipment lives in the bay and the fitted upgrades in the slots, so
-      // a fresh ship is the wipe; `respawnPlayer` below re-derives the maxima.
-      Object.assign(state.player, fresh.player);
-      state.scannerDevices = fresh.scannerDevices;
-      state.placedDynamite = fresh.placedDynamite;
-      state.cargoContainers = fresh.cargoContainers;
-      state.wrecks = fresh.wrecks;
-      // Back to the two home stations and the Home portal: everything crafted and
-      // placed since was player property.
-      state.stations = fresh.stations;
-      // A full player wipe drops the drawn-down trading stock too; a plain death
-      // (`full` false) leaves it, so a post the player emptied stays emptied.
-      state.tradeLedger = fresh.tradeLedger;
-      // Likewise every chest the player opened comes back full.
-      state.chestLedger = fresh.chestLedger;
-      state.input = fresh.input;
-      state.exploredTiles.clear();
-      deps.invalidateFog();
-    }
-    // A field portal hands out half a tank, home a full one (`respawnFuelFraction`).
-    respawnPlayer(state.player, at, respawnFuelFraction(at));
     deps.revealAtPlayer();
     centreCameraOnShip();
     state.particles.length = 0;
@@ -145,14 +167,15 @@ export function createRun(deps: GameRunDeps): GameRun {
     applyTileEntries(state.world, tileDiffEntries(state.tileDiff));
   }
 
-  function generate(at?: SpawnAt): void {
+  function generate(at?: SpawnAt): RespawnVitals {
     buildWorld();
     // A portal placed underground sits on a dug-out (air) tile, and the tile
     // diff carries that hole back out of the reseeded terrain. A diff that lost it
     // (a capped or quota-trimmed save) leaves the tile solid, and a ship set down
     // there would be buried, so that redeploy falls back to the home base.
-    resetPlayer(false, at && canLand(at.x, at.y) ? at : undefined);
+    const vitals = deployReplacement(at && canLand(at.x, at.y) ? at : undefined);
     deps.enemies().resetExposure();
+    return vitals;
   }
 
   function resume(): void {
@@ -160,14 +183,15 @@ export function createRun(deps: GameRunDeps): GameRun {
     const p = state.player;
     // A save taken while dead — the game-over write, reloaded before the redeploy
     // — is settled as the death it recorded, at the home base: the wreck, the
-    // ageing, the stripped loadout, a full tank. Keeping the dead ship's fitted
-    // upgrades or its empty tank would each be wrong, and a reload is no refill.
+    // ageing, the stripped loadout, the tank drawn from the extractor. Keeping the
+    // dead ship's fitted upgrades or its empty tank would each be wrong, and a
+    // reload is no refill.
     if (p.fuel <= 0 || p.hull <= 0) {
       const scrapped = scrapShip();
-      respawnPlayer(p);
+      const vitals = respawnPlayer(p, state.stations);
       settleDeployment();
       saveProgress();
-      announceRedeploy(scrapped, true);
+      announceRedeploy(scrapped, vitals);
       return;
     }
     // The save carries a tile, not a guarantee: a capped or quota-dropped diff
@@ -195,7 +219,7 @@ export function createRun(deps: GameRunDeps): GameRun {
    * Scrap the ship where it stands: every wreck already standing wears down by
    * one death (`ageWrecks`), then the lost cargo and fitted upgrades drop as a
    * fresh wreck on its tile — in that order, so the new wreck starts its full
-   * lifetime. Both a death and a hand `R`-reset come through here.
+   * lifetime. Every death comes through here, a scuttle included.
    */
   function scrapShip(): {wreck: Wreck | null; crumbled: Wreck[]} {
     const {kept, crumbled} = ageWrecks(state.wrecks);
@@ -211,19 +235,32 @@ export function createRun(deps: GameRunDeps): GameRun {
   }
 
   /**
-   * The toasts a redeploy leaves: a line per wreck that crumbled, then where the
-   * replacement landed — with its half tank at a field portal — and where the
-   * old ship's cargo went.
+   * Where a replacement's fuel came from: the home extractor's store (all of it,
+   * or part topped up to the reserve share), nothing at home when the store was
+   * dry, and nothing to say at a field portal, which never draws.
    */
-  function announceRedeploy({wreck, crumbled}: {wreck: Wreck | null; crumbled: Wreck[]}, died: boolean): void {
+  function fuelSource({fuel, drawn}: RespawnVitals): string {
+    if (!isAtHome(state.player)) return '';
+    if (drawn >= fuel) return ' drawn from the extractor';
+    if (drawn > 0) return ` (${drawn} drawn from the extractor)`;
+    return ' (no fuel stored at the base)';
+  }
+
+  /**
+   * The toasts a redeploy leaves: a line per wreck that crumbled, then where the
+   * replacement landed, the fuel and hull it deployed with — and where that fuel
+   * came from — and where the old ship's cargo went.
+   */
+  function announceRedeploy({wreck, crumbled}: {wreck: Wreck | null; crumbled: Wreck[]}, vitals: RespawnVitals): void {
     for (const scrap of crumbled) toast(`The wreck at (${scrap.x}, ${scrap.y}) crumbled to scrap.`);
     const p = state.player;
     const portal = fieldPortalUnderShip();
-    const where = portal ? ` at Portal "${portal.name}" with ${Math.floor(p.fuel)}/${p.fuelMax} fuel` : '';
-    const head = died ? `Replacement ship deployed${where}.` : `Ship reset${where}.`;
-    if (wreck) toast(`${head} Cargo and fitted upgrades left in the wreck at (${wreck.x}, ${wreck.y}).`);
-    else if (died) toast(`${head} Cargo and fitted upgrades lost.`);
-    else if (portal) toast(head);
+    const where = portal ? ` at Portal "${portal.name}"` : '';
+    const hullPercent = Math.round(vitals.hull / p.hullMax * 100);
+    const deployed = `Replacement ship deployed${where} with ${vitals.fuel}/${p.fuelMax} fuel${fuelSource(vitals)}, hull ${hullPercent} %.`;
+    toast(wreck
+      ? `${deployed} Cargo and fitted upgrades left in the wreck at (${wreck.x}, ${wreck.y}).`
+      : `${deployed} Cargo and fitted upgrades lost.`);
   }
 
   function clearWorldRuntime(): void {
@@ -241,6 +278,10 @@ export function createRun(deps: GameRunDeps): GameRun {
   }
 
   function restartGame(): void {
+    // A live ship is only ever restarted by a confirmed R-R, and that is a scuttle:
+    // the same death as any other — counted, ageing the wrecks, and redeployed on
+    // the same rationed fuel and hull — never a free refill and repair.
+    if (!state.gameOver) scuttle();
     const spawns = respawnPortals(state.stations, canLand);
     // Two or more portals and the player has not chosen yet: raise the no-close
     // redeploy prompt and let the pick drive the rebuild. One portal redeploys
@@ -255,21 +296,30 @@ export function createRun(deps: GameRunDeps): GameRun {
 
   /**
    * Age the standing wrecks, drop the new one at the death tile, rebuild the
-   * world, and redeploy at `at` — a full tank at home, half at a field portal.
+   * world, and redeploy at `at` — the tank drawn from the home extractor at home,
+   * half of one at a field portal, and half a hull either way.
    */
   function completeRestart(at?: SpawnAt): void {
-    const died = state.gameOver;
     deps.input().reset();
     // Drop what the run was carrying — its ore and its fitted upgrades — as a
     // wreck on the tile the old ship sat on, before `generate()` strips them off
-    // the replacement. Both a death and a hand `R`-reset come through here, so a
-    // scrapped ship leaves a salvageable corpse either way.
+    // the replacement, so a lost ship leaves a salvageable corpse.
     const scrapped = scrapShip();
-    generate(at);
+    const vitals = generate(at);
     // Written once the replacement is final: a save of the corpse beside its own
     // wreck would, on reload, hand the fitted upgrades back twice.
     saveProgress();
-    announceRedeploy(scrapped, died);
+    announceRedeploy(scrapped, vitals);
+  }
+
+  /**
+   * Blow up a live ship by hand. The hull is broken first, so the game-over save
+   * reads as the death it is: a reload before the redeploy settles it as one
+   * (see `resume`) rather than handing the scuttled ship back intact.
+   */
+  function scuttle(): void {
+    state.player.hull = 0;
+    gameOver('Ship scuttled.');
   }
 
   function gameOver(message = 'Game over. Tap anywhere or press R to restart.'): void {

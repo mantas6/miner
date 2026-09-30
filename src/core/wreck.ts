@@ -49,7 +49,7 @@ export const WRECK = Object.freeze({
    */
   maxPlaced: 5,
   /**
-   * How many further deaths (or hand resets) it takes to crumble a wreck. Each one
+   * How many further deaths (scuttles included) it takes to crumble a wreck. Each one
    * after the death that dropped it wears it down by one, and the one that brings
    * it to zero crumbles it to scrap — so a salvage run has a deadline, and dying
    * over and over beside the same shaft stops paying out.
@@ -91,8 +91,8 @@ export function createWreck(
 /**
  * Wear every standing wreck down by one death: the survivors come back as fresh
  * objects with one fewer `deathsLeft`, and the ones that reach zero are listed as
- * `crumbled` (as they stood, for the toast). Called on every death and hand reset
- * *before* the new wreck is dropped, so a fresh wreck starts its full lifetime.
+ * `crumbled` (as they stood, for the toast). Called on every death, a scuttle
+ * included, *before* the new wreck is dropped, so a fresh wreck starts its full lifetime.
  */
 export function ageWrecks(wrecks: readonly Wreck[]): {kept: Wreck[]; crumbled: Wreck[]} {
   const kept: Wreck[] = [];

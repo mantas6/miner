@@ -48,12 +48,18 @@ export const FUEL = Object.freeze({
 });
 
 /**
- * What a replacement ship deploys with. Home always hands out a full tank; a
- * field portal only `portalFuelFraction` of one, so a death beside a deep portal
- * still costs the trip back up to refuel rather than being a free refill.
+ * What a replacement ship deploys with, as shares of its hull's bare base tank
+ * and hull, so a death (or a scuttle) is never a free refill or a free repair.
+ * At home the tank is filled from the home extractor's store, up to a full base
+ * tank; a store too dry to cover `homeFuelFraction` of one tops it up to that
+ * share, so a lost ship is never stranded. A field portal hands out only
+ * `portalFuelFraction` of a tank and draws nothing. The hull always comes back at
+ * `hullFraction` of its base maximum.
  */
 export const RESPAWN = Object.freeze({
-  portalFuelFraction: 0.5
+  homeFuelFraction: 0.5,
+  portalFuelFraction: 0.5,
+  hullFraction: 0.5
 });
 
 export const SPRINT = Object.freeze({

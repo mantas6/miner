@@ -6,8 +6,9 @@ import { STARTING } from './balance';
 import { addItem, countItem, createInventory, oreItem, type UpgradeKind } from './inventory';
 import { itemForKind } from './items';
 import { hitsLeft } from './scanner';
-import { createInitialState } from './state';
+import { createInitialState, respawnPlayer } from './state';
 import { SHIPS, slotsFor } from './ships';
+import { homeExtractor } from './stations';
 import {
   UPGRADE_EFFECTS,
   applyEquipment,
@@ -335,6 +336,36 @@ describe('fitting carries the change in maximum over to fuel and hull', () => {
     expect(p.fuel).toBe(150);
     expect(countItem(p.inventory, 'upgrade:drill:1')).toBe(1);
     expect(countItem(p.inventory, 'upgrade:tank:3')).toBe(0);
+  });
+});
+
+describe('refitting salvaged upgrades after a respawn', () => {
+  it('adds only the fit-time bonus to the fuel and hull the replacement deployed with', () => {
+    const state = createInitialState();
+    // A dry base store: the replacement deploys on the reserve half tank.
+    homeExtractor(state.stations)!.fuel = 0;
+    const p = state.player;
+    p.equipment = ['upgrade:tank:1', 'upgrade:hull:1', null];
+    applyEquipment(p);
+    Object.assign(p, {fuel: 0, hull: 0});
+
+    const deployed = respawnPlayer(p, state.stations);
+    expect(deployed).toMatchObject({fuel: 50, hull: 50});
+    // The fitted upgrades went into the wreck; salvage them back into the bay.
+    withBay(p, 'upgrade:tank:1', 'upgrade:hull:1');
+
+    expect(equip(p, 0, 'upgrade:tank:1', LOCKED).ok).toBe(true);
+    expect(equip(p, 1, 'upgrade:hull:1', LOCKED).ok).toBe(true);
+
+    // Respawn fuel and hull plus each bonus once: the bigger tank and plating do
+    // not fill themselves, so the death bought no refill and no repair.
+    expect(p).toMatchObject({
+      fuel: deployed.fuel + upgradeBonus('upgrade:tank:1'),
+      fuelMax: STARTING.fuelMax + upgradeBonus('upgrade:tank:1'),
+      hull: deployed.hull + upgradeBonus('upgrade:hull:1'),
+      hullMax: STARTING.hullMax + upgradeBonus('upgrade:hull:1')
+    });
+    expect(p).toMatchObject({fuel: 100, fuelMax: 150, hull: 100, hullMax: 150});
   });
 });
 

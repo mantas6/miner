@@ -42,7 +42,7 @@ export const CONTROL_ROWS: readonly ControlRow[] = [
   {keys: [key('C'), text(' / press the crate')], action: `Open the placed container, wreck or chest the ship is on or beside. Press a stack in either column to move it across; a crate holds up to ${CARGO_CONTAINER.capacity} items and keeps them through death and reload, and anything taken back aboard still obeys the cargo-bay limit.`},
   {keys: [key('+'), text(' / '), key('-'), text(' / wheel')], action: 'Zoom the mine view in and out'},
   {keys: [key('Esc')], action: 'Close the open screen, or cancel an armed placement'},
-  {keys: [key('R'), text(' then '), key('R')], action: 'Confirm reset while alive'}
+  {keys: [key('R'), text(' then '), key('R')], action: 'Scuttle the ship while alive; it counts as a death'}
 ];
 
 /** A row's keys cell as one line of plain text, e.g. `WASD / Arrows`. */

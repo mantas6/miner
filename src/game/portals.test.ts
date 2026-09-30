@@ -11,7 +11,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { addItem, countItem, createInventory } from '../core/inventory';
 import { createInitialState } from '../core/state';
-import { createPortal, type PortalStation } from '../core/stations';
+import { STATIONS } from '../../shared/constants';
+import { createExtractor, createPortal, type PortalStation } from '../core/stations';
 import { TELEPORTER_ITEM } from '../core/teleporter';
 import type { GameState } from '../core/types';
 import type { PortalView } from '../ui/store';
@@ -248,19 +249,26 @@ describe('the lost-ship respawn prompt', () => {
   it('cannot be closed and hands its pick to the callback', () => {
     const h = harness();
     const onPick = vi.fn();
-    h.state.stations = [dugPortal(h.state, 48, 20, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
+    const store = {...createExtractor(STATIONS.extractor.x, STATIONS.extractor.y), fuel: 80};
+    h.state.stations = [store, dugPortal(h.state, 48, 20, 'Home'), dugPortal(h.state, 50, 100, 'Deep')];
     h.state.gameOver = true;
     Object.assign(h.state.player, {x: 12, y: 60});
 
     h.sim.openRespawn(onPick);
     expect(h.sim.mode).toBe('respawn');
     expect(h.lastView()!.mode).toBe('respawn');
-    // Each row prices the redeploy: home (48,20 is in the cavern) a full tank,
-    // the field portal half of one.
+    // Each row prices the redeploy: home (48,20 is in the cavern) what the
+    // extractor's store covers, the field portal half a tank.
     expect(h.lastView()!.destinations.map(d => [d.name, d.respawnFuel])).toEqual([
-      ['Home', 100],
+      ['Home', 80],
       ['Deep', 50]
     ]);
+    // Listing prices the redeploy; it draws nothing.
+    expect(store.fuel).toBe(80);
+    // A dry store still lists the reserve half tank at home.
+    store.fuel = 0;
+    h.sim.openRespawn(onPick);
+    expect(h.lastView()!.destinations.map(d => d.respawnFuel)).toEqual([50, 50]);
 
     // The prompt has no close button: `close()` is ignored.
     h.sim.close();

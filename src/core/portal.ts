@@ -79,8 +79,10 @@ export interface PortalDestination {
   /** Manhattan distance from the `from` tile, in tiles; the list is sorted by it. */
   distance: number;
   /**
-   * Respawn lists only: the fuel a replacement ship deploys with there — a full
-   * base tank at home, `RESPAWN.portalFuelFraction` of one at a field portal.
+   * Respawn lists only: the fuel a replacement ship deploys with there — at home
+   * what the extractor's store covers of a base tank (never under
+   * `RESPAWN.homeFuelFraction`), `RESPAWN.portalFuelFraction` of one at a field
+   * portal (`respawnVitals`).
    */
   respawnFuel?: number;
 }

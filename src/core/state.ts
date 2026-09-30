@@ -1,7 +1,7 @@
 import { HOME_ROW, HOME_X, isHomeCavern } from '../../shared/constants';
 import { RESPAWN, STARTING } from './balance';
 import { createInventory, removeOres } from './inventory';
-import { createInitialStations } from './stations';
+import { createInitialStations, homeExtractor, type PlacedStation } from './stations';
 import { applyEquipment } from './ship-upgrades';
 import { STARTER_SHIP, shipFor, slotsFor, type ShipId } from './ships';
 import type { GameState, GameStats, Player } from './types';
@@ -24,33 +24,56 @@ export function isAtHome(player: Pick<Player, 'x' | 'y'>): boolean {
 }
 
 /**
- * The share of a tank a replacement ship deploys with at `at`: a full one at home
- * (no tile, or one inside the home cavern — the base's own `Home` portal counts),
- * `RESPAWN.portalFuelFraction` at a portal out in the field.
+ * Whether a replacement redeploying at `at` lands at home: no tile, or one inside
+ * the home cavern — the base's own `Home` portal counts.
  */
-export function respawnFuelFraction(at?: {x: number; y: number}): number {
-  return !at || isHomeCavern(at.x, at.y) ? 1 : RESPAWN.portalFuelFraction;
+export function isHomeSpawn(at?: {x: number; y: number}): boolean {
+  return !at || isHomeCavern(at.x, at.y);
 }
 
-/** The fuel a tank of `fuelMax` holds at `fraction` full: whole units, never empty. */
-export function respawnFuelUnits(fuelMax: number, fraction: number): number {
-  return Math.max(1, Math.min(fuelMax, Math.floor(fuelMax * fraction)));
+/** `fraction` of a maximum of `max`: whole units, never empty, never over the top. */
+export function respawnShare(max: number, fraction: number): number {
+  return Math.max(1, Math.min(max, Math.floor(max * fraction)));
+}
+
+/** What a replacement ship deploys with, and how much of its fuel the base paid for. */
+export interface RespawnVitals {
+  fuel: number;
+  hull: number;
+  /** Fuel taken out of the home extractor's store: 0 at a field portal or a dry store. */
+  drawn: number;
 }
 
 /**
- * The fuel a replacement `ship` would deploy with at `at`. Death strips every
- * fitted upgrade but keeps the hull, so the tank is that hull's bare base tank.
+ * What a replacement `ship` would deploy with at `at`, with `storedFuel` banked in
+ * the home extractor. Death strips every fitted upgrade but keeps the hull, so the
+ * shares are of that hull's bare base tank and hull (`RESPAWN`):
+ *   * at home the tank is drawn from the store, up to a full base tank; a store
+ *     that cannot cover `homeFuelFraction` of one still deploys with that share
+ *     (the store gives up what it had), so a dry base never strands a new ship;
+ *   * at a field portal the tank is `portalFuelFraction` full and nothing is drawn;
+ *   * the hull is `hullFraction` of its maximum either way.
  */
-export function respawnFuelAt(ship: ShipId, at?: {x: number; y: number}): number {
-  return respawnFuelUnits(shipFor(ship).base.fuelMax, respawnFuelFraction(at));
+export function respawnVitals(ship: ShipId, at: {x: number; y: number} | undefined, storedFuel: number): RespawnVitals {
+  const {fuelMax, hullMax} = shipFor(ship).base;
+  const hull = respawnShare(hullMax, RESPAWN.hullFraction);
+  if (!isHomeSpawn(at)) return {fuel: respawnShare(fuelMax, RESPAWN.portalFuelFraction), hull, drawn: 0};
+  const drawn = Math.floor(Math.max(0, Math.min(fuelMax, storedFuel)));
+  return {fuel: Math.max(drawn, respawnShare(fuelMax, RESPAWN.homeFuelFraction)), hull, drawn};
+}
+
+/** The fuel the home extractor has banked for a redeploy: 0 when none stands at the base. */
+export function homeStoredFuel(stations: readonly PlacedStation[]): number {
+  return homeExtractor(stations)?.fuel ?? 0;
 }
 
 /**
  * Deploy a replacement ship at `at` (a portal) or the home base: the same hull,
- * its fitted upgrades and ore stripped, a full hull, and `fuelFraction` of the
- * hull's base tank (see `respawnFuelFraction`; the default is a full one).
+ * its fitted upgrades and ore stripped, and the fuel and hull `respawnVitals`
+ * hands out — the fuel drawn from the home extractor at home, which is left that
+ * much lower. Returns what it deployed with, for the redeploy toast.
  */
-export function respawnPlayer(player: Player, at?: {x: number; y: number}, fuelFraction = 1): void {
+export function respawnPlayer(player: Player, stations: readonly PlacedStation[], at?: {x: number; y: number}): RespawnVitals {
   if (at) {
     Object.assign(player, {x: at.x, y: at.y, drawX: at.x, drawY: at.y});
   } else {
@@ -58,19 +81,23 @@ export function respawnPlayer(player: Player, at?: {x: number; y: number}, fuelF
   }
   // Fitted upgrades do not survive the wreck, but the hull does: every one of its
   // slots comes back empty, and re-deriving the maxima against the empty loadout
-  // drops them back to the hull's base before the replacement ship deploys with a
-  // full hull and its share of a tank.
+  // drops them back to the hull's base before the replacement ship deploys with
+  // its share of a tank and a hull.
   player.equipment = Array.from({length: slotsFor(player.ship)}, () => null);
   applyEquipment(player);
+  const vitals = respawnVitals(player.ship, at, homeStoredFuel(stations));
+  const extractor = homeExtractor(stations);
+  if (extractor && vitals.drawn > 0) extractor.fuel = Math.max(0, extractor.fuel - vitals.drawn);
   Object.assign(player, {
-    fuel: respawnFuelUnits(player.fuelMax, fuelFraction),
-    hull: player.hullMax,
+    fuel: vitals.fuel,
+    hull: vitals.hull,
     // Ore never survives a death, and neither do the upgrades fitted to the hull.
     // Bought equipment still riding in the bay — dynamite, scanners, teleporters,
     // containers — rides out of the wreck with the miner. Ore stored in a crate is
     // not aboard at all, so it is not lost either.
     inventory: removeOres(player.inventory)
   });
+  return vitals;
 }
 
 /** Fresh zeroed run/progress statistics, shared by new games and save loading. */
