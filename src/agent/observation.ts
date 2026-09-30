@@ -22,6 +22,7 @@ import { canCraft, missingInputs, RECIPES } from '../core/crafting';
 import { getEnemyType } from '../core/enemy-types';
 import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
+import { nextShip, shipFor, shipGains, type ShipBase, type ShipId } from '../core/ships';
 import { stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
 import { formatWreckLifetime } from '../core/wreck';
@@ -130,6 +131,32 @@ export interface AgentSupplyRow {
   info: string[];
 }
 
+/** A hull on the ship ladder, as the Shipyard and the Ship screen heading name it. */
+export interface AgentShipClass {
+  id: ShipId;
+  label: string;
+  /** Fitting slots it carries; the last stays `locked` until a Mk II is crafted. */
+  slots: number;
+}
+
+/**
+ * The station's Shipyard: the hull flown now, and the next one up the one-way
+ * ladder with its build cost from the station stock — click `data-craft-ship` with
+ * its `id`. `next` is `null` on the top rung.
+ */
+export interface AgentShipyard {
+  current: AgentShipClass;
+  next: (AgentShipClass & {
+    /** The station stock covers `inputs` (the Build button is live). */
+    craftable: boolean;
+    inputs: AgentRecipeInput[];
+    /** The shortfall when it does not — empty when `craftable`. */
+    missing: AgentRecipeInput[];
+    /** What the swap adds to each base stat (fitted upgrades carry over on top). */
+    gains: ShipBase;
+  }) | null;
+}
+
 /** One ship fitting slot, as the Ship screen paints it. */
 export interface AgentShipSlot {
   index: number;
@@ -165,6 +192,7 @@ export type AgentOverlay =
       recipes: AgentRecipe[];
       /** The home Supply counter's rows; empty at a Manufacturer outside the home cavern. */
       supply: AgentSupplyRow[];
+      shipyard: AgentShipyard;
     }
   | {
       kind: 'extractor';
@@ -179,7 +207,8 @@ export type AgentOverlay =
        */
       fuelOrder: {amount: number; cost: number} | null;
     }
-  | {kind: 'ship'; slots: AgentShipSlot[]; fittable: AgentSlot[]}
+  /** `ship`: the hull whose slots these are, as the screen's heading names it. */
+  | {kind: 'ship'; ship: AgentShipClass; slots: AgentShipSlot[]; fittable: AgentSlot[]}
   | {kind: 'container'; ship: AgentSlot[]; container: AgentSlot[]}
   /** `deathsLeft`: each further death (or hand reset) takes one off; the one that reaches 0 crumbles it. */
   | {kind: 'wreck'; ship: AgentSlot[]; wreck: AgentSlot[]; deathsLeft: number}
@@ -281,6 +310,12 @@ export interface AgentObservation {
   ship: {
     x: number;
     y: number;
+    /** The hull on the ship ladder (`scout` … `corebreaker`). */
+    class: ShipId;
+    /** Its display name, e.g. "Hauler". */
+    shipLabel: string;
+    /** Fitting slots the hull carries (`equipment.length`), the Mk II-locked last one included. */
+    slots: number;
     depthMeters: number;
     fuel: number;
     fuelMax: number;
@@ -390,8 +425,32 @@ function slotsToInventory(slots: readonly InventorySlotView[]) {
   return slots.reduce((inventory, slot) => addItem(inventory, itemForKind(slot.kind), slot.count), createInventory());
 }
 
-function resolveInputs(inputs: {kind: InventoryItemKind; count: number}[]): AgentRecipeInput[] {
+function resolveInputs(inputs: readonly {kind: InventoryItemKind; count: number}[]): AgentRecipeInput[] {
   return inputs.map(input => ({kind: input.kind, count: input.count, label: itemForKind(input.kind).label}));
+}
+
+/** A hull, as the observation names it. */
+function shipClass(id: ShipId): AgentShipClass {
+  const ship = shipFor(id);
+  return {id, label: ship.label, slots: ship.slots};
+}
+
+/** The Shipyard the station screen paints: the store's hull, and the next one priced from the stock. */
+function buildShipyard(current: ShipId, stock: ReturnType<typeof slotsToInventory>): AgentShipyard {
+  const next = nextShip(current);
+  if (!next) return {current: shipClass(current), next: null};
+  const def = shipFor(next);
+  const craftable = canCraft(stock, def);
+  return {
+    current: shipClass(current),
+    next: {
+      ...shipClass(next),
+      craftable,
+      inputs: resolveInputs(def.inputs),
+      missing: craftable ? [] : resolveInputs(missingInputs(stock, def)),
+      gains: shipGains(current, next)
+    }
+  };
 }
 
 /** The trade screen's fuel row: a unit's price, and what a fill would pour and cost. */
@@ -428,7 +487,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
               const price = supplyPrice(kind);
               return {kind, label: itemForKind(kind).label, price, affordable: ui.hud.cash >= price, info: describeItem(kind).lines};
             })
-          : []
+          : [],
+        shipyard: buildShipyard(ui.ship.id, stock)
       };
     }
     case 'extractor': {
@@ -447,6 +507,7 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
     case 'ship':
       return {
         kind: 'ship',
+        ship: shipClass(ui.ship.id),
         slots: ui.shipEquipment.map(slot => ({
           index: slot.index,
           kind: slot.kind,
@@ -682,6 +743,9 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
     ship: {
       x: player.x,
       y: player.y,
+      class: player.ship,
+      shipLabel: shipFor(player.ship).label,
+      slots: player.equipment.length,
       depthMeters: hud.depthMeters,
       // Ship vitals come from the live simulation, not the UI snapshot:
       // `state.player` is the ground truth, and the HUD's copy is a frame behind it.

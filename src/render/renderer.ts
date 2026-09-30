@@ -22,6 +22,7 @@ import {
   terrainChunkKeyForTile
 } from './terrain-cache-policy';
 import { rustPalette } from './rust-palette';
+import { shipFor, shipTier, type ShipId } from '../core/ships';
 import type {
   ChestLedger,
   Direction,
@@ -44,6 +45,8 @@ export const TERRAIN_CHUNK_PADDING = 30;
 // Fog bleeds one pixel past a tile plus half a vein stroke, so it needs far less
 // room around a chunk than the terrain's blob and strata overdraw.
 const FOG_CHUNK_PADDING = 8;
+/** How much bigger the player's hull draws per rung above the Scout (`shipTier`). */
+export const SHIP_SCALE_PER_TIER = 0.04;
 
 /**
  * The slice of the game state the renderer reads. Fields the renderer already
@@ -186,14 +189,21 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     body.addColorStop(0, top); body.addColorStop(.45, middle); body.addColorStop(1, bottom);
     return body;
   }
-  let liveHull: CanvasGradient | null = null;
+  const liveHulls = new Map<ShipId, CanvasGradient>();
   let deadHull: CanvasGradient | null = null;
   let canopyGlass: CanvasGradient | null = null;
   let portalField: CanvasGradient | null = null;
   const enemyHulls = new Map<EnemyKind, CanvasGradient>();
   const enemyHitHulls = new Map<EnemyKind, CanvasGradient>();
-  function liveHullGradient(): CanvasGradient {
-    return liveHull ??= hullGradient('#9ee6ff', '#4dbbe8', '#126a98');
+  /** The live hull's sheen in the colours of the ship it is (`SHIPS[id].hull`); one per hull. */
+  function liveHullGradient(ship: ShipId): CanvasGradient {
+    let body = liveHulls.get(ship);
+    if (!body) {
+      const [top, middle, bottom] = shipFor(ship).hull;
+      body = hullGradient(top, middle, bottom);
+      liveHulls.set(ship, body);
+    }
+    return body;
   }
   /** The spent-ship grey, shared by the lost player ship and every wreck. */
   function deadHullGradient(): CanvasGradient {
@@ -1204,12 +1214,27 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
     const flame = TILE*(.22 + (still ? 0 : Math.sin(state.tick*.55)*.04));
     ctx.fillStyle = dead ? '#433' : '#ffb02e'; ctx.beginPath(); ctx.moveTo(-TILE*.16,TILE*.28); ctx.lineTo(0,TILE*.54+flame*.18); ctx.lineTo(TILE*.16,TILE*.28); ctx.fill();
     ctx.fillStyle = '#9a5a16'; ctx.beginPath(); ctx.moveTo(-TILE*.08,TILE*.30); ctx.lineTo(0,TILE*.46); ctx.lineTo(TILE*.08,TILE*.30); ctx.fill();
-    drawShipHull(dead ? deadHullGradient() : liveHullGradient(), 'rgba(255,255,255,.35)', '#26384d');
-    drawShipCanopy(canopyGradient());
-    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-TILE*.12,-TILE*.46,TILE*.10,TILE*.035);
+    // A bigger hull reads bigger: ~4% per rung above the Scout, applied to the hull
+    // and its nose lamp only, so the drill and the flames keep their size.
+    const size = shipScale(p.ship);
+    withHullScale(size, () => {
+      drawShipHull(dead ? deadHullGradient() : liveHullGradient(p.ship), 'rgba(255,255,255,.35)', '#26384d');
+      drawShipCanopy(canopyGradient());
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-TILE*.12,-TILE*.46,TILE*.10,TILE*.035);
+    });
     drawDirectionalDrill(p);
-    ctx.fillStyle = '#ffd35f'; ctx.fillRect(TILE*.30, -TILE*.09, TILE*.14, TILE*.18);
-    ctx.fillStyle = '#182536'; ctx.fillRect(TILE*.33, -TILE*.055, TILE*.08, TILE*.11);
+    withHullScale(size, () => {
+      ctx.fillStyle = '#ffd35f'; ctx.fillRect(TILE*.30, -TILE*.09, TILE*.14, TILE*.18);
+      ctx.fillStyle = '#182536'; ctx.fillRect(TILE*.33, -TILE*.055, TILE*.08, TILE*.11);
+    });
+  }
+  /** Draw `paint` scaled by `size` about the hull's centre; the Scout's 1 draws it as is. */
+  function withHullScale(size: number, paint: () => void) {
+    if (size === 1) { paint(); return; }
+    ctx.save();
+    ctx.scale(size, size);
+    paint();
+    ctx.restore();
   }
   /**
    * The rounded hull with its dark waterline stripe and the two side pods. Shared
@@ -1277,6 +1302,10 @@ export function createRenderer({ state, canvas, ctx, get, rand }: RendererDeps):
       ctx.fillRect(TILE*.06, TILE*.52, TILE*.04, TILE*.10);
     }
     ctx.restore();
+  }
+  /** The hull's draw scale: the Scout at 1, each rung up the ladder 4% bigger. */
+  function shipScale(ship: ShipId): number {
+    return 1 + SHIP_SCALE_PER_TIER * shipTier(ship);
   }
   function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
     ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();

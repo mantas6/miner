@@ -8,6 +8,7 @@ import type { PlacedContainer } from './cargo-container';
 import type { PlacedDynamite } from './dynamite';
 import type { Inventory, InventoryItemKind, UpgradeKind } from './inventory';
 import type { ScannerDevice } from './scanner-device';
+import type { ShipId } from './ships';
 import type { PlacedStation } from './stations';
 import type { Wreck } from './wreck';
 import type { TileDiff } from '../world/tile-diff';
@@ -88,18 +89,24 @@ export interface Player {
    */
   inventory: Inventory;
   /**
-   * Ship-upgrade fitting slots, one entry per `SHIP_UPGRADE_SLOTS`. A slot holds
-   * an equipped upgrade kind or `null` when empty. `applyEquipment` derives `fuelMax`/`hullMax`/`cargoMax`/`drill` and `boost` from these.
+   * The hull on the ship ladder (`core/ships.ts`): the base stats the upgrades add
+   * to and the number of fitting slots. Survives a death; a full reset returns the Scout.
+   */
+  ship: ShipId;
+  /**
+   * Ship-upgrade fitting slots, one entry per `slotsFor(ship)`. A slot holds an
+   * equipped upgrade kind or `null` when empty. `applyEquipment` derives
+   * `fuelMax`/`hullMax`/`cargoMax`/`drill` and `boost` from these over the hull's base.
    */
   equipment: (UpgradeKind | null)[];
   /** Whether a Booster is fitted, enabling the Shift sprint. Derived from `equipment`. */
   boost: boolean;
 }
 
-/** The transform fields the ship shares with the renderer. */
+/** The transform fields the ship shares with the renderer, and the hull it paints. */
 export type ShipTransform = Pick<
   Player,
-  'x' | 'y' | 'drawX' | 'drawY' | 'facing' | 'bob' | 'drillAnim' | 'drillDx' | 'drillDy'
+  'x' | 'y' | 'drawX' | 'drawY' | 'facing' | 'bob' | 'drillAnim' | 'drillDx' | 'drillDy' | 'ship'
 >;
 
 export interface Enemy {

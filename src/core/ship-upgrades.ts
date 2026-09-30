@@ -2,9 +2,10 @@
 //
 // The four ship stats — `fuelMax`, `hullMax`, `cargoMax`, `drill` — and the boost
 // flag are no longer stored. They are *derived*: `applyEquipment` recomputes them
-// from the upgrades fitted in the ship's slots, over the `STARTING` base, so a
-// save only ever records which upgrades are fitted (`equipment`) and everything
-// downstream — `move.ts`, `inventory.ts`, the HUD — reads the fields as before.
+// from the upgrades fitted in the ship's slots, over the base of the hull it flies
+// (`core/ships.ts`), so a save only ever records the hull (`ship`) and which
+// upgrades are fitted (`equipment`), and everything downstream — `move.ts`,
+// `inventory.ts`, the HUD — reads the fields as before.
 //
 // Duplicates are allowed and their bonuses add, so two Fuel Tank Mk III fit
 // together for the sum of both. `booster` is the odd one out: it has no stat, it
@@ -13,8 +14,6 @@
 // This module is where ship upgrades live now: the old cash-priced shop upgrades
 // (`core/upgrades.ts`) were removed with the shop.
 
-import { SHIP_UPGRADE_SLOTS } from '../../shared/constants';
-import { STARTING } from './balance';
 import {
   addItem,
   countItem,
@@ -26,27 +25,25 @@ import {
   type UpgradeKind
 } from './inventory';
 import { itemForKind } from './items';
+import { fitEquipmentTo, shipFor, type ShipId } from './ships';
 import type { Player } from './types';
-
-// Re-export rather than redefine: the slot count is a persistence-shaped constant
-// that lives in `shared/constants.ts`, but it belongs to this module's vocabulary.
-export { SHIP_UPGRADE_SLOTS };
 
 /**
  * The mark `stats.bestMarkCrafted` must reach before the last fitting slot opens:
- * crafting any Mk II upgrade unlocks it, so the first Mk II is an addition to the
- * loadout rather than a trade against the Mk I it would otherwise replace.
+ * crafting any Mk II upgrade unlocks it, on every hull, so the first Mk II is an
+ * addition to the loadout rather than a trade against the Mk I it would otherwise
+ * replace.
  */
 export const SLOT_UNLOCK_MARK = 2;
 
-/** How many fitting slots are open, given the best mark ever crafted. */
-export function unlockedSlotCount(bestMarkCrafted: number): number {
-  return bestMarkCrafted >= SLOT_UNLOCK_MARK ? SHIP_UPGRADE_SLOTS : SHIP_UPGRADE_SLOTS - 1;
+/** How many of a hull's `slotCount` fitting slots are open, given the best mark ever crafted. */
+export function unlockedSlotCount(slotCount: number, bestMarkCrafted: number): number {
+  return bestMarkCrafted >= SLOT_UNLOCK_MARK ? slotCount : Math.max(0, slotCount - 1);
 }
 
-/** Whether `slot` is still locked — the last one, before any Mk II has been crafted. */
-export function isSlotLocked(slot: number, bestMarkCrafted: number): boolean {
-  return slot >= unlockedSlotCount(bestMarkCrafted);
+/** Whether `slot` of a `slotCount`-slot hull is still locked — the last one, before any Mk II. */
+export function isSlotLocked(slot: number, slotCount: number, bestMarkCrafted: number): boolean {
+  return slot >= unlockedSlotCount(slotCount, bestMarkCrafted);
 }
 
 /**
@@ -54,14 +51,14 @@ export function isSlotLocked(slot: number, bestMarkCrafted: number): boolean {
  * slot 0 (a swap). A locked slot is never picked.
  */
 export function firstFittingSlot(equipment: readonly (UpgradeKind | null)[], bestMarkCrafted: number): number {
-  const open = Math.min(equipment.length, unlockedSlotCount(bestMarkCrafted));
+  const open = unlockedSlotCount(equipment.length, bestMarkCrafted);
   for (let slot = 0; slot < open; slot++) if (equipment[slot] === null) return slot;
   return 0;
 }
 
 /** Whether an open (unlocked) slot stands empty, so a fit would add rather than swap. */
 export function hasEmptyOpenSlot(equipment: readonly (UpgradeKind | null)[], bestMarkCrafted: number): boolean {
-  const open = Math.min(equipment.length, unlockedSlotCount(bestMarkCrafted));
+  const open = unlockedSlotCount(equipment.length, bestMarkCrafted);
   for (let slot = 0; slot < open; slot++) if (equipment[slot] === null) return true;
   return false;
 }
@@ -78,7 +75,7 @@ interface UpgradeEffect {
 
 /**
  * The single tunable table of what each upgrade does. Mk I/II/III bonuses are
- * additive over the `STARTING` base; the booster carries no stat because its whole
+ * additive over the hull's base; the booster carries no stat because its whole
  * effect is the `boost` flag it raises.
  */
 export const UPGRADE_EFFECTS: Record<UpgradeId, UpgradeEffect> = {
@@ -93,7 +90,7 @@ export const UPGRADE_EFFECTS: Record<UpgradeId, UpgradeEffect> = {
   booster: {stat: null, bonuses: [0]}
 };
 
-/** The stats an equipment loadout derives, over the starting base. */
+/** The stats an equipment loadout derives, over its hull's base. */
 export interface DerivedStats {
   fuelMax: number;
   hullMax: number;
@@ -111,14 +108,16 @@ export function upgradeBonus(kind: UpgradeKind): number {
 
 /**
  * Sum a loadout of fitted slots into the four maxima and the boost flag, over the
- * `STARTING` base. Empty slots (`null`) contribute nothing; duplicates add.
+ * base of the `ship` it is fitted to. Empty slots (`null`) contribute nothing;
+ * duplicates add.
  */
-export function computeStats(equipment: readonly (UpgradeKind | null)[]): DerivedStats {
+export function computeStats(ship: ShipId, equipment: readonly (UpgradeKind | null)[]): DerivedStats {
+  const {base} = shipFor(ship);
   const stats: DerivedStats = {
-    fuelMax: STARTING.fuelMax,
-    hullMax: STARTING.hullMax,
-    cargoMax: STARTING.cargoMax,
-    drill: STARTING.drill,
+    fuelMax: base.fuelMax,
+    hullMax: base.hullMax,
+    cargoMax: base.cargoMax,
+    drill: base.drill,
     boost: false
   };
   for (const kind of equipment) {
@@ -132,15 +131,16 @@ export function computeStats(equipment: readonly (UpgradeKind | null)[]): Derive
 }
 
 /**
- * Recompute the ship's derived stats from its fitted equipment, in place. Fuel and
- * hull are only clamped to their (possibly reduced) maxima, never topped up: this
- * is the load / respawn path, which sets the maxima for a loadout it restores.
+ * Recompute the ship's derived stats from its hull and fitted equipment, in place.
+ * Fuel and hull are only clamped to their (possibly reduced) maxima, never topped
+ * up: this is the load / respawn / hull-swap path, which sets the maxima for a
+ * loadout it restores or a hull it moves into.
  * A fit or unfit goes through `equip` / `unequip`, which carry the change in each
  * maximum over to the current fuel and hull as well. Returns the same `player`,
  * so callers can chain.
  */
 export function applyEquipment(player: Player): Player {
-  const stats = computeStats(player.equipment);
+  const stats = computeStats(player.ship, player.equipment);
   player.fuelMax = stats.fuelMax;
   player.hullMax = stats.hullMax;
   player.cargoMax = stats.cargoMax;
@@ -149,6 +149,19 @@ export function applyEquipment(player: Player): Player {
   player.fuel = Math.min(player.fuel, player.fuelMax);
   player.hull = Math.min(player.hull, player.hullMax);
   return player;
+}
+
+/**
+ * Move the ship into hull `id`: its slots resized to the new hull's count (every
+ * fitted upgrade stays where it is, new slots come empty), the maxima re-derived
+ * over the new base, and the current fuel and hull kept as they are — a swap is
+ * not a refill. Every hull up the ladder is bigger on every stat, so nothing is
+ * clamped away and the bay never overflows.
+ */
+export function swapHull(player: Player, id: ShipId): Player {
+  player.ship = id;
+  player.equipment = fitEquipmentTo(player.equipment, id);
+  return applyEquipment(player);
 }
 
 /** The outcome of an equip/unequip: success, or a refusal the caller can toast. */
@@ -165,7 +178,7 @@ type VitalsAfter = {ok: true; fuel: number; hull: number} | {ok: false; reason: 
  * tank or breaking the hull on the spot.
  */
 function vitalsAfter(player: Player, nextEquipment: readonly (UpgradeKind | null)[]): VitalsAfter {
-  const next = computeStats(nextEquipment);
+  const next = computeStats(player.ship, nextEquipment);
   const fuelDelta = next.fuelMax - player.fuelMax;
   const hullDelta = next.hullMax - player.hullMax;
   const fuel = player.fuel + fuelDelta;
@@ -194,7 +207,7 @@ export function canUnequip(player: Player, slot: number): boolean {
   if (!kind) return false;
   const next = player.equipment.slice();
   next[slot] = null;
-  const cargoMax = computeStats(next).cargoMax;
+  const cargoMax = computeStats(player.ship, next).cargoMax;
   return totalItems(player.inventory) + 1 <= cargoMax;
 }
 
@@ -216,13 +229,13 @@ function bayAfterEquip(inventory: Inventory, kind: UpgradeKind, previous: Upgrad
  */
 export function equip(player: Player, slot: number, kind: UpgradeKind, bestMarkCrafted: number): EquipResult {
   if (slot < 0 || slot >= player.equipment.length) return {ok: false, reason: 'No such upgrade slot.'};
-  if (isSlotLocked(slot, bestMarkCrafted)) return {ok: false, reason: 'That slot is locked — craft a Mk II upgrade to open it.'};
+  if (isSlotLocked(slot, player.equipment.length, bestMarkCrafted)) return {ok: false, reason: 'That slot is locked — craft a Mk II upgrade to open it.'};
   if (countItem(player.inventory, kind) <= 0) return {ok: false, reason: 'That upgrade is not in the cargo bay.'};
   // `slot` was bounds-checked above, so the fallback only reads an empty slot as one.
   const previous = player.equipment[slot] ?? null;
   const nextEquipment = player.equipment.slice();
   nextEquipment[slot] = kind;
-  const cargoMax = computeStats(nextEquipment).cargoMax;
+  const cargoMax = computeStats(player.ship, nextEquipment).cargoMax;
   const bay = bayAfterEquip(player.inventory, kind, previous);
   if (totalItems(bay) > cargoMax) {
     return {ok: false, reason: 'Cargo bay has no room to swap that upgrade out.'};

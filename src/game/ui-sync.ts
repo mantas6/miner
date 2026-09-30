@@ -37,7 +37,7 @@ export interface UiSync {
   sync(): void;
   /** Rebuild the Info screen's cargo, stat and trading-post rows if they moved; `force` rebuilds regardless. */
   syncInfoDetails(force?: boolean): void;
-  /** Push the current fitting slots for the Ship screen to paint. */
+  /** Push the hull and its current fitting slots for the Ship screen to paint. */
   syncShipUpgrades(): void;
 }
 
@@ -199,6 +199,8 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
 
     const store = uiStore.getState();
     store.syncHud(hudScratch);
+    // One id compare a frame: the hull changes only on a Shipyard build or a reset.
+    store.setShip(p.ship);
     syncInventory();
     if (store.overlay?.kind === 'info') syncInfoDetails();
 
@@ -212,7 +214,9 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
     sync,
     syncInfoDetails,
     syncShipUpgrades() {
-      uiStore.getState().setShipEquipment(buildShipSlots(state.player.equipment, state.stats.bestMarkCrafted));
+      const store = uiStore.getState();
+      store.setShip(state.player.ship);
+      store.setShipEquipment(buildShipSlots(state.player.equipment, state.stats.bestMarkCrafted));
     }
   };
 }

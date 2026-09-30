@@ -1,4 +1,4 @@
-import { MAX_SAVED_TILE_ENTRIES, MAX_WORLD_ROW, ORES, SHIP_UPGRADE_SLOTS, START_Y, WORLD_W } from '../shared/constants';
+import { MAX_SAVED_TILE_ENTRIES, MAX_WORLD_ROW, ORES, START_Y, WORLD_W } from '../shared/constants';
 import { tileKey } from '../shared/tile-key';
 import type { TileEntry } from '../shared/world-schema';
 import {
@@ -25,6 +25,7 @@ import { WRECK, createWreck, type Wreck } from './core/wreck';
 import { chestKey, ledgerStacks } from './core/chest';
 import { chestAt } from './world/world';
 import { applyEquipment, isSlotLocked } from './core/ship-upgrades';
+import { STARTER_SHIP, isShipId, slotsFor, type ShipId } from './core/ships';
 import { createDefaultStats } from './core/state';
 import { BEST_MARK_MAX } from './core/stats';
 import {
@@ -68,9 +69,12 @@ import type { ChestLedger, GameState, GameStats } from './core/types';
 //   * `stats`     — the progress statistics.
 //   * `bay`       — the non-ore stacks aboard (equipment, upgrades, decor), as
 //     `{kind, count}`. Ore is deliberately not saved: it is lost with the run.
-//   * `equipment` — the fitted ship upgrades, one entry per upgrade slot, each a
-//     `upgrade:*` kind or `null`. The ship's `fuelMax`/`hullMax`/`cargoMax`/`drill`
-//     are derived from these, not stored.
+//   * `ship`      — the hull on the ship ladder (`core/ships.ts`), e.g. `scout`. An
+//     id this build does not know discards the whole save; a hand-written file
+//     without one loads the Scout.
+//   * `equipment` — the fitted ship upgrades, one entry per slot of that hull, each
+//     a `upgrade:*` kind or `null`. The ship's `fuelMax`/`hullMax`/`cargoMax`/`drill`
+//     are derived from the hull's base and these, not stored.
 //   * `stations`  — the stations standing in the mine: each manufacturer with its
 //     own `{kind,count}` stock (ore included), each extractor with its queued coal,
 //     stored fuel, and tick progress, each portal with its name. One of each is
@@ -95,6 +99,7 @@ interface SavedProgress {
   hull?: unknown;
   cash?: unknown;
   bay?: unknown;
+  ship?: unknown;
   equipment?: unknown;
   stations?: unknown;
   dynamiteSticks?: unknown;
@@ -108,7 +113,7 @@ interface SavedProgress {
 }
 
 export const SAVE_KEY = 'stalinload:progress:v1';
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 /** The file name an exported save downloads as. */
 export const SAVE_EXPORT_FILENAME = 'stalinload-save.json';
 /** A stored stack is a count, not a licence to write an unbounded number. */
@@ -250,17 +255,18 @@ function isSavedItemKind(kind: string): boolean {
 
 /**
  * The fitted upgrades, one slot each, dropping anything that is not a real
- * upgrade. The game always writes `SHIP_UPGRADE_SLOTS` entries; a shorter
- * hand-edited array is padded with empty slots rather than refused, and a slot
- * the career has not unlocked yet (`isSlotLocked`) comes back empty: the game
- * never fits one, so only a hand-edited save could.
+ * upgrade. The game always writes `slotsFor(ship)` entries; a shorter hand-edited
+ * array is padded with empty slots rather than refused, a longer one trimmed to
+ * the hull, and a slot the career has not unlocked yet (`isSlotLocked`) comes back
+ * empty: the game never fits one, so only a hand-edited save could.
  */
-function parseEquipment(value: unknown, bestMarkCrafted: number): (UpgradeKind | null)[] {
-  const slots: (UpgradeKind | null)[] = Array.from({length: SHIP_UPGRADE_SLOTS}, () => null);
+function parseEquipment(value: unknown, ship: ShipId, bestMarkCrafted: number): (UpgradeKind | null)[] {
+  const count = slotsFor(ship);
+  const slots: (UpgradeKind | null)[] = Array.from({length: count}, () => null);
   if (!Array.isArray(value)) return slots;
-  for (let i = 0; i < SHIP_UPGRADE_SLOTS && i < value.length; i++) {
+  for (let i = 0; i < count && i < value.length; i++) {
     const kind = value[i];
-    if (isSlotLocked(i, bestMarkCrafted)) continue;
+    if (isSlotLocked(i, count, bestMarkCrafted)) continue;
     if (typeof kind === 'string' && isCatalogKind(kind) && isUpgradeKind(kind)) {
       slots[i] = kind;
     }
@@ -389,6 +395,7 @@ function serializeStacks(inventory: Inventory): {kind: InventoryItemKind; count:
  */
 interface StagedProgress {
   cash: number;
+  ship: ShipId;
   equipment: (UpgradeKind | null)[];
   bay: Inventory;
   /** `undefined` keeps the seeded stations: the save recorded none. */
@@ -412,8 +419,9 @@ interface StagedProgress {
 
 /**
  * Parse a raw save into a staged restore, or `null` when there is nothing this
- * build should load: no save, not an object, or any version but exactly
- * `SAVE_VERSION`. Reads `state` only for fallbacks and never writes it; may throw
+ * build should load: no save, not an object, any version but exactly
+ * `SAVE_VERSION`, or a hull this build does not know. Reads `state` only for
+ * fallbacks and never writes it; may throw
  * on a pathological file, which `load` turns into a fresh start.
  */
 function parseProgress(raw: string | null, state: GameState): StagedProgress | null {
@@ -425,6 +433,11 @@ function parseProgress(raw: string | null, state: GameState): StagedProgress | n
   // from a newer build that may not mean what this one thinks — is discarded,
   // never migrated, so the state keeps the pristine defaults it was created with.
   if (save.version !== SAVE_VERSION) return null;
+  // The hull decides the slot count and every base stat, so a hull this build has
+  // never heard of cannot be loaded in part: the whole save goes. Only a
+  // hand-written file leaves it out, and that one flies the Scout.
+  const ship = save.ship === undefined ? STARTER_SHIP : save.ship;
+  if (!isShipId(ship)) return null;
   const p = state.player;
   const explored = new Set<number>();
   mergeExploration(explored, typeof save.explored === 'string' ? save.explored : '');
@@ -439,7 +452,8 @@ function parseProgress(raw: string | null, state: GameState): StagedProgress | n
   stats.bestMarkCrafted = Math.min(BEST_MARK_MAX, Math.floor(stats.bestMarkCrafted));
   return {
     cash: numeric(save.cash, state.cash, 0),
-    equipment: parseEquipment(save.equipment, stats.bestMarkCrafted),
+    ship,
+    equipment: parseEquipment(save.equipment, ship, stats.bestMarkCrafted),
     // The bay comes back one stack at a time; ore is never among it, so a fresh run
     // starts with only the equipment the last one carried.
     bay: parseKindCountStacks(save.bay, isCatalogKind),
@@ -479,11 +493,12 @@ export function load(state: GameState): void {
   // Everything parsed: apply it in one go.
   const p = state.player;
   state.cash = staged.cash;
-  // The four ship stats are derived from fitted equipment, not stored: restore
-  // the fitted slots and the bay, then `applyEquipment` recomputes `fuelMax`/
+  // The four ship stats are derived from the hull and its fitted equipment, not
+  // stored: restore the hull, the fitted slots and the bay, then `applyEquipment` recomputes `fuelMax`/
   // `hullMax`/`cargoMax`/`drill` and `boost` from them. The saved fuel and hull
   // go in first so its clamp bounds them by the restored maxima — the fit-time
   // delta `equip` carries over is never re-applied, so a reload grants nothing.
+  p.ship = staged.ship;
   p.equipment = staged.equipment;
   p.inventory = staged.bay;
   p.fuel = staged.fuel;
@@ -556,7 +571,8 @@ export function serializeProgress(state: GameState): SavedProgress & {version: n
     // Ore is lost with the run, so only the non-ore stacks — equipment, upgrades,
     // decor — are written out of the bay.
     bay: serializeStacks(p.inventory).filter(stack => !isOreKind(stack.kind)),
-    equipment: p.equipment.slice(0, SHIP_UPGRADE_SLOTS),
+    ship: p.ship,
+    equipment: p.equipment.slice(0, slotsFor(p.ship)),
     stations: state.stations.map(serializeStation),
     scannerDevices: state.scannerDevices.slice(0, SCANNER_DEVICE.maxPlaced).map(({x, y, timer}) => ({x, y, timer})),
     dynamiteSticks: state.placedDynamite.slice(0, DYNAMITE.maxPlaced).map(({x, y, fuse}) => ({x, y, fuse})),

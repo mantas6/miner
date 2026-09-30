@@ -9,7 +9,10 @@
 // and names what is missing when it does not (aria-disabled, so it stays focusable).
 // The home-cavern Manufacturer adds a Supply counter between the two: a short list
 // of basics (`SUPPLY_POOL`) bought for cash straight into the station stock, each
-// button dead while the wallet cannot cover its price.
+// button dead while the wallet cannot cover its price. Every Manufacturer carries a
+// Shipyard above the recipes: the hull the ship flies and the one next up the
+// ladder (`core/ships.ts`), built from the stock like a recipe but swapped in
+// rather than stocked.
 //
 // Everything is painted from the store and is live: the station stock and the bay
 // are snapshots the game pushes on open and after every change, so the screen
@@ -23,9 +26,10 @@ import { canCraft, missingInputs, RECIPES, type Recipe } from '../core/crafting'
 import { addItem, createInventory, type Inventory, type InventoryItemKind } from '../core/inventory';
 import { recipeInputLines } from '../core/item-info';
 import { itemForKind } from '../core/items';
+import { formatShipGains, nextShip, shipFor, type ShipId } from '../core/ships';
 import { SUPPLY_POOL, supplyPrice } from '../core/trading';
 import { uiCommands } from './commands';
-import { overlayOf, useUiStore, type InventorySlotView } from './store';
+import { overlayOf, useUiStore, type InventorySlotView, type ShipView } from './store';
 import { CardHeader, ModalShell } from './ModalShell';
 import { useItemTooltip } from './Tooltip';
 import styles from './StationScreen.module.css';
@@ -99,6 +103,7 @@ function StationCard() {
           </div>
         </section>
         {supply && <SupplySection />}
+        <ShipyardSection stock={stock} />
         <section className={styles.recipes} aria-labelledby="recipes-title">
           <div className={styles.columnHeading}>
             <h3 id="recipes-title">Recipes</h3>
@@ -185,6 +190,55 @@ function SupplyRow({kind, cash}: {kind: InventoryItemKind; cash: number}) {
           aria-label={`Buy ${item.label} for $${price}`}
           onClick={() => uiCommands.buySupply(kind)}
         >${price}</button>
+      </div>
+    </li>
+  );
+}
+
+/** The Shipyard: the hull flown now, and the one next up the ladder — or word that there is none. */
+function ShipyardSection({stock}: {stock: Inventory}) {
+  const ship = useUiStore(state => state.ship);
+  const next = nextShip(ship.id);
+  return (
+    <section className={styles.recipes} aria-labelledby="shipyard-title">
+      <div className={styles.columnHeading}>
+        <h3 id="shipyard-title">Shipyard</h3>
+        <span id="shipyardCurrent">Flying the {ship.label} · {ship.slots} slots</span>
+      </div>
+      <ul id="shipyardList" className={styles.slots}>
+        {next
+          ? <ShipRow ship={ship} next={next} stock={stock} />
+          : <li className={styles.empty}><span className={styles.emptyLabel}>Top of the ladder — no bigger ship to build</span></li>}
+      </ul>
+    </section>
+  );
+}
+
+/** The next hull: what it adds, what it costs, and a Build button live only while the stock covers it. */
+function ShipRow({ship, next, stock}: {ship: ShipView; next: ShipId; stock: Inventory}) {
+  const def = shipFor(next);
+  const affordable = canCraft(stock, def);
+  const inputs = affordable
+    ? def.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(' · ')
+    : `Need ${missingInputs(stock, def).map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ')}`;
+  const inputsId = `ship-inputs-${next}`;
+  return (
+    <li>
+      <div className={styles.recipe}>
+        <span className={styles.icon} style={{background: def.hull[1]}} aria-hidden="true" />
+        <span className={styles.recipeText}>
+          <span className={styles.label}>{def.label} · {formatShipGains(ship.id, next)}</span>
+          <span id={inputsId} className={styles.recipeInputs}>{inputs}</span>
+        </span>
+        <button
+          type="button"
+          className={styles.action}
+          data-craft-ship={next}
+          aria-label={`Build the ${def.label}`}
+          aria-describedby={inputsId}
+          aria-disabled={!affordable}
+          onClick={() => uiCommands.craftShip(next)}
+        >Build</button>
       </div>
     </li>
   );

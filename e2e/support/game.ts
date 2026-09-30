@@ -12,7 +12,10 @@ import { TRADING_POST_MIN_ROW, tradingPostAt } from '../../src/world/world';
 
 export { SAVE_KEY, SAVE_VERSION };
 
-/** The fields of a save a spec seeds; `version` is always filled in as this build's. */
+/**
+ * The fields of a save a spec seeds; `version` is always filled in as this
+ * build's, and `ship` defaults to the starter Scout unless the seed names a hull.
+ */
 export type SaveSeed = Record<string, unknown>;
 
 /**
@@ -25,7 +28,7 @@ export type SaveSeed = Record<string, unknown>;
  * import reloads into what it just stored).
  */
 export function seedSaveScript(partial: SaveSeed = {}, options: {once?: boolean} = {}): string {
-  const write = `localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(JSON.stringify({version: SAVE_VERSION, ...partial}))});`;
+  const write = `localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(JSON.stringify({version: SAVE_VERSION, ship: 'scout', ...partial}))});`;
   if (!options.once) return write;
   return `if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); ${write} }`;
 }

@@ -48,7 +48,7 @@ export const ID_TARGETS: ReadonlySet<string> = new Set([
 
 /** Attribute controls, each needing a value (some need a value and a kind). */
 export const ATTR_TARGETS: ReadonlySet<string> = new Set([
-  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-supply', 'data-info-section', 'data-cargo', 'data-station', 'data-trade', 'data-portal'
+  'data-ship-equip', 'data-ship-unequip', 'data-craft', 'data-craft-ship', 'data-supply', 'data-info-section', 'data-cargo', 'data-station', 'data-trade', 'data-portal'
 ]);
 
 /**

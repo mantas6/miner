@@ -25,6 +25,7 @@ import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
 import { EXTRACTOR } from '../src/core/balance';
 import { RECIPES } from '../src/core/crafting';
 import { itemForKind } from '../src/core/items';
+import { SHIPS, SHIP_ORDER } from '../src/core/ships';
 import { MAX_ZOOM, MIN_ZOOM } from '../src/game/zoom';
 import { INFO_NAVIGATION_SECTIONS } from '../src/ui/info-navigation';
 
@@ -50,6 +51,19 @@ function recipesText(): string {
     const count = recipe.count > 1 ? ` ×${recipe.count}` : '';
     const inputs = recipe.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ');
     return `  ${output}${count} \u2190 ${inputs}`;
+  }).join('\n');
+}
+
+/** The ship ladder as text, e.g. `Hauler: 4 slots, 150 fuel … ← 24 Iron, …`, generated from data. */
+function shipsText(): string {
+  return SHIP_ORDER.map(id => {
+    const ship = SHIPS[id];
+    const {fuelMax, hullMax, cargoMax, drill} = ship.base;
+    const stats = `${ship.slots} slots, ${fuelMax} fuel, ${hullMax} hull, ${cargoMax} cargo, drill ${drill}`;
+    const inputs = ship.inputs.length
+      ? ship.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ')
+      : 'the starter';
+    return `  ${ship.label} ("${id}"): ${stats} ← ${inputs}`;
   }).join('\n');
 }
 
@@ -117,12 +131,13 @@ function instructions(): string {
     '    the valueless targets data-developer-grant-ores and data-developer-fill-extractor',
     '    (click with no value); resetGameBtn asks inline (`settings.confirmingReset`),',
     '    resetGameCancelBtn backs out, resetGameConfirmBtn wipes everything and reloads.',
-    '  Ship screen: shipBtn opens it. data-ship-equip value an upgrade kind (e.g.',
-    '    "upgrade:tank:1") fits it from the bay into the first empty open slot (swapping',
-    '    into slot 0 when all are full). data-ship-unequip value is the 0-based slot index —',
-    '    the `index` in `overlay.slots` and the position in `ship.equipment` — and',
-    '    moves that slot\'s upgrade back to the bay; an empty slot\'s button is disabled.',
-    '    The third slot is `locked` until any Mk II upgrade is crafted. Fitting or',
+    '  Ship screen: shipBtn opens it (`overlay.ship` names the hull). data-ship-equip value',
+    '    an upgrade kind (e.g. "upgrade:tank:1") fits it from the bay into the first empty',
+    '    open slot (swapping into slot 0 when every open slot is full). data-ship-unequip',
+    '    value is the 0-based slot index — the `index` in `overlay.slots` and the position',
+    '    in `ship.equipment` — and moves that slot\'s upgrade back to the bay; an empty',
+    '    slot\'s button is disabled. The last slot of every hull is `locked` until any Mk II',
+    '    upgrade is crafted. Fitting or',
     '    unfitting a tank or plating moves fuel/hull by the same amount as its maximum,',
     '    and is refused when that would leave less than 1.',
     '  Save export/import: click infoBtn, then data-info-section value "info-settings".',
@@ -136,8 +151,8 @@ function instructions(): string {
     '    more portals built, a lost or reset ship raises a portal overlay in `mode',
     '    "respawn"` that cannot be dismissed (Escape/Space are ignored) — pick a',
     '    `data-portal` row to redeploy the ship at that portal. Each row\'s',
-    '    `respawnFuel` is the fuel the replacement deploys with: a full tank at home,',
-    '    half of one at a field portal.',
+    '    `respawnFuel` is the fuel the replacement deploys with: a full base tank of the',
+    '    hull at home, half of one at a field portal.',
     '  Game over (`gameOver: true`, the ship is lost): press r to deploy a new ship at',
     '    once (no confirm), or `press_tile` any mine tile — a click anywhere outside the',
     '    dialogs restarts, like the "Tap anywhere to restart" banner says. With two or',
@@ -160,6 +175,16 @@ function instructions(): string {
     '',
     'CRAFTING RECIPES (at the Manufacturer; consume from and produce into station stock):',
     recipesText(),
+    '',
+    'SHIPYARD (every Manufacturer, `station.shipyard`): a one-way ladder of hulls, each with',
+    '  one more fitting slot and a bigger base tank, hull, bay and drill:',
+    shipsText(),
+    '  Only the next hull up is buildable (`shipyard.next`: craftable, inputs, missing,',
+    '  gains); click data-craft-ship with its id (e.g. "hauler"). The ore comes out of the',
+    '  station stock, fitted upgrades carry over into the bigger hull, and fuel/hull are',
+    '  kept, not refilled. `ship.class` / `ship.shipLabel` / `ship.slots` name the hull flown.',
+    '  The hull survives a death (its slots come back empty); only a full player-data',
+    '  reset returns the Scout.',
     '',
     'PLAY TIPS:',
     '  - Keep a fuel reserve: `hud.fuelReserve` tells you the fuel needed to fly to',
@@ -363,7 +388,8 @@ server.registerTool(
       '"ore:Iron" to sell or "repairKit" to buy; tradeFuelBtn fills the tank for cash). ' +
       'extractorBuyFuelBtn orders fuel for cash into the home Fuel Extractor. A portal travel/respawn row is target ' +
       '"data-portal", value the destination "x,y" (e.g. "48,20"). An info tab is target ' +
-      '"data-info-section", value e.g. "info-settings". data-ship-unequip takes the ' +
+      '"data-info-section", value e.g. "info-settings". data-craft-ship builds the next hull ' +
+      'at a Manufacturer (value its id, e.g. "hauler"). data-ship-unequip takes the ' +
       '0-based fitting-slot index (e.g. "0"). Inventory slot buttons such as ' +
       'repairKitSlotBtn and fuelCellSlotBtn spend one item per click. The cheat grants data-developer-grant-ores ' +
       'and data-developer-fill-extractor take no value. A click that reloads the page ' +

@@ -8,6 +8,7 @@
 // double-mount, after a crash — is harmless.
 
 import type { DecorKind, InventoryItemKind, UpgradeKind } from '../core/inventory';
+import type { ShipId } from '../core/ships';
 
 export interface UiCommands {
   useTeleporter(): void;
@@ -77,7 +78,7 @@ export interface UiCommands {
   closeShip(): void;
   /**
    * Fit an upgrade of `kind` from the bay. With no `slot`, it lands in the first
-   * empty slot, or swaps into slot 0 when every slot is full.
+   * empty open slot, or swaps into slot 0 when every open slot is full.
    */
   equipUpgrade(kind: UpgradeKind, slot?: number): void;
   /** Take the upgrade out of `slot` and drop it back into the bay. */
@@ -101,6 +102,8 @@ export interface UiCommands {
   takeFromStation(kind: InventoryItemKind, single?: boolean): void;
   /** Craft a recipe at the station, by table index or output kind. */
   craft(recipe: number | InventoryItemKind): void;
+  /** Build the next hull on the ship ladder at the station and move the ship into it. */
+  craftShip(id: ShipId): void;
   /** Queue every coal aboard into the extractor. */
   loadCoal(): void;
   /** Top the ship's tank up from the extractor's stored fuel. */
@@ -187,6 +190,7 @@ function noopCommands(): UiCommands {
     stowStack: noop,
     takeFromStation: noop,
     craft: noop,
+    craftShip: noop,
     loadCoal: noop,
     refuelFromExtractor: noop,
     buySupply: noop,

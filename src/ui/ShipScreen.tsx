@@ -1,6 +1,8 @@
 // The ship equipment screen.
 //
-// Two lists, one rule each. On top, the fitting slots: every slot is a row that
+// The heading names the hull the ship flies and its slot count (a bigger hull is
+// built at a Manufacturer's Shipyard). Two lists, one rule each. On top, the
+// fitting slots: every slot is a row that
 // either names the upgrade it holds — with an Unfit button — or reads "Empty"; the
 // last slot reads "Locked — craft a Mk II upgrade" until one has been crafted.
 // Below, the upgrades sitting in the cargo bay, each with a Fit button that drops
@@ -31,6 +33,7 @@ export function ShipScreen() {
 
 function ShipCard() {
   const equipment = useUiStore(state => state.shipEquipment);
+  const ship = useUiStore(state => state.ship);
   const inventorySlots = useUiStore(state => state.inventorySlots);
   const bayUpgrades = inventorySlots.filter(slot => isUpgradeKind(slot.kind));
 
@@ -38,7 +41,7 @@ function ShipCard() {
     <div id="ship-card" className={styles.card}>
       <CardHeader
         titleId="ship-title"
-        title="Ship"
+        title={`Ship · ${ship.label} · ${ship.slots} slots`}
         closeId="shipCloseBtn"
         closeLabel="Close ship equipment"
         onClose={() => uiCommands.closeShip()}

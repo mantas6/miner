@@ -23,6 +23,7 @@ import { formatExpeditionStats, type ExpeditionStatRow } from '../core/stats';
 import { countItem, createInventory, oreStacks, type Inventory, type InventoryItemKind, type UpgradeKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { isSlotLocked } from '../core/ship-upgrades';
+import { shipFor, type ShipId } from '../core/ships';
 import { shouldBaseAlert } from '../core/hud-alerts';
 import { homeExtractor, manufacturerStock } from '../core/stations';
 import { sellPrice } from '../core/trading';
@@ -222,6 +223,20 @@ export interface ShipSlotView {
   locked: boolean;
 }
 
+/** The hull the ship flies, as the Ship screen heading and the Shipyard name it. */
+export interface ShipView {
+  id: ShipId;
+  label: string;
+  /** Fitting slots the hull carries, the Mk II-locked last one included. */
+  slots: number;
+}
+
+/** The store's view of a hull. */
+export function buildShipView(id: ShipId): ShipView {
+  const ship = shipFor(id);
+  return {id, label: ship.label, slots: ship.slots};
+}
+
 /** The label a locked fitting slot reads, naming what opens it. */
 export const LOCKED_SLOT_LABEL = 'Locked — craft a Mk II upgrade';
 
@@ -288,6 +303,8 @@ export interface UiState {
    * opens and after each equip/unequip, so the menu never reads the simulation.
    */
   shipEquipment: ShipSlotView[];
+  /** The hull the ship flies. Republished every frame, written only when it changes. */
+  ship: ShipView;
   cargoRows: CargoRow[];
   statRows: ExpeditionStatRow[];
   /** The trading posts found so far, shallowest first (Info → Prospecting). */
@@ -343,6 +360,8 @@ export interface UiState {
   syncHud(next: Readonly<HudSnapshot>): void;
   setInventorySlots(slots: InventorySlotView[]): void;
   setShipEquipment(slots: ShipSlotView[]): void;
+  /** Publish the hull the ship flies; a no-op while it is unchanged. */
+  setShip(id: ShipId): void;
   setCargoRows(rows: CargoRow[]): void;
   setStatRows(rows: ExpeditionStatRow[]): void;
   setPostRows(rows: TradingPostRow[]): void;
@@ -509,6 +528,7 @@ export const uiStore = createStore<UiState>((set, get) => ({
   hud: initialHud(),
   inventorySlots: buildInventorySlots(createInventory()),
   shipEquipment: buildShipSlots(initialState.player.equipment, initialState.stats.bestMarkCrafted),
+  ship: buildShipView(initialState.player.ship),
   cargoRows: [],
   statRows: formatExpeditionStats({}),
   postRows: [],
@@ -544,6 +564,11 @@ export const uiStore = createStore<UiState>((set, get) => ({
 
   setShipEquipment(slots) {
     set({shipEquipment: slots});
+  },
+
+  setShip(id) {
+    if (get().ship.id === id) return;
+    set({ship: buildShipView(id)});
   },
 
   setCargoRows(rows) {
@@ -682,7 +707,7 @@ export function buildInventorySlots(inventory: Inventory): InventorySlotView[] {
  */
 export function buildShipSlots(equipment: readonly (UpgradeKind | null)[], bestMarkCrafted: number): ShipSlotView[] {
   return equipment.map((kind, index) => {
-    const locked = isSlotLocked(index, bestMarkCrafted);
+    const locked = isSlotLocked(index, equipment.length, bestMarkCrafted);
     if (!kind) return {index, kind: null, label: locked ? LOCKED_SLOT_LABEL : 'Empty', color: 'transparent', locked};
     const item = itemForKind(kind);
     return {index, kind, label: item.label, color: item.color, locked};

@@ -47,7 +47,7 @@ the last change); the save is written on the spot when the run ends, the tab is
 hidden or closed, or the runtime is torn down, and the once-a-minute safety save
 is skipped while nothing has changed.
 
-The save is version 21, stored under `stalinload:progress:v1`, and a clean break:
+The save is version 22, stored under `stalinload:progress:v1`, and a clean break:
 any save not written by exactly this version — older or newer — is discarded on
 load rather than migrated, because the reworks changed the shape too much to
 convert honestly (the four ship stats became derived from fitted equipment, the
@@ -57,8 +57,10 @@ prices — every sell price comes from the ore table). A returning player from a
 older build starts fresh; the old `moleload-*` keys are no longer read, but
 **Reset game** still removes them. A save is parsed in full before any of it is
 applied, and every stack in it is clamped to what its holder can hold. What the save keeps: the parked tile, the ship's `fuel` and `hull`
-(clamped to the maxima the fitted equipment derives), cash, the tile diff, explored
-tiles, stats, the non-ore `bay` stacks, the fitted `equipment`, the placed
+(clamped to the maxima the hull and its fitted equipment derive), cash, the tile diff, explored
+tiles, stats, the non-ore `bay` stacks, the hull on the ship ladder (`ship` — an
+id the build does not know discards the whole save), the fitted `equipment`
+(padded or trimmed to that hull's slots), the placed
 stations (each Manufacturing Station's stock, each Fuel Extractor's coal/fuel, and
 each Portal's name),
 the drawn-down trading-post stock (`tradeLedger`), what is left in each opened
@@ -377,10 +379,10 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 
 ## Gameplay notes
 
-- You start with a full 100-unit tank, a full 100 hull, a 20-item cargo bay, and
-  drill power 1, from the `STARTING` base in `src/core/balance.ts`. Those four ship
-  stats are not fixed — they are *derived* from the upgrades fitted to the ship
-  (see below).
+- You start in the **Scout** with a full 100-unit tank, a full 100 hull, a 20-item
+  cargo bay, and drill power 1, from the `STARTING` base in `src/core/balance.ts`.
+  Those four ship stats are not fixed — they are *derived* from the hull you fly
+  and the upgrades fitted to it (see below).
 - Dig ore, fly it back to the home cavern, and stow it at the Manufacturing
   Station to craft with it — or sell it for cash at a **trading post** deep in the
   mine (see below). Cash also drops from destroyed enemies.
@@ -523,10 +525,11 @@ eight around it, and only once it is explored.
 
 ### Crafting & ship equipment
 
-- The ship carries **3 equipment slots** (`SHIP_UPGRADE_SLOTS`); the third stays
-  **locked** ("Locked — craft a Mk II upgrade") until any Mk II upgrade has been
-  crafted (`stats.bestMarkCrafted >= 2`), so the first Mk II is an addition rather
-  than a trade against a Mk I. Fit and unfit crafted upgrades from the bay through
+- The ship's equipment slots come with its hull (`slotsFor` in
+  `src/core/ships.ts`): the starter Scout carries **3**. On every hull the last
+  slot stays **locked** ("Locked — craft a Mk II upgrade") until any Mk II upgrade
+  has been crafted (`stats.bestMarkCrafted >= 2`), so the first Mk II is an addition
+  rather than a trade against a Mk I. Fit and unfit crafted upgrades from the bay through
   the **Ship** button, which opens anywhere; a fit lands in the first empty open
   slot and never in a locked one. The four stat upgrades come in three marks and
   their bonuses are additive, so duplicates stack (`src/core/ship-upgrades.ts`):
@@ -546,8 +549,8 @@ eight around it, and only once it is explored.
   amount as its maximum — a Tank Mk I fitted adds 50 fuel once, and unfitting it
   takes the 50 back, so an unfit/refit is neutral. A fit, unfit or swap that would
   leave less than 1 fuel or hull is refused ("Not enough fuel to purge that
-  tank."). A save's fitted slots only set the maxima on load; a save written with
-  two slots loads padded to three.
+  tank."). A save's fitted slots only set the maxima on load; a hand-edited list
+  loads padded or trimmed to the hull's slot count.
 
   The Booster is Mk I only and carries no stat: it is the gate on the `Shift`
   sprint, which does nothing until one is fitted.
@@ -557,6 +560,30 @@ eight around it, and only once it is explored.
   2 Uranium and 2 Alienite. It fits like any other upgrade and records mark 4 in
   `stats.bestMarkCrafted`. Once it is fitted the objective points past the depth
   record, at the next 1000 m.
+- **The Shipyard** (every Manufacturing Station, above the recipes) builds a
+  bigger hull. The ladder is one-way — only the next ship up can be built, there
+  is no fleet and no going back — and each rung adds a fitting slot and a bigger
+  base (`SHIPS` in `src/core/ships.ts`; upgrades add on top as before):
+
+  | Ship | Slots | Fuel | Hull | Cargo | Drill | Built from |
+  |---|---|---|---|---|---|---|
+  | Scout | 3 | 100 | 100 | 20 | 1 | the starter |
+  | Hauler | 4 | 150 | 125 | 30 | 1 | 24 Iron, 12 Copper, 6 Silver |
+  | Prospector | 5 | 200 | 150 | 40 | 2 | 12 Silver, 10 Gold, 4 Ruby |
+  | Leviathan | 6 | 275 | 200 | 55 | 3 | 8 Ruby, 6 Emerald, 4 Alienite |
+  | Core Breaker | 7 | 350 | 250 | 70 | 4 | 6 Alienite, 4 Uranium, 3 Core Shard |
+
+  The last slot of each is the Mk II-locked one, so before the first Mk II a Scout
+  flies 2 open slots, a Hauler 3, and so on up to the Core Breaker's 6. The ore
+  comes out of the station stock like a recipe's, but the output is a hull swap:
+  fitted upgrades carry over into the same slots, the new ones come empty, and fuel
+  and hull are kept rather than refilled (a bigger bay never overflows). The row
+  shows the gains and the bill, and its **Build** button is live only while the
+  stock covers it. The hull survives a death — the replacement flies the same ship
+  with every slot empty and a full (or, at a field portal, half) base tank of that
+  hull; only a full player-data reset returns the Scout. Bigger hulls draw ~4% larger
+  per rung, each in its own colour. The Ship screen's heading names the hull and its
+  slot count.
 - The **Repair Kit** is crafted, carried in the bay, and spent from its own slot to
   patch 25% of the hull maximum; it is refused at a full hull.
 - The **Fuel Cell** is crafted two at a time from one Uranium, carried in the bay,
@@ -683,7 +710,7 @@ portals are built (`restartGame` in `src/game/run.ts`, `respawnPortals` in
 
 The replacement always has a whole hull, but its tank depends on where it lands
 (`RESPAWN` in `src/core/balance.ts`, `respawnFuelFraction` in `src/core/state.ts`):
-a full tank at home — the home cavern, its `Home` portal included — and half of one
+a full base tank of its hull at home — the home cavern, its `Home` portal included — and half of one
 (`portalFuelFraction` 0.5) at a portal out in the field, so a death beside a deep
 portal still costs a trip home to refuel. Each respawn row says which ("full
 tank" / "½ tank"; `respawnFuel` in the observation), and the toast names it:
@@ -904,7 +931,8 @@ panels — derived from `src/ui/inventory-slot-ids.ts`, the table the panel rend
 from), the ship screen (`data-ship-equip` with an upgrade kind,
 `data-ship-unequip` with the 0-based fitting-slot index, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
 with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
-`data-craft`, `data-supply` with a Supply item kind at the home-cavern station,
+`data-craft`, `data-craft-ship` with the next hull's id (e.g. `hauler`),
+`data-supply` with a Supply item kind at the home-cavern station,
 `stationCloseBtn`), the fuel extractor (`loadCoalBtn`, `refuelBtn`,
 `extractorBuyFuelBtn` at the home extractor, `extractorCloseBtn`), the cargo container (`data-cargo` with values
 `store`/`store-one`/`take`/`take-one` and a `data-cargo-kind`, `cargoCloseBtn`), the
@@ -936,7 +964,7 @@ Every tool returns an `AgentObservation` (`src/agent/observation.ts`) — exactl
 what a sighted player sees, as JSON. The top-level shape:
 
 - `tick`, `phase`, `activeOverlay`, `gameOver`
-- `ship`: `{x, y, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface, on}` (vitals read from the live sim, not the UI snapshot; `on` is `{tile, what?, detail?}` — the tile the `@` hides and anything notable standing on it)
+- `ship`: `{x, y, class, shipLabel, slots, depthMeters, fuel, fuelMax, hull, hullMax, cargo, cargoMax, drill, boost, equipment[], atSurface, on}` (vitals read from the live sim, not the UI snapshot; `class` is the hull id on the ship ladder — `scout`, `hauler`, `prospector`, `leviathan`, `corebreaker` — `shipLabel` its name and `slots` its fitting-slot count, `equipment.length`; `on` is `{tile, what?, detail?}` — the tile the `@` hides and anything notable standing on it)
 - `cash`, `stats` (the career counters, including `scannersObtained` and `bestMarkCrafted` — the objective ladder's progress)
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `placement`: while a placeable device is armed, `{kind, target, valid, sites[]}` — the valid `sites` the canvas grid tints green around the ship, and the hovered/last-pressed `target` tile with whether the device fits there (`null` with no target); `null` when nothing placeable is armed (the toolkit included)
@@ -944,7 +972,7 @@ what a sighted player sees, as JSON. The top-level shape:
 - `hud`: `{cash, objective, scanner, postHint, fuelReserve{status, needed, margin, exit}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `fuelReserve` prices the flight to the cheapest exit, which `exit` names (`"Home"` or a field portal such as `"Portal \"Deep\""`): `needed` is the fuel that trip costs and `margin` what is left after it; `postHint` is the trading-post beacon (`"Trading post ≈9 tiles ↙"` for the nearest post within 12 tiles, fog ignored; empty when none is near or one is already in reach); `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank, and `null` with no extractor in the home cavern
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a wreck's adds its lifetime, e.g. `"2 items, crumbles in 2 deaths"`; a grave has none)
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (slots `[{index, kind, label, locked, info}]` — `locked` the third slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck, and `deathsLeft` — the further deaths it takes to crumble it), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]` — in respawn mode each also carries `respawnFuel`, the absolute fuel the replacement would deploy with there: the full base tank at home, half of it at a field portal), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores, posts[{x, y, depth}]}` (`posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base — and `shipyard{current{id, label, slots}, next}`, where `next` is `{id, label, slots, craftable, inputs, missing, gains{fuelMax, hullMax, cargoMax, drill}}` for the one hull `data-craft-ship` can build, or `null` on the top rung), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (`ship{id, label, slots}` — the hull the heading names — slots `[{index, kind, label, locked, info}]` — `locked` the hull's last slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck, and `deathsLeft` — the further deaths it takes to crumble it), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]` — in respawn mode each also carries `respawnFuel`, the absolute fuel the replacement would deploy with there: the full base tank at home, half of it at a field portal), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, ores, posts[{x, y, depth}]}` (`posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in

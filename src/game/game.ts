@@ -345,6 +345,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       stowStack: (kind, single) => homeStations.stow(kind, single),
       takeFromStation: (kind, single) => homeStations.take(kind, single),
       craft: recipe => homeStations.craft(recipe),
+      craftShip: id => homeStations.craftShip(id),
       loadCoal: () => homeStations.loadCoal(),
       refuelFromExtractor: () => homeStations.refuel(),
       buySupply: kind => homeStations.buySupply(kind),
@@ -708,7 +709,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       addCash,
       setStationUi,
       setExtractorUi,
-      portals
+      portals,
+      onShipChanged: () => uiSync.syncShipUpgrades()
     });
     trading = createTrading({
       state,

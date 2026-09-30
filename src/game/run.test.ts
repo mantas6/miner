@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { HOME_ROW, HOME_X, ORES, START_Y, STATIONS, WORLD_W } from '../../shared/constants';
 import { RESPAWN, STARTING } from '../core/balance';
 import { addItem, addOre, countItem, countOres, createInventory } from '../core/inventory';
-import { applyEquipment } from '../core/ship-upgrades';
+import { applyEquipment, swapHull } from '../core/ship-upgrades';
 import { createInitialState } from '../core/state';
 import { createPortal } from '../core/stations';
 import { TELEPORTER_ITEM } from '../core/teleporter';
@@ -163,6 +163,18 @@ describe('restarting after a death', () => {
     expect(h.input.reset).toHaveBeenCalled();
     // The lost ore and upgrades are left in a wreck, not simply lost.
     expect(h.toasts.saw('left in the wreck at (12, 60)')).toBe(true);
+  });
+
+  it('keeps the hull through a death, with every one of its slots empty and a full base tank', () => {
+    const h = harness();
+    swapHull(h.state.player, 'prospector');
+    h.run.gameOver();
+
+    h.run.restartGame();
+
+    expect(h.state.player.ship).toBe('prospector');
+    expect(h.state.player.equipment).toEqual([null, null, null, null, null]);
+    expect(h.state.player).toMatchObject({fuel: 200, fuelMax: 200, hull: 150, hullMax: 150, cargoMax: 40, drill: 2});
   });
 
   it('keeps the drawn-down trading stock through a death', () => {
@@ -531,6 +543,17 @@ describe('a full player reset', () => {
     expect(h.state.exploredTiles.size).toBe(0);
     expect(h.state.stats).toMatchObject({maxDepth: 0, oreMined: 0, deaths: 0});
     expect(h.invalidateFog).toHaveBeenCalled();
+  });
+
+  it('returns a bigger hull to the Scout', () => {
+    const h = harness();
+    swapHull(h.state.player, 'leviathan');
+
+    h.run.resetPlayer(true);
+
+    expect(h.state.player.ship).toBe('scout');
+    expect(h.state.player.equipment).toEqual([null, null, null]);
+    expect(h.state.player).toMatchObject({fuelMax: STARTING.fuelMax, cargoMax: STARTING.cargoMax});
   });
 
   it('clears every player/profile field back to a new game, and leaves saving to the caller', () => {

@@ -1,5 +1,10 @@
 // Central balance/config module. DOM-free. Pure data, no behavior.
 
+/**
+ * A new career's wallet and vitals, and the starter Scout's base stats: the four
+ * maxima here are what `SHIPS.scout.base` (`core/ships.ts`) reads, and every
+ * bigger hull on the ladder brings its own.
+ */
 export const STARTING = Object.freeze({
   cash: 60,
   fuel: 100,

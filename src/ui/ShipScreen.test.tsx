@@ -60,6 +60,18 @@ describe('ship equipment dialog', () => {
     expect(document.querySelector<HTMLButtonElement>('[data-ship-unequip="2"]')!.disabled).toBe(true);
   });
 
+  it('names the hull and its slot count in the heading', () => {
+    open();
+    expect(document.getElementById('ship-title')?.textContent).toBe('Ship · Scout · 3 slots');
+
+    act(() => {
+      uiStore.getState().setShip('hauler');
+      uiStore.getState().setShipEquipment(buildShipSlots(['upgrade:tank:1', null, null, null], 1));
+    });
+    expect(document.getElementById('ship-title')?.textContent).toBe('Ship · Hauler · 4 slots');
+    expect(document.querySelectorAll('#shipSlots > li')).toHaveLength(4);
+  });
+
   it('opens the third slot once a Mk II has been crafted', () => {
     open(2);
 

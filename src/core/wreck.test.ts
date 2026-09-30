@@ -45,9 +45,9 @@ describe('buildWreckInventory', () => {
     expect(countItem(inventory, 'upgrade:hull:1')).toBe(1);
   });
 
-  it('holds a full bay at three best Cargo Holds plus one item per fitted slot', () => {
-    // 20 base + 3 × 40 from Cargo Hold Mk III, and the three holds themselves.
-    expect(WRECK.capacity).toBe(20 + 3 * 40 + 3);
+  it('holds the biggest hull\'s full bay at a best Cargo Hold in every slot plus one item per slot', () => {
+    // The Core Breaker: 70 base + 7 × 40 from Cargo Hold Mk III, and the seven holds themselves.
+    expect(WRECK.capacity).toBe(70 + 7 * 40 + 7);
   });
 
   it('leaves non-ore bay equipment out — that rides out with the miner', () => {

@@ -3,7 +3,8 @@ import { RESPAWN, STARTING } from './balance';
 import { ORES, START_Y, STATIONS, WORLD_W } from '../../shared/constants';
 import { DYNAMITE_ITEM } from './dynamite';
 import { addItem, addOre, countItem, countOres, createInventory } from './inventory';
-import { applyEquipment } from './ship-upgrades';
+import { applyEquipment, swapHull } from './ship-upgrades';
+import { slotsFor } from './ships';
 import { createInitialState, respawnFuelAt, respawnFuelFraction, respawnFuelUnits, respawnPlayer } from './state';
 import { TELEPORTER_ITEM } from './teleporter';
 import { nth } from '../test-narrowing';
@@ -87,6 +88,27 @@ describe('player respawn', () => {
   });
 });
 
+describe('hull survival', () => {
+  it('starts a new career in the Scout', () => {
+    expect(createInitialState().player).toMatchObject({ship: 'scout'});
+    expect(createInitialState().player.equipment).toHaveLength(slotsFor('scout'));
+  });
+
+  it('keeps the hull through a respawn, with every one of its slots empty and its own base', () => {
+    const player = createInitialState().player;
+    swapHull(player, 'hauler');
+    player.equipment = ['upgrade:tank:1', 'upgrade:hull:1', null, null];
+    applyEquipment(player);
+    Object.assign(player, {fuel: 0, hull: 0});
+
+    respawnPlayer(player);
+
+    expect(player.ship).toBe('hauler');
+    expect(player.equipment).toEqual([null, null, null, null]);
+    expect(player).toMatchObject({fuel: 150, fuelMax: 150, hull: 125, hullMax: 125, cargoMax: 30});
+  });
+});
+
 describe('respawn fuel', () => {
   it('is a full tank at home and half of one at a field portal', () => {
     expect(respawnFuelFraction()).toBe(1);
@@ -94,8 +116,13 @@ describe('respawn fuel', () => {
     expect(respawnFuelFraction({x: STATIONS.portal.x, y: STATIONS.portal.y})).toBe(1);
     expect(respawnFuelFraction({x: 30, y: 80})).toBe(RESPAWN.portalFuelFraction);
 
-    expect(respawnFuelAt()).toBe(STARTING.fuelMax);
-    expect(respawnFuelAt({x: 30, y: 80})).toBe(50);
+    expect(respawnFuelAt('scout')).toBe(STARTING.fuelMax);
+    expect(respawnFuelAt('scout', {x: 30, y: 80})).toBe(50);
+  });
+
+  it('is measured against the bare base tank of the hull that survives', () => {
+    expect(respawnFuelAt('hauler')).toBe(150);
+    expect(respawnFuelAt('hauler', {x: 30, y: 80})).toBe(75);
   });
 
   it('deals in whole units and never deploys an empty tank', () => {

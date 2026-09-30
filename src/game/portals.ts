@@ -136,7 +136,7 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
         depthMeters: rowDepthMeters(portal.y),
         distance: Math.abs(portal.x - from.x) + Math.abs(portal.y - from.y),
         // What the replacement would deploy with there: full at home, half out in the field.
-        respawnFuel: respawnFuelAt(portal)
+        respawnFuel: respawnFuelAt(state.player.ship, portal)
       }))
       .sort((a, b) => a.distance - b.distance);
     publish();

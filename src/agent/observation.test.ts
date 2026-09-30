@@ -10,12 +10,12 @@ import { addItem, createInventory, oreItem, oreKind, totalItems } from '../core/
 import { chestLoot } from '../core/chest';
 import { createInitialState } from '../core/state';
 import { ITEM_CATALOG } from '../core/items';
-import { applyEquipment } from '../core/ship-upgrades';
+import { applyEquipment, swapHull } from '../core/ship-upgrades';
 import { createPlacedContainer } from '../core/cargo-container';
 import { createWreck } from '../core/wreck';
 import { createScannerDevice } from '../core/scanner-device';
 import { createPlacedDynamite } from '../core/dynamite';
-import { buildInventorySlots, buildShipSlots, uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
+import { buildInventorySlots, buildShipSlots, buildShipView, uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
 import type { Enemy, GameState, Tile } from '../core/types';
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
@@ -650,6 +650,55 @@ describe('buildObservation', () => {
     expect(repairKit?.info.some(line => line.includes('Iron 3/3'))).toBe(true);
     // Away from the base there is no Supply counter.
     expect(overlay.supply).toEqual([]);
+  });
+
+  it('mirrors the Shipyard: the hull flown now, and the next one priced from the stock', () => {
+    const state = createInitialState();
+    const shipyard = (slots: InventorySlotView[], ship = buildShipView('scout')) => {
+      const overlay = buildObservation({
+        state,
+        ui: ui({overlay: {kind: 'station', slots, supply: false}, ship}),
+        get: tileSource({})
+      }).overlay;
+      if (overlay?.kind !== 'station') throw new Error('expected station overlay');
+      return overlay.shipyard;
+    };
+
+    const short = shipyard([oreSlot('Iron', 24)]);
+    expect(short.current).toEqual({id: 'scout', label: 'Scout', slots: 3});
+    expect(short.next).toMatchObject({
+      id: 'hauler', label: 'Hauler', slots: 4, craftable: false,
+      gains: {fuelMax: 50, hullMax: 25, cargoMax: 10, drill: 0},
+      missing: [{kind: oreKind('Copper'), count: 12, label: 'Copper'}, {kind: oreKind('Silver'), count: 6, label: 'Silver'}]
+    });
+    expect(short.next?.inputs.map(input => [input.label, input.count])).toEqual([['Iron', 24], ['Copper', 12], ['Silver', 6]]);
+
+    const stocked = shipyard([oreSlot('Iron', 24), {...oreSlot('Copper', 12), index: 1}, {...oreSlot('Silver', 6), index: 2}]);
+    expect(stocked.next).toMatchObject({id: 'hauler', craftable: true, missing: []});
+
+    // On the top rung there is nothing left to build.
+    expect(shipyard([], buildShipView('corebreaker'))).toEqual({
+      current: {id: 'corebreaker', label: 'Core Breaker', slots: 7},
+      next: null
+    });
+  });
+
+  it('names the hull in ship.class, ship.shipLabel and ship.slots, and in the ship overlay', () => {
+    const state = createInitialState();
+    const scout = buildObservation({state, ui: ui(), get: tileSource({})});
+    expect(scout.ship).toMatchObject({class: 'scout', shipLabel: 'Scout', slots: 3});
+
+    swapHull(state.player, 'leviathan');
+    const obs = buildObservation({
+      state,
+      ui: ui({overlay: {kind: 'ship'}, ship: buildShipView('leviathan'), shipEquipment: buildShipSlots(state.player.equipment, 0)}),
+      get: tileSource({})
+    });
+    expect(obs.ship).toMatchObject({class: 'leviathan', shipLabel: 'Leviathan', slots: 6, fuelMax: 275, cargoMax: 55, drill: 3});
+    expect(obs.ship.equipment).toHaveLength(6);
+    if (obs.overlay?.kind !== 'ship') throw new Error('expected ship overlay');
+    expect(obs.overlay.ship).toEqual({id: 'leviathan', label: 'Leviathan', slots: 6});
+    expect(obs.overlay.slots.map(slot => slot.locked)).toEqual([false, false, false, false, false, true]);
   });
 
   it('mirrors the home Supply rows with their prices and affordability', () => {

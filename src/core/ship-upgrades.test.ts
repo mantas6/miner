@@ -7,13 +7,14 @@ import { addItem, countItem, createInventory, oreItem, type UpgradeKind } from '
 import { itemForKind } from './items';
 import { hitsLeft } from './scanner';
 import { createInitialState } from './state';
+import { SHIPS, slotsFor } from './ships';
 import {
-  SHIP_UPGRADE_SLOTS,
   UPGRADE_EFFECTS,
   applyEquipment,
   canUnequip,
   computeStats,
   equip,
+  swapHull,
   firstFittingSlot,
   hasEmptyOpenSlot,
   isSlotLocked,
@@ -48,18 +49,25 @@ function withBay(p: Player, ...kinds: UpgradeKind[]): Player {
 }
 
 describe('the fitting slots', () => {
-  it('carries exactly the persisted number of slots', () => {
-    expect(SHIP_UPGRADE_SLOTS).toBe(3);
-    expect(player().equipment).toHaveLength(SHIP_UPGRADE_SLOTS);
+  it('carries one slot per fitting slot of the starter hull', () => {
+    expect(player().ship).toBe('scout');
+    expect(player().equipment).toHaveLength(slotsFor('scout'));
   });
 
   it('keeps the last slot locked until a Mk II has been crafted', () => {
-    expect(unlockedSlotCount(0)).toBe(2);
-    expect(unlockedSlotCount(LOCKED)).toBe(2);
-    expect(unlockedSlotCount(UNLOCKED)).toBe(3);
-    expect(unlockedSlotCount(4)).toBe(3);
-    expect([0, 1, 2].map(slot => isSlotLocked(slot, LOCKED))).toEqual([false, false, true]);
-    expect([0, 1, 2].map(slot => isSlotLocked(slot, UNLOCKED))).toEqual([false, false, false]);
+    const scout = slotsFor('scout');
+    expect(unlockedSlotCount(scout, 0)).toBe(scout - 1);
+    expect(unlockedSlotCount(scout, LOCKED)).toBe(scout - 1);
+    expect(unlockedSlotCount(scout, UNLOCKED)).toBe(scout);
+    expect(unlockedSlotCount(scout, 4)).toBe(scout);
+    expect([0, 1, 2].map(slot => isSlotLocked(slot, 3, LOCKED))).toEqual([false, false, true]);
+    expect([0, 1, 2].map(slot => isSlotLocked(slot, 3, UNLOCKED))).toEqual([false, false, false]);
+  });
+
+  it('locks the last slot of a bigger hull too, until the first Mk II', () => {
+    expect([0, 1, 2, 3].map(slot => isSlotLocked(slot, 4, LOCKED))).toEqual([false, false, false, true]);
+    expect(firstFittingSlot(['upgrade:tank:1', 'upgrade:drill:1', 'upgrade:hull:1', null], LOCKED)).toBe(0);
+    expect(firstFittingSlot(['upgrade:tank:1', 'upgrade:drill:1', 'upgrade:hull:1', null], UNLOCKED)).toBe(3);
   });
 
   it('picks the first empty open slot, never a locked one', () => {
@@ -132,15 +140,15 @@ describe('applyEquipment', () => {
 describe('drill marks', () => {
   it('uses fractional bonuses so no mark is a dead zone', () => {
     expect(UPGRADE_EFFECTS.drill.bonuses).toEqual([0.75, 1.75, 3.5, 7]);
-    expect(computeStats(['upgrade:drill:1', null, null]).drill).toBe(1.75);
-    expect(computeStats(['upgrade:drill:2', null, null]).drill).toBe(2.75);
-    expect(computeStats(['upgrade:drill:3', null, null]).drill).toBe(4.5);
+    expect(computeStats('scout', ['upgrade:drill:1', null, null]).drill).toBe(1.75);
+    expect(computeStats('scout', ['upgrade:drill:2', null, null]).drill).toBe(2.75);
+    expect(computeStats('scout', ['upgrade:drill:3', null, null]).drill).toBe(4.5);
   });
 
   it('gives the tier-4 Core Drill +7 power, stacking with the other marks', () => {
     expect(upgradeBonus('upgrade:drill:4')).toBe(7);
-    expect(computeStats(['upgrade:drill:4', null, null]).drill).toBe(STARTING.drill + 7);
-    expect(computeStats(['upgrade:drill:4', 'upgrade:drill:3', null]).drill).toBe(STARTING.drill + 10.5);
+    expect(computeStats('scout', ['upgrade:drill:4', null, null]).drill).toBe(STARTING.drill + 7);
+    expect(computeStats('scout', ['upgrade:drill:4', 'upgrade:drill:3', null]).drill).toBe(STARTING.drill + 10.5);
     // It cuts 9-hp dirt to two hits and 16-hp stone-hard ground to two as well.
     expect(hitsLeft(9, STARTING.drill + 7)).toBe(2);
     expect(hitsLeft(16, STARTING.drill + 7)).toBe(2);
@@ -156,7 +164,7 @@ describe('drill marks', () => {
 
   it('every single-slot drill mark cuts hits on 6/9 hp dirt', () => {
     const loadouts: (UpgradeKind | null)[] = [null, 'upgrade:drill:1', 'upgrade:drill:2', 'upgrade:drill:3'];
-    const powers = loadouts.map(kind => computeStats([kind, null, null]).drill);
+    const powers = loadouts.map(kind => computeStats('scout', [kind, null, null]).drill);
     const hits = (hp: number) => powers.map(power => hitsLeft(hp, power));
     expect(hits(9)).toEqual([9, 6, 4, 2]);
     expect(hits(6)).toEqual([6, 4, 3, 2]);
@@ -165,7 +173,7 @@ describe('drill marks', () => {
   it('drives tile hp down by the real drill power and clears at zero', () => {
     // Four hits of Mk II (2.75) on 9-hp dirt: 6.25, 3.5, 0.75, then ≤ 0. The
     // arithmetic stays exact because every bonus is a multiple of 1/4.
-    const power = computeStats(['upgrade:drill:2', null, null]).drill;
+    const power = computeStats('scout', ['upgrade:drill:2', null, null]).drill;
     let hp = 9;
     const trail: number[] = [];
     while (hp > 0) { hp -= power; trail.push(hp); }
@@ -174,9 +182,19 @@ describe('drill marks', () => {
 });
 
 describe('computeStats', () => {
+  it('starts every hull from its own base, and adds the upgrades on top', () => {
+    for (const ship of Object.values(SHIPS)) {
+      const bare = computeStats(ship.id, Array.from({length: ship.slots}, () => null));
+      expect(bare).toEqual({...ship.base, boost: false});
+    }
+    const hauler = computeStats('hauler', ['upgrade:tank:1', 'upgrade:cargo:1', null, null]);
+    expect(hauler).toMatchObject({fuelMax: 150 + 50, hullMax: 125, cargoMax: 30 + 10, drill: 1});
+    expect(computeStats('corebreaker', ['upgrade:drill:4', null, null, null, null, null, null]).drill).toBe(4 + 7);
+  });
+
   it('derives without touching a Player', () => {
-    expect(computeStats(['upgrade:cargo:3', null, null]).cargoMax).toBe(STARTING.cargoMax + 40);
-    expect(computeStats(['upgrade:booster:1', null, null]).boost).toBe(true);
+    expect(computeStats('scout', ['upgrade:cargo:3', null, null]).cargoMax).toBe(STARTING.cargoMax + 40);
+    expect(computeStats('scout', ['upgrade:booster:1', null, null]).boost).toBe(true);
   });
 });
 
@@ -350,5 +368,21 @@ describe('canUnequip / unequip', () => {
     expect(result.ok).toBe(false);
     expect(canUnequip(p, 1)).toBe(false);
     expect(unequip(p, 2).ok).toBe(false);
+  });
+});
+
+describe('swapHull', () => {
+  it('moves into the new hull with its fitted upgrades, more empty slots and the bigger base, fuel and hull kept', () => {
+    const p = fitted(['upgrade:tank:1', 'upgrade:drill:1', null]);
+    p.fuel = 90;
+    p.hull = 60;
+
+    swapHull(p, 'hauler');
+
+    expect(p.ship).toBe('hauler');
+    expect(p.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:1', null, null]);
+    expect(p).toMatchObject({fuelMax: 150 + 50, hullMax: 125, cargoMax: 30, drill: 1 + 0.75});
+    // A swap is not a refill: the tank and the hull stay where they were.
+    expect(p).toMatchObject({fuel: 90, hull: 60});
   });
 });

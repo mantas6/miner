@@ -76,7 +76,8 @@ function zoomViewport(zoom: number): void {
   });
 }
 
-import { createRenderer as createRendererWithSurface, TERRAIN_CHUNK_PADDING, type RendererDeps } from './renderer';
+import { createRenderer as createRendererWithSurface, SHIP_SCALE_PER_TIER, TERRAIN_CHUNK_PADDING, type RendererDeps } from './renderer';
+import { SHIPS, type ShipId } from '../core/ships';
 
 /**
  * The offscreen canvases cut for terrain and fog chunks. The one canvas sized to
@@ -134,7 +135,8 @@ describe('terrain cache lifecycle', () => {
         bob: 0,
         drillAnim: 0,
         drillDx: 0,
-        drillDy: 1
+        drillDy: 1,
+        ship: 'scout' as const
       }
     };
     const renderer = createRenderer({
@@ -189,7 +191,8 @@ describe('terrain cache lifecycle', () => {
         bob: 0,
         drillAnim: 0,
         drillDx: 0,
-        drillDy: 1
+        drillDy: 1,
+        ship: 'scout' as const
       }
     };
     const renderer = createRenderer({
@@ -214,7 +217,7 @@ describe('terrain cache lifecycle', () => {
     const state = {
       world: [], camX: 10, camY: 20, tick: 0, gameOver: false,
       particles: [], enemies: [],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({
       state,
@@ -238,7 +241,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
       particles: [],
       enemies: [{id:1, kind:'abyssStalker' as const, x:12, y:1002, drawX:12, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:0, origin: {x: 12, y: 1002}}],
-      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
 
@@ -257,7 +260,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
       particles: [],
       enemies: [{id:1, kind:'abyssStalker' as const, x:12, y:1002, drawX:12, drawY:1002, hp:8, maxHp:8, alive:true, moveTick:0, biteTick:0, flash:1, origin: {x: 12, y: 1002}}],
-      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
 
@@ -276,7 +279,7 @@ describe('terrain cache lifecycle', () => {
         destinationX: 45, destinationY: 2,
         frame: 2, duration: 36, reducedMotion: false
       },
-      player: {x:45, y:2, drawX:45, drawY:2, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:45, y:2, drawX:45, drawY:2, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
 
@@ -293,7 +296,7 @@ describe('terrain cache lifecycle', () => {
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [{x:12.5, y:22.5, vx:0, vy:0, life:20, color:'#fff', size:.1}],
       enemies: [{id:1, kind:'tunnelFiend' as const, x:12, y:22, drawX:12, drawY:22, hp:4, maxHp:4, alive:true, moveTick:0, biteTick:0, flash:0, origin: {x: 12, y: 22}}],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'dirt', hp:5, maxHp:5}), rand: () => 0});
 
@@ -312,7 +315,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10.2, camY: 20.2, tick: 0, gameOver: false,
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [], enemies: [],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'dirt', hp:1, maxHp:1}), rand: () => 0});
     // The fog base rect is the only draw sized TILE + 2, so it isolates fog work
@@ -353,7 +356,7 @@ describe('terrain cache lifecycle', () => {
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [], enemies: [],
       input: {sprintDirection: [0, -1] as Direction | null},
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
 
@@ -379,7 +382,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 20, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(12, 24)]), teleportEffect: null,
       particles: [], enemies: [], scannerDevices: [device],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     // The device sits two tiles below the ship: its own tile, in screen pixels.
@@ -408,7 +411,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 20, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(12, 24)]), teleportEffect: null,
       particles: [], enemies: [], placedDynamite: [stick],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const at = (call: unknown[]) => call[0] === TILE*2.5 && call[1] === TILE*4.5;
@@ -440,7 +443,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 20, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [], enemies: [], placedDynamite: [{x: 12, y: 24, fuse: 30}],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
 
@@ -454,7 +457,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 20, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [], enemies: [], scannerDevices: [{x: 12, y: 24, timer: 0}],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
 
@@ -473,7 +476,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 20, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(12, 24)]), teleportEffect: null,
       particles: [], enemies: [], cargoContainers: [container],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const at = (call: unknown[]) => call[0] === TILE*2.5 && call[1] === TILE*4.5;
@@ -505,7 +508,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: chest.x - 6, camY: chest.y - 4, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(chest.x, chest.y)]), teleportEffect: null,
       particles: [], enemies: [], chestLedger: {} as Record<string, {kind: 'dynamite'; count: number}[]>,
-      player: {x: chest.x - 3, y: chest.y, drawX: chest.x - 3, drawY: chest.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1}
+      player: {x: chest.x - 3, y: chest.y, drawX: chest.x - 3, drawY: chest.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1, ship: 'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const at = (call: unknown[]) => call[0] === TILE*6.5 && call[1] === TILE*4.5;
@@ -544,7 +547,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: grave.x - 6, camY: grave.y - 4, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(grave.x, grave.y)]), teleportEffect: null,
       particles: [], enemies: [],
-      player: {x: grave.x - 3, y: grave.y, drawX: grave.x - 3, drawY: grave.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1}
+      player: {x: grave.x - 3, y: grave.y, drawX: grave.x - 3, drawY: grave.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1, ship: 'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const at = (call: unknown[]) => call[0] === TILE*6.5 && call[1] === TILE*4.5;
@@ -573,7 +576,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 40, camY: 15, tick: 4, gameOver: false, reducedMotion: false,
       exploredTiles: new Set([explorationIndex(44, 20), explorationIndex(46, 20)]), teleportEffect: null,
       particles: [], enemies: [], stations: createInitialStations(),
-      player: {x:45, y:18, drawX:45, drawY:18, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:45, y:18, drawX:45, drawY:18, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const labelled = (name: string) => mocks.mainContext.fillText.mock.calls.some(call => call[0] === name);
@@ -602,7 +605,7 @@ describe('terrain cache lifecycle', () => {
       particles: [], enemies: [], scannerDevices: [], placedDynamite: [], cargoContainers: [],
       armedPlacement: 'scanner' as 'scanner' | null,
       hoverTile: {x: 12, y: 22} as {x: number; y: number} | null,
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     for (let y=21;y<=23;y++) for (let x=11;x<=13;x++) state.exploredTiles.add(explorationIndex(x,y));
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
@@ -625,7 +628,7 @@ describe('terrain cache lifecycle', () => {
       world: [], camX: 10, camY: 20, tick: 1, gameOver: false, reducedMotion: true,
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [], enemies: [], input: {sprintDirection: [1, 0] as Direction | null},
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const flameTips = () => mocks.mainContext.lineTo.mock.calls
@@ -649,7 +652,7 @@ describe('terrain cache lifecycle', () => {
       exploredTiles: new Set<number>(), teleportEffect: null,
       particles: [], enemies: [],
       // A ship that has just moved: full bob, the drill spinning.
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:1, drillAnim:1, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:1, drillAnim:1, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const frame = () => {
@@ -677,7 +680,7 @@ describe('terrain cache lifecycle', () => {
     const state = {
       world: [], camX: 10, camY: 20, tick: 0, gameOver: true,
       particles: [], enemies: [],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const lineY = (text: string) => mocks.mainContext.fillText.mock.calls.find(call => call[0] === text)?.[2];
@@ -702,7 +705,7 @@ describe('terrain cache lifecycle', () => {
     const state = {
       world: [], camX: 10, camY: 20, tick: 0, gameOver: false, hideShip: false,
       particles: [], enemies: [],
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     // The ship is the only thing in an empty air pocket that rotates the context.
@@ -733,7 +736,7 @@ describe('camera zoom', () => {
     return {
       world: [], camX: 10, camY: 20, tick: 0, gameOver: true,
       particles: [], enemies: [], teleportEffect: null,
-      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
   }
 
@@ -804,7 +807,7 @@ describe('per-frame work the caches spare', () => {
     });
   });
 
-  const ship = () => ({x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1});
+  const ship = () => ({x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const});
 
   /**
    * The crack overlay reads only the tiles known to be hurt: a tile damaged when
@@ -885,7 +888,7 @@ describe('per-frame work the caches spare', () => {
     const state = {
       world: [], camX: 10, camY: 1000, tick: 0, gameOver: false,
       particles: [], enemies: [enemy],
-      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1}
+      player: {x:12, y:1002, drawX:12, drawY:1002, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
 
@@ -904,6 +907,25 @@ describe('per-frame work the caches spare', () => {
     vi.clearAllMocks();
     renderer.draw();
     expect(mocks.mainContext.createLinearGradient).not.toHaveBeenCalled();
+  });
+
+  it('paints each hull in its own colours, a rung up the ladder ~4% bigger, and the Scout unscaled', () => {
+    const player = {x:12, y:22, drawX:12, drawY:22, facing:1, bob:0, drillAnim:0, drillDx:0, drillDy:1, ship:'scout' as ShipId};
+    const state = {world: [], camX: 10, camY: 20, tick: 0, gameOver: false, particles: [], enemies: [], player};
+    const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
+    const hullScales = () => mocks.mainContext.scale.mock.calls.filter(([x, y]) => x === y && x !== 1);
+
+    renderer.draw();
+    expect(mocks.gradient.addColorStop).toHaveBeenCalledWith(0, SHIPS.scout.hull[0]);
+    expect(hullScales()).toEqual([]);
+
+    vi.clearAllMocks();
+    player.ship = 'corebreaker';
+    renderer.draw();
+    expect(mocks.gradient.addColorStop).toHaveBeenCalledWith(0, SHIPS.corebreaker.hull[0]);
+    // The hull and its nose lamp scale; the drill between them does not.
+    expect(hullScales()).toEqual([[1 + 4 * SHIP_SCALE_PER_TIER, 1 + 4 * SHIP_SCALE_PER_TIER], [1 + 4 * SHIP_SCALE_PER_TIER, 1 + 4 * SHIP_SCALE_PER_TIER]]);
+    expect(SHIP_SCALE_PER_TIER).toBe(0.04);
   });
 
   it('bakes the blend overlay once per canvas size and stretches it over any zoom', () => {
@@ -945,7 +967,7 @@ describe('per-frame work the caches spare', () => {
       world: [], camX: post.x - 6, camY: post.y - 4, tick: 0, gameOver: false,
       exploredTiles: new Set([explorationIndex(post.x, post.y)]),
       particles: [], enemies: [],
-      player: {x: post.x - 3, y: post.y, drawX: post.x - 3, drawY: post.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1}
+      player: {x: post.x - 3, y: post.y, drawX: post.x - 3, drawY: post.y, facing: 1, bob: 0, drillAnim: 0, drillDx: 0, drillDy: 1, ship: 'scout' as const}
     };
     const renderer = createRenderer({state, get: () => ({type:'air'}), rand: () => 0});
     const at = (call: unknown[]) => call[0] === TILE*6.5 && call[1] === TILE*4.5;

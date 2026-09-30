@@ -84,8 +84,16 @@ export const RECIPES: Recipe[] = [
   {output: 'decor:lampPanel', count: 1, inputs: [ore('Copper', 1), ore('Coal', 1)]}
 ];
 
-/** Whether the station stock holds every input a recipe needs. */
-export function canCraft(inventory: Inventory, recipe: Recipe): boolean {
+/**
+ * Anything built from a list of inputs: a recipe, or a hull on the ship ladder
+ * (`core/ships.ts`), which consumes ore the same way but yields no stock item.
+ */
+export interface HasInputs {
+  inputs: readonly RecipeInput[];
+}
+
+/** Whether the station stock holds every input a recipe (or a hull) needs. */
+export function canCraft(inventory: Inventory, recipe: HasInputs): boolean {
   return recipe.inputs.every(input => countItem(inventory, input.kind) >= input.count);
 }
 
@@ -93,13 +101,20 @@ export function canCraft(inventory: Inventory, recipe: Recipe): boolean {
  * The inputs the station is short on, each with the missing quantity. Empty when
  * the recipe can be crafted, so a UI can grey a button out and say why in one call.
  */
-export function missingInputs(inventory: Inventory, recipe: Recipe): RecipeInput[] {
+export function missingInputs(inventory: Inventory, recipe: HasInputs): RecipeInput[] {
   const missing: RecipeInput[] = [];
   for (const input of recipe.inputs) {
     const short = input.count - countItem(inventory, input.kind);
     if (short > 0) missing.push({kind: input.kind, count: short});
   }
   return missing;
+}
+
+/** The stock with every input taken out. The caller checks `canCraft` first. */
+export function consumeInputs(inventory: Inventory, recipe: HasInputs): Inventory {
+  let next = inventory;
+  for (const input of recipe.inputs) next = removeItem(next, input.kind, input.count);
+  return next;
 }
 
 /**
@@ -120,7 +135,5 @@ export function fitsAfterCraft(inventory: Inventory, recipe: Recipe, capacity: n
  */
 export function craft(inventory: Inventory, recipe: Recipe, capacity = Infinity): Inventory | null {
   if (!canCraft(inventory, recipe) || !fitsAfterCraft(inventory, recipe, capacity)) return null;
-  let next = inventory;
-  for (const input of recipe.inputs) next = removeItem(next, input.kind, input.count);
-  return addItem(next, itemForKind(recipe.output), recipe.count);
+  return addItem(consumeInputs(inventory, recipe), itemForKind(recipe.output), recipe.count);
 }

@@ -7,12 +7,13 @@ import { addItem, addOre, countItem, countOres, createInventory, oreItem, oreKin
 import { ITEM_CATALOG } from './core/items';
 import { SCANNER_DEVICE, SCANNER_ITEM, createScannerDevice } from './core/scanner-device';
 import { WRECK, createWreck } from './core/wreck';
-import { applyEquipment } from './core/ship-upgrades';
+import { applyEquipment, swapHull } from './core/ship-upgrades';
+import { slotsFor } from './core/ships';
 import { STATION_DEVICE, createPortal, type PortalStation } from './core/stations';
 import { EXTRACTOR } from './core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from './core/portal';
 import { TELEPORTER_ITEM } from './core/teleporter';
-import { DECOR_HP, HOME_X, MAX_SAVED_TILE_ENTRIES, ORES, SHIP_UPGRADE_SLOTS, START_Y, WORLD_W } from '../shared/constants';
+import { DECOR_HP, HOME_X, MAX_SAVED_TILE_ENTRIES, ORES, START_Y, WORLD_W } from '../shared/constants';
 import { chestsInRange } from './world/world';
 import { explorationIndex } from '../shared/exploration-codec';
 import type { TileEntry } from '../shared/world-schema';
@@ -321,16 +322,68 @@ describe('vitals persistence', () => {
     expect(state.player).toMatchObject({fuel: 150, hull: 100});
   });
 
-  it('discards a version-20 save, vitals and all', () => {
-    stubStorage({version: 20, cash: 9000, fuel: 3, hull: 4});
+  it('discards a version-21 save, vitals and all', () => {
+    stubStorage({version: 21, cash: 9000, fuel: 3, hull: 4});
     const state = createInitialState();
     const fresh = createInitialState();
 
     load(state);
 
-    expect(SAVE_VERSION).toBe(21);
+    expect(SAVE_VERSION).toBe(22);
     expect(state.cash).toBe(fresh.cash);
     expect(state.player).toMatchObject({fuel: fresh.player.fuel, hull: fresh.player.hull});
+  });
+});
+
+describe('ship persistence', () => {
+  it('round-trips the hull, its extra slots and the base it derives', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.stats.bestMarkCrafted = 2;
+    swapHull(state.player, 'prospector');
+    state.player.equipment = ['upgrade:tank:1', null, null, null, 'upgrade:cargo:1'];
+
+    save(state);
+    expect(readSave(stored)).toMatchObject({ship: 'prospector', equipment: ['upgrade:tank:1', null, null, null, 'upgrade:cargo:1']});
+
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.player.ship).toBe('prospector');
+    expect(restored.player.equipment).toEqual(['upgrade:tank:1', null, null, null, 'upgrade:cargo:1']);
+    expect(restored.player).toMatchObject({fuelMax: 250, hullMax: 150, cargoMax: 50, drill: 2});
+  });
+
+  it('discards a save naming a hull this build does not know', () => {
+    stubStorage({version: SAVE_VERSION, ship: 'battlecruiser', cash: 9000});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.cash).toBe(createInitialState().cash);
+    expect(state.player.ship).toBe('scout');
+  });
+
+  it('loads a hand-written save without a hull in the Scout', () => {
+    stubStorage({version: SAVE_VERSION, cash: 90});
+    const state = createInitialState();
+
+    load(state);
+
+    expect(state.cash).toBe(90);
+    expect(state.player.ship).toBe('scout');
+    expect(state.player.equipment).toHaveLength(slotsFor('scout'));
+  });
+
+  it('pads a short list to the hull and trims a long one to it', () => {
+    stubStorage({version: SAVE_VERSION, ship: 'hauler', equipment: ['upgrade:drill:1'], stats: {bestMarkCrafted: 2}});
+    const padded = createInitialState();
+    load(padded);
+    expect(padded.player.equipment).toEqual(['upgrade:drill:1', null, null, null]);
+
+    stubStorage({version: SAVE_VERSION, ship: 'hauler', equipment: ['upgrade:drill:1', null, null, 'upgrade:tank:1', 'upgrade:hull:1'], stats: {bestMarkCrafted: 2}});
+    const trimmed = createInitialState();
+    load(trimmed);
+    expect(trimmed.player.equipment).toEqual(['upgrade:drill:1', null, null, 'upgrade:tank:1']);
   });
 });
 
@@ -406,7 +459,7 @@ describe('equipment persistence', () => {
     load(state);
 
     expect(state.player.equipment).toEqual(['upgrade:drill:1', null, null]);
-    expect(state.player.equipment).toHaveLength(SHIP_UPGRADE_SLOTS);
+    expect(state.player.equipment).toHaveLength(slotsFor('scout'));
   });
 
   it('keeps only real, catalogued upgrades and only as many slots as the ship has', () => {

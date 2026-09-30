@@ -3,6 +3,7 @@ import { START_Y, STATIONS } from '../../shared/constants';
 import { EXTRACTOR } from '../core/balance';
 import { addItem, countItem, createInventory, oreKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
+import { applyEquipment, swapHull } from '../core/ship-upgrades';
 import { createInitialState } from '../core/state';
 import {
   STATION_CAPACITY,
@@ -26,6 +27,7 @@ interface Harness {
   setStationUi: ReturnType<typeof vi.fn>;
   setExtractorUi: ReturnType<typeof vi.fn>;
   portals: PortalsSimStub;
+  onShipChanged: ReturnType<typeof vi.fn>;
 }
 
 /** A harness whose wallet starts at `cash`. */
@@ -44,7 +46,8 @@ function harness(): Harness {
     saveProgress: vi.fn(),
     setStationUi: vi.fn(),
     setExtractorUi: vi.fn(),
-    portals: createPortalsSimStub()
+    portals: createPortalsSimStub(),
+    onShipChanged: vi.fn()
   };
   const sim = createHomeStations({
     state,
@@ -54,7 +57,8 @@ function harness(): Harness {
     addCash: (amount: number) => { state.cash += amount; },
     setStationUi: context.setStationUi,
     setExtractorUi: context.setExtractorUi,
-    portals: context.portals
+    portals: context.portals,
+    onShipChanged: context.onShipChanged
   });
   return {...context, sim};
 }
@@ -308,6 +312,78 @@ describe('crafting at the station', () => {
     h.sim.craft('upgrade:hull:3');
     expect(h.state.stats.bestMarkCrafted).toBe(2);
     expect(h.state.stats.scannersObtained).toBe(2);
+  });
+});
+
+describe('the shipyard', () => {
+  /** The seeded manufacturer stocked with these stacks, and its screen open. */
+  function stocked(...stacks: {kind: ReturnType<typeof oreKind>; count: number}[]): Harness {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    manufacturer(h.state).inventory = stacks.reduce(
+      (inv, stack) => addItem(inv, itemForKind(stack.kind), stack.count), createInventory()
+    );
+    h.sim.openNearest();
+    return h;
+  }
+
+  it('builds the next hull from the stock, carrying the fitted upgrades into more slots', () => {
+    const h = stocked(ore('Iron', 30), ore('Copper', 12), ore('Silver', 6));
+    h.state.player.equipment = ['upgrade:tank:1', null, null];
+    applyEquipment(h.state.player);
+    h.state.player.fuel = 80;
+
+    h.sim.craftShip('hauler');
+
+    expect(h.state.player.ship).toBe('hauler');
+    expect(h.state.player.equipment).toEqual(['upgrade:tank:1', null, null, null]);
+    expect(h.state.player).toMatchObject({fuelMax: 200, hullMax: 125, cargoMax: 30, fuel: 80});
+    // The inputs leave the stock; the leftover iron stays.
+    const stock = manufacturer(h.state).inventory;
+    expect(countItem(stock, oreKind('Iron'))).toBe(6);
+    expect(countItem(stock, oreKind('Copper'))).toBe(0);
+    expect(countItem(stock, oreKind('Silver'))).toBe(0);
+    expect(h.audio.played).toEqual(['craft']);
+    expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.onShipChanged).toHaveBeenCalled();
+    expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state));
+    expect(h.toasts.saw('Built the Hauler')).toBe(true);
+  });
+
+  it('refuses anything but the next hull up, naming the one that can be built', () => {
+    const h = stocked(ore('Silver', 20), ore('Gold', 20), ore('Ruby', 20), ore('Iron', 30), ore('Copper', 20));
+
+    h.sim.craftShip('prospector');
+    expect(h.state.player.ship).toBe('scout');
+    expect(h.toasts.saw('Only the Hauler can be built')).toBe(true);
+
+    h.sim.craftShip('scout');
+    h.sim.craftShip('nonsense');
+    expect(h.state.player.ship).toBe('scout');
+    expect(h.audio.played).toEqual(['alarm', 'alarm', 'alarm']);
+  });
+
+  it('refuses a hull the stock cannot cover, saying what is missing', () => {
+    const h = stocked(ore('Iron', 24), ore('Copper', 2));
+
+    h.sim.craftShip('hauler');
+
+    expect(h.state.player.ship).toBe('scout');
+    expect(h.toasts.saw('need 10 Copper, 6 Silver')).toBe(true);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(24);
+    expect(h.audio.played).toEqual(['alarm']);
+  });
+
+  it('refuses on the top rung, and does nothing with no manufacturer open', () => {
+    const h = stocked();
+    swapHull(h.state.player, 'corebreaker');
+    h.sim.craftShip('corebreaker');
+    expect(h.toasts.saw('last ship on the ladder')).toBe(true);
+
+    const shut = harness();
+    shut.sim.craftShip('hauler');
+    expect(shut.state.player.ship).toBe('scout');
+    expect(shut.audio.played).toEqual([]);
   });
 });
 

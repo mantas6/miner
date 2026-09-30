@@ -199,6 +199,19 @@ const seedLateGame = seedSaveScript({
   ]
 });
 
+/**
+ * A Scout with a drill fitted and a part-empty tank, and the home manufacturer
+ * stocked with exactly the Hauler's bill (24 Iron, 12 Copper, 6 Silver).
+ */
+const seedShipyard = seedSaveScript({
+  fuel: 60,
+  equipment: ['upgrade:drill:1', null, null],
+  stations: [
+    {...WORKBENCHES[0], items: [{kind: 'ore:Iron', count: 24}, {kind: 'ore:Copper', count: 12}, {kind: 'ore:Silver', count: 6}]},
+    WORKBENCHES[1]
+  ]
+});
+
 /** A cargo container and three sticks of dynamite aboard, at the home base. */
 const seedDeployables = seedSaveScript({
   bay: [{kind: 'container', count: 1}, {kind: 'dynamite', count: 3}],
@@ -549,6 +562,49 @@ test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks i
     expect(obs.ship.equipment).toEqual(['upgrade:drill:1', 'upgrade:tank:1', 'upgrade:drill:2']);
     // Base 1 + Mk I 0.75 + Mk II 1.75.
     expect(obs.ship.drill).toBe(3.5);
+  } finally {
+    await s.close();
+  }
+});
+
+test('the Shipyard builds the Hauler from station stock, and a lost ship keeps the hull with empty slots', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedShipyard});
+  try {
+    let obs = await s.startRun();
+    expect(obs.ship).toMatchObject({class: 'scout', shipLabel: 'Scout', slots: 3, fuel: 60, fuelMax: 100});
+
+    obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(obs.overlay.shipyard.current).toEqual({id: 'scout', label: 'Scout', slots: 3});
+    expect(obs.overlay.shipyard.next).toMatchObject({
+      id: 'hauler', slots: 4, craftable: true, missing: [],
+      gains: {fuelMax: 50, hullMax: 25, cargoMax: 10, drill: 0}
+    });
+
+    // Build it: the ore leaves the stock, the drill carries over into the bigger
+    // hull, the maxima grow, and the tank is not topped up.
+    obs = await s.click({target: 'data-craft-ship', value: 'hauler'});
+    expect(obs.ship).toMatchObject({class: 'hauler', shipLabel: 'Hauler', slots: 4, fuel: 60, fuelMax: 150, hullMax: 125, cargoMax: 30});
+    expect(obs.ship.equipment).toEqual(['upgrade:drill:1', null, null, null]);
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(obs.overlay.stock).toEqual([]);
+    expect(obs.overlay.shipyard.current).toEqual({id: 'hauler', label: 'Hauler', slots: 4});
+    expect(obs.overlay.shipyard.next).toMatchObject({id: 'prospector', craftable: false});
+    expect(obs.toasts.some(toast => toast.message.startsWith('Built the Hauler'))).toBe(true);
+    obs = await s.press('Escape');
+
+    obs = await s.click('shipBtn');
+    if (obs.overlay?.kind !== 'ship') throw new Error('ship overlay expected');
+    expect(obs.overlay.ship).toEqual({id: 'hauler', label: 'Hauler', slots: 4});
+    expect(obs.overlay.slots.map(slot => slot.locked)).toEqual([false, false, false, true]);
+    obs = await s.click('shipCloseBtn');
+
+    // A hand R-reset scraps the ship: the drill goes to the wreck, the hull stays.
+    await s.press('r');
+    obs = await s.press('r');
+    expect(obs.ship).toMatchObject({class: 'hauler', slots: 4, fuel: 150, fuelMax: 150, hullMax: 125});
+    expect(obs.ship.equipment).toEqual([null, null, null, null]);
+    expect(obs.ship.on).toMatchObject({what: 'wreck'});
   } finally {
     await s.close();
   }

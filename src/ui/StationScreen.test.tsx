@@ -144,6 +144,42 @@ describe('manufacturing station dialog', () => {
     expect(buySupply).toHaveBeenCalledWith('dynamite');
   });
 
+  it('shows the Shipyard: the hull flown, the next one with its gains, and a Build button live only when stocked', () => {
+    const craftShip = vi.fn();
+    setUiCommands({craftShip});
+    open();
+
+    expect(document.getElementById('shipyardCurrent')?.textContent).toBe('Flying the Scout · 3 slots');
+    const build = document.querySelector<HTMLButtonElement>('[data-craft-ship="hauler"]')!;
+    expect(build.getAttribute('aria-label')).toBe('Build the Hauler');
+    expect(build.getAttribute('aria-disabled')).toBe('true');
+    const row = build.closest('li')!;
+    expect(row.textContent).toContain('Hauler · +1 slot · +50 fuel · +25 hull · +10 cargo');
+    // Three iron in the stock: the whole bill but a slice of the iron is short.
+    expect(document.getElementById(build.getAttribute('aria-describedby')!)?.textContent)
+      .toBe('Need 21 Iron, 12 Copper, 6 Silver');
+    fireEvent.click(build);
+    expect(craftShip).toHaveBeenCalledWith('hauler');
+
+    act(() => {
+      const stock = [['Iron', 24], ['Copper', 12], ['Silver', 6]].reduce(
+        (inventory, [name, count]) => addItem(inventory, oreItem({...IRON, name: name as string}), count as number), createInventory()
+      );
+      uiStore.getState().showOverlay({kind: 'station', slots: buildInventorySlots(stock), supply: false});
+    });
+    expect(build.getAttribute('aria-disabled')).toBe('false');
+    expect(document.getElementById(build.getAttribute('aria-describedby')!)?.textContent).toBe('24 Iron · 12 Copper · 6 Silver');
+  });
+
+  it('says so on the top rung, with no Build button', () => {
+    open();
+    act(() => { uiStore.getState().setShip('corebreaker'); });
+
+    expect(document.getElementById('shipyardCurrent')?.textContent).toBe('Flying the Core Breaker · 7 slots');
+    expect(document.querySelector('[data-craft-ship]')).toBeNull();
+    expect(document.getElementById('shipyardList')?.textContent).toContain('Top of the ladder');
+  });
+
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {
     const closeStation = vi.fn();
     setUiCommands({closeStation});

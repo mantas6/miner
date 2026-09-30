@@ -1,5 +1,6 @@
-// The mine's stations: opening them, moving cargo across, crafting, the
-// extractor's coal/fuel transfers, and the base's cash sinks — the home Supply
+// The mine's stations: opening them, moving cargo across, crafting, building the
+// next hull on the ship ladder, the extractor's coal/fuel transfers, and the
+// base's cash sinks — the home Supply
 // on the home-cavern Manufacturer and fuel ordered into the home extractor.
 //
 // `core/stations.ts` holds the rules (which station a parked ship can reach, what
@@ -20,7 +21,9 @@
 
 import {
   canCraft,
+  consumeInputs,
   craft as craftRecipe,
+  missingInputs,
   RECIPES,
   type Recipe
 } from '../core/crafting';
@@ -35,6 +38,8 @@ import {
 } from '../core/inventory';
 import { EXTRACTOR } from '../core/balance';
 import { itemForKind } from '../core/items';
+import { swapHull } from '../core/ship-upgrades';
+import { isShipId, nextShip, shipFor, type ShipId } from '../core/ships';
 import {
   STATION_CAPACITY,
   isHomeStation,
@@ -86,6 +91,11 @@ export interface HomeStationsSim {
   take(kind: InventoryItemKind, single?: boolean): void;
   /** Craft a recipe, by table index or by output kind, at the open manufacturer. */
   craft(recipe: number | InventoryItemKind): void;
+  /**
+   * Build hull `id` at the open manufacturer from its stock and move the ship into
+   * it. Only the next hull up the ladder (`nextShip`) can be built.
+   */
+  craftShip(id: ShipId | string): void;
   /** Queue every coal aboard into the open extractor. */
   loadCoal(): void;
   /** Top the ship's tank up from the open extractor's stored fuel. */
@@ -111,6 +121,8 @@ export interface HomeStationsDeps {
   setExtractorUi(view: ExtractorView | null): void;
   /** The portal sim: a press on a portal tile opens its travel list. */
   portals: PortalsSim;
+  /** The ship changed hulls: repaint what shows its slots. */
+  onShipChanged(): void;
 }
 
 export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
@@ -261,6 +273,35 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     saveProgress();
     audio.craft();
     toast(`Crafted ${recipe.count} × ${itemForKind(recipe.output).label}. Take it from the station.`);
+  }
+
+  function craftShip(id: ShipId | string): void {
+    const manufacturer = openManufacturer();
+    if (!manufacturer || state.gameOver) return;
+    const player = state.player;
+    const next = nextShip(player.ship);
+    if (!isShipId(id) || id !== next) {
+      audio.alarm();
+      return toast(next
+        ? `Only the ${shipFor(next).label} can be built from the ${shipFor(player.ship).label}.`
+        : `The ${shipFor(player.ship).label} is the last ship on the ladder.`);
+    }
+    const ship = shipFor(id);
+    if (!canCraft(manufacturer.inventory, ship)) {
+      const missing = missingInputs(manufacturer.inventory, ship)
+        .map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ');
+      audio.alarm();
+      return toast(`Not enough materials for the ${ship.label}: need ${missing}.`);
+    }
+    // Consuming never overflows the stock, and the swap never shrinks the bay:
+    // every hull up the ladder carries more on every stat.
+    manufacturer.inventory = consumeInputs(manufacturer.inventory, ship);
+    swapHull(player, id);
+    repaint();
+    deps.onShipChanged();
+    saveProgress();
+    audio.craft();
+    toast(`Built the ${ship.label}: ${ship.slots} fitting slots. Your upgrades moved across.`);
   }
 
   function loadCoal(): void {
@@ -420,6 +461,7 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     stow,
     take,
     craft,
+    craftShip,
     loadCoal,
     refuel,
     buySupply,

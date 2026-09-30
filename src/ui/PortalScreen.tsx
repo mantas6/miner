@@ -18,8 +18,8 @@
 // and Space).
 
 import { useRef } from 'react';
-import { STARTING } from '../core/balance';
 import { MAX_PORTAL_NAME_LENGTH } from '../core/portal';
+import { shipFor } from '../core/ships';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
 import { overlayOf, useUiStore, type PortalDestinationView, type PortalView } from './store';
@@ -123,8 +123,10 @@ function NameEditor({name}: {name: string}) {
 /**
  * How much of a tank a respawn at a portal deploys with: "full tank" at home,
  * "½ tank" at a field portal, or the units when the share is anything else.
+ * `fuelMax` is the hull's bare base tank — the replacement keeps the hull but not
+ * its fitted upgrades.
  */
-function respawnTankLabel(fuel: number, fuelMax = STARTING.fuelMax): string {
+function respawnTankLabel(fuel: number, fuelMax: number): string {
   if (fuel >= fuelMax) return 'full tank';
   if (fuel * 2 === fuelMax) return '½ tank';
   return `${fuel}/${fuelMax} fuel`;
@@ -135,6 +137,7 @@ function respawnTankLabel(fuel: number, fuelMax = STARTING.fuelMax): string {
  * tiles — and, in the respawn prompt, the tank the replacement would deploy with.
  */
 function DestinationRow({destination}: {destination: PortalDestinationView}) {
+  const baseTank = useUiStore(state => shipFor(state.ship.id).base.fuelMax);
   return (
     <li>
       <button
@@ -147,7 +150,7 @@ function DestinationRow({destination}: {destination: PortalDestinationView}) {
         <span className={styles.meta}>{destination.depthMeters} m</span>
         <span className={styles.meta}>{destination.distance} tiles</span>
         {destination.respawnFuel !== undefined && (
-          <span className={styles.meta}>{respawnTankLabel(destination.respawnFuel)}</span>
+          <span className={styles.meta}>{respawnTankLabel(destination.respawnFuel, baseTank)}</span>
         )}
       </button>
     </li>

@@ -211,6 +211,15 @@ describe('harness allowlist', () => {
     for (const key of Object.keys(DYNAMIC_IDS)) expect(dynamicIds.has(key), `${key} is not rendered any more`).toBe(true);
   });
 
+  it('reaches the Shipyard\'s Build button by its data-craft-ship value', () => {
+    const build = interactive.filter(element => element.file === 'StationScreen.tsx'
+      && element.attributes.some(attr => attr.name === 'data-craft-ship'));
+    expect(build).toHaveLength(1);
+    expect(ATTR_TARGETS.has('data-craft-ship')).toBe(true);
+    expect(KIND_TARGETS.has('data-craft-ship')).toBe(false);
+    expect(addressedAttributes().has('data-craft-ship')).toBe(true);
+  });
+
   it('declares every attribute target in exactly one form', () => {
     for (const name of KIND_TARGETS) expect(ATTR_TARGETS.has(name), name).toBe(true);
     for (const name of FLAG_ATTR_TARGETS) expect(ATTR_TARGETS.has(name), name).toBe(false);
