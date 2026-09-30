@@ -189,8 +189,32 @@ describe('legacy stat save compatibility', () => {
     load(state);
 
     expect(state.stats).toEqual({
-      maxDepth: 0, totalCashEarned: 0, oreMined: 7, enemiesDestroyed: 0, deaths: 0, scannersObtained: 0, bestMarkCrafted: 0
+      maxDepth: 0, totalCashEarned: 0, oreMined: 7, enemiesDestroyed: 0, deaths: 0, scannersObtained: 0, bestMarkCrafted: 0, oresMined: {}
     });
+  });
+
+  it('round-trips the per-ore mined tally', () => {
+    const stored = stubStorage();
+    const state = createInitialState();
+    state.stats.oresMined = {Gold: 3, Coal: 11};
+    save(state);
+    expect(readSave(stored)).toMatchObject({stats: {oresMined: {Gold: 3, Coal: 11}}});
+
+    const restored = createInitialState();
+    load(restored);
+    expect(restored.stats.oresMined).toEqual({Gold: 3, Coal: 11});
+  });
+
+  it('keeps the per-ore mined tally, dropping unknown ores and junk counts', () => {
+    stubStorage({version: SAVE_VERSION, stats: {oresMined: {Gold: 4.7, Ruby: -2, Mithril: 9, Silver: 'lots', Iron: 12}}});
+    const state = createInitialState();
+    load(state);
+    expect(state.stats.oresMined).toEqual({Gold: 4, Iron: 12});
+
+    stubStorage({version: SAVE_VERSION, stats: {oresMined: [3, 4]}});
+    const junk = createInitialState();
+    load(junk);
+    expect(junk.stats.oresMined).toEqual({});
   });
 
   it('defaults the objective counters in a save written before they existed, and keeps them once saved', () => {

@@ -22,8 +22,8 @@ import { canCraft, missingInputs, RECIPES } from '../core/crafting';
 import { getEnemyType } from '../core/enemy-types';
 import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
-import { nextShip, shipFor, shipGains, type ShipBase, type ShipId } from '../core/ships';
-import { stationAt } from '../core/stations';
+import { nextShip, nextShipShortfall, shipFor, shipGains, type ShipBase, type ShipId } from '../core/ships';
+import { manufacturerStock, stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
 import { formatWreckLifetime } from '../core/wreck';
 import { SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, sellPrice, supplyPrice } from '../core/trading';
@@ -42,7 +42,7 @@ import { DANGER_TIP, buildDangerGuideRows, type DangerGuideRow } from '../core/d
 import type { DepthMilestoneKind } from '../core/depth-milestone';
 import type { FuelReserveStatus } from '../core/fuel-reserve';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells, type PlacementOverlayWorld } from '../core/placement-overlay';
-import { PROSPECTING_TIP, buildProspectingGuideRows } from '../core/prospecting';
+import { PROSPECTING_TIP, SHIP_LADDER_TIP, buildProspectingGuideRows } from '../core/prospecting';
 import type { ExpeditionStatRow } from '../core/stats';
 import type { GameState, GameStats, Tile } from '../core/types';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from '../game/zoom';
@@ -258,11 +258,13 @@ export interface AgentInfoOverlay {
   /** Stats: the saved career rows. */
   stats?: ExpeditionStatRow[];
   /**
-   * Prospecting: the tip, every ore's value and depth band, and the trading posts
-   * found so far (explored post tiles, shallowest first; depth in metres).
+   * Prospecting: the tip, the ship-ladder line, every ore's value and depth band,
+   * and the trading posts found so far (explored post tiles, shallowest first;
+   * depth in metres).
    */
   prospecting?: {
     tip: string;
+    ladder: string;
     ores: {name: string; value: string; depth: string}[];
     posts: {x: number; y: number; depth: number}[];
   };
@@ -366,6 +368,13 @@ export interface AgentObservation {
      * `null` once no extractor stands in the home cavern.
      */
     base: {fuel: number; coal: number; alert: boolean} | null;
+    /**
+     * The Shipyard at a glance: the next hull up the ladder and what the (first)
+     * Manufacturer's stock still lacks to build it — empty `missing` means it is
+     * buildable now. `null` on the top rung. The same figures the objective's
+     * "build the …" rung quotes.
+     */
+    nextShip: {id: ShipId; label: string; missing: AgentRecipeInput[]} | null;
     alerts: {fuel: boolean; hull: boolean; cargo: boolean};
     announcement: string;
     /** The HUD inventory panel is folded shut (inventoryToggleBtn opens it again). */
@@ -452,6 +461,12 @@ function buildShipyard(current: ShipId, stock: ReturnType<typeof slotsToInventor
       gains: shipGains(current, next)
     }
   };
+}
+
+/** `hud.nextShip`: the next hull up and the first Manufacturer's shortfall for it. */
+function buildNextShip(state: GameState): AgentObservation['hud']['nextShip'] {
+  const next = nextShipShortfall(state.player.ship, manufacturerStock(state.stations));
+  return next ? {id: next.id, label: shipFor(next.id).label, missing: resolveInputs(next.missing)} : null;
 }
 
 /** The trade screen's fuel row: a unit's price, and what a fill would pour and cost. */
@@ -585,6 +600,7 @@ function buildInfoOverlay(ui: UiState): AgentInfoOverlay {
     case 'info-prospecting':
       overlay.prospecting = {
         tip: PROSPECTING_TIP,
+        ladder: SHIP_LADDER_TIP,
         ores: buildProspectingGuideRows().map(row => ({name: row.name, value: row.valueLabel, depth: row.depthLabel})),
         posts: ui.postRows.map(row => ({x: row.x, y: row.y, depth: row.depthMeters}))
       };
@@ -763,7 +779,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       on: shipOn
     },
     cash: hud.cash,
-    stats: {...state.stats},
+    stats: {...state.stats, oresMined: {...state.stats.oresMined}},
     bay: toSlots(ui.inventorySlots),
     armedPlacement: ui.armedPlacement,
     placement: buildPlacement(state, get),
@@ -784,6 +800,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       stationHint: hud.stationHint,
       teleport: {count: hud.teleport.count, usable: hud.teleport.usable},
       base: hud.hasBase ? {fuel: hud.baseFuel, coal: hud.baseCoal, alert: hud.baseAlert} : null,
+      nextShip: buildNextShip(state),
       alerts: {fuel: hud.fuelAlert, hull: hud.hullAlert, cargo: hud.cargoAlert},
       announcement: hud.announcement,
       inventoryCollapsed: ui.inventoryCollapsed

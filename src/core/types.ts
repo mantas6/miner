@@ -161,6 +161,12 @@ export interface GameStats {
   scannersObtained: number;
   /** The highest upgrade mark ever crafted, 0 (none) to 4 — the objective's Mk II rung. */
   bestMarkCrafted: number;
+  /**
+   * Ore mined over the career, per ore name (`"Gold": 4`); an ore never mined has
+   * no key. The objective's band rung reads it: a band is worked once enough of
+   * its ore has come out of the rock.
+   */
+  oresMined: Record<string, number>;
 }
 
 export interface InputState {

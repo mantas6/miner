@@ -126,6 +126,21 @@ export function numeric(value: unknown, fallback: number, min=0, max=Number.MAX_
 }
 
 /**
+ * The per-ore mined tally: whole, non-negative counts keyed by an ore this build
+ * knows. Anything else — a missing field, a stray key, a junk count — is dropped.
+ */
+function parseOresMined(value: unknown): Record<string, number> {
+  const counts: Record<string, number> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return counts;
+  const saved = value as Record<string, unknown>;
+  for (const ore of ORES) {
+    const count = Math.floor(numeric(saved[ore.name], 0, 0));
+    if (count > 0) counts[ore.name] = count;
+  }
+  return counts;
+}
+
+/**
  * The tile a saved device sat on, or `null` when a corrupt or hand-edited save
  * put it somewhere the mine does not reach.
  */
@@ -445,11 +460,13 @@ function parseProgress(raw: string | null, state: GameState): StagedProgress | n
   const savedStats = save.stats && typeof save.stats === 'object' ? save.stats : {};
   const stats = createDefaultStats();
   // Read by key with defaults, so a counter added since the save was written
-  // (`scannersObtained`, `bestMarkCrafted`) loads as zero without a version bump.
+  // (`scannersObtained`, `bestMarkCrafted`, `oresMined`) loads as zero without a
+  // version bump.
   for (const key of Object.keys(defaultStats) as (keyof GameStats)[]) {
-    stats[key] = numeric(savedStats[key], defaultStats[key], 0);
+    if (key !== 'oresMined') stats[key] = numeric(savedStats[key], defaultStats[key], 0);
   }
   stats.bestMarkCrafted = Math.min(BEST_MARK_MAX, Math.floor(stats.bestMarkCrafted));
+  stats.oresMined = parseOresMined(savedStats.oresMined);
   return {
     cash: numeric(save.cash, state.cash, 0),
     ship,

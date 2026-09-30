@@ -6,6 +6,7 @@ import { createInitialState } from './state';
 import { homeExtractor } from './stations';
 import {
   isAtOrAboveCapacity,
+  isBaseLow,
   isBelowWarningFraction,
   shouldBaseAlert,
   shouldCargoBarFlash,
@@ -99,6 +100,18 @@ describe('the base fuel alert', () => {
     const state = alertState({ fuelMax: 150 });
     Object.assign(homeExtractor(state.stations)!, {fuel: 120, coal: 0});
     expect(shouldBaseAlert(state)).toBe(true);
+  });
+
+  it('caps the measure at what the store can hold, so a full store never alerts', () => {
+    // A tank past the store's cap: a brim-full store is as good as the base gets.
+    const state = alertState({ fuelMax: EXTRACTOR.fuelCap + 375 });
+    const base = homeExtractor(state.stations)!;
+    Object.assign(base, {fuel: EXTRACTOR.fuelCap, coal: 0});
+    expect(shouldBaseAlert(state)).toBe(false);
+
+    base.fuel = EXTRACTOR.fuelCap - 1;
+    expect(shouldBaseAlert(state)).toBe(true);
+    expect(isBaseLow({fuel: EXTRACTOR.fuelCap - EXTRACTOR.fuelPerCoal, coal: 1}, EXTRACTOR.fuelCap * 2)).toBe(false);
   });
 
   it('raises the alert when no extractor stands in the home cavern', () => {

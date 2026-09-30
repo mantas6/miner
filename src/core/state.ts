@@ -109,7 +109,8 @@ export function createDefaultStats(): GameStats {
     enemiesDestroyed: 0,
     deaths: 0,
     scannersObtained: 0,
-    bestMarkCrafted: 0
+    bestMarkCrafted: 0,
+    oresMined: {}
   };
 }
 

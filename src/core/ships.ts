@@ -17,8 +17,8 @@
 // Pure data and lookups, DOM-free.
 
 import { STARTING } from './balance';
-import type { RecipeInput } from './crafting';
-import { oreKind } from './inventory';
+import { missingInputs, type RecipeInput } from './crafting';
+import { oreKind, type Inventory } from './inventory';
 
 /** Every hull on the ladder, in build order. */
 export const SHIP_ORDER = ['scout', 'hauler', 'prospector', 'leviathan', 'corebreaker'] as const;
@@ -121,6 +121,19 @@ export function shipTier(id: ShipId): number {
 /** The one hull that can be built from `id`, or `null` on the top rung. */
 export function nextShip(id: ShipId): ShipId | null {
   return SHIP_ORDER[shipTier(id) + 1] ?? null;
+}
+
+/** The next hull up the ladder, and what a Manufacturer's stock still lacks to build it. */
+export interface NextShipShortfall {
+  id: ShipId;
+  /** Each input the stock is short on, with the missing count; empty when it can be built. */
+  missing: RecipeInput[];
+}
+
+/** What building the next hull up from `id` still needs out of `stock`, or `null` on the top rung. */
+export function nextShipShortfall(id: ShipId, stock: Inventory): NextShipShortfall | null {
+  const next = nextShip(id);
+  return next ? {id: next, missing: missingInputs(stock, SHIPS[next])} : null;
 }
 
 /** What a swap from `from` to `to` adds to each base stat. */

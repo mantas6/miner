@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { EXTRACTOR, STARTING } from './balance';
+import { EXTRACTOR, HULL, STARTING } from './balance';
 import {
+  BAND_ORE_TARGET,
   POST_OBJECTIVE_DEPTH,
   SCANNER_OBJECTIVE_DEPTH,
   createExpeditionObjectiveFormatter,
@@ -10,14 +11,18 @@ import {
 } from './objective';
 import { addItem, createInventory, oreItem, type Inventory, type InventoryItemKind, type UpgradeKind } from './inventory';
 import { itemForKind } from './items';
+import type { ShipId } from './ships';
 import { ORES, START_Y } from '../../shared/constants';
 
 const player = {
   y: START_Y,
   fuel: STARTING.fuel,
   fuelMax: STARTING.fuelMax,
+  hull: STARTING.hull,
+  hullMax: STARTING.hullMax,
   cargoMax: STARTING.cargoMax,
-  equipment: [null, null, null] as (UpgradeKind | null)[]
+  equipment: [null, null, null] as (UpgradeKind | null)[],
+  ship: 'scout' as ShipId
 };
 
 const empty = createInventory();
@@ -48,8 +53,12 @@ function rowAt(meters: number): number {
   return START_Y + meters / 10;
 }
 
-/** A career past its first upgrade, every earlier rung satisfied: the depth rung is what is left. */
-const upgraded = {...player, equipment: ['upgrade:tank:1', null, null] as (UpgradeKind | null)[]};
+/**
+ * A career past its first upgrade, every earlier rung satisfied: the depth rung is
+ * what is left. It flies the Hauler, so the Scout's "build the Hauler" rung is past
+ * too; the ore bands are left out (`oresMined`), so none waits to be worked.
+ */
+const upgraded = {...player, ship: 'hauler' as ShipId, equipment: ['upgrade:tank:1', null, null] as (UpgradeKind | null)[]};
 const veteran: ObjectiveInput = {
   player: upgraded,
   cargoCount: 0,
@@ -143,17 +152,52 @@ describe('expedition objective helper', () => {
       expect(formatExpeditionObjective({...home, baseExtractor: queued})).toContain('dig toward');
       expect(formatExpeditionObjective({...home, atSurface: false, baseExtractor: dry})).toContain('dig toward');
     });
+
+    it('measures a tank bigger than the store against the store, so a full one is enough', () => {
+      // A Leviathan with two Tank Mk IIIs: far more tank than the extractor can bank.
+      const leviathan = {...home, player: {...upgraded, ship: 'leviathan' as ShipId, fuelMax: 875}};
+      expect(formatExpeditionObjective({...leviathan, baseExtractor: {fuel: EXTRACTOR.fuelCap, coal: 0}})).toContain('dig toward');
+      expect(formatExpeditionObjective({...leviathan, baseExtractor: {fuel: EXTRACTOR.fuelCap - 1, coal: 0}}))
+        .toBe(`Objective: mine Coal — the Fuel Extractor is down to ${EXTRACTOR.fuelCap - 1} fuel.`);
+    });
+
+    it('orders fuel instead once the career is deeper than Coal grows', () => {
+      const coal = ORES.find(ore => ore.name === 'Coal')!;
+      const coalFloor = (coal.max - START_Y) * 10;
+      const deep = {...home, maxDepthMeters: coalFloor};
+      expect(formatExpeditionObjective({...deep, baseExtractor: dry}))
+        .toBe('Objective: order fuel into the Fuel Extractor ($29 per 100) or fill up at a trading post.');
+      // Coal still aboard is loaded all the same, and short of the floor it is still mined.
+      expect(formatExpeditionObjective({...deep, baseExtractor: dry, bay: withOre('Coal', 2)}))
+        .toBe('Objective: load the 2 coal aboard into the Fuel Extractor.');
+      expect(formatExpeditionObjective({...home, maxDepthMeters: coalFloor - 10, baseExtractor: dry})).toContain('mine Coal');
+    });
   });
 
   it('points players with an upgrade fitted toward the next ore band', () => {
     expect(nextOreMilestone(80)).toEqual({ name: 'Silver', depthMeters: 600 });
     expect(formatExpeditionObjective({
-      player: { ...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null, null] },
+      player: { ...upgraded, y: START_Y + 8 },
       cargoCount: 0,
       atSurface: false,
       bay: empty,
       station: empty
     })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
+  });
+
+  it('names the Hauler to a Scout with a Mk I fitted, before the next ore band', () => {
+    const scout = {...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null, null] as (UpgradeKind | null)[]};
+    const input: ObjectiveInput = {player: scout, cargoCount: 0, atSurface: false, bay: empty, station: empty};
+    expect(formatExpeditionObjective(input))
+      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 24 Iron, 12 Copper, 6 Silver).');
+    expect(formatExpeditionObjective({...input, station: withOre('Iron', 14)}))
+      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 10 Iron, 12 Copper, 6 Silver).');
+    // Only a Mk I fitted names it: a Mk II alone leaves the ore band in charge.
+    const markTwo = {...scout, equipment: ['upgrade:drill:2', null, null] as (UpgradeKind | null)[]};
+    expect(formatExpeditionObjective({...input, player: markTwo, bestMarkCrafted: 2})).toContain('dig toward Silver');
+    // The Scanner and trading-post nudges still come first.
+    expect(formatExpeditionObjective({...input, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH})).toContain('craft a Scanner');
+    expect(formatExpeditionObjective({...input, maxDepthMeters: POST_OBJECTIVE_DEPTH})).toContain('find a trading post');
   });
 
   it('counts an upgrade waiting in the station as progress made once no slot is free', () => {
@@ -165,7 +209,51 @@ describe('expedition objective helper', () => {
       bay: empty,
       station: withItem('upgrade:tank:1'),
       bestMarkCrafted: 1
-    })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
+    })).toContain('build the Hauler');
+  });
+
+  describe('the next hull on the ladder', () => {
+    it('names it once half its bill is stocked, and says what is still short', () => {
+      // The Prospector takes 12 Silver, 10 Gold and 4 Ruby: 26 ore, so 13 is half.
+      expect(formatExpeditionObjective({...veteran, station: withOre('Gold', 1, withOre('Silver', 12))}))
+        .toBe('Objective: build the Prospector at the Manufacturing Station (still needs 9 Gold, 4 Ruby).');
+      expect(formatExpeditionObjective({...veteran, station: withOre('Gold', 1, withOre('Silver', 11))})).toContain('dig toward');
+    });
+
+    it('drops the shortfall once the whole bill is in stock, ahead of a portal', () => {
+      const bill = withOre('Ruby', 4, withOre('Gold', 10, withOre('Silver', 12, withOre('Iron', 2))));
+      expect(formatExpeditionObjective({...veteran, station: bill, bestMarkCrafted: 2}))
+        .toBe('Objective: build the Prospector at the Manufacturing Station.');
+    });
+
+    it('has nothing to name on the top rung', () => {
+      const top = {...veteran, player: {...upgraded, ship: 'corebreaker' as ShipId}};
+      expect(formatExpeditionObjective({...top, station: withOre('Core Shard', 3, withOre('Uranium', 4))})).not.toContain('build the');
+    });
+  });
+
+  describe('the ore band reached', () => {
+    const atGold = {...veteran, player: {...upgraded, y: rowAt(1500)}, maxDepthMeters: 1500, oresMined: {}};
+
+    it('stays on Gold at 1500 m until some is mined, rather than jumping to Ruby', () => {
+      expect(formatExpeditionObjective(atGold)).toBe('Objective: mine 3 Gold here for a Mk II upgrade.');
+      expect(formatExpeditionObjective({...atGold, oresMined: {Gold: 1}}))
+        .toBe('Objective: work the Gold depths around 1500 m — 1 of 3 mined.');
+      // Back home, the band is still the one to work.
+      expect(formatExpeditionObjective({...atGold, atSurface: true, player: {...upgraded, y: START_Y}}))
+        .toBe('Objective: work the Gold depths around 1500 m — 0 of 3 mined.');
+    });
+
+    it(`moves on to the next band once ${BAND_ORE_TARGET} of its ore are mined`, () => {
+      expect(formatExpeditionObjective({...atGold, oresMined: {Gold: BAND_ORE_TARGET}}))
+        .toBe('Objective: dig toward Ruby around 2600 m while keeping fuel for the trip home.');
+    });
+
+    it('names what each band\'s ore is for', () => {
+      const at = (meters: number) => ({...atGold, player: {...upgraded, y: rowAt(meters)}, maxDepthMeters: meters});
+      expect(formatExpeditionObjective(at(2600))).toBe('Objective: mine 3 Ruby here for a Mk III upgrade.');
+      expect(formatExpeditionObjective(at(7000))).toBe('Objective: mine 3 Uranium here for the Core Drill.');
+    });
   });
 
   describe('a crafted upgrade waiting to be fitted', () => {
@@ -242,7 +330,7 @@ describe('expedition objective helper', () => {
   it('asks for a Scanner past the Silver line when the career never had one', () => {
     const deep = {...veteran, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH, scannersObtained: 0};
     expect(formatExpeditionObjective(deep))
-      .toBe('Objective: craft a Scanner (2 Copper + 1 Silver) — ore hides in the fog.');
+      .toBe('Objective: craft a Scanner (2 Copper + 1 Silver) or buy one from Supply for $136 — Silver hides beside shafts, so dig sideways galleries.');
     // One aboard from a chest counts, and so does any obtained before.
     expect(formatExpeditionObjective({...deep, bay: withItem('scanner')})).not.toContain('Scanner');
     expect(formatExpeditionObjective({...deep, scannersObtained: 1})).not.toContain('Scanner');
@@ -255,22 +343,74 @@ describe('expedition objective helper', () => {
     expect(formatExpeditionObjective({...deep, maxDepthMeters: POST_OBJECTIVE_DEPTH - 10})).toContain('dig toward');
   });
 
-  it('turns Uranium aboard or stocked into a Fuel Cell nudge until a cell is held', () => {
+  it('turns Uranium the Core Drill can spare into a Fuel Cell nudge until a cell is held', () => {
     const text = 'Objective: craft Fuel Cells (1 Uranium → 2 cells) for the deep runs.';
-    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 1)})).toBe(text);
-    expect(formatExpeditionObjective({...veteran, station: withOre('Uranium', 1)})).toBe(text);
+    // The Core Drill still to make keeps back the 2 Uranium it takes.
+    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 2)})).toContain('dig toward');
+    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 3)})).toBe(text);
+    // Aboard and stocked count together.
+    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 2), station: withOre('Uranium', 1)})).toBe(text);
     // A cell aboard or in the stock settles it.
-    expect(formatExpeditionObjective({...veteran, bay: withItem('fuelCell', 1, withOre('Uranium', 1))})).toContain('dig toward');
-    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 1), station: withItem('fuelCell')})).toContain('dig toward');
+    expect(formatExpeditionObjective({...veteran, bay: withItem('fuelCell', 1, withOre('Uranium', 3))})).toContain('dig toward');
+    expect(formatExpeditionObjective({...veteran, bay: withOre('Uranium', 3), station: withItem('fuelCell')})).toContain('dig toward');
+  });
+
+  it('keeps back the Uranium the next hull takes too', () => {
+    // A Leviathan's next hull, the Core Breaker, takes 4 more on top of the drill's 2.
+    const leviathan = {...veteran, player: {...upgraded, ship: 'leviathan' as ShipId}};
+    expect(formatExpeditionObjective({...leviathan, station: withOre('Uranium', 6)})).not.toContain('Fuel Cells');
+    expect(formatExpeditionObjective({...leviathan, station: withOre('Uranium', 7)})).toContain('Fuel Cells');
+    // With the drill made and fitted, only the hull's 4 are kept.
+    const drilled = {...leviathan, player: {...leviathan.player, equipment: ['upgrade:drill:4', null, null] as (UpgradeKind | null)[]}};
+    expect(formatExpeditionObjective({...drilled, station: withOre('Uranium', 4)})).toContain('build the Core Breaker');
+    expect(formatExpeditionObjective({...drilled, station: withOre('Uranium', 5)})).toContain('Fuel Cells');
   });
 
   it('asks for the Core Drill once its ores are stocked, ahead of spending the Uranium on cells', () => {
     const stock = withOre('Alienite', 2, withOre('Uranium', 2, withOre('Core Shard', 3)));
     expect(formatExpeditionObjective({...veteran, station: stock}))
       .toBe('Objective: craft the Core Drill at the Manufacturing Station.');
-    // One ore short: the Uranium goes to cells instead.
+    // One ore short: the Uranium is still kept for the drill, not spent on cells.
     const short = withOre('Alienite', 1, withOre('Uranium', 2, withOre('Core Shard', 3)));
-    expect(formatExpeditionObjective({...veteran, station: short})).toContain('Fuel Cells');
+    expect(formatExpeditionObjective({...veteran, station: short})).not.toContain('Fuel Cells');
+  });
+
+  it('asks for a Mk III once one is craftable and none has been made', () => {
+    const stock = withOre('Alienite', 1, withOre('Emerald', 2, withOre('Ruby', 2)));
+    expect(formatExpeditionObjective({...veteran, station: stock, bestMarkCrafted: 2}))
+      .toBe('Objective: craft a Mk III upgrade at the Manufacturing Station.');
+    expect(formatExpeditionObjective({...veteran, station: stock, bestMarkCrafted: 3})).not.toContain('Mk III');
+  });
+
+  describe('a low hull', () => {
+    const low = HULL.lowHullFraction * upgraded.hullMax;
+    const hurt = {...veteran, player: {...upgraded, y: rowAt(900), hull: low}};
+
+    it('spends a Repair Kit aboard', () => {
+      expect(formatExpeditionObjective({...hurt, bay: withItem('repairKit')}))
+        .toBe('Objective: hull is low — use a Repair Kit from its bay slot.');
+    });
+
+    it('sends a ship with no kit home for one, or to a trading post once one is known', () => {
+      expect(formatExpeditionObjective({...hurt, postsFound: 0}))
+        .toBe('Objective: hull is low — return home: craft a Repair Kit (3 Iron) or buy one ($72).');
+      expect(formatExpeditionObjective(hurt))
+        .toBe('Objective: hull is low — buy a Repair Kit at a trading post, or return home to craft one (3 Iron).');
+    });
+
+    it('at home, takes a stocked kit, or crafts or buys one', () => {
+      const home = {...hurt, atSurface: true, player: {...hurt.player, y: START_Y}};
+      expect(formatExpeditionObjective({...home, station: withItem('repairKit')}))
+        .toBe('Objective: hull is low — take the Repair Kit from the station and use it.');
+      expect(formatExpeditionObjective(home))
+        .toBe('Objective: hull is low — craft a Repair Kit (3 Iron) or buy one from Supply ($72).');
+    });
+
+    it('comes after low fuel, ahead of a full bay, and not a point above the line', () => {
+      expect(formatExpeditionObjective({...hurt, player: {...hurt.player, fuel: 5}})).toContain('refuel');
+      expect(formatExpeditionObjective({...hurt, cargoCount: upgraded.cargoMax})).toContain('hull is low');
+      expect(formatExpeditionObjective({...hurt, player: {...hurt.player, hull: low + 1}})).toContain('dig toward');
+    });
   });
 
   it('asks for a crafted Core Drill to be fitted', () => {
@@ -280,18 +420,24 @@ describe('expedition objective helper', () => {
       .toBe('Objective: fit the Core Drill from the Ship screen.');
   });
 
-  it('with the Core Drill fitted, points past the depth record at the next 1000 m', () => {
-    const drilled = {...veteran, player: {...upgraded, equipment: ['upgrade:drill:4', null, null] as (UpgradeKind | null)[]}};
+  it('with the Core Drill fitted, names the next hull before anything else', () => {
+    const drilled = {...veteran, player: {...upgraded, ship: 'leviathan' as ShipId, equipment: ['upgrade:drill:4', null, null] as (UpgradeKind | null)[]}};
     expect(formatExpeditionObjective({...drilled, maxDepthMeters: 9840}))
-      .toBe('Objective: Core Drill fitted — push the depth record past 10000 m.');
+      .toBe('Objective: build the Core Breaker at the Manufacturing Station (still needs 6 Alienite, 4 Uranium, 3 Core Shard).');
+  });
+
+  it('with the Core Drill fitted in the last hull, points past the depth record at the next 1000 m', () => {
+    const drilled = {...veteran, player: {...upgraded, ship: 'corebreaker' as ShipId, equipment: ['upgrade:drill:4', null, null] as (UpgradeKind | null)[]}};
+    expect(formatExpeditionObjective({...drilled, maxDepthMeters: 9840}))
+      .toBe('Objective: you have the deepest rig there is — set a depth record past 10000 m.');
     // A record already on the round number points at the next one.
     expect(formatExpeditionObjective({...drilled, maxDepthMeters: 10000}))
-      .toBe('Objective: Core Drill fitted — push the depth record past 11000 m.');
+      .toBe('Objective: you have the deepest rig there is — set a depth record past 11000 m.');
     // Fitted, it no longer asks to craft or fit another, and the ship's own depth counts.
     const stock = withOre('Alienite', 2, withOre('Uranium', 2, withOre('Core Shard', 3)));
     expect(formatExpeditionObjective({...drilled, station: withItem('fuelCell', 1, stock), player: {...drilled.player, y: rowAt(1230)}}))
-      .toBe('Objective: Core Drill fitted — push the depth record past 2000 m.');
-    // Uranium with no cell still asks for cells first.
+      .toBe('Objective: you have the deepest rig there is — set a depth record past 2000 m.');
+    // With nothing left to build, any Uranium with no cell still asks for cells first.
     expect(formatExpeditionObjective({...drilled, bay: withOre('Uranium', 1)})).toContain('Fuel Cells');
   });
 
@@ -442,8 +588,51 @@ describe('memoised expedition objective', () => {
     check();
     input.maxDepthMeters = 1500;
     check();
+    // Up the ladder in place (same stock, same slots): the Hauler, the Prospector,
+    // then the last hull and the record.
+    ship.ship = 'hauler';
+    check();
+    input.station = withOre('Gold', 1, withOre('Silver', 12));
+    check();
+    input.station = withOre('Gold', 1, withOre('Silver', 11));
+    check();
+    input.station = empty;
+    ship.ship = 'corebreaker';
+    check();
+    // The band rung: the tally arrives, grows in place, then fills.
+    ship.equipment = ['upgrade:tank:1', null, null];
+    ship.ship = 'hauler';
+    input.bay = empty;
+    ship.y = START_Y + 150;
+    input.oresMined = {};
+    check();
+    input.oresMined = {Gold: 1};
+    check();
+    input.oresMined = {Gold: BAND_ORE_TARGET};
+    check();
+    // The hull wearing down past the line, with a kit aboard, then at home.
+    for (let hull = ship.hullMax; hull >= 10; hull -= 10) {
+      ship.hull = hull;
+      check();
+    }
+    input.bay = withItem('repairKit');
+    check();
+    input.bay = empty;
+    input.atSurface = true;
+    ship.y = START_Y;
+    check();
+    ship.hull = ship.hullMax;
+    // The base draining below the Coal floor, and a Mk III in stock.
+    input.maxDepthMeters = 2000;
+    input.baseExtractor = {fuel: 10, coal: 0};
+    check();
+    input.baseExtractor = {fuel: EXTRACTOR.fuelCap, coal: 0};
+    input.station = withOre('Alienite', 1, withOre('Emerald', 2, withOre('Ruby', 2)));
+    check();
+    input.bestMarkCrafted = 3;
+    check();
 
-    expect(new Set(frames).size).toBeGreaterThan(12);
+    expect(new Set(frames).size).toBeGreaterThan(20);
   });
 
   it('hands back the same string on a steady frame', () => {

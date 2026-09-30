@@ -21,6 +21,7 @@ import {
   sprintMomentumAfterMove
 } from '../core/movement';
 import { hitsLabel } from '../core/scanner';
+import { recordOreMined } from '../core/stats';
 import type {
   AirTile,
   AudioController,
@@ -166,7 +167,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
         return 'drilled';
       }
       player.inventory = loaded;
-      state.stats.oreMined++;
+      recordOreMined(state.stats, tile.ore.name);
       saveProgress();
       toast(`Mined ${tile.ore.name} (worth $${tile.ore.value} at a trading post).`);
       audio.ore(tile.ore.value);

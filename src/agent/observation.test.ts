@@ -17,7 +17,7 @@ import { createScannerDevice } from '../core/scanner-device';
 import { createPlacedDynamite } from '../core/dynamite';
 import { buildInventorySlots, buildShipSlots, buildShipView, uiStore, type InventorySlotView, type TradeOfferView, type UiState } from '../ui/store';
 import type { Enemy, GameState, Tile } from '../core/types';
-import { START_Y, WORLD_W } from '../../shared/constants';
+import { ORES, START_Y, WORLD_W } from '../../shared/constants';
 import { chestsInRange, gravesInRange, tradingPostAt } from '../world/world';
 import { appendToast, buildObservation, MAX_VIEW_RADIUS, VIEW_LEGEND } from './observation';
 import { createReadouts } from '../game/readouts';
@@ -52,6 +52,13 @@ function ui(overrides: Partial<UiState> = {}): UiState {
   return {...uiStore.getState(), ...overrides};
 }
 
+/** An ore row of the table, by name. */
+function ore(name: string) {
+  const found = ORES.find(entry => entry.name === name);
+  if (!found) throw new Error(`no ore named ${name}`);
+  return found;
+}
+
 function oreSlot(name: string, count: number): InventorySlotView {
   return {index: 0, kind: oreKind(name), label: name, color: '#fff', count};
 }
@@ -79,10 +86,12 @@ describe('buildObservation', () => {
     const state = createInitialState();
     state.stats.scannersObtained = 2;
     state.stats.bestMarkCrafted = 2;
+    state.stats.oresMined.Gold = 2;
     const obs = buildObservation({state, ui: ui(), get: tileSource({})});
-    expect(obs.stats).toMatchObject({scannersObtained: 2, bestMarkCrafted: 2, deaths: 0});
-    // A copy, not the live object.
+    expect(obs.stats).toMatchObject({scannersObtained: 2, bestMarkCrafted: 2, deaths: 0, oresMined: {Gold: 2}});
+    // A copy, not the live object — the per-ore tally included.
     expect(obs.stats).not.toBe(state.stats);
+    expect(obs.stats.oresMined).not.toBe(state.stats.oresMined);
   });
 
   it('marks the ship and publishes the legend', () => {
@@ -351,6 +360,7 @@ describe('buildObservation', () => {
 
     const prospecting = info({infoTab: 'info-prospecting'});
     expect(prospecting.prospecting?.tip.length).toBeGreaterThan(0);
+    expect(prospecting.prospecting?.ladder).toContain('Scout → Hauler → Prospector → Leviathan → Core Breaker');
     expect(prospecting.prospecting?.ores.some(ore => ore.name === 'Coal')).toBe(true);
     expect(prospecting.prospecting?.posts).toEqual([]);
     const found = info({infoTab: 'info-prospecting', postRows: [{x: 43, y: 67, depthMeters: 470}]});
@@ -681,6 +691,30 @@ describe('buildObservation', () => {
       current: {id: 'corebreaker', label: 'Core Breaker', slots: 7},
       next: null
     });
+  });
+
+  it('carries the Shipyard at a glance in hud.nextShip, with no overlay open', () => {
+    const state = createInitialState();
+    const nextShip = () => buildObservation({state, ui: ui({overlay: null}), get: tileSource({})}).hud.nextShip;
+    expect(nextShip()).toEqual({
+      id: 'hauler', label: 'Hauler',
+      missing: [
+        {kind: oreKind('Iron'), count: 24, label: 'Iron'},
+        {kind: oreKind('Copper'), count: 12, label: 'Copper'},
+        {kind: oreKind('Silver'), count: 6, label: 'Silver'}
+      ]
+    });
+
+    // Read off the first Manufacturer's stock, as the objective's ship rung is.
+    const manufacturer = state.stations.find(station => station.kind === 'manufacturer');
+    if (manufacturer?.kind !== 'manufacturer') throw new Error('a seeded manufacturer expected');
+    manufacturer.inventory = addItem(addItem(addItem(createInventory(), oreItem(ore('Iron')), 30), oreItem(ore('Copper')), 12), oreItem(ore('Silver')), 2);
+    expect(nextShip()).toEqual({id: 'hauler', label: 'Hauler', missing: [{kind: oreKind('Silver'), count: 4, label: 'Silver'}]});
+
+    swapHull(state.player, 'leviathan');
+    expect(nextShip()?.id).toBe('corebreaker');
+    swapHull(state.player, 'corebreaker');
+    expect(nextShip()).toBeNull();
   });
 
   it('names the hull in ship.class, ship.shipLabel and ship.slots, and in the ship overlay', () => {

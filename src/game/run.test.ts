@@ -672,7 +672,7 @@ describe('a full player reset', () => {
     });
     h.state.gameOver = true;
     h.state.particles.push({x: 1, y: 1, vx: 1, vy: 1, life: 1, color: '#fff', size: 1});
-    h.state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4, scannersObtained: 2, bestMarkCrafted: 2};
+    h.state.stats = {maxDepth: 900, totalCashEarned: 800, oreMined: 7, enemiesDestroyed: 5, deaths: 4, scannersObtained: 2, bestMarkCrafted: 2, oresMined: {Gold: 3}};
     h.state.scannerDevices = [{x: 3, y: 40, timer: 9}];
     h.state.cargoContainers = [{x: 4, y: 40, inventory: createInventory()}];
     h.state.wrecks = [createWreck(5, 40, addOre(createInventory(), nth(ORES, 0), 1)!)];
@@ -689,6 +689,8 @@ describe('a full player reset', () => {
       scannerDevices: [], placedDynamite: [], cargoContainers: [], wrecks: [],
       stations: fresh.stations
     });
+    // `toMatchObject` reads `{}` as "any object", so the per-ore tally is checked exactly.
+    expect(h.state.stats.oresMined).toEqual({});
     expect(h.state.exploredTiles.size).toBe(0);
     expect(h.revealAtPlayer).toHaveBeenCalled();
     expect(h.saveProgress).not.toHaveBeenCalled();

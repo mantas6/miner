@@ -1,6 +1,8 @@
-import { ENEMY, FUEL, HULL } from './balance';
+import { ENEMY, FUEL, HULL, RESPAWN } from './balance';
 import { DANGER, START_Y, rowDepthMeters } from '../../shared/constants';
 import { ENEMY_TYPES } from './enemy-types';
+import { EXTRACTOR_FUEL_ORDER, fuelUnitPrice } from './trading';
+import { WRECK } from './wreck';
 
 export interface DangerGuideRow {
   title: string;
@@ -9,6 +11,10 @@ export interface DangerGuideRow {
 
 function depthLabel(row: number, startY = START_Y): string {
   return `≈${rowDepthMeters(row, startY)} m`;
+}
+
+function percent(fraction: number): string {
+  return `${Math.round(fraction * 100)}%`;
 }
 
 /** The one-line lead-in the Hazards guide opens with. */
@@ -26,7 +32,7 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     },
     {
       title: 'Magma pockets',
-      detail: `Start around ${depthLabel(DANGER.hazardMinRow)}. Vent them with repeated drilling, but each hit burns extra fuel and scorches hull; damage rises with depth.`
+      detail: `Start around ${depthLabel(DANGER.hazardMinRow)}. Vent them with repeated drilling, but each hit burns extra fuel and scorches the hull — the damage is per hit and rises with depth, so a stronger drill that vents it in fewer hits takes less.`
     },
     {
       title: 'Dormant tunnel fiends',
@@ -38,7 +44,7 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     },
     {
       title: 'Fighting fiends',
-      detail: 'Fight from above in a one-tile shaft; a biter above you cannot be drilled — step one tile sideways so it drops beside you.'
+      detail: 'Fight from above in a one-tile shaft. An awake biter above you can still be drilled: hold Up into it. Only a dormant cocoon overhead is out of reach, because the drill never digs upward.'
     },
     {
       title: 'Fiend bounties',
@@ -46,7 +52,15 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     },
     {
       title: 'Fuel discipline',
-      detail: `At ${Math.round(FUEL.lowFuelFraction * 100)}% fuel, turn back toward home. Refuel at the Fuel Extractor before the next deep push.`
+      detail: `At ${Math.round(FUEL.lowFuelFraction * 100)}% fuel, turn back toward home. Climbing an open shaft is cheap and falling is free — it is drilling that burns the tank. Refuel at the Fuel Extractor before the next deep push.`
+    },
+    {
+      title: 'Buying fuel',
+      detail: `Fuel can be bought: order it into the home Fuel Extractor ($${Math.round(EXTRACTOR_FUEL_ORDER * fuelUnitPrice())} per ${EXTRACTOR_FUEL_ORDER}), or fill the tank at a trading post. Past the Coal band, buying is how the base stays stocked.`
+    },
+    {
+      title: 'Losing a ship',
+      detail: `A lost or scuttled ship leaves a wreck holding its ore and fitted upgrades; it crumbles after ${WRECK.lifetimeDeaths} more deaths. The replacement comes back on ${percent(RESPAWN.hullFraction)} hull — at home its tank is drawn from the Fuel Extractor's store, at a field portal it gets ${percent(RESPAWN.portalFuelFraction)} of a tank.`
     }
   ];
 }

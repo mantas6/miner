@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { DANGER_TIP, buildDangerGuideRows } from '../core/danger';
 import { NO_POSTS_FOUND } from '../core/post-beacon';
-import { PROSPECTING_TIP, buildProspectingGuideRows } from '../core/prospecting';
+import { PROSPECTING_TIP, SHIP_LADDER_TIP, buildProspectingGuideRows } from '../core/prospecting';
 import { GAME_RESET_CONFIRMATION } from '../persistence-reset';
 import { DeveloperPanel } from './DeveloperPanel';
 import { CONTROL_ROWS } from './info-controls';
@@ -160,6 +160,7 @@ function ProspectingPanel() {
     <section id="info-prospecting" role="tabpanel" aria-labelledby="info-tab-prospecting" tabIndex={-1}>
       <h3 id="prospecting-title">Prospecting Guide</h3>
       <p className={styles.prospectingTip}>{PROSPECTING_TIP}</p>
+      <p className={styles.prospectingTip}>{SHIP_LADDER_TIP}</p>
       <ul id="prospectingGuide" className={styles.prospectingGuide} aria-label="Ore values and approximate depth bands">
         {prospectingRows.map(row => (
           <li key={row.name}>

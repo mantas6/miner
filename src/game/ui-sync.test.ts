@@ -29,13 +29,21 @@ function setup(stub: HudReadouts = readouts) {
 }
 
 describe('objective inputs', () => {
-  it('names the band below the career record at home, not the first one', () => {
+  it('works the band the career record reached, then names the one below it — not the first one', () => {
     const {state, sync} = setup();
-    state.player.equipment = ['upgrade:tank:1', null];
+    // A Hauler, so the Scout's "build the Hauler" rung is past.
+    state.player.ship = 'hauler';
+    state.player.equipment = ['upgrade:tank:1', null, null, null];
     state.stats.scannersObtained = 1;
     const post = nth(tradingPostsInRange(0, 0, WORLD_W - 1, START_Y + 400), 0);
     state.stats.maxDepth = Math.max(900, (post.y - START_Y) * 10);
     state.exploredTiles.add(explorationIndex(post.x, post.y));
+    sync.sync();
+    // Nothing mined yet: the band reached is the one to work.
+    expect(uiStore.getState().hud.objective).toMatch(/^Objective: work the \w+ depths around \d+ m — 0 of 3 mined\.$/);
+
+    // The career tally is mutated in place, as mining does.
+    for (const ore of ORES) state.stats.oresMined[ore.name] = 3;
     sync.sync();
     const objective = uiStore.getState().hud.objective;
     expect(objective).toMatch(/^Objective: dig toward \w+ around \d+ m while keeping fuel for the trip home\.$/);

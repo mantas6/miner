@@ -357,6 +357,7 @@ describe('digging', () => {
     expect(h.state.player.inventory[0]).toMatchObject({kind: oreKind('Coal'), count: 1});
     expect(countOres(h.state.player.inventory)).toBe(1);
     expect(h.state.stats.oreMined).toBe(1);
+    expect(h.state.stats.oresMined).toEqual({Coal: 1});
     expect(h.state.player.y).toBe(41);
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.audio.played).toContain('ore');

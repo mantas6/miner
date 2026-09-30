@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultStats } from './state';
-import { formatExpeditionStats, recordCraft, recordItemsObtained } from './stats';
+import { formatExpeditionStats, recordCraft, recordItemsObtained, recordOreMined } from './stats';
 import { nth } from '../test-narrowing';
 
 const PROGRESSED = {
@@ -70,7 +70,16 @@ describe('objective progress counters', () => {
     expect(stats.bestMarkCrafted).toBe(3);
   });
 
+  it('tallies mined ore per ore on top of the career total', () => {
+    const stats = createDefaultStats();
+    recordOreMined(stats, 'Gold');
+    recordOreMined(stats, 'Gold');
+    recordOreMined(stats, 'Coal');
+    expect(stats.oreMined).toBe(3);
+    expect(stats.oresMined).toEqual({Gold: 2, Coal: 1});
+  });
+
   it('does not list the counters on the Stats tab', () => {
-    expect(formatExpeditionStats({...createDefaultStats(), scannersObtained: 4, bestMarkCrafted: 2})).toHaveLength(5);
+    expect(formatExpeditionStats({...createDefaultStats(), scannersObtained: 4, bestMarkCrafted: 2, oresMined: {Gold: 3}})).toHaveLength(5);
   });
 });

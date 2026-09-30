@@ -368,7 +368,13 @@ test.describe.serial('agent harness', () => {
         expect(obs.overlay[key] === undefined, `${key} on ${section.id}`).toBe(tab !== section.id);
       }
       // One tile below the home cavern no trading post has been seen yet.
-      if (section.id === 'info-prospecting') expect(obs.overlay.prospecting?.posts).toEqual([]);
+      if (section.id === 'info-prospecting') {
+        expect(obs.overlay.prospecting?.posts).toEqual([]);
+        expect(obs.overlay.prospecting?.ladder).toContain('Scout → Hauler');
+      }
+      if (section.id === 'info-hazards') {
+        expect(obs.overlay.hazards?.rows.map(row => row.title)).toEqual(expect.arrayContaining(['Buying fuel', 'Losing a ship']));
+      }
     }
     if (obs.overlay?.kind !== 'info' || !obs.overlay.objective) throw new Error('the objective tab expected last');
     expect(obs.overlay.objective.status.length).toBeGreaterThan(0);
@@ -577,6 +583,8 @@ test('the Shipyard builds the Hauler from station stock, and a lost ship keeps t
   try {
     let obs = await s.startRun();
     expect(obs.ship).toMatchObject({class: 'scout', shipLabel: 'Scout', slots: 3, fuel: 60, fuelMax: 100});
+    // The HUD-level Shipyard summary needs no overlay: the whole bill is stocked.
+    expect(obs.hud.nextShip).toEqual({id: 'hauler', label: 'Hauler', missing: []});
 
     obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
     if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
@@ -596,6 +604,14 @@ test('the Shipyard builds the Hauler from station stock, and a lost ship keeps t
     expect(obs.overlay.shipyard.current).toEqual({id: 'hauler', label: 'Hauler', slots: 4});
     expect(obs.overlay.shipyard.next).toMatchObject({id: 'prospector', craftable: false});
     expect(obs.toasts.some(toast => toast.message.startsWith('Built the Hauler'))).toBe(true);
+    expect(obs.hud.nextShip).toEqual({
+      id: 'prospector', label: 'Prospector',
+      missing: [
+        {kind: 'ore:Silver', count: 12, label: 'Silver'},
+        {kind: 'ore:Gold', count: 10, label: 'Gold'},
+        {kind: 'ore:Ruby', count: 4, label: 'Ruby'}
+      ]
+    });
     obs = await s.press('Escape');
 
     obs = await s.click('shipBtn');
@@ -618,7 +634,7 @@ test('the Shipyard builds the Hauler from station stock, and a lost ship keeps t
   }
 });
 
-test('a Fuel Cell fills a part-empty tank from its slot, and the Core Drill is crafted, fitted and chased', async () => {
+test('a Fuel Cell fills a part-empty tank from its slot, and the Core Drill is crafted and fitted, then the next hull named', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedLateGame});
   try {
     let obs = await s.startRun();
@@ -653,13 +669,14 @@ test('a Fuel Cell fills a part-empty tank from its slot, and the Core Drill is c
     expect(countKind(obs.bay, 'fuelCell')).toBe(2);
     expect(obs.toasts.some(toast => toast.message.includes('already full'))).toBe(true);
 
-    // Fitted, the Core Drill adds +7 and the objective points past the depth record.
+    // Fitted, the Core Drill adds +7, and with a bigger hull still to build the
+    // objective names it and its bill (the record waits for the last hull).
     obs = await s.click('shipBtn');
     obs = await s.click({target: 'data-ship-equip', value: 'upgrade:drill:4'});
     expect(obs.ship.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:4', null]);
     expect(obs.ship.drill).toBe(8);
     obs = await s.click('shipCloseBtn');
-    expect(obs.hud.objective).toBe('Objective: Core Drill fitted — push the depth record past 1000 m.');
+    expect(obs.hud.objective).toBe('Objective: build the Hauler at the Manufacturing Station (still needs 24 Iron, 12 Copper, 6 Silver).');
   } finally {
     await s.close();
   }

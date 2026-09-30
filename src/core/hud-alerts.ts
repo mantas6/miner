@@ -43,8 +43,17 @@ export function shouldBaseAlert(state: Pick<GameState, 'stations' | 'player'>): 
   return isBaseLow(homeExtractor(state.stations), state.player.fuelMax);
 }
 
+/**
+ * The fuel a healthy base must be able to hand out: one tank, but never more than
+ * the extractor's store can hold — a tank bigger than `EXTRACTOR.fuelCap` would
+ * otherwise read as a base forever running dry on a brim-full store.
+ */
+export function baseFuelTarget(fuelMax: number): number {
+  return Math.min(fuelMax, EXTRACTOR.fuelCap);
+}
+
 /** `shouldBaseAlert` over the home extractor's buffers (`null` when there is none). */
 export function isBaseLow(base: {fuel: number; coal: number} | null, fuelMax: number): boolean {
   if (!base) return true;
-  return base.fuel + base.coal * EXTRACTOR.fuelPerCoal < fuelMax;
+  return base.fuel + base.coal * EXTRACTOR.fuelPerCoal < baseFuelTarget(fuelMax);
 }

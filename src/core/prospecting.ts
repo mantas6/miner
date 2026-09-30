@@ -1,4 +1,5 @@
 import { MAX_WORLD_ROW, ORES, START_Y, rowDepthMeters } from '../../shared/constants';
+import { SHIP_ORDER, SHIPS } from './ships';
 import type { Ore } from './types';
 
 export interface ProspectingGuideRow {
@@ -31,3 +32,6 @@ export function buildProspectingGuideRows(ores: Ore[] = ORES, startY = START_Y):
 }
 
 export const PROSPECTING_TIP = 'Early goal: dig below home into the first Coal/Iron seam, stow it at the Manufacturing Station, and craft a Fuel Tank Mk I.';
+
+/** The ship ladder in one line: where the ore goes once the upgrades are made. */
+export const SHIP_LADDER_TIP = `Ship ladder: ${SHIP_ORDER.map(id => SHIPS[id].label).join(' → ')}. Build the next hull at the Manufacturing Station's Shipyard from ore in its stock; each adds a fitting slot and a bigger tank, hull, bay and drill.`;

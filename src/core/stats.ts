@@ -21,6 +21,12 @@ export function recordCraft(stats: GameStats, kind: InventoryItemKind, count: nu
   stats.bestMarkCrafted = Math.max(stats.bestMarkCrafted, mark);
 }
 
+/** Count one piece of ore out of the rock: the career total and its own ore's tally. */
+export function recordOreMined(stats: GameStats, oreName: string): void {
+  stats.oreMined++;
+  stats.oresMined[oreName] = (stats.oresMined[oreName] ?? 0) + 1;
+}
+
 export interface ExpeditionStatRow {
   label: string;
   value: string;

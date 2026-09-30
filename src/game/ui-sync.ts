@@ -174,6 +174,7 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
     objectiveScratch.maxDepthMeters = state.stats.maxDepth;
     objectiveScratch.scannersObtained = state.stats.scannersObtained;
     objectiveScratch.bestMarkCrafted = state.stats.bestMarkCrafted;
+    objectiveScratch.oresMined = state.stats.oresMined;
     objectiveScratch.postsFound = currentPosts().length;
     objectiveScratch.nearestExit = readouts.fuelExit;
     objectiveScratch.gameOver = state.gameOver;
