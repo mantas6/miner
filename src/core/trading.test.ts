@@ -42,11 +42,11 @@ describe('sell prices', () => {
 
 describe('buy prices', () => {
   it('marks a recipe\'s ore-value up by the trading markup', () => {
-    // Repair Kit ← 3 Iron (3 × 12 = 36), marked up ×1.5 → 54.
+    // Repair Kit ← 2 Iron + 1 Copper (2 × 12 + 16 = 40), marked up ×1.5 → 60.
     const recipe = RECIPES.find(r => r.output === 'repairKit')!;
     const oreValue = recipe.inputs.reduce((sum, input) => sum + input.count * itemForKind(input.kind).value, 0);
     expect(buyPrice('repairKit')).toBe(Math.round(oreValue * TRADING_MARKUP));
-    expect(buyPrice('repairKit')).toBe(54);
+    expect(buyPrice('repairKit')).toBe(60);
   });
 
   it('prices one unit of a multi-output recipe, not the whole batch', () => {
@@ -56,7 +56,7 @@ describe('buy prices', () => {
   });
 
   it('takes another seller\'s markup when one is named', () => {
-    expect(buyPrice('repairKit', 2)).toBe(72);
+    expect(buyPrice('repairKit', 2)).toBe(80);
     expect(buyPrice('repairKit', TRADING_MARKUP)).toBe(buyPrice('repairKit'));
   });
 

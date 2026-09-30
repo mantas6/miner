@@ -19,15 +19,17 @@ const pristineCommands = {...uiCommands};
 
 const IRON = {name: 'Iron', color: '#8a7f75', value: 12, min: 0, max: 900, chance: 1};
 const COAL = {name: 'Coal', color: '#343434', value: 8, min: 0, max: 900, chance: 1};
+const COPPER = {name: 'Copper', color: '#c47b45', value: 16, min: 0, max: 900, chance: 1};
 
 function open(supply = false, cash = 0): HTMLDialogElement {
   const rendered = render(<StationScreen />);
   act(() => {
     const store = uiStore.getState();
     uiStore.setState({hud: {...store.hud, cash}});
-    // The station holds three iron; the bay holds two coal.
+    // The station holds three iron and a copper; the bay holds two coal.
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem(COAL), 2)));
-    store.showOverlay({kind: 'station', slots: buildInventorySlots(addItem(createInventory(), oreItem(IRON), 3)), supply});
+    const stock = addItem(addItem(createInventory(), oreItem(IRON), 3), oreItem(COPPER), 1);
+    store.showOverlay({kind: 'station', slots: buildInventorySlots(stock), supply});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -81,7 +83,7 @@ describe('manufacturing station dialog', () => {
     fireEvent.click(document.getElementById('stowAllBtn')!);
     expect(stowAll).toHaveBeenCalledOnce();
 
-    // The repair kit recipe is the first row, and the station's three iron affords it.
+    // The repair kit recipe is the first row, and the station's iron and copper afford it.
     const repairKitCraft = document.querySelector<HTMLButtonElement>('[data-craft="repairKit"]')!;
     expect(repairKitCraft.getAttribute('aria-disabled')).toBe('false');
     expect(repairKitCraft.getAttribute('aria-label')).toBe('Craft Repair Kit');
@@ -155,20 +157,20 @@ describe('manufacturing station dialog', () => {
     expect(build.getAttribute('aria-disabled')).toBe('true');
     const row = build.closest('li')!;
     expect(row.textContent).toContain('Hauler · +1 slot · +50 fuel · +25 hull · +10 cargo');
-    // Three iron in the stock: the whole bill but a slice of the iron is short.
+    // Three iron and a copper in the stock: the whole bill but a slice of each is short.
     expect(document.getElementById(build.getAttribute('aria-describedby')!)?.textContent)
-      .toBe('Need 21 Iron, 12 Copper, 6 Silver');
+      .toBe('Need 13 Iron, 9 Copper, 6 Silver');
     fireEvent.click(build);
     expect(craftShip).toHaveBeenCalledWith('hauler');
 
     act(() => {
-      const stock = [['Iron', 24], ['Copper', 12], ['Silver', 6]].reduce(
+      const stock = [['Iron', 16], ['Copper', 10], ['Silver', 6]].reduce(
         (inventory, [name, count]) => addItem(inventory, oreItem({...IRON, name: name as string}), count as number), createInventory()
       );
       uiStore.getState().showOverlay({kind: 'station', slots: buildInventorySlots(stock), supply: false});
     });
     expect(build.getAttribute('aria-disabled')).toBe('false');
-    expect(document.getElementById(build.getAttribute('aria-describedby')!)?.textContent).toBe('24 Iron · 12 Copper · 6 Silver');
+    expect(document.getElementById(build.getAttribute('aria-describedby')!)?.textContent).toBe('16 Iron · 10 Copper · 6 Silver');
   });
 
   it('says so on the top rung, with no Build button', () => {

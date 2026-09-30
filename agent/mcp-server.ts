@@ -25,6 +25,7 @@ import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
 import { EXTRACTOR } from '../src/core/balance';
 import { RECIPES } from '../src/core/crafting';
 import { itemForKind } from '../src/core/items';
+import { HOVER_DRILL_SURCHARGE_PERCENT } from '../src/core/movement';
 import { SHIPS, SHIP_ORDER } from '../src/core/ships';
 import { MAX_ZOOM, MIN_ZOOM } from '../src/game/zoom';
 import { INFO_NAVIGATION_SECTIONS } from '../src/ui/info-navigation';
@@ -54,7 +55,7 @@ function recipesText(): string {
   }).join('\n');
 }
 
-/** The ship ladder as text, e.g. `Hauler: 4 slots, 150 fuel … ← 24 Iron, …`, generated from data. */
+/** The ship ladder as text, e.g. `Hauler: 4 slots, 150 fuel … ← 16 Iron, …`, generated from data. */
 function shipsText(): string {
   return SHIP_ORDER.map(id => {
     const ship = SHIPS[id];
@@ -84,7 +85,7 @@ function instructions(): string {
     '  ArrowLeft/Right/Up/Down or a/d/w/s — move. Moving into terrain drills it;',
     '    moving into open space flies. Falling straight down through open air is free;',
     '    every other move burns fuel. The drill never digs upward; a side dig with open',
-    '    air under the ship costs 50% more fuel (`hud.scanner` ends "Hover: +50 % fuel.").',
+    `    air under the ship costs ${HOVER_DRILL_SURCHARGE_PERCENT}% more fuel (\`hud.scanner\` ends "Hover: +${HOVER_DRILL_SURCHARGE_PERCENT} % fuel.").`,
     '  Shift (hold with a direction, `hold key ms shift:true`) — sprint/boost. Inert',
     '    unless a Booster is fitted to the ship.',
     '  Space — open the station-like thing the ship is parked beside: a home station',

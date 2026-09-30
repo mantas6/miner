@@ -105,13 +105,16 @@ export const DANGER = Object.freeze({
 // Chance is the relative tier weight once the independent ore-spawn roll succeeds.
 // These entries are validated as `Ore` values by shared/world-schema.ts. Rows are
 // `START_Y + n` offsets, so a shifted home row leaves the balance untouched.
+// Gold opens at 1100 m and Ruby at 2300 m (raised from 1500 m / 2600 m): a Scout
+// stalled five shaft-sinking trips short of the first Gold, so the Mk II parts and
+// the Prospector's bill now sit a trip closer to home.
 export const ORES = [
   {name:'Coal', color:'#343434', value:8, min:START_Y+0, max:START_Y+180, chance:.10},
   {name:'Iron', color:'#8a7f75', value:12, min:START_Y+3, max:START_Y+250, chance:.09},
   {name:'Copper', color:'#c47b45', value:16, min:START_Y+6, max:START_Y+320, chance:.08},
   {name:'Silver', color:'#c8d3e0', value:36, min:START_Y+60, max:START_Y+460, chance:.055},
-  {name:'Gold', color:'#ffd65c', value:70, min:START_Y+150, max:START_Y+600, chance:.04},
-  {name:'Ruby', color:'#f04b73', value:135, min:START_Y+260, max:START_Y+740, chance:.026},
+  {name:'Gold', color:'#ffd65c', value:70, min:START_Y+110, max:START_Y+600, chance:.04},
+  {name:'Ruby', color:'#f04b73', value:135, min:START_Y+230, max:START_Y+740, chance:.026},
   {name:'Emerald', color:'#46df8b', value:220, min:START_Y+390, max:START_Y+850, chance:.018},
   {name:'Alienite', color:'#8d7cff', value:360, min:START_Y+540, max:START_Y+940, chance:.012},
   {name:'Uranium', color:'#b7ff45', value:620, min:START_Y+700, max:MAX_WORLD_ROW, chance:.008},

@@ -42,7 +42,7 @@ import { DANGER_TIP, buildDangerGuideRows, type DangerGuideRow } from '../core/d
 import type { DepthMilestoneKind } from '../core/depth-milestone';
 import type { FuelReserveStatus } from '../core/fuel-reserve';
 import { isPlaceableKind, isPlacementValid, placementOverlayCells, type PlacementOverlayWorld } from '../core/placement-overlay';
-import { PROSPECTING_TIP, SHIP_LADDER_TIP, buildProspectingGuideRows } from '../core/prospecting';
+import { GALLERY_TIP, PROSPECTING_TIP, SHIP_LADDER_TIP, buildProspectingGuideRows } from '../core/prospecting';
 import type { ExpeditionStatRow } from '../core/stats';
 import type { GameState, GameStats, Tile } from '../core/types';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from '../game/zoom';
@@ -258,12 +258,13 @@ export interface AgentInfoOverlay {
   /** Stats: the saved career rows. */
   stats?: ExpeditionStatRow[];
   /**
-   * Prospecting: the tip, the ship-ladder line, every ore's value and depth band,
-   * and the trading posts found so far (explored post tiles, shallowest first;
-   * depth in metres).
+   * Prospecting: the tip, the galleries hint (dig sideways off the shaft), the
+   * ship-ladder line, every ore's value and depth band, and the trading posts found
+   * so far (explored post tiles, shallowest first; depth in metres).
    */
   prospecting?: {
     tip: string;
+    galleries: string;
     ladder: string;
     ores: {name: string; value: string; depth: string}[];
     posts: {x: number; y: number; depth: number}[];
@@ -600,6 +601,7 @@ function buildInfoOverlay(ui: UiState): AgentInfoOverlay {
     case 'info-prospecting':
       overlay.prospecting = {
         tip: PROSPECTING_TIP,
+        galleries: GALLERY_TIP,
         ladder: SHIP_LADDER_TIP,
         ores: buildProspectingGuideRows().map(row => ({name: row.name, value: row.valueLabel, depth: row.depthLabel})),
         posts: ui.postRows.map(row => ({x: row.x, y: row.y, depth: row.depthMeters}))

@@ -97,16 +97,24 @@ describe('the ladder', () => {
     expect(formatShipGains('hauler', 'prospector')).toBe('+1 slot · +50 fuel · +25 hull · +10 cargo · +1 drill');
   });
 
+  it('bills the Hauler light on Iron, the early bottleneck', () => {
+    expect(shipFor('hauler').inputs).toEqual([
+      {kind: oreKind('Iron'), count: 16},
+      {kind: oreKind('Copper'), count: 10},
+      {kind: oreKind('Silver'), count: 6}
+    ]);
+  });
+
   it('is checked against station stock with the recipe helpers', () => {
     const hauler = shipFor('hauler');
     let stock = createInventory();
-    stock = addItem(stock, itemForKind(oreKind('Iron')), 24);
+    stock = addItem(stock, itemForKind(oreKind('Iron')), 16);
     expect(canCraft(stock, hauler)).toBe(false);
     expect(missingInputs(stock, hauler)).toEqual([
-      {kind: oreKind('Copper'), count: 12},
+      {kind: oreKind('Copper'), count: 10},
       {kind: oreKind('Silver'), count: 6}
     ]);
-    stock = addItem(addItem(stock, itemForKind(oreKind('Copper')), 12), itemForKind(oreKind('Silver')), 6);
+    stock = addItem(addItem(stock, itemForKind(oreKind('Copper')), 10), itemForKind(oreKind('Silver')), 6);
     expect(canCraft(stock, hauler)).toBe(true);
   });
 });

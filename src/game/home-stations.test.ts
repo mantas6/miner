@@ -3,7 +3,8 @@ import { START_Y, STATIONS } from '../../shared/constants';
 import { EXTRACTOR } from '../core/balance';
 import { addItem, countItem, createInventory, oreKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
-import { applyEquipment, swapHull } from '../core/ship-upgrades';
+import { applyEquipment, swapHull, unlockedSlotCount } from '../core/ship-upgrades';
+import { slotsFor } from '../core/ships';
 import { createInitialState } from '../core/state';
 import {
   STATION_CAPACITY,
@@ -253,7 +254,7 @@ describe('crafting at the station', () => {
   it('turns station ore into an item by output kind', () => {
     const h = harness();
     park(h.state, 'manufacturer');
-    manufacturer(h.state).inventory = [ore('Iron', 3)].reduce(
+    manufacturer(h.state).inventory = [ore('Iron', 2), ore('Copper', 1)].reduce(
       (inv, stack) => addItem(inv, itemForKind(stack.kind), stack.count), createInventory()
     );
     h.sim.openNearest();
@@ -262,6 +263,7 @@ describe('crafting at the station', () => {
 
     expect(countItem(manufacturer(h.state).inventory, 'repairKit')).toBe(1);
     expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(0);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Copper'))).toBe(0);
     expect(h.audio.played).toEqual(['craft']);
   });
 
@@ -313,6 +315,21 @@ describe('crafting at the station', () => {
     expect(h.state.stats.bestMarkCrafted).toBe(2);
     expect(h.state.stats.scannersObtained).toBe(2);
   });
+
+  it('opens the last slot from the Silver band: a Fuel Tank Mk II takes no Gold', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    manufacturer(h.state).inventory = [ore('Silver', 4), ore('Copper', 2)].reduce(
+      (inv, stack) => addItem(inv, itemForKind(stack.kind), stack.count), createInventory()
+    );
+    h.sim.openNearest();
+
+    h.sim.craft('upgrade:tank:2');
+
+    expect(countItem(manufacturer(h.state).inventory, 'upgrade:tank:2')).toBe(1);
+    expect(h.state.stats.bestMarkCrafted).toBe(2);
+    expect(unlockedSlotCount(slotsFor(h.state.player.ship), h.state.stats.bestMarkCrafted)).toBe(slotsFor('scout'));
+  });
 });
 
 describe('the shipyard', () => {
@@ -328,7 +345,7 @@ describe('the shipyard', () => {
   }
 
   it('builds the next hull from the stock, carrying the fitted upgrades into more slots', () => {
-    const h = stocked(ore('Iron', 30), ore('Copper', 12), ore('Silver', 6));
+    const h = stocked(ore('Iron', 22), ore('Copper', 10), ore('Silver', 6));
     h.state.player.equipment = ['upgrade:tank:1', null, null];
     applyEquipment(h.state.player);
     h.state.player.fuel = 80;
@@ -364,13 +381,13 @@ describe('the shipyard', () => {
   });
 
   it('refuses a hull the stock cannot cover, saying what is missing', () => {
-    const h = stocked(ore('Iron', 24), ore('Copper', 2));
+    const h = stocked(ore('Iron', 16), ore('Copper', 2));
 
     h.sim.craftShip('hauler');
 
     expect(h.state.player.ship).toBe('scout');
-    expect(h.toasts.saw('need 10 Copper, 6 Silver')).toBe(true);
-    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(24);
+    expect(h.toasts.saw('need 8 Copper, 6 Silver')).toBe(true);
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(16);
     expect(h.audio.played).toEqual(['alarm']);
   });
 

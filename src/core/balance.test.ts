@@ -21,3 +21,12 @@ describe('the coal → fuel economy', () => {
     expect(EXTRACTOR.fuelPerCoal).toBeGreaterThanOrEqual(COAL_PAYBACK * harvestCost);
   });
 });
+
+describe('the hover side-dig surcharge', () => {
+  it('charges a hover side hit at most a quarter over a braced one', () => {
+    // About one visible ore in three sits in the row above a tunnel, reachable only
+    // from a hover; a steeper surcharge made those ores cost more fuel than they paid.
+    expect(FUEL.hoverDrillMult).toBeGreaterThan(1);
+    expect(FUEL.hoverDrillMult).toBeLessThanOrEqual(1.25);
+  });
+});

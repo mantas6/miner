@@ -16,7 +16,7 @@ export interface TerrainScannerInput {
   hovering?: boolean;
 }
 
-/** The hover surcharge, derived from the balance constant: " Hover: +50 % fuel." */
+/** The hover surcharge, derived from the balance constant: " Hover: +25 % fuel." */
 const HOVER_SUFFIX = ` Hover: +${HOVER_DRILL_SURCHARGE_PERCENT} % fuel.`;
 
 function directionLabel([dx, dy]: Direction): string {

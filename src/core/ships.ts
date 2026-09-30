@@ -68,7 +68,7 @@ export const SHIPS: Readonly<Record<ShipId, ShipDef>> = {
     id: 'hauler', label: 'Hauler', slots: 4,
     base: {fuelMax: 150, hullMax: 125, cargoMax: 30, drill: 1},
     hull: ['#ffe0a8', '#e8a64d', '#98561a'],
-    inputs: [ore('Iron', 24), ore('Copper', 12), ore('Silver', 6)]
+    inputs: [ore('Iron', 16), ore('Copper', 10), ore('Silver', 6)]
   },
   prospector: {
     id: 'prospector', label: 'Prospector', slots: 5,

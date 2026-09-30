@@ -189,9 +189,9 @@ describe('expedition objective helper', () => {
     const scout = {...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null, null] as (UpgradeKind | null)[]};
     const input: ObjectiveInput = {player: scout, cargoCount: 0, atSurface: false, bay: empty, station: empty};
     expect(formatExpeditionObjective(input))
-      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 24 Iron, 12 Copper, 6 Silver).');
-    expect(formatExpeditionObjective({...input, station: withOre('Iron', 14)}))
-      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 10 Iron, 12 Copper, 6 Silver).');
+      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 16 Iron, 10 Copper, 6 Silver).');
+    expect(formatExpeditionObjective({...input, station: withOre('Iron', 6)}))
+      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 10 Iron, 10 Copper, 6 Silver).');
     // Only a Mk I fitted names it: a Mk II alone leaves the ore band in charge.
     const markTwo = {...scout, equipment: ['upgrade:drill:2', null, null] as (UpgradeKind | null)[]};
     expect(formatExpeditionObjective({...input, player: markTwo, bestMarkCrafted: 2})).toContain('dig toward Silver');
@@ -233,25 +233,25 @@ describe('expedition objective helper', () => {
   });
 
   describe('the ore band reached', () => {
-    const atGold = {...veteran, player: {...upgraded, y: rowAt(1500)}, maxDepthMeters: 1500, oresMined: {}};
+    const atGold = {...veteran, player: {...upgraded, y: rowAt(1100)}, maxDepthMeters: 1100, oresMined: {}};
 
-    it('stays on Gold at 1500 m until some is mined, rather than jumping to Ruby', () => {
+    it('stays on Gold at 1100 m until some is mined, rather than jumping to Ruby', () => {
       expect(formatExpeditionObjective(atGold)).toBe('Objective: mine 3 Gold here for a Mk II upgrade.');
       expect(formatExpeditionObjective({...atGold, oresMined: {Gold: 1}}))
-        .toBe('Objective: work the Gold depths around 1500 m — 1 of 3 mined.');
+        .toBe('Objective: work the Gold depths around 1100 m — 1 of 3 mined.');
       // Back home, the band is still the one to work.
       expect(formatExpeditionObjective({...atGold, atSurface: true, player: {...upgraded, y: START_Y}}))
-        .toBe('Objective: work the Gold depths around 1500 m — 0 of 3 mined.');
+        .toBe('Objective: work the Gold depths around 1100 m — 0 of 3 mined.');
     });
 
     it(`moves on to the next band once ${BAND_ORE_TARGET} of its ore are mined`, () => {
       expect(formatExpeditionObjective({...atGold, oresMined: {Gold: BAND_ORE_TARGET}}))
-        .toBe('Objective: dig toward Ruby around 2600 m while keeping fuel for the trip home.');
+        .toBe('Objective: dig toward Ruby around 2300 m while keeping fuel for the trip home.');
     });
 
     it('names what each band\'s ore is for', () => {
       const at = (meters: number) => ({...atGold, player: {...upgraded, y: rowAt(meters)}, maxDepthMeters: meters});
-      expect(formatExpeditionObjective(at(2600))).toBe('Objective: mine 3 Ruby here for a Mk III upgrade.');
+      expect(formatExpeditionObjective(at(2300))).toBe('Objective: mine 3 Ruby here for a Mk III upgrade.');
       expect(formatExpeditionObjective(at(7000))).toBe('Objective: mine 3 Uranium here for the Core Drill.');
     });
   });
@@ -315,6 +315,11 @@ describe('expedition objective helper', () => {
       .toBe('Objective: craft a Mk II upgrade at the Manufacturing Station.');
     expect(formatExpeditionObjective({...veteran, station: markTwoMaterials(), bestMarkCrafted: 2}))
       .not.toContain('Mk II');
+  });
+
+  it('asks for a Mk II from the Silver band alone: the Fuel Tank Mk II takes no Gold', () => {
+    expect(formatExpeditionObjective({...veteran, station: withOre('Copper', 2, withOre('Silver', 4))}))
+      .toBe('Objective: craft a Mk II upgrade at the Manufacturing Station.');
   });
 
   it('asks for a field portal once one is craftable, or set down once one is held', () => {
@@ -393,9 +398,9 @@ describe('expedition objective helper', () => {
 
     it('sends a ship with no kit home for one, or to a trading post once one is known', () => {
       expect(formatExpeditionObjective({...hurt, postsFound: 0}))
-        .toBe('Objective: hull is low — return home: craft a Repair Kit (3 Iron) or buy one ($72).');
+        .toBe('Objective: hull is low — return home: craft a Repair Kit (2 Iron + 1 Copper) or buy one ($80).');
       expect(formatExpeditionObjective(hurt))
-        .toBe('Objective: hull is low — buy a Repair Kit at a trading post, or return home to craft one (3 Iron).');
+        .toBe('Objective: hull is low — buy a Repair Kit at a trading post, or return home to craft one (2 Iron + 1 Copper).');
     });
 
     it('at home, takes a stocked kit, or crafts or buys one', () => {
@@ -403,7 +408,7 @@ describe('expedition objective helper', () => {
       expect(formatExpeditionObjective({...home, station: withItem('repairKit')}))
         .toBe('Objective: hull is low — take the Repair Kit from the station and use it.');
       expect(formatExpeditionObjective(home))
-        .toBe('Objective: hull is low — craft a Repair Kit (3 Iron) or buy one from Supply ($72).');
+        .toBe('Objective: hull is low — craft a Repair Kit (2 Iron + 1 Copper) or buy one from Supply ($80).');
     });
 
     it('comes after low fuel, ahead of a full bay, and not a point above the line', () => {

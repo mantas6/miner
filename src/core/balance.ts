@@ -31,9 +31,10 @@ export const FUEL = Object.freeze({
   /**
    * Drilling sideways from a hover (nothing under the ship) multiplies the dig
    * cost again: reachable, so ore beside a shaft is not lost, but dearer than
-   * digging with a floor to brace against.
+   * digging with a floor to brace against. Kept mild: about one visible ore in
+   * three sits in the row above a tunnel, and a hover is the only way to reach it.
    */
-  hoverDrillMult: 1.5,
+  hoverDrillMult: 1.25,
   dig: Object.freeze({
     enemy: 0.65,
     hazard: 1.15,

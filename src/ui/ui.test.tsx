@@ -801,6 +801,11 @@ describe('prospecting tab', () => {
     const rows = [...list.querySelectorAll('li')].map(row => row.textContent);
     expect(rows).toEqual(['470 mx 43, y 67', '1,200 mx 8, y 140']);
   });
+
+  it('tells the player to branch galleries off the shaft', () => {
+    openProspecting();
+    expect(document.getElementById('info-prospecting')?.textContent).toContain('branch sideways off your shaft');
+  });
 });
 
 describe('settings tab', () => {

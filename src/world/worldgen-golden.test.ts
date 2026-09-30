@@ -7,6 +7,11 @@
 // the generated world to one fingerprint, so such a change is always deliberate:
 // if it fails, the terrain changed — bump `SAVE_VERSION` if that strands old
 // diffs, then paste the new hash below.
+//
+// Last moved by raising the Gold band to 1100 m and Ruby to 2300 m (`ORES` in
+// `shared/constants.ts`): only which ore an unmined tile rolls from 1100 m down
+// changed, so saved diffs (dug-out air, placed things) still line up and the save
+// version stands.
 
 import { describe, expect, it } from 'vitest';
 import { WORLD_W } from '../../shared/constants';
@@ -48,6 +53,6 @@ function worldHash(): string {
 
 describe('world generation', () => {
   it('produces the pinned terrain', () => {
-    expect(worldHash()).toBe('3c550af9');
+    expect(worldHash()).toBe('b65082f1');
   });
 });

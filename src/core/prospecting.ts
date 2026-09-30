@@ -33,5 +33,12 @@ export function buildProspectingGuideRows(ores: Ore[] = ORES, startY = START_Y):
 
 export const PROSPECTING_TIP = 'Early goal: dig below home into the first Coal/Iron seam, stow it at the Manufacturing Station, and craft a Fuel Tank Mk I.';
 
+/**
+ * How to comb a band: ore is rolled tile by tile, so a straight shaft sees only the
+ * 3-wide strip the ship reveals and leaves a band after a few rows, while a
+ * sideways gallery stays inside it (a Scout that sank one shaft to 740 m met no Silver).
+ */
+export const GALLERY_TIP = 'Once you reach an ore band, branch sideways off your shaft: a gallery stays in the band, a shaft passes straight through it.';
+
 /** The ship ladder in one line: where the ore goes once the upgrades are made. */
 export const SHIP_LADDER_TIP = `Ship ladder: ${SHIP_ORDER.map(id => SHIPS[id].label).join(' → ')}. Build the next hull at the Manufacturing Station's Shipyard from ore in its stock; each adds a fitting slot and a bigger tank, hull, bay and drill.`;

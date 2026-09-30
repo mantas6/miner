@@ -37,7 +37,7 @@ export function isHoverSideDrill(dx: number, dy: number, below: Tile | undefined
   return dx !== 0 && dy === 0 && !isGrounded(below);
 }
 
-/** That surcharge as a whole percentage (50 for a 1.5× multiplier), for the copy that names it. */
+/** That surcharge as a whole percentage (25 for a 1.25× multiplier), for the copy that names it. */
 export const HOVER_DRILL_SURCHARGE_PERCENT = Math.round((FUEL.hoverDrillMult - 1) * 100);
 
 export function isOpenSpaceDestination(destinationChanged: boolean, tile: Tile, activeEnemy: boolean): boolean {

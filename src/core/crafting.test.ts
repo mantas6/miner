@@ -45,11 +45,24 @@ describe('the recipe table', () => {
     expect(totalItems(after!)).toBe(1);
   });
 
+  it('spares Iron on the kit and the container, leaning on Copper instead', () => {
+    const bill = (output: string) => RECIPES.find(recipe => recipe.output === output)!.inputs;
+    expect(bill('repairKit')).toEqual([{kind: oreKind('Iron'), count: 2}, {kind: oreKind('Copper'), count: 1}]);
+    expect(bill('container')).toEqual([{kind: oreKind('Iron'), count: 4}, {kind: oreKind('Copper'), count: 2}]);
+  });
+
+  it('puts one Mk II within the Silver band: the Fuel Tank takes no Gold, the rest still do', () => {
+    const bill = (output: string) => RECIPES.find(recipe => recipe.output === output)!.inputs;
+    expect(bill('upgrade:tank:2')).toEqual([{kind: oreKind('Silver'), count: 4}, {kind: oreKind('Copper'), count: 2}]);
+    for (const id of ['cargo', 'drill', 'hull']) {
+      expect(bill(`upgrade:${id}:2`)).toEqual([{kind: oreKind('Silver'), count: 3}, {kind: oreKind('Gold'), count: 3}]);
+    }
+  });
 });
 
 describe('checking a recipe', () => {
   it('is craftable only when every input is present', () => {
-    expect(canCraft(ores(['Iron', 3]), repairKit)).toBe(true);
+    expect(canCraft(ores(['Iron', 2], ['Copper', 1]), repairKit)).toBe(true);
     expect(canCraft(ores(['Iron', 2]), repairKit)).toBe(false);
     expect(canCraft(createInventory(), repairKit)).toBe(false);
   });
@@ -66,11 +79,12 @@ describe('checking a recipe', () => {
 
 describe('crafting', () => {
   it('consumes the inputs and adds the output to the same (station) inventory', () => {
-    const before = ores(['Iron', 5]);
+    const before = ores(['Iron', 5], ['Copper', 1]);
     const after = craft(before, repairKit);
 
     expect(after).not.toBeNull();
-    expect(countItem(after!, oreKind('Iron'))).toBe(2);
+    expect(countItem(after!, oreKind('Iron'))).toBe(3);
+    expect(countItem(after!, oreKind('Copper'))).toBe(0);
     expect(countItem(after!, 'repairKit')).toBe(1);
   });
 
@@ -94,7 +108,7 @@ describe('crafting', () => {
     expect(craft(full, stoneBlock, 10)).toBeNull();
     expect(craft(full, stoneBlock, 11)).not.toBeNull();
     // A recipe that consumes more than it makes always fits, even at the cap.
-    const after = craft(ores(['Iron', 10]), repairKit, 10);
+    const after = craft(ores(['Iron', 9], ['Copper', 1]), repairKit, 10);
     expect(after && totalItems(after)).toBe(8);
   });
 });

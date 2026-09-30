@@ -54,9 +54,9 @@ describe('terrain scanner helper', () => {
 
   it('flags the hover surcharge on a drillable side target, derived from the balance constant', () => {
     const suffix = ` Hover: +${Math.round((FUEL.hoverDrillMult - 1) * 100)} % fuel.`;
-    expect(suffix).toBe(' Hover: +50 % fuel.');
+    expect(suffix).toBe(' Hover: +25 % fuel.');
     expect(formatTerrainScanner({ tile: { type: 'dirt', hp: 3, maxHp: 3 }, direction: [1, 0], hovering: true }))
-      .toBe('Scanner →: dirt — drillable, 3 hits. Hover: +50 % fuel.');
+      .toBe('Scanner →: dirt — drillable, 3 hits. Hover: +25 % fuel.');
     expect(formatTerrainScanner({ tile: { type: 'hazard', hp: 2, maxHp: 2 }, direction: [-1, 0], hovering: true }))
       .toBe(`Scanner ←: magma — hull risk, 2 hits to vent.${suffix}`);
     // Nothing to drill, or nothing the drill can bite: no surcharge to warn about.

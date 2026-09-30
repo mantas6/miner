@@ -178,7 +178,7 @@ const seedWorkshop = seedSaveScript({
 
 /**
  * A Mk I career with the two open slots fitted and the manufacturer stocked for
- * one Mk II (3 Silver, 3 Gold): the third slot is locked until that craft.
+ * one Drill Mk II (3 Silver, 3 Gold): the third slot is locked until that craft.
  */
 const seedMarkTwo = seedSaveScript({
   equipment: ['upgrade:drill:1', 'upgrade:tank:1', null],
@@ -206,13 +206,13 @@ const seedLateGame = seedSaveScript({
 
 /**
  * A Scout with a drill fitted and a part-empty tank, and the home manufacturer
- * stocked with exactly the Hauler's bill (24 Iron, 12 Copper, 6 Silver).
+ * stocked with exactly the Hauler's bill (16 Iron, 10 Copper, 6 Silver).
  */
 const seedShipyard = seedSaveScript({
   fuel: 60,
   equipment: ['upgrade:drill:1', null, null],
   stations: [
-    {...WORKBENCHES[0], items: [{kind: 'ore:Iron', count: 24}, {kind: 'ore:Copper', count: 12}, {kind: 'ore:Silver', count: 6}]},
+    {...WORKBENCHES[0], items: [{kind: 'ore:Iron', count: 16}, {kind: 'ore:Copper', count: 10}, {kind: 'ore:Silver', count: 6}]},
     WORKBENCHES[1]
   ]
 });
@@ -294,7 +294,7 @@ test.describe.serial('agent harness', () => {
   });
 
   test('a click or tile press that cannot land rejects fast and leaves the sim paused', async () => {
-    // The station holds only coal, so the Repair Kit (3 Iron) craft button is disabled.
+    // The station holds only coal, so the Repair Kit (2 Iron + 1 Copper) craft button is disabled.
     const before = await session.observe();
     if (before.overlay?.kind !== 'station') throw new Error('station overlay expected');
     expect(before.overlay.recipes.find(recipe => recipe.output === 'repairKit')?.craftable).toBe(false);
@@ -371,6 +371,7 @@ test.describe.serial('agent harness', () => {
       if (section.id === 'info-prospecting') {
         expect(obs.overlay.prospecting?.posts).toEqual([]);
         expect(obs.overlay.prospecting?.ladder).toContain('Scout → Hauler');
+        expect(obs.overlay.prospecting?.galleries).toContain('branch sideways off your shaft');
       }
       if (section.id === 'info-hazards') {
         expect(obs.overlay.hazards?.rows.map(row => row.title)).toEqual(expect.arrayContaining(['Buying fuel', 'Losing a ship']));
@@ -676,7 +677,7 @@ test('a Fuel Cell fills a part-empty tank from its slot, and the Core Drill is c
     expect(obs.ship.equipment).toEqual(['upgrade:tank:1', 'upgrade:drill:4', null]);
     expect(obs.ship.drill).toBe(8);
     obs = await s.click('shipCloseBtn');
-    expect(obs.hud.objective).toBe('Objective: build the Hauler at the Manufacturing Station (still needs 24 Iron, 12 Copper, 6 Silver).');
+    expect(obs.hud.objective).toBe('Objective: build the Hauler at the Manufacturing Station (still needs 16 Iron, 10 Copper, 6 Silver).');
   } finally {
     await s.close();
   }

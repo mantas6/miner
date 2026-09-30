@@ -360,6 +360,7 @@ describe('buildObservation', () => {
 
     const prospecting = info({infoTab: 'info-prospecting'});
     expect(prospecting.prospecting?.tip.length).toBeGreaterThan(0);
+    expect(prospecting.prospecting?.galleries).toContain('branch sideways off your shaft');
     expect(prospecting.prospecting?.ladder).toContain('Scout → Hauler → Prospector → Leviathan → Core Breaker');
     expect(prospecting.prospecting?.ores.some(ore => ore.name === 'Coal')).toBe(true);
     expect(prospecting.prospecting?.posts).toEqual([]);
@@ -372,7 +373,7 @@ describe('buildObservation', () => {
     const controls = info({infoTab: 'info-controls'});
     expect(controls.controls).toContainEqual({
       keys: 'WASD / Arrows',
-      action: 'Move, fly, and dig down or sideways (never up). Digging sideways with open air below the ship costs 50% more fuel.'
+      action: 'Move, fly, and dig down or sideways (never up). Digging sideways with open air below the ship costs 25% more fuel.'
     });
     expect(controls.controls?.some(row => row.keys.startsWith('+ / -'))).toBe(true);
 
@@ -579,7 +580,7 @@ describe('buildObservation', () => {
     readouts.sync(hud);
 
     const obs = buildObservation({state, ui: ui({hud}), get});
-    expect(obs.hud.scanner).toBe('Scanner →: dirt — drillable, 1 hit. Hover: +50 % fuel.');
+    expect(obs.hud.scanner).toBe('Scanner →: dirt — drillable, 1 hit. Hover: +25 % fuel.');
   });
 
   it('carries the return forecast and the exit it is priced to in hud.fuelReserve', () => {
@@ -639,14 +640,14 @@ describe('buildObservation', () => {
 
     const overlay = buildObservation({
       state,
-      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3)], supply: false}}),
+      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3), {...oreSlot('Copper', 1), index: 1}], supply: false}}),
       get: tileSource({})
     }).overlay;
 
     expect(overlay?.kind).toBe('station');
     if (overlay?.kind !== 'station') throw new Error('expected station overlay');
-    expect(overlay.stock).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 3}]);
-    // Three Iron affords the repair kit but not the teleporter.
+    expect(overlay.stock).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 3}, {kind: oreKind('Copper'), label: 'Copper', count: 1}]);
+    // Three Iron and a Copper afford the repair kit but not the teleporter.
     expect(overlay.recipes.find(r => r.output === 'repairKit')?.craftable).toBe(true);
     const teleporter = overlay.recipes.find(r => r.output === 'teleporter');
     expect(teleporter?.craftable).toBe(false);
@@ -657,7 +658,8 @@ describe('buildObservation', () => {
     expect(nth(overlay.stock, 0).info?.length).toBeGreaterThan(0);
     const repairKit = overlay.recipes.find(r => r.output === 'repairKit');
     expect(repairKit?.info.length).toBeGreaterThan(0);
-    expect(repairKit?.info.some(line => line.includes('Iron 3/3'))).toBe(true);
+    expect(repairKit?.info.some(line => line.includes('Iron 3/2'))).toBe(true);
+    expect(repairKit?.info.some(line => line.includes('Copper 1/1'))).toBe(true);
     // Away from the base there is no Supply counter.
     expect(overlay.supply).toEqual([]);
   });
@@ -674,16 +676,16 @@ describe('buildObservation', () => {
       return overlay.shipyard;
     };
 
-    const short = shipyard([oreSlot('Iron', 24)]);
+    const short = shipyard([oreSlot('Iron', 16)]);
     expect(short.current).toEqual({id: 'scout', label: 'Scout', slots: 3});
     expect(short.next).toMatchObject({
       id: 'hauler', label: 'Hauler', slots: 4, craftable: false,
       gains: {fuelMax: 50, hullMax: 25, cargoMax: 10, drill: 0},
-      missing: [{kind: oreKind('Copper'), count: 12, label: 'Copper'}, {kind: oreKind('Silver'), count: 6, label: 'Silver'}]
+      missing: [{kind: oreKind('Copper'), count: 10, label: 'Copper'}, {kind: oreKind('Silver'), count: 6, label: 'Silver'}]
     });
-    expect(short.next?.inputs.map(input => [input.label, input.count])).toEqual([['Iron', 24], ['Copper', 12], ['Silver', 6]]);
+    expect(short.next?.inputs.map(input => [input.label, input.count])).toEqual([['Iron', 16], ['Copper', 10], ['Silver', 6]]);
 
-    const stocked = shipyard([oreSlot('Iron', 24), {...oreSlot('Copper', 12), index: 1}, {...oreSlot('Silver', 6), index: 2}]);
+    const stocked = shipyard([oreSlot('Iron', 16), {...oreSlot('Copper', 10), index: 1}, {...oreSlot('Silver', 6), index: 2}]);
     expect(stocked.next).toMatchObject({id: 'hauler', craftable: true, missing: []});
 
     // On the top rung there is nothing left to build.
@@ -699,8 +701,8 @@ describe('buildObservation', () => {
     expect(nextShip()).toEqual({
       id: 'hauler', label: 'Hauler',
       missing: [
-        {kind: oreKind('Iron'), count: 24, label: 'Iron'},
-        {kind: oreKind('Copper'), count: 12, label: 'Copper'},
+        {kind: oreKind('Iron'), count: 16, label: 'Iron'},
+        {kind: oreKind('Copper'), count: 10, label: 'Copper'},
         {kind: oreKind('Silver'), count: 6, label: 'Silver'}
       ]
     });
@@ -708,7 +710,7 @@ describe('buildObservation', () => {
     // Read off the first Manufacturer's stock, as the objective's ship rung is.
     const manufacturer = state.stations.find(station => station.kind === 'manufacturer');
     if (manufacturer?.kind !== 'manufacturer') throw new Error('a seeded manufacturer expected');
-    manufacturer.inventory = addItem(addItem(addItem(createInventory(), oreItem(ore('Iron')), 30), oreItem(ore('Copper')), 12), oreItem(ore('Silver')), 2);
+    manufacturer.inventory = addItem(addItem(addItem(createInventory(), oreItem(ore('Iron')), 30), oreItem(ore('Copper')), 10), oreItem(ore('Silver')), 2);
     expect(nextShip()).toEqual({id: 'hauler', label: 'Hauler', missing: [{kind: oreKind('Silver'), count: 4, label: 'Silver'}]});
 
     swapHull(state.player, 'leviathan');

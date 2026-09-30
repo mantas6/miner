@@ -43,14 +43,17 @@ function ore(name: string, count: number): RecipeInput {
 /**
  * The single tunable recipe table. Ore names must match `ORES` in
  * `shared/constants.ts`. The four ship upgrades come in three marks, so each mark
- * is four sibling recipes sharing one input cost; the drill alone has a fourth,
- * the Core Drill, made from the deepest ores.
+ * is four sibling recipes sharing one input cost — bar the Fuel Tank Mk II, which
+ * skips the Gold so a Scout can craft its first Mk II (and open its last slot) from
+ * the Silver band; the drill alone has a fourth, the Core Drill, made from the
+ * deepest ores. Iron is the early bottleneck (every Mk I and the Hauler want it),
+ * so the kit and the container lean on over-supplied Copper instead.
  */
 export const RECIPES: Recipe[] = [
-  {output: 'repairKit', count: 1, inputs: [ore('Iron', 3)]},
+  {output: 'repairKit', count: 1, inputs: [ore('Iron', 2), ore('Copper', 1)]},
   {output: 'dynamite', count: 1, inputs: [ore('Coal', 2), ore('Iron', 1)]},
   {output: 'scanner', count: 1, inputs: [ore('Copper', 2), ore('Silver', 1)]},
-  {output: 'container', count: 1, inputs: [ore('Iron', 6)]},
+  {output: 'container', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
   {output: 'teleporter', count: 1, inputs: [ore('Silver', 3), ore('Gold', 2)]},
   {output: 'fuelCell', count: 2, inputs: [ore('Uranium', 1)]},
 
@@ -64,7 +67,7 @@ export const RECIPES: Recipe[] = [
   {output: 'upgrade:drill:1', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
   {output: 'upgrade:hull:1', count: 1, inputs: [ore('Iron', 4), ore('Copper', 2)]},
 
-  {output: 'upgrade:tank:2', count: 1, inputs: [ore('Silver', 3), ore('Gold', 3)]},
+  {output: 'upgrade:tank:2', count: 1, inputs: [ore('Silver', 4), ore('Copper', 2)]},
   {output: 'upgrade:cargo:2', count: 1, inputs: [ore('Silver', 3), ore('Gold', 3)]},
   {output: 'upgrade:drill:2', count: 1, inputs: [ore('Silver', 3), ore('Gold', 3)]},
   {output: 'upgrade:hull:2', count: 1, inputs: [ore('Silver', 3), ore('Gold', 3)]},

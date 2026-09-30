@@ -134,7 +134,7 @@ describe('terrain scanner readout', () => {
 
     // The floor goes (a blast, say) and the same aim now reads as a hover drill.
     game.grid.put(x, y + 1, {type: 'air'});
-    expect(game.sync().scanner).toBe('Scanner →: dirt — drillable, 3 hits. Hover: +50 % fuel.');
+    expect(game.sync().scanner).toBe('Scanner →: dirt — drillable, 3 hits. Hover: +25 % fuel.');
 
     // Aiming down again is never a hover drill.
     game.state.player.drillDx = 0;
