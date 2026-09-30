@@ -4,7 +4,8 @@
 // upgrade, or a decoration. Crafting happens at the manufacturing station, so
 // every recipe both consumes from and produces into the *station's* stock (the
 // player stows ore there, crafts, and takes the result back aboard); the ship's
-// bay is never touched here.
+// bay is never touched here — `pooledShortfall` only counts it, so a quoted bill
+// does not call ore still aboard missing.
 //
 // The whole table lives in one place so the numbers are trivial to tune, and the
 // three functions below are pure and DOM-free: `canCraft` asks whether the inputs
@@ -179,6 +180,47 @@ export function missingInputs(inventory: Inventory, recipe: HasInputs): RecipeIn
     if (short > 0) missing.push({kind: input.kind, count: short});
   }
   return missing;
+}
+
+/**
+ * A bill measured against the ship's bay and the station stock together. Crafting
+ * and building still consume from the stock alone; this is what the Shipyard and
+ * the objective quote, so ore still aboard is not reported as missing.
+ */
+export interface PooledShortfall {
+  /** What neither the bay nor the stock holds: still to be mined or bought. */
+  missing: RecipeInput[];
+  /** What the stock lacks but the bay carries: stow it and it counts. */
+  stow: RecipeInput[];
+}
+
+/** The shortfall of a recipe (or a hull) across the bay and the stock, per input. */
+export function pooledShortfall(bay: Inventory, stock: Inventory, recipe: HasInputs): PooledShortfall {
+  const missing: RecipeInput[] = [];
+  const stow: RecipeInput[] = [];
+  for (const input of recipe.inputs) {
+    const short = input.count - countItem(stock, input.kind);
+    if (short <= 0) continue;
+    const aboard = Math.min(short, countItem(bay, input.kind));
+    if (aboard > 0) stow.push({kind: input.kind, count: aboard});
+    if (short > aboard) missing.push({kind: input.kind, count: short - aboard});
+  }
+  return {missing, stow};
+}
+
+/** Input lines in words, e.g. "10 Iron, 6 Silver". */
+export function formatInputs(inputs: readonly RecipeInput[]): string {
+  return inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ');
+}
+
+/**
+ * A pooled shortfall as one line: "Need 4 Silver", "Need 4 Silver · 6 Iron
+ * aboard to stow", or "Stow the 6 Iron aboard to build"; empty when neither.
+ */
+export function formatPooledShortfall({missing, stow}: PooledShortfall): string {
+  if (missing.length === 0) return stow.length > 0 ? `Stow the ${formatInputs(stow)} aboard to build` : '';
+  const need = `Need ${formatInputs(missing)}`;
+  return stow.length > 0 ? `${need} · ${formatInputs(stow)} aboard to stow` : need;
 }
 
 /** The stock with every input taken out. The caller checks `canCraft` first. */

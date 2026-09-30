@@ -526,6 +526,10 @@ describe('store-driven HUD', () => {
     patchHud({depthTarget: '12000 m depth record', depthTargetKind: 'deep', depthTargetRemaining: 800});
     expect(target.textContent).toBe('↓ 800 m to 12000 m depth record');
     expect(target.dataset.kind).toBe('deep');
+
+    // Climbed back above a record already set, it names the record instead.
+    patchHud({depthTargetRecord: 11000});
+    expect(target.textContent).toBe('record: 11000 m reached');
   });
 
   it('mutes music and sound effects from separate buttons', () => {

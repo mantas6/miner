@@ -17,7 +17,7 @@
 // Pure data and lookups, DOM-free.
 
 import { STARTING } from './balance';
-import { missingInputs, type RecipeInput } from './crafting';
+import { pooledShortfall, type PooledShortfall, type RecipeInput } from './crafting';
 import { oreKind, type Inventory } from './inventory';
 
 /** Every hull on the ladder, in build order. */
@@ -126,17 +126,22 @@ export function nextShip(id: ShipId): ShipId | null {
   return SHIP_ORDER[shipTier(id) + 1] ?? null;
 }
 
-/** The next hull up the ladder, and what a Manufacturer's stock still lacks to build it. */
-export interface NextShipShortfall {
+/**
+ * The next hull up the ladder, and what a Manufacturer's stock still lacks to
+ * build it, with the ore aboard counted toward the bill (`pooledShortfall`).
+ */
+export interface NextShipShortfall extends PooledShortfall {
   id: ShipId;
-  /** Each input the stock is short on, with the missing count; empty when it can be built. */
-  missing: RecipeInput[];
 }
 
-/** What building the next hull up from `id` still needs out of `stock`, or `null` on the top rung. */
-export function nextShipShortfall(id: ShipId, stock: Inventory): NextShipShortfall | null {
+/**
+ * What building the next hull up from `id` still needs, counting the `bay` beside
+ * the `stock` it is built from: `missing` is what neither holds, `stow` what only
+ * needs stowing; both empty when it can be built now. `null` on the top rung.
+ */
+export function nextShipShortfall(id: ShipId, stock: Inventory, bay: Inventory = []): NextShipShortfall | null {
   const next = nextShip(id);
-  return next ? {id: next, missing: missingInputs(stock, SHIPS[next])} : null;
+  return next ? {id: next, ...pooledShortfall(bay, stock, SHIPS[next])} : null;
 }
 
 /** What a swap from `from` to `to` adds to each base stat. */

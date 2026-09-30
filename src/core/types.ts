@@ -175,6 +175,10 @@ export interface InputState {
   sprintDirection: Direction | null;
   /** Speed carried out of the last move; a crash into terrain spends it. */
   sprintMomentum: Direction | null;
+  /**
+   * Sim time (`tick × FIXED_STEP_MS`, in ms) the last keyboard repeat was due at:
+   * the anchor the next repeat's `keyboardRepeatMs` is counted from.
+   */
   lastKeyboardMove: number;
   keyboardRepeatMs: number;
   /**

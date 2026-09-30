@@ -201,7 +201,9 @@ describe('booting the game', () => {
     }
 
     expect(text('depth')).toBe('10 m');
-    expect(text('fuelLabel')).not.toBe('100/100');
+    // The drilling spent fuel; one row down the ship is still beside the extractor,
+    // which tops the tank back up out of its store.
+    expect(text('baseFuelLabel')).not.toMatch(/^500 /);
     // Leaving the home base is a state change nothing outside the canvas showed before.
     expect(text('game-status')).toBe('In the mine.');
   });

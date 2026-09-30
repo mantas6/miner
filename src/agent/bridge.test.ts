@@ -99,10 +99,20 @@ describe('agent bridge', () => {
     expect(currentTick()).toBeGreaterThan(frozen);
   });
 
+  it('reads the tick back cheaply, and judges a tile press before it is clicked', () => {
+    expect(agentBridge.tick()).toBe(currentTick());
+    // Beside the ship a press can open something; far off it can do nothing.
+    expect(agentBridge.tilePressRefusal(46, 20)).toBeNull();
+    expect(agentBridge.tilePressRefusal(45, 30)).toMatch(/too far for a tile press/);
+    expect(agentBridge.observe(undefined, 'recipes')).not.toBeNull();
+  });
+
   it('falls back to safe defaults once the runtime is disposed', () => {
     runtime.dispose();
     expect(agentBridge.observe()).toBeNull();
     expect(agentBridge.isPaused()).toBe(false);
+    expect(agentBridge.tick()).toBeNull();
     expect(agentBridge.screenPointForTile(45, 20)).toBeNull();
+    expect(agentBridge.tilePressRefusal(45, 30)).toBeNull();
   });
 });

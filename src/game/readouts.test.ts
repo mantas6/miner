@@ -25,7 +25,8 @@ function blankReadouts(): HudReadoutFields {
     fuelReserveExit: '',
     depthTarget: '',
     depthTargetKind: 'starter',
-    depthTargetRemaining: 0
+    depthTargetRemaining: 0,
+    depthTargetRecord: null
   };
 }
 
@@ -312,10 +313,24 @@ describe('depth landmark tracker', () => {
     game.sync();
     game.fly(3);
 
-    expect(game.fly(0).depthTargetKind).toBe('starter');
+    // Back home, the seam the career already reached is no longer the target: the
+    // next band below the record is, counted from the ship.
+    expect(game.fly(0)).toMatchObject({depthTarget: 'Copper', depthTargetKind: 'ore', depthTargetRemaining: 60});
     game.fly(3);
 
     expect(game.toasts.messages).toHaveLength(1);
+  });
+
+  it('targets the band below a reloaded career record, and names a deep record the ship is back above', () => {
+    const game = setup();
+    game.state.stats.maxDepth = 1500;
+    expect(game.sync()).toMatchObject({depthTarget: 'Ruby', depthTargetRemaining: 2300, depthTargetRecord: null});
+    expect(game.toasts.messages).toEqual([]);
+
+    // A career past 9000 m, the ship climbed back to 8980 m.
+    game.state.stats.maxDepth = 9050;
+    game.state.player.y = START_Y + 898;
+    expect(game.sync()).toMatchObject({depthTargetKind: 'deep', depthTarget: '10000 m depth record', depthTargetRecord: 9000});
   });
 
   it('stays silent for the replacement ship after a death: the count is the career', () => {

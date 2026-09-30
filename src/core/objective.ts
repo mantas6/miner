@@ -10,7 +10,8 @@
 //      nothing fitted and a wreck holds an upgrade → salvage it
 //   5. no ship upgrade yet          → the Fuel Tank Mk I nudge (mine, stow, craft)
 //   6. a Mk II (or, after one, a Mk III) is craftable → craft it
-//   7. the next hull on the ladder is buildable, or half its bill is stocked → build it
+//   7. the next hull on the ladder is buildable, or half its bill is stocked or
+//      aboard → build it (stow first, when the rest of the bill is in the bay)
 //   8. a Portal is craftable (or held; the Deep Portal once unlocked) and none
 //      stands in the field → set one down deep
 //   9. 600 m reached, never a Scanner → craft or buy one: ore hides in the fog
@@ -28,7 +29,7 @@
 
 import { FUEL, HULL } from './balance';
 import { ORES, START_Y, rowDepthMeters } from '../../shared/constants';
-import { canCraft, isRecipeUnlocked, missingInputs, RECIPES, standardRecipe, type HasInputs, type Recipe } from './crafting';
+import { canCraft, formatInputs, isRecipeUnlocked, pooledShortfall, RECIPES, standardRecipe, type HasInputs, type Recipe } from './crafting';
 import { fuelExitLabel, type FuelExit } from './fuel-reserve';
 import { isBaseLow } from './hud-alerts';
 import {
@@ -103,7 +104,7 @@ export const DEPTH_RECORD_STEP = 1000;
  * to the next band: the smallest count a Mk II or Mk III recipe takes of one ore.
  */
 export const BAND_ORE_TARGET = 3;
-/** The share of the next hull's bill the station must hold before the ship rung names it. */
+/** The share of the next hull's bill the station and the bay must hold before the ship rung names it. */
 export const SHIP_OBJECTIVE_SHARE = 0.5;
 
 const firstUpgradeRecipe = RECIPES.find(entry => entry.output === FIRST_UPGRADE);
@@ -201,9 +202,11 @@ interface ShipFacts {
   label: string;
   /** The stock covers the whole bill. */
   buildable: boolean;
-  /** The stock covers at least `SHIP_OBJECTIVE_SHARE` of the bill, counted in ore. */
+  /** The stock and the bay together cover it: stow, then build. */
+  covered: boolean;
+  /** The stock and the bay cover at least `SHIP_OBJECTIVE_SHARE` of the bill, counted in ore. */
   halfway: boolean;
-  /** What the stock is still short, e.g. "10 Iron, 6 Silver"; empty when buildable. */
+  /** What neither the stock nor the bay holds, e.g. "10 Iron, 6 Silver"; empty once covered. */
   missing: string;
 }
 
@@ -276,19 +279,25 @@ function craftFacts(station: Inventory): CraftFacts {
   };
 }
 
-function shipFacts(ship: ShipId, station: Inventory): ShipFacts {
+/**
+ * The next hull's bill against the stock it is built from, with the ore aboard
+ * counted toward it — the Shipyard's own reading (`pooledShortfall`) — so a ship
+ * home with the last Silver in its bay is told to stow and build, not to mine.
+ */
+function shipFacts(ship: ShipId, bay: Inventory, station: Inventory): ShipFacts {
   const next = nextShip(ship);
-  if (!next) return {next: null, label: '', buildable: false, halfway: false, missing: ''};
+  if (!next) return {next: null, label: '', buildable: false, covered: false, halfway: false, missing: ''};
   const hull = SHIPS[next];
-  const short = missingInputs(station, hull);
+  const {missing, stow} = pooledShortfall(bay, station, hull);
   const bill = hull.inputs.reduce((sum, input) => sum + input.count, 0);
-  const lacking = short.reduce((sum, input) => sum + input.count, 0);
+  const lacking = missing.reduce((sum, input) => sum + input.count, 0);
   return {
     next,
     label: hull.label,
-    buildable: short.length === 0,
+    buildable: missing.length === 0 && stow.length === 0,
+    covered: missing.length === 0,
     halfway: bill > 0 && bill - lacking >= bill * SHIP_OBJECTIVE_SHARE,
-    missing: short.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ')
+    missing: formatInputs(missing)
   };
 }
 
@@ -328,6 +337,7 @@ interface ObjectiveStep {
    * stock / 2 craft or buy at home / 3 go home for one / 4 or a post; stow 0 home /
    * 1 or a post; base 0 no extractor / 1 load coal / 2 mine coal / 3 order fuel;
    * fit 0 aboard / 1 in stock; firstUpgrade 0 mine / 1 craft / 2 stow and craft;
+   * ship 0 build (or still needs) / 1 stow the ore aboard and build;
    * portal 0 craft / 1 set down / 2 craft the Deep Portal; coreDrill 0 craft /
    * 1 fit; band 0 none mined yet, here / 1 work it; depth 0 mind the trip home /
    * 1 a portal stands.
@@ -361,7 +371,7 @@ function setStep(out: ObjectiveStep, rung: Rung, variant = 0, amount = 0, name =
 }
 
 function shipStep(out: ObjectiveStep, ships: ShipFacts): ObjectiveStep {
-  return setStep(out, 'ship', 0, 0, ships.label, 0, ships.missing);
+  return setStep(out, 'ship', !ships.buildable && ships.covered ? 1 : 0, 0, ships.label, 0, ships.missing);
 }
 
 /** Walk the ladder into `out`; the first rung that applies wins. */
@@ -521,6 +531,7 @@ function formatStep(step: ObjectiveStep): string {
     case 'markThree':
       return 'Objective: craft a Mk III upgrade at the Manufacturing Station.';
     case 'ship':
+      if (step.variant === 1) return `Objective: stow your ore and build the ${step.name} at the Manufacturing Station.`;
       return step.detail
         ? `Objective: build the ${step.name} at the Manufacturing Station (still needs ${step.detail}).`
         : `Objective: build the ${step.name} at the Manufacturing Station.`;
@@ -560,7 +571,7 @@ function formatStep(step: ObjectiveStep): string {
 
 export function formatExpeditionObjective(input: ObjectiveInput): string {
   const {player, bay, station} = input;
-  const step = evaluate(input, craftFacts(station), shipFacts(player.ship, station), holdFacts(player, bay, station), blankStep());
+  const step = evaluate(input, craftFacts(station), shipFacts(player.ship, bay, station), holdFacts(player, bay, station), blankStep());
   return formatStep(step);
 }
 
@@ -587,6 +598,7 @@ export function createExpeditionObjectiveFormatter(): (input: ObjectiveInput) =>
   let craftStation: Inventory | null = null;
   let crafts: CraftFacts = craftFacts([]);
   let shipStation: Inventory | null = null;
+  let shipBay: Inventory | null = null;
   let shipId: ShipId | null = null;
   let ships: ShipFacts | null = null;
   let holdEquipment: ObjectivePlayer['equipment'] | null = null;
@@ -602,10 +614,11 @@ export function createExpeditionObjectiveFormatter(): (input: ObjectiveInput) =>
       craftStation = station;
       crafts = craftFacts(station);
     }
-    if (!ships || player.ship !== shipId || !sameStock(station, shipStation)) {
+    if (!ships || player.ship !== shipId || !sameStock(station, shipStation) || !sameStock(bay, shipBay)) {
       shipStation = station;
+      shipBay = bay;
       shipId = player.ship;
-      ships = shipFacts(player.ship, station);
+      ships = shipFacts(player.ship, bay, station);
     }
     if (!held || player.equipment !== holdEquipment || bay !== holdBay || !sameStock(station, holdStation)) {
       holdEquipment = player.equipment;

@@ -82,10 +82,15 @@ export interface HudSnapshot {
   fuelReserveMargin: number;
   /** That exit, as the gauge names it: `Home` or `Portal "Deep"`. */
   fuelReserveExit: string;
-  /** Next depth landmark: its name, kind, and how much deeper it is. */
+  /**
+   * Next depth landmark below the career record: its name, kind, and how much
+   * deeper than the ship it is; `depthTargetRecord` is a depth record already set
+   * that the ship is back above (shown instead of the countdown), else `null`.
+   */
   depthTarget: string;
   depthTargetKind: DepthMilestoneKind;
   depthTargetRemaining: number;
+  depthTargetRecord: number | null;
   /**
    * The canvas state a sighted player reads off the pixels, as one spoken line.
    * Deliberately built from thresholds only, never from a continuous value: it
@@ -103,7 +108,7 @@ const HUD_KEYS = [
   'atSurface', 'gameOver', 'stationHint',
   'hasBase', 'baseFuel', 'baseCoal', 'baseAlert',
   'scanner', 'postHint', 'fuelReserveStatus', 'fuelReserveNeeded', 'fuelReserveMargin',
-  'fuelReserveExit', 'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'announcement'
+  'fuelReserveExit', 'depthTarget', 'depthTargetKind', 'depthTargetRemaining', 'depthTargetRecord', 'announcement'
 ] as const satisfies readonly (keyof HudSnapshot)[];
 
 /** One trading post the player has seen, as the Prospecting tab lists it. */
@@ -407,7 +412,7 @@ const initialState = createInitialState();
 
 function initialHud(): HudSnapshot {
   const player = initialState.player;
-  const milestone = getDepthMilestone(player.y);
+  const milestone = getDepthMilestone(player.y, initialState.stats.maxDepth);
   const base = homeExtractor(initialState.stations);
   return {
     cash: initialState.cash,
@@ -448,6 +453,7 @@ function initialHud(): HudSnapshot {
     depthTarget: milestone.target,
     depthTargetKind: milestone.kind,
     depthTargetRemaining: milestone.remainingMeters,
+    depthTargetRecord: milestone.recordMeters,
     announcement: formatShipStatusAnnouncement({
       gameOver: false,
       atSurface: true,

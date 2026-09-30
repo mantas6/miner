@@ -6,7 +6,7 @@
 // definition.
 
 import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test';
-import { HOME_ROW, HOME_X, WORLD_W } from '../../shared/constants';
+import { HOME_ROW, HOME_X, STATIONS, WORLD_W } from '../../shared/constants';
 import { SAVE_KEY, SAVE_VERSION } from '../../src/persistence';
 import { TRADING_POST_MIN_ROW, tradingPostAt } from '../../src/world/world';
 
@@ -114,8 +114,20 @@ export async function openIntro(page: Page): Promise<void> {
  * since the save has to be in place before the page loads.
  */
 export async function seedDirtUnderHome(page: Page): Promise<void> {
-  await seedSave(page, {tiles: [DIRT_UNDER_HOME]});
+  await seedSave(page, {tiles: [DIRT_UNDER_HOME], stations: HOME_STATIONS_DRY_EXTRACTOR});
 }
+
+/**
+ * The seeded home stations, the extractor's store empty. The spawn and the tile
+ * under it stand beside the extractor, which tops a parked ship's tank up out of
+ * its store every tick, so a full one would pour back each drill hit's fuel and
+ * leave nothing on the gauge to count.
+ */
+export const HOME_STATIONS_DRY_EXTRACTOR = [
+  {kind: 'manufacturer', x: STATIONS.manufacturer.x, y: STATIONS.manufacturer.y, items: []},
+  {kind: 'extractor', x: STATIONS.extractor.x, y: STATIONS.extractor.y, fuel: 0},
+  {kind: 'portal', x: STATIONS.portal.x, y: STATIONS.portal.y, name: 'Home'}
+];
 
 /**
  * Splash → a live run with the canvas holding the keyboard.

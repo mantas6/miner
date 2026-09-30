@@ -570,6 +570,13 @@ function savedTiles(state: GameState, cap: number): TileEntry[] {
 }
 
 /**
+ * What Settings tells a player about to export a save or reload into an imported
+ * one while ore is aboard: the save leaves ore out of the bay (below), by design,
+ * so only what is stowed survives.
+ */
+export const ORE_NOT_SAVED_NOTE = 'Ore aboard is not saved — stow it first.';
+
+/**
  * The save file for this state, as the object `save` writes and `load` reads
  * back. Also what an export hands the player, so a downloaded save and the one in
  * `localStorage` are the same thing.

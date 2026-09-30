@@ -24,8 +24,9 @@ import {
   type UpgradeId,
   type UpgradeKind
 } from './inventory';
+import { RECIPES, recipeLabel } from './crafting';
 import { itemForKind } from './items';
-import { fitEquipmentTo, shipFor, type ShipId } from './ships';
+import { fitEquipmentTo, shipFor, slotsFor, type ShipId } from './ships';
 import type { Player } from './types';
 
 /**
@@ -44,6 +45,25 @@ export function unlockedSlotCount(slotCount: number, bestMarkCrafted: number): n
 /** Whether `slot` of a `slotCount`-slot hull is still locked — the last one, before any Mk II. */
 export function isSlotLocked(slot: number, slotCount: number, bestMarkCrafted: number): boolean {
   return slot >= unlockedSlotCount(slotCount, bestMarkCrafted);
+}
+
+const ORDINALS = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'];
+
+/**
+ * The toast for a craft that raised `stats.bestMarkCrafted` from `before` to
+ * `after`: the hull's last fitting slot opening (crossing `SLOT_UNLOCK_MARK`,
+ * named by its place on the hull flown — "Third" on a Scout, "Fourth" on a
+ * Hauler) and any recipe that unlocks with it. `null` when nothing opened.
+ */
+export function formatMarkUnlock(ship: ShipId, before: number, after: number): string | null {
+  const parts: string[] = [];
+  if (before < SLOT_UNLOCK_MARK && after >= SLOT_UNLOCK_MARK) {
+    const slots = slotsFor(ship);
+    parts.push(`${ORDINALS[slots - 1] ?? `${slots}th`} slot unlocked — fit another upgrade from the Ship screen.`);
+  }
+  const recipes = RECIPES.filter(recipe => (recipe.unlockMark ?? 0) > before && (recipe.unlockMark ?? 0) <= after);
+  if (recipes.length > 0) parts.push(`New recipes: ${recipes.map(recipeLabel).join(', ')}.`);
+  return parts.length > 0 ? parts.join(' ') : null;
 }
 
 /**

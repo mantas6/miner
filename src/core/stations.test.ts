@@ -8,6 +8,7 @@ import {
   createExtractor,
   createInitialStations,
   createManufacturer,
+  extractorInReach,
   homeExtractor,
   isStationReachable,
   manufacturerStock,
@@ -82,6 +83,18 @@ describe('locating the stations', () => {
     const stationsExtractorFirst = [createExtractor(10, 10), createManufacturer(12, 10)];
     // (11,10) is one tile from each; the manufacturer must still win the tie.
     expect(nearestStation(stationsExtractorFirst, {x: 11, y: 10})?.kind).toBe('manufacturer');
+  });
+
+  it('finds the extractor a ship is parked on or beside for the top-up, whatever else is nearer', () => {
+    const seeded = stationAt(stations, STATIONS.extractor.x, STATIONS.extractor.y);
+    expect(extractorInReach(stations, STATIONS.extractor.x, HOME_ROW)).toBe(seeded);
+    // The spawn tile, beside the extractor and the manufacturer both.
+    expect(extractorInReach(stations, (STATIONS.manufacturer.x + STATIONS.extractor.x) / 2, HOME_ROW)).toBe(seeded);
+    expect(extractorInReach(stations, STATIONS.extractor.x + 1, HOME_ROW - 1)).toBe(seeded);
+    expect(extractorInReach(stations, STATIONS.extractor.x + 2, HOME_ROW)).toBeNull();
+    // Two in reach: the one underfoot wins.
+    const pair = [createExtractor(10, 10), createExtractor(11, 10)];
+    expect(extractorInReach(pair, 11, 10)).toBe(pair[1]);
   });
 });
 

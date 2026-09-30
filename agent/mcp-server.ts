@@ -21,7 +21,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { openGameSession, type ClickTarget, type GameSession } from './session';
-import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
+import { OBSERVATION_DETAILS, VIEW_LEGEND, type AgentObservation, type ObservationDetail } from '../src/agent/observation';
+import { TILE_PRESS_REACH } from '../src/agent/tile-press';
 import { EXTRACTOR, HULL } from '../src/core/balance';
 import { COCOON_WAKE_RADIUS } from '../src/core/enemy-exposure';
 import { RECIPES, recipeId, recipeLabel } from '../src/core/crafting';
@@ -29,8 +30,12 @@ import { EXTRACTOR_FUEL_ORDER, FUEL_DEPTH_METERS, POST_REPAIR_KIT_STOCK, extract
 import { FUEL_CELL_FUEL, itemForKind } from '../src/core/items';
 import { HOVER_DRILL_SURCHARGE_PERCENT } from '../src/core/movement';
 import { SHIPS, SHIP_ORDER } from '../src/core/ships';
+import { createInitialState } from '../src/core/state';
 import { MAX_ZOOM, MIN_ZOOM } from '../src/game/zoom';
 import { INFO_NAVIGATION_SECTIONS } from '../src/ui/info-navigation';
+
+/** The held-key repeat interval, in ms of sim time: one step per repeat. */
+const REPEAT_MS = createInitialState().input.keyboardRepeatMs;
 
 /** The single live session, or `null` when none is open. One at a time. */
 let session: GameSession | null = null;
@@ -91,7 +96,11 @@ function instructions(): string {
     'CONTROLS (keys for `press` / `hold`):',
     '  ArrowLeft/Right/Up/Down or a/d/w/s — move. Moving into terrain drills it;',
     '    moving into open space flies. Falling straight down through open air is free;',
-    '    every other move burns fuel. The drill never digs upward; a side dig with open',
+    '    every other move burns fuel. A `press` is one step (one drill hit into terrain);',
+    `    a \`hold\` steps at once and then every ${REPEAT_MS} ms of sim time, so it takes`,
+    `    1 + floor(ms / ${REPEAT_MS}) steps — hold n × ${REPEAT_MS} ms for n + 1 (a dig of N hits spends N`,
+    '    of them; a sprint repeats faster). Every action returns once the sim has run it.',
+    '    The drill never digs upward; a side dig with open',
     `    air under the ship costs ${HOVER_DRILL_SURCHARGE_PERCENT}% more fuel (\`hud.scanner\` ends "Hover: +${HOVER_DRILL_SURCHARGE_PERCENT} % fuel.").`,
     '    `hud.scanner` reads the tile the drill is aimed at; behind known dirt it also',
     '    names what the drill line breaks into next, fog or not ("…, 3 hits, then magma.").',
@@ -158,7 +167,10 @@ function instructions(): string {
     '    unfitting a tank or plating moves fuel/hull by the same amount as its maximum,',
     '    and is refused when that would leave less than 1.',
     '  Save export/import: click infoBtn, then data-info-section value "info-settings".',
-    '    exportSaveBtn puts the save JSON in `overlay.saveExport` (and downloads it).',
+    '    exportSaveBtn puts the save JSON in `overlay.saveExport` and downloads it; the',
+    '    harness saves that file and names it in `overlay.saveExportPath`. A save leaves',
+    '    the ore aboard out: while there is some, `settings.oreNote` says so ("Ore aboard',
+    '    is not saved — stow it first."), as the Save data box and the import confirm do.',
     '    To import, click importSaveText, `type` the JSON, click importSaveBtn, then',
     '    importSaveConfirmBtn (importSaveCancelBtn backs out); only the current save',
     '    version is accepted. The page reloads to the title splash with the imported',
@@ -179,8 +191,12 @@ function instructions(): string {
     '    more portals the respawn prompt above comes up instead.',
     '  Escape — cancel an armed placement, or close the ship/info/container/wreck/chest/grave overlay.',
     '  Enter — start the run from the title splash (use the `start_run` tool).',
-    '  Click a tile with `press_tile` to move/drill toward it, plant an armed device,',
-    '    or open a station, trading post, wreck, chest, or grave. Click named UI controls with `click`.',
+    '  Click a tile with `press_tile` to plant an armed device, lift with the armed toolkit,',
+    `    or open a station, trading post, container, wreck, chest, or grave within ${TILE_PRESS_REACH} tile of the ship.`,
+    '    A tile press never moves the ship: an unarmed press further off is refused with an',
+    '    error ("too far for a tile press") — fly there with press/hold. Click named UI controls with `click`.',
+    '    The first pointer press of a session (a `click` or `press_tile`) also unlocks the',
+    '    browser\'s audio, so `audio.music` may turn on then; that is not a button toggle.',
     '  Keys always reach the game: `press`/`hold` hand focus back to the mine first when',
     '    no dialog is open, and inside a dialog Space/Enter drop focus off a button so',
     '    they act as the overlay keys (use `click` to press a button).',
@@ -195,19 +211,25 @@ function instructions(): string {
     '',
     'CRAFTING RECIPES (at the Manufacturer; consume from and produce into station stock):',
     recipesText(),
-    '  The open station lists only the unlocked rows in `overlay.recipes`; click data-craft',
-    '  with a row\'s `id` (its output kind, plus ":alt" for a deep alternate).',
+    '  The open station lists every unlocked row; the observation mirrors only the ones the',
+    '  stock can craft now in `overlay.recipes` (`overlay.recipeCount` is how many the screen',
+    '  lists) — `observe` with detail "recipes" returns them all, each with its `missing`',
+    '  shortfall. Click data-craft with a row\'s `id` (its output kind, plus ":alt" for a deep',
+    '  alternate). The craft that makes your first Mk II toasts the slot and recipes it opens.',
     '',
     'SHIPYARD (every Manufacturer, `station.shipyard`): a one-way ladder of hulls, each with',
     '  one more fitting slot and a bigger base tank, hull, bay and drill:',
     shipsText(),
-    '  Only the next hull up is buildable (`shipyard.next`: craftable, inputs, missing,',
+    '  Only the next hull up is buildable (`shipyard.next`: craftable, inputs, missing, stow,',
     '  gains); click data-craft-ship with its id (e.g. "hauler"). The ore comes out of the',
     '  station stock, fitted upgrades carry over into the bigger hull, and fuel/hull are',
-    '  kept, not refilled. `ship.class` / `ship.shipLabel` / `ship.slots` name the hull flown.',
-    '  `hud.nextShip` ({id, label, missing}) is the same next hull with no overlay open:',
-    '  what the first Manufacturer\'s stock still lacks for it (empty = buildable), `null` on',
-    '  the top rung. `hud.objective` names it too once half its bill is stocked.',
+    '  kept, not refilled; the build toast lists the gains. `ship.class` / `ship.shipLabel` /',
+    '  `ship.slots` name the hull flown. The ore aboard counts toward the bill: `missing` is',
+    '  what neither the stock nor the bay holds (still to mine), `stow` what the bay carries',
+    '  that the stock lacks (stow it, then build). `hud.nextShip` ({id, label, missing, stow})',
+    '  is the same next hull with no overlay open, read against the first Manufacturer\'s',
+    '  stock (both empty = buildable), `null` on the top rung. `hud.objective` names it too',
+    '  once half its bill is stocked or aboard.',
     '  The hull survives a death (its slots come back empty); only a full player-data',
     '  reset returns the Scout.',
     '',
@@ -218,7 +240,7 @@ function instructions(): string {
     '    stands in the home cavern. It prices a clear flight plus a small allowance,',
     '    not your real tunnel. Running dry underground is fatal.',
     '  - Return to the surface to refuel and craft; the Manufacturer crafts and stores.',
-    '    Parking on the Fuel Extractor (X) keeps the tank topped up while you stay.',
+    '    Parking on or beside the Fuel Extractor (X) keeps the tank topped up while you stay.',
     `    Load coal into it: each coal converts to ${EXTRACTOR.fuelPerCoal} fuel, well over what digging`,
     '    one costs. `hud.base` is the home extractor\'s stored fuel and queued coal;',
     `    \`alert\` means the two could no longer fill a tank (capped at the ${EXTRACTOR.fuelCap} the store`,
@@ -360,10 +382,17 @@ server.registerTool(
 server.registerTool(
   'observe',
   {
-    description: 'Return the current observation without changing the world.',
-    inputSchema: {radius: z.number().int().positive().max(40).optional().describe('Horizontal view radius; 2·r+1 tiles across. Default 7, max 40.')}
+    description:
+      'Return the current observation without changing the world. An open Manufacturer lists only ' +
+      'its craftable recipes (`overlay.recipes`, out of `overlay.recipeCount`); pass detail "recipes" ' +
+      'for every recipe it lists, with each unaffordable one\'s `missing` shortfall.',
+    inputSchema: {
+      radius: z.number().int().positive().max(40).optional().describe('Horizontal view radius; 2·r+1 tiles across. Default 7, max 40.'),
+      detail: z.enum(OBSERVATION_DETAILS as [ObservationDetail, ...ObservationDetail[]]).optional()
+        .describe('Extra detail left out by default: "recipes" mirrors an open station\'s whole recipe list.')
+    }
   },
-  ({radius}) => withSession(game => game.observe(radius))
+  ({radius, detail}) => withSession(game => game.observe(radius, detail))
 );
 
 server.registerTool(
@@ -393,10 +422,13 @@ server.registerTool(
 server.registerTool(
   'hold',
   {
-    description: 'Hold a key for `ms` of wall-clock time (the sim runs during the hold). Set `shift` to sprint/boost (needs a Booster fitted).',
+    description:
+      'Hold a key for `ms` of sim time (the sim runs during the hold, at wall-clock speed). A held direction ' +
+      `steps at once, then every ${REPEAT_MS} ms: 1 + floor(ms / ${REPEAT_MS}) steps (e.g. 525 ms → 6). ` +
+      'Set `shift` to sprint/boost (needs a Booster fitted).',
     inputSchema: {
       key: z.string().describe('The key to hold, e.g. "ArrowDown" or "d".'),
-      ms: z.number().int().nonnegative().max(60000).describe('How long to hold the key, in milliseconds (max 60000).'),
+      ms: z.number().int().nonnegative().max(60000).describe('How long to hold the key after its first step, in milliseconds of sim time (max 60000).'),
       shift: z.boolean().optional().describe('Hold Shift too, for a sprint. Default false.')
     }
   },
@@ -444,7 +476,11 @@ server.registerTool(
 server.registerTool(
   'press_tile',
   {
-    description: 'Press a mine tile by world coordinate (clicks its centre on the canvas). Moves/drills toward it, plants an armed device, or opens a station, trading post, wreck, chest or grave beside the ship.',
+    description:
+      'Press a mine tile by world coordinate (clicks its centre on the canvas). Plants an armed device, ' +
+      'lifts with the armed toolkit, restarts after a lost ship, or opens a station, trading post, container, ' +
+      `wreck, chest or grave within ${TILE_PRESS_REACH} tile of the ship. It never moves the ship: an unarmed ` +
+      'press further off is refused with a "too far" error, as is one off-screen or under the HUD.',
     inputSchema: {
       x: z.number().int().describe('Tile world x-coordinate.'),
       y: z.number().int().describe('Tile world y-coordinate.')

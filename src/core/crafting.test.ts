@@ -6,8 +6,11 @@ import {
   craft,
   findRecipe,
   fitsAfterCraft,
+  formatInputs,
+  formatPooledShortfall,
   isRecipeUnlocked,
   missingInputs,
+  pooledShortfall,
   recipeId,
   recipeLabel,
   standardRecipe,
@@ -133,6 +136,22 @@ describe('checking a recipe', () => {
       {kind: oreKind('Iron'), count: 1}
     ]);
     expect(missingInputs(ores(['Coal', 2], ['Iron', 1]), dynamite)).toEqual([]);
+  });
+
+  it('pools the bay with the stock for a quoted bill, telling what to mine from what to stow', () => {
+    const dynamite = RECIPES.find(recipe => recipe.output === 'dynamite')!;
+    // One Coal stocked, one aboard, no Iron anywhere.
+    const short = pooledShortfall(ores(['Coal', 1]), ores(['Coal', 1]), dynamite);
+    expect(short).toEqual({missing: [{kind: oreKind('Iron'), count: 1}], stow: [{kind: oreKind('Coal'), count: 1}]});
+    expect(formatPooledShortfall(short)).toBe('Need 1 Iron · 1 Coal aboard to stow');
+    // Everything aboard: nothing left to mine, only to stow.
+    const aboard = pooledShortfall(ores(['Coal', 5], ['Iron', 1]), createInventory(), dynamite);
+    expect(aboard).toEqual({missing: [], stow: [{kind: oreKind('Coal'), count: 2}, {kind: oreKind('Iron'), count: 1}]});
+    expect(formatPooledShortfall(aboard)).toBe('Stow the 2 Coal, 1 Iron aboard to build');
+    // Nothing aboard: the stock's own shortfall, word for word.
+    expect(formatPooledShortfall(pooledShortfall(createInventory(), ores(['Coal', 1]), dynamite))).toBe('Need 1 Coal, 1 Iron');
+    expect(pooledShortfall(createInventory(), ores(['Coal', 2], ['Iron', 1]), dynamite)).toEqual({missing: [], stow: []});
+    expect(formatInputs([{kind: oreKind('Iron'), count: 10}, {kind: oreKind('Silver'), count: 6}])).toBe('10 Iron, 6 Silver');
   });
 });
 

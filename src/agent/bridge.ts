@@ -14,7 +14,8 @@
 // tagged with the tick it appeared on, and feeds them into every observation.
 
 import { uiStore } from '../ui/store';
-import { appendToast, buildObservation, type AgentObservation, type AgentToast } from './observation';
+import { appendToast, buildObservation, type AgentObservation, type AgentToast, type ObservationDetail } from './observation';
+import { tilePressRefusal } from './tile-press';
 import type { GameState, Tile } from '../core/types';
 import type { UiState } from '../ui/store';
 
@@ -41,13 +42,23 @@ export interface AgentRuntimeHooks {
 }
 
 export interface AgentBridge {
-  /** The full observation, or `null` when no game is running. */
-  observe(radius?: number): AgentObservation | null;
+  /**
+   * The full observation, or `null` when no game is running. `detail` asks for the
+   * parts left out by default (`'recipes'`: an open station's whole recipe list).
+   */
+  observe(radius?: number, detail?: ObservationDetail): AgentObservation | null;
   /** Freeze or resume the simulation between decisions. */
   setPaused(paused: boolean): void;
   isPaused(): boolean;
+  /**
+   * The sim's tick counter, or `null` with no game: a cheap readback the harness
+   * polls to know an action's input has actually been simulated.
+   */
+  tick(): number | null;
   /** Canvas coordinates of a tile's centre, or `null` when off-screen or no game. */
   screenPointForTile(x: number, y: number): ScreenPoint | null;
+  /** Why a press on this tile would do nothing (`tilePressRefusal`), or `null` when it can land. */
+  tilePressRefusal(x: number, y: number): string | null;
 }
 
 let runtime: AgentRuntimeHooks | null = null;
@@ -66,7 +77,7 @@ uiStore.subscribe(state => {
 
 /** The live bridge. Its methods are safe defaults until a runtime registers. */
 export const agentBridge: AgentBridge = {
-  observe(radius) {
+  observe(radius, detail) {
     if (!runtime) return null;
     return buildObservation({
       state: runtime.getState(),
@@ -74,7 +85,8 @@ export const agentBridge: AgentBridge = {
       get: runtime.getTile,
       radius,
       toasts: toastRing,
-      zoom: runtime.getZoom()
+      zoom: runtime.getZoom(),
+      detail
     });
   },
   setPaused(paused) {
@@ -83,8 +95,14 @@ export const agentBridge: AgentBridge = {
   isPaused() {
     return runtime?.isPaused() ?? false;
   },
+  tick() {
+    return runtime ? runtime.getState().tick : null;
+  },
   screenPointForTile(x, y) {
     return runtime?.screenPointForTile(x, y) ?? null;
+  },
+  tilePressRefusal(x, y) {
+    return runtime ? tilePressRefusal(runtime.getState(), x, y) : null;
   }
 };
 

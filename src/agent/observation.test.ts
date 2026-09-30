@@ -377,8 +377,13 @@ describe('buildObservation', () => {
     });
     expect(controls.controls?.some(row => row.keys.startsWith('+ / -'))).toBe(true);
 
-    const settings = info({infoTab: 'info-settings', cheatsOpen: true, confirmingReset: true, confirmingImport: false});
-    expect(settings.settings).toEqual({cheatsOpen: true, confirmingReset: true, confirmingImport: false});
+    const settings = info({infoTab: 'info-settings', cheatsOpen: true, confirmingReset: true, confirmingImport: false, inventorySlots: []});
+    expect(settings.settings).toEqual({cheatsOpen: true, confirmingReset: true, confirmingImport: false, oreNote: null});
+    // With ore aboard, the Save data box warns that a save leaves it out.
+    const laden = info({infoTab: 'info-settings', inventorySlots: [oreSlot('Iron', 2)]});
+    expect(laden.settings?.oreNote).toBe('Ore aboard is not saved — stow it first.');
+    // The harness, not the game, names the downloaded file.
+    expect(info({infoTab: 'info-settings', saveExport: '{}'}).saveExportPath).toBeUndefined();
   });
 
   it('reports audio, the runtime, the zoom and the folded inventory panel', () => {
@@ -627,6 +632,19 @@ describe('buildObservation', () => {
     expect(deep.hud.fuelReserve).toEqual({status: 'caution', needed: 6, margin: 3, exit: 'Portal "Deep"'});
   });
 
+  it('carries the depth landmark in hud.depthTarget, with a record the ship is back above', () => {
+    const state = createInitialState();
+    const base = uiStore.getState();
+    expect(buildObservation({state, ui: ui(), get: tileSource({})}).hud.depthTarget)
+      .toEqual({name: 'starter Coal/Iron seam', kind: 'starter', remaining: 30, record: null});
+    const deep = buildObservation({
+      state,
+      ui: ui({hud: {...base.hud, depthTarget: '10000 m depth record', depthTargetKind: 'deep', depthTargetRemaining: 1020, depthTargetRecord: 9000}}),
+      get: tileSource({})
+    });
+    expect(deep.hud.depthTarget).toEqual({name: '10000 m depth record', kind: 'deep', remaining: 1020, record: 9000});
+  });
+
   it('carries the base fuel readout in hud.base, and null without a base', () => {
     const state = createInitialState();
     const base = uiStore.getState();
@@ -662,20 +680,25 @@ describe('buildObservation', () => {
     // No overlay open: nothing is mirrored.
     expect(buildObservation({state, ui: ui({overlay: null}), get: tileSource({})}).overlay).toBeNull();
 
-    const overlay = buildObservation({
-      state,
-      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3), {...oreSlot('Copper', 1), index: 1}], supply: false, bestMarkCrafted: 0}}),
-      get: tileSource({})
-    }).overlay;
+    const stationUi = ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 3), {...oreSlot('Copper', 1), index: 1}], supply: false, bestMarkCrafted: 0}});
+    const trimmed = buildObservation({state, ui: stationUi, get: tileSource({})}).overlay;
+    const overlay = buildObservation({state, ui: stationUi, get: tileSource({}), detail: 'recipes'}).overlay;
 
     expect(overlay?.kind).toBe('station');
-    if (overlay?.kind !== 'station') throw new Error('expected station overlay');
+    if (overlay?.kind !== 'station' || trimmed?.kind !== 'station') throw new Error('expected station overlay');
     expect(overlay.stock).toMatchObject([{kind: oreKind('Iron'), label: 'Iron', count: 3}, {kind: oreKind('Copper'), label: 'Copper', count: 1}]);
     // Three Iron and a Copper afford the repair kit but not the teleporter.
     expect(overlay.recipes.find(r => r.output === 'repairKit')?.craftable).toBe(true);
     const teleporter = overlay.recipes.find(r => r.output === 'teleporter');
     expect(teleporter?.craftable).toBe(false);
     expect(teleporter?.missing.length).toBeGreaterThan(0);
+    // By default only the craftable rows are mirrored, out of every row the screen lists.
+    expect(overlay.recipeCount).toBe(overlay.recipes.length);
+    expect(trimmed.recipeCount).toBe(overlay.recipeCount);
+    expect(trimmed.recipes.length).toBeLessThan(trimmed.recipeCount);
+    expect(trimmed.recipes.every(r => r.craftable)).toBe(true);
+    expect(trimmed.recipes).toEqual(overlay.recipes.filter(r => r.craftable));
+    expect(trimmed.recipes.map(r => r.id)).toContain('repairKit');
 
     // A stock slot and every recipe carry non-empty tooltip lines; the recipe's
     // include a have/need line for each input read against the station stock.
@@ -695,7 +718,8 @@ describe('buildObservation', () => {
     const overlay = buildObservation({
       state: createInitialState(),
       ui: ui({overlay: {kind: 'station', slots: [oreSlot('Ruby', 2), {...oreSlot('Emerald', 2), index: 1}, {...oreSlot('Iron', 2), index: 2}], supply: false, bestMarkCrafted: 2}}),
-      get: tileSource({})
+      get: tileSource({}),
+      detail: 'recipes'
     }).overlay;
     if (overlay?.kind !== 'station') throw new Error('expected station overlay');
     const portals = overlay.recipes.filter(r => r.output === 'device:portal');
@@ -731,7 +755,21 @@ describe('buildObservation', () => {
     expect(short.next?.inputs.map(input => [input.label, input.count])).toEqual([['Iron', 16], ['Copper', 10], ['Silver', 6]]);
 
     const stocked = shipyard([oreSlot('Iron', 16), {...oreSlot('Copper', 10), index: 1}, {...oreSlot('Silver', 6), index: 2}]);
-    expect(stocked.next).toMatchObject({id: 'hauler', craftable: true, missing: []});
+    expect(stocked.next).toMatchObject({id: 'hauler', craftable: true, missing: [], stow: []});
+
+    // The bay counts toward the bill the way the screen's line counts it; the Build
+    // button still waits on the stock.
+    const aboard = buildObservation({
+      state,
+      ui: ui({overlay: {kind: 'station', slots: [oreSlot('Iron', 16)], supply: false, bestMarkCrafted: 0}, ship: buildShipView('scout'), inventorySlots: [oreSlot('Silver', 6)]}),
+      get: tileSource({})
+    }).overlay;
+    if (aboard?.kind !== 'station') throw new Error('expected station overlay');
+    expect(aboard.shipyard.next).toMatchObject({
+      craftable: false,
+      missing: [{kind: oreKind('Copper'), count: 10, label: 'Copper'}],
+      stow: [{kind: oreKind('Silver'), count: 6, label: 'Silver'}]
+    });
 
     // On the top rung there is nothing left to build.
     expect(shipyard([], buildShipView('corebreaker'))).toEqual({
@@ -749,14 +787,23 @@ describe('buildObservation', () => {
         {kind: oreKind('Iron'), count: 16, label: 'Iron'},
         {kind: oreKind('Copper'), count: 10, label: 'Copper'},
         {kind: oreKind('Silver'), count: 6, label: 'Silver'}
-      ]
+      ],
+      stow: []
     });
 
     // Read off the first Manufacturer's stock, as the objective's ship rung is.
     const manufacturer = state.stations.find(station => station.kind === 'manufacturer');
     if (manufacturer?.kind !== 'manufacturer') throw new Error('a seeded manufacturer expected');
     manufacturer.inventory = addItem(addItem(addItem(createInventory(), oreItem(ore('Iron')), 30), oreItem(ore('Copper')), 10), oreItem(ore('Silver')), 2);
-    expect(nextShip()).toEqual({id: 'hauler', label: 'Hauler', missing: [{kind: oreKind('Silver'), count: 4, label: 'Silver'}]});
+    expect(nextShip()).toEqual({id: 'hauler', label: 'Hauler', missing: [{kind: oreKind('Silver'), count: 4, label: 'Silver'}], stow: []});
+    // Silver aboard counts toward it: named as stowing to do, not as missing.
+    state.player.inventory = addItem(createInventory(), oreItem(ore('Silver')), 3);
+    expect(nextShip()).toEqual({
+      id: 'hauler', label: 'Hauler',
+      missing: [{kind: oreKind('Silver'), count: 1, label: 'Silver'}],
+      stow: [{kind: oreKind('Silver'), count: 3, label: 'Silver'}]
+    });
+    state.player.inventory = createInventory();
 
     swapHull(state.player, 'leviathan');
     expect(nextShip()?.id).toBe('corebreaker');

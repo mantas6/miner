@@ -170,6 +170,25 @@ export function nearestStation(
   return best;
 }
 
+/**
+ * The extractor a ship at `x`/`y` is parked at for its automatic top-up: the one
+ * on its own tile, else the nearest within `STATION_REACH` (the first listed on a
+ * tie) — the same reach its screen opens from. `null` with none in reach.
+ */
+export function extractorInReach(stations: readonly PlacedStation[], x: number, y: number): ExtractorStation | null {
+  let best: ExtractorStation | null = null;
+  let bestDistance = Infinity;
+  for (const station of stations) {
+    if (station.kind !== 'extractor' || !isStationReachable(station, x, y)) continue;
+    const distance = Math.abs(station.x - x) + Math.abs(station.y - y);
+    if (distance < bestDistance) {
+      best = station;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 /** The first manufacturer among the stations, or `null` when there is none. */
 export function firstManufacturer(stations: readonly PlacedStation[]): ManufacturerStation | null {
   return stations.find((s): s is ManufacturerStation => s.kind === 'manufacturer') ?? null;

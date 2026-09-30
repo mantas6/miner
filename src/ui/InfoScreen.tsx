@@ -13,6 +13,8 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 import { DANGER_TIP, buildDangerGuideRows } from '../core/danger';
 import { NO_POSTS_FOUND } from '../core/post-beacon';
 import { GALLERY_TIP, PROSPECTING_TIP, SHIP_LADDER_TIP, buildProspectingGuideRows } from '../core/prospecting';
+import { isOreKind } from '../core/inventory';
+import { ORE_NOT_SAVED_NOTE } from '../persistence';
 import { GAME_RESET_CONFIRMATION } from '../persistence-reset';
 import { DeveloperPanel } from './DeveloperPanel';
 import { CONTROL_ROWS } from './info-controls';
@@ -349,6 +351,8 @@ function SaveDataSection() {
   const saveExport = useUiStore(state => state.saveExport);
   const [importText, setImportText] = useState('');
   const confirmingImport = useUiStore(state => state.confirmingImport);
+  // The save leaves the ore aboard out, so say so — only while there is some.
+  const oreAboard = useUiStore(state => state.inventorySlots.some(slot => isOreKind(slot.kind)));
   const {setConfirmingImport} = uiStore.getState();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
@@ -371,6 +375,7 @@ function SaveDataSection() {
       <h3 id="settings-save-title">Save data</h3>
       <div className={styles.saveData} role="group" aria-labelledby="settings-save-title">
         <p>Download the saved run to keep or move it, or bring one back.</p>
+        {oreAboard && <p id="saveOreNote" className={styles.saveNote}>{ORE_NOT_SAVED_NOTE}</p>}
         <button id="exportSaveBtn" type="button" onClick={() => uiCommands.exportSave()}>Export save</button>
         {saveExport !== null && (
           <textarea
@@ -402,7 +407,10 @@ function SaveDataSection() {
         {confirmingImport
           ? (
             <>
-              <p role="alert">Replace the current run with this save? Your cash, upgrades, stats and dug terrain are overwritten, then the page reloads.</p>
+              <p role="alert">
+                Replace the current run with this save? Your cash, upgrades, stats and dug terrain are overwritten, then the page reloads.
+                {oreAboard && ` ${ORE_NOT_SAVED_NOTE}`}
+              </p>
               <div className={styles.saveDataActions}>
                 <button id="importSaveCancelBtn" ref={cancelRef} type="button" onClick={() => setConfirmingImport(false)}>Cancel</button>
                 <button

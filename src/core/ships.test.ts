@@ -17,6 +17,7 @@ import {
   formatShipGains,
   isShipId,
   nextShip,
+  nextShipShortfall,
   shipFor,
   shipGains,
   shipTier,
@@ -124,6 +125,19 @@ describe('the ladder', () => {
     ]);
     stock = addItem(addItem(stock, itemForKind(oreKind('Copper')), 10), itemForKind(oreKind('Silver')), 6);
     expect(canCraft(stock, hauler)).toBe(true);
+  });
+
+  it('counts the ore aboard toward the next hull, apart from what is still to mine', () => {
+    const stock = addItem(createInventory(), itemForKind(oreKind('Iron')), 10);
+    const bay = addItem(addItem(createInventory(), itemForKind(oreKind('Iron')), 8), itemForKind(oreKind('Silver')), 2);
+    expect(nextShipShortfall('scout', stock, bay)).toEqual({
+      id: 'hauler',
+      missing: [{kind: oreKind('Copper'), count: 10}, {kind: oreKind('Silver'), count: 4}],
+      stow: [{kind: oreKind('Iron'), count: 6}, {kind: oreKind('Silver'), count: 2}]
+    });
+    // No bay named: the stock alone, as before.
+    expect(nextShipShortfall('scout', stock)?.missing[0]).toEqual({kind: oreKind('Iron'), count: 6});
+    expect(nextShipShortfall('corebreaker', stock, bay)).toBeNull();
   });
 });
 

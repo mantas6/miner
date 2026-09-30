@@ -272,7 +272,7 @@ describe('the editable-element guard', () => {
     field.dispatchEvent(new KeyboardEvent('keyup', {key: 'd', bubbles: true, cancelable: true}));
     field.blur();
 
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
     expect(h.move).toHaveBeenCalledOnce();
   });
@@ -360,7 +360,7 @@ describe('the boost gate', () => {
 
     // Fit a booster and the same held Shift now sprints.
     h.state.player.boost = true;
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
     expect(h.move).toHaveBeenLastCalledWith(1, 0, true);
     expect(h.state.input.sprintDirection).toEqual([1, 0]);
@@ -654,7 +654,7 @@ describe('held keys', () => {
 
     // The key is still down when the screen rises: nothing moves under it.
     uiStore.getState().showOverlay(emptyOverlay('station'));
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
     expect(h.move).toHaveBeenCalledOnce();
 
@@ -662,7 +662,7 @@ describe('held keys', () => {
     // the screen away does not drive the ship off on a key released behind it.
     h.input.clearKeys();
     uiStore.getState().showOverlay(null);
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
     expect(h.move).toHaveBeenCalledOnce();
   });
@@ -691,8 +691,31 @@ describe('held keys', () => {
 
     // The keyup for a key released in another window never arrives here.
     window.dispatchEvent(new Event('blur'));
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
+    expect(h.move).toHaveBeenCalledOnce();
+  });
+
+  it('repeats a held key on its own cadence, not rounded up to whole ticks', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    const repeatMs = h.state.input.keyboardRepeatMs;
+
+    press('d');
+    // Six seconds of sim time after the first step: one move per 105 ms, so the
+    // hold covers every tile its length promises (not one per seven 60 Hz ticks).
+    for (let i = 0; i < 1 + 360; i++) h.input.tick();
+    expect(h.move).toHaveBeenCalledTimes(1 + Math.floor(6000 / repeatMs));
+  });
+
+  it('runs the repeat on sim ticks: a frozen sim holds it however long the wall clock runs', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    press('d');
+    h.input.tick();
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(performance.now() + 60_000);
+    h.input.tick();
+    clock.mockRestore();
     expect(h.move).toHaveBeenCalledOnce();
   });
 
@@ -704,12 +727,12 @@ describe('held keys', () => {
     h.input.tick();
     expect(h.move).toHaveBeenCalledWith(-1, 0, false);
 
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
     expect(h.move).toHaveBeenCalledTimes(2);
 
     release('a');
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
     expect(h.move).toHaveBeenCalledTimes(2);
   });
@@ -727,7 +750,7 @@ describe('the rock bump lock', () => {
 
   /** Let the repeat delay lapse and run one tick. */
   function repeatTick(h: Harness): void {
-    h.state.input.lastKeyboardMove = 0;
+    h.state.input.lastKeyboardMove = -Infinity;
     h.input.tick();
   }
 

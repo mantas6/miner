@@ -10,6 +10,7 @@
 // `e2e/support/game.ts` uses) so a single held key digs a real tile and the ASCII
 // view moves; the tests run in order against it.
 
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { HOME_ROW, STATIONS, rowDepthMeters } from '../shared/constants';
 import { openGameSession, type GameSession } from '../agent/session';
@@ -210,9 +211,12 @@ const seedMarkTwo = seedSaveScript({
  * The late game at home: a Fuel Cell aboard with the tank part-empty (fuel is
  * persisted), a Fuel Tank Mk I fitted so the first-upgrade rung is past, a stocked
  * extractor so the base rung is quiet, and the manufacturer holding the Core
- * Drill's ores plus one Uranium more for a pair of cells.
+ * Drill's ores plus one Uranium more for a pair of cells. The ship parks one tile
+ * west of the manufacturer, beyond the extractor's reach, so the stocked store does
+ * not top the tank up before the cell can.
  */
 const seedLateGame = seedSaveScript({
+  x: STATIONS.manufacturer.x - 1, y: HOME_ROW,
   fuel: 30,
   equipment: ['upgrade:tank:1', null, null],
   bay: [{kind: 'fuelCell', count: 1}],
@@ -312,10 +316,16 @@ test.describe.serial('agent harness', () => {
   });
 
   test('a click or tile press that cannot land rejects fast and leaves the sim paused', async () => {
-    // The station holds only coal, so the Repair Kit (2 Iron + 1 Copper) craft button is disabled.
-    const before = await session.observe();
+    // The station holds only coal, so the Repair Kit (2 Iron + 1 Copper) craft button
+    // is disabled: the default mirror leaves the row out, the full list shows why.
+    const before = await session.observe(undefined, 'recipes');
     if (before.overlay?.kind !== 'station') throw new Error('station overlay expected');
-    expect(before.overlay.recipes.find(recipe => recipe.output === 'repairKit')?.craftable).toBe(false);
+    expect(before.overlay.recipes.find(recipe => recipe.output === 'repairKit')).toMatchObject({craftable: false, missing: expect.arrayContaining([expect.objectContaining({label: 'Iron'})])});
+    expect(before.overlay.recipes).toHaveLength(before.overlay.recipeCount);
+    const trimmed = await session.observe();
+    if (trimmed.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(trimmed.overlay.recipes.every(recipe => recipe.craftable)).toBe(true);
+    expect(trimmed.overlay.recipes.length).toBeLessThan(trimmed.overlay.recipeCount);
 
     const started = Date.now();
     await expect(session.click({target: 'data-craft', value: 'repairKit'})).rejects.toThrow(/disabled/);
@@ -362,6 +372,13 @@ test.describe.serial('agent harness', () => {
     expect(after.ship.on.tile).toBe('air');
   });
 
+  test('a tile press far from the ship is refused as too far, never clicked', async () => {
+    const before = await session.observe();
+    await expect(session.pressTile(before.ship.x, before.ship.y + 4)).rejects.toThrow(/too far for a tile press/);
+    // Nothing reached the page: the sim is still frozen where it was.
+    expect((await session.observe()).tick).toBe(before.tick);
+  });
+
   test('every info tab switches with data-info-section and mirrors its contents', async () => {
     let obs = await session.click('infoBtn');
     if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
@@ -402,7 +419,12 @@ test.describe.serial('agent harness', () => {
   test('Settings flags, the cheat grants and the reset confirm show in the observation', async () => {
     let obs = await session.click({target: 'data-info-section', value: 'info-settings'});
     if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
-    expect(obs.overlay.settings).toEqual({cheatsOpen: false, confirmingReset: false, confirmingImport: false});
+    // The dig above may have turned up ore: the warning is there exactly while some is aboard.
+    const oreAboard = obs.bay.some(slot => slot.kind.startsWith('ore:'));
+    expect(obs.overlay.settings).toEqual({
+      cheatsOpen: false, confirmingReset: false, confirmingImport: false,
+      oreNote: oreAboard ? 'Ore aboard is not saved — stow it first.' : null
+    });
 
     // The cheat disclosure, then a valueless attribute control inside it.
     obs = await session.click('cheatsToggleBtn');
@@ -412,6 +434,10 @@ test.describe.serial('agent harness', () => {
     obs = await session.click('data-developer-grant-ores');
     expect(obs.ship.cargo).toBeGreaterThan(cargoBefore);
     expect(obs.bay.some(slot => slot.kind === 'ore:Iron')).toBe(true);
+    // Ore aboard is left out of a save, and the Save data box now says so.
+    if (obs.overlay?.kind !== 'info') throw new Error('info overlay expected');
+    expect(obs.overlay.settings?.oreNote).toBe('Ore aboard is not saved — stow it first.');
+    await expect(session.page.locator('#saveOreNote')).toHaveText('Ore aboard is not saved — stow it first.');
 
     // Reset asks first, and Cancel stands it down — nothing reloads.
     obs = await session.click('resetGameBtn');
@@ -464,6 +490,29 @@ test.describe.serial('agent harness', () => {
   });
 });
 
+test('every press is one step the observation already shows, and a hold of n × 105 ms is n + 1 steps', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedSaveScript({stations: WORKBENCHES})});
+  try {
+    let obs = await s.startRun();
+    // Across the open home-cavern floor, press after press: none is dropped, and
+    // none is left queued for the next action to spend.
+    for (let i = 0; i < 6; i++) {
+      const x = obs.ship.x;
+      obs = await s.press('ArrowLeft');
+      expect(obs.ship.x, `press ${i + 1}`).toBe(x - 1);
+    }
+    // The first step lands at once, then one per 105 ms of sim time.
+    const x = obs.ship.x;
+    obs = await s.hold('ArrowRight', 5 * 105);
+    expect(obs.ship.x).toBe(x + 6);
+    // And the press straight after a hold is not lost either.
+    obs = await s.press('ArrowLeft');
+    expect(obs.ship.x).toBe(x + 5);
+  } finally {
+    await s.close();
+  }
+});
+
 test('a crafted upgrade is taken from the station, fitted, unfitted, and the extractor loads coal, refuels and takes a fuel order', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedWorkshop});
   try {
@@ -495,10 +544,10 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     obs = await s.press('Escape');
     expect(obs.activeOverlay).toBeNull();
 
-    // One drill hit on the 2-hp hatch under the spawn burns a little fuel without
-    // breaking through, so the extractor below has room to pour into.
-    obs = await s.press('ArrowDown');
-    expect(obs.ship.y).toBe(HOME_ROW);
+    // A step west onto the manufacturer's tile burns a little fuel two tiles from
+    // the extractor — out of its reach, so the tank stays short for now.
+    obs = await s.press('ArrowLeft');
+    expect(obs.ship).toMatchObject({x: STATIONS.manufacturer.x, y: HOME_ROW});
     expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
 
     // Fit it from the Ship screen: the tank grows, and the fuel grows with it by
@@ -530,7 +579,13 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     expect(obs.activeOverlay).toBeNull();
     expect(obs.ship.fuel).toBeLessThan(obs.ship.fuelMax);
 
-    // The extractor: load the coal aboard, then refuel from its stored fuel.
+    // Back beside the extractor, the tank tops itself up out of the 40 it stores.
+    obs = await s.press('ArrowRight');
+    expect(obs.ship.x).toBe(STATIONS.extractor.x - 1);
+    expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
+    expect(obs.hud.base?.fuel).toBeLessThan(40);
+
+    // The extractor: load the coal aboard; there is nothing left for Refuel to pour.
     obs = await s.pressTile(STATIONS.extractor.x, STATIONS.extractor.y);
     if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
     const coalBefore = obs.overlay.coal;
@@ -538,11 +593,7 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
     expect(obs.overlay.coal).toBe(coalBefore + 3);
     expect(countKind(obs.bay, 'ore:Coal')).toBe(0);
-    expect(obs.overlay.refuelAmount).toBeGreaterThan(0);
-    const fuelBefore = obs.ship.fuel;
-    const refuel = obs.overlay.refuelAmount;
-    obs = await s.click('refuelBtn');
-    expect(Math.round(obs.ship.fuel)).toBe(Math.round(fuelBefore + refuel));
+    expect(obs.overlay.refuelAmount).toBe(0);
 
     // The base extractor takes fuel ordered for cash into its store.
     if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
@@ -584,10 +635,14 @@ test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks i
     await expect(s.click({target: 'data-craft', value: 'device:portal:alt'})).rejects.toThrow(/not rendered/);
     obs = await s.click({target: 'data-craft', value: 'upgrade:drill:2'});
     expect(obs.stats.bestMarkCrafted).toBe(2);
+    // The craft says what it opened.
+    expect(obs.toasts.at(-1)?.message).toBe('Third slot unlocked — fit another upgrade from the Ship screen. New recipes: Deep Teleporter, Deep Portal.');
     obs = await s.click({target: 'data-station', value: 'take', kind: 'upgrade:drill:2'});
     expect(countKind(obs.bay, 'upgrade:drill:2')).toBe(1);
 
-    // The Mk II unlocked the Deep Portal and the Deep Teleporter beside the standard rows.
+    // The Mk II unlocked the Deep Portal and the Deep Teleporter beside the standard
+    // rows; the full list names the ones the stock cannot pay for too.
+    obs = await s.observe(undefined, 'recipes');
     if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
     const portals = obs.overlay.recipes.filter(recipe => recipe.output === 'device:portal');
     expect(portals.map(recipe => [recipe.id, recipe.label, recipe.craftable])).toEqual([
@@ -622,15 +677,24 @@ test('the Shipyard builds the Hauler from station stock, and a lost ship keeps t
     let obs = await s.startRun();
     expect(obs.ship).toMatchObject({class: 'scout', shipLabel: 'Scout', slots: 3, fuel: 60, fuelMax: 100});
     // The HUD-level Shipyard summary needs no overlay: the whole bill is stocked.
-    expect(obs.hud.nextShip).toEqual({id: 'hauler', label: 'Hauler', missing: []});
+    expect(obs.hud.nextShip).toEqual({id: 'hauler', label: 'Hauler', missing: [], stow: []});
 
     obs = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
     if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
     expect(obs.overlay.shipyard.current).toEqual({id: 'scout', label: 'Scout', slots: 3});
     expect(obs.overlay.shipyard.next).toMatchObject({
-      id: 'hauler', slots: 4, craftable: true, missing: [],
+      id: 'hauler', slots: 4, craftable: true, missing: [], stow: [],
       gains: {fuelMax: 50, hullMax: 25, cargoMax: 10, drill: 0}
     });
+
+    // Take the Silver aboard: the Build button waits on the stock, while the bill
+    // names the Silver as stowing to do rather than as missing.
+    obs = await s.click({target: 'data-station', value: 'take', kind: 'ore:Silver'});
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(obs.overlay.shipyard.next).toMatchObject({craftable: false, missing: [], stow: [{kind: 'ore:Silver', count: 6, label: 'Silver'}]});
+    expect(obs.hud.nextShip).toMatchObject({missing: [], stow: [{kind: 'ore:Silver', count: 6, label: 'Silver'}]});
+    await expect(s.page.locator('#ship-inputs-hauler')).toHaveText('Stow the 6 Silver aboard to build');
+    obs = await s.click({target: 'data-station', value: 'stow', kind: 'ore:Silver'});
 
     // Build it: the ore leaves the stock, the drill carries over into the bigger
     // hull, the maxima grow, and the tank is not topped up.
@@ -641,14 +705,15 @@ test('the Shipyard builds the Hauler from station stock, and a lost ship keeps t
     expect(obs.overlay.stock).toEqual([]);
     expect(obs.overlay.shipyard.current).toEqual({id: 'hauler', label: 'Hauler', slots: 4});
     expect(obs.overlay.shipyard.next).toMatchObject({id: 'prospector', craftable: false});
-    expect(obs.toasts.some(toast => toast.message.startsWith('Built the Hauler'))).toBe(true);
+    expect(obs.toasts.some(toast => toast.message === 'Built the Hauler: +1 slot · +50 fuel · +25 hull · +10 cargo. Your upgrades moved across.')).toBe(true);
     expect(obs.hud.nextShip).toEqual({
       id: 'prospector', label: 'Prospector',
       missing: [
         {kind: 'ore:Silver', count: 12, label: 'Silver'},
         {kind: 'ore:Gold', count: 10, label: 'Gold'},
         {kind: 'ore:Ruby', count: 4, label: 'Ruby'}
-      ]
+      ],
+      stow: []
     });
     obs = await s.press('Escape');
 
@@ -1197,6 +1262,12 @@ test('Settings exports the save into the observation and imports an edited one a
     expect(obs.overlay.saveExport).toContain(`"version":${SAVE_VERSION}`);
     const exported = JSON.parse(obs.overlay.saveExport) as {cash: number};
     expect(exported.cash).toBe(250);
+    // The download is caught too: the harness names the file it saved, which holds
+    // the very text the observation carries.
+    const path = obs.overlay.saveExportPath;
+    if (!path) throw new Error('the exported file path expected');
+    expect(path).toMatch(/\.json$/);
+    expect(await readFile(path, 'utf8')).toBe(obs.overlay.saveExport);
 
     // An older version is refused with a toast, and nothing reloads.
     await s.click('importSaveText');

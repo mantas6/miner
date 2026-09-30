@@ -185,6 +185,14 @@ describe('manufacturing station dialog', () => {
     fireEvent.click(build);
     expect(craftShip).toHaveBeenCalledWith('hauler');
 
+    // Silver aboard counts toward the bill: named as stowing to do, not as missing.
+    act(() => {
+      uiStore.getState().setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem({...IRON, name: 'Silver'}), 4)));
+    });
+    expect(document.getElementById(build.getAttribute('aria-describedby')!)?.textContent)
+      .toBe('Need 13 Iron, 9 Copper, 2 Silver · 4 Silver aboard to stow');
+    expect(build.getAttribute('aria-disabled')).toBe('true');
+
     act(() => {
       const stock = [['Iron', 16], ['Copper', 10], ['Silver', 6]].reduce(
         (inventory, [name, count]) => addItem(inventory, oreItem({...IRON, name: name as string}), count as number), createInventory()

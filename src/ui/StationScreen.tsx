@@ -15,7 +15,8 @@
 // button dead while the wallet cannot cover its price. Every Manufacturer carries a
 // Shipyard above the recipes: the hull the ship flies and the one next up the
 // ladder (`core/ships.ts`), built from the stock like a recipe but swapped in
-// rather than stocked.
+// rather than stocked; its shortfall line counts the ore aboard, naming what is
+// left to mine apart from what only needs stowing.
 //
 // Everything is painted from the store and is live: the station stock and the bay
 // are snapshots the game pushes on open and after every change, so the screen
@@ -25,7 +26,16 @@
 // The `<dialog>` itself, its focus and its close requests are `ModalShell`'s.
 
 import { useMemo } from 'react';
-import { canCraft, missingInputs, recipeId, recipeLabel, unlockedRecipes, type Recipe } from '../core/crafting';
+import {
+  canCraft,
+  formatPooledShortfall,
+  missingInputs,
+  pooledShortfall,
+  recipeId,
+  recipeLabel,
+  unlockedRecipes,
+  type Recipe
+} from '../core/crafting';
 import { addItem, createInventory, type Inventory, type InventoryItemKind } from '../core/inventory';
 import { recipeInputLines } from '../core/item-info';
 import { itemForKind } from '../core/items';
@@ -60,6 +70,7 @@ function StationCard() {
   const supply = useUiStore(state => overlayOf(state, 'station')?.supply ?? false);
   const bestMark = useUiStore(state => overlayOf(state, 'station')?.bestMarkCrafted ?? 0);
   const stock = useMemo(() => slotsToInventory(stationSlots), [stationSlots]);
+  const bay = useMemo(() => slotsToInventory(baySlots), [baySlots]);
   const recipes = useMemo(() => unlockedRecipes(bestMark), [bestMark]);
 
   return (
@@ -108,7 +119,7 @@ function StationCard() {
           </div>
         </section>
         {supply && <SupplySection />}
-        <ShipyardSection stock={stock} />
+        <ShipyardSection stock={stock} bay={bay} />
         <section className={styles.recipes} aria-labelledby="recipes-title">
           <div className={styles.columnHeading}>
             <h3 id="recipes-title">Recipes</h3>
@@ -201,7 +212,7 @@ function SupplyRow({kind, cash}: {kind: InventoryItemKind; cash: number}) {
 }
 
 /** The Shipyard: the hull flown now, and the one next up the ladder — or word that there is none. */
-function ShipyardSection({stock}: {stock: Inventory}) {
+function ShipyardSection({stock, bay}: {stock: Inventory; bay: Inventory}) {
   const ship = useUiStore(state => state.ship);
   const next = nextShip(ship.id);
   return (
@@ -212,20 +223,24 @@ function ShipyardSection({stock}: {stock: Inventory}) {
       </div>
       <ul id="shipyardList" className={styles.slots}>
         {next
-          ? <ShipRow ship={ship} next={next} stock={stock} />
+          ? <ShipRow ship={ship} next={next} stock={stock} bay={bay} />
           : <li className={styles.empty}><span className={styles.emptyLabel}>Top of the ladder — no bigger ship to build</span></li>}
       </ul>
     </section>
   );
 }
 
-/** The next hull: what it adds, what it costs, and a Build button live only while the stock covers it. */
-function ShipRow({ship, next, stock}: {ship: ShipView; next: ShipId; stock: Inventory}) {
+/**
+ * The next hull: what it adds, what it costs, and a Build button live only while
+ * the stock covers it. The shortfall counts the ore aboard too — it is built from
+ * the stock, so what the bay holds is named as stowing still to do, not as missing.
+ */
+function ShipRow({ship, next, stock, bay}: {ship: ShipView; next: ShipId; stock: Inventory; bay: Inventory}) {
   const def = shipFor(next);
   const affordable = canCraft(stock, def);
   const inputs = affordable
     ? def.inputs.map(input => `${input.count} ${itemForKind(input.kind).label}`).join(' · ')
-    : `Need ${missingInputs(stock, def).map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ')}`;
+    : formatPooledShortfall(pooledShortfall(bay, stock, def));
   const inputsId = `ship-inputs-${next}`;
   return (
     <li>

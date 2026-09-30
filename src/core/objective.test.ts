@@ -226,6 +226,22 @@ describe('expedition objective helper', () => {
         .toBe('Objective: build the Prospector at the Manufacturing Station.');
     });
 
+    it('counts the ore aboard toward the bill, and says to stow it once that covers the rest', () => {
+      // 12 Silver stocked, 1 Gold aboard: half the Prospector between them, and the
+      // Gold aboard is not reported as missing.
+      const stocked = {...veteran, station: withOre('Silver', 12)};
+      expect(formatExpeditionObjective({...stocked, bay: withOre('Gold', 1)}))
+        .toBe('Objective: build the Prospector at the Manufacturing Station (still needs 9 Gold, 4 Ruby).');
+      expect(formatExpeditionObjective(stocked)).toContain('dig toward');
+      // The rest of the bill in the bay: stow it, then build.
+      expect(formatExpeditionObjective({...stocked, bay: withOre('Ruby', 4, withOre('Gold', 10))}))
+        .toBe('Objective: stow your ore and build the Prospector at the Manufacturing Station.');
+      // The per-frame formatter re-reads the bay too.
+      const format = createExpeditionObjectiveFormatter();
+      expect(format(stocked)).toContain('dig toward');
+      expect(format({...stocked, bay: withOre('Ruby', 4, withOre('Gold', 10))})).toContain('stow your ore and build the Prospector');
+    });
+
     it('has nothing to name on the top rung', () => {
       const top = {...veteran, player: {...upgraded, ship: 'corebreaker' as ShipId}};
       expect(formatExpeditionObjective({...top, station: withOre('Core Shard', 3, withOre('Uranium', 4))})).not.toContain('build the');

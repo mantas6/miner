@@ -13,25 +13,30 @@
 //
 //   realtime = true  (default)  The sim is frozen between decisions and only runs
 //                               while an action is in flight. Each action unpauses,
-//                               fires its real events, lets two animation frames
-//                               settle, then pauses again — so the headed window
-//                               shows smooth human-speed motion during the action
-//                               and holds still in between, and every returned
-//                               observation is a stable snapshot.
+//                               fires its real events, settles until the sim has
+//                               ticked past them (`settle`), then pauses again — so
+//                               the headed window shows smooth human-speed motion
+//                               during the action and holds still in between, and
+//                               every returned observation is a stable snapshot
+//                               that already shows what the action did.
 //   realtime = false            The sim is never paused; it keeps running at
 //                               wall-clock speed between decisions too. Actions
-//                               still fire their events and settle two frames, but
-//                               the world the next observation describes has moved
-//                               on by however long the agent took to think.
+//                               still fire their events and settle the same way,
+//                               but the world the next observation describes has
+//                               moved on by however long the agent took to think.
 //
 // Everything here is pure Node: no React, no test runner. The MCP server
 // (`agent/mcp-server.ts`) is the only intended caller besides `e2e/agent.spec.ts`.
 
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type BrowserContext, type Page, type Request } from '@playwright/test';
+import { chromium, type Browser, type BrowserContext, type Download, type Page, type Request } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { resolveChromiumExecutable } from './chromium';
-import type { AgentObservation } from '../src/agent/observation';
+import type { AgentObservation, ObservationDetail } from '../src/agent/observation';
+import { FIXED_STEP_MS } from '../src/core/fixed-step';
 import {
   allowedTargetsDescription,
   ATTR_TARGETS,
@@ -56,13 +61,29 @@ const CLICK_TIMEOUT_MS = 2000;
 /** Cap on the page errors kept for the bridge-timeout diagnosis. */
 const PAGE_ERROR_CAP = 10;
 
+/**
+ * Sim ticks an action waits to see run after its input lands, before it pauses
+ * again and reads back. Two, because the first frame after an unpause only
+ * re-anchors the fixed-step clock: settling on a frame count alone could re-pause
+ * before a single tick had run, leaving a press's impulse queued and unseen.
+ */
+const SETTLE_TICKS = 2;
+
+/** The most frames a settle waits for those ticks before giving up (a stalled or hidden page). */
+const SETTLE_FRAME_CAP = 60;
+
+/** How long an Export click waits for its file download to start. */
+const DOWNLOAD_TIMEOUT_MS = 5000;
+
 /** The shape of the bridge singleton as seen from inside `page.evaluate`. */
 interface BridgeModule {
   agentBridge: {
-    observe(radius?: number): AgentObservation | null;
+    observe(radius?: number, detail?: ObservationDetail): AgentObservation | null;
     setPaused(paused: boolean): void;
     isPaused(): boolean;
+    tick(): number | null;
     screenPointForTile(x: number, y: number): {x: number; y: number} | null;
+    tilePressRefusal(x: number, y: number): string | null;
   };
 }
 
@@ -113,16 +134,27 @@ export interface GameSession {
   press(key: string): Promise<AgentObservation>;
   /** Type text into the focused input (e.g. after clicking `portalNameInput`). */
   type(text: string): Promise<AgentObservation>;
-  /** Hold a key for `ms` of wall-clock time, optionally with Shift for sprint. */
+  /**
+   * Hold a key for `ms` of sim time after its first step (`holdForSimTime`),
+   * optionally with Shift for sprint: a held direction steps once at once, then
+   * once per repeat interval due within `ms`.
+   */
   hold(key: string, ms: number, options?: HoldOptions): Promise<AgentObservation>;
   /** Click one allowlisted control; rejects anything else with the allowed list. */
   click(target: ClickTarget): Promise<AgentObservation>;
-  /** Press a mine tile by world coordinate (canvas click at its centre). */
+  /**
+   * Press a mine tile by world coordinate (canvas click at its centre). Refused up
+   * front, with the reason, when the press could do nothing: unarmed and out of
+   * reach of the ship (`tilePressRefusal`), off-screen, or under the HUD/a dialog.
+   */
   pressTile(x: number, y: number): Promise<AgentObservation>;
   /** Let the sim run for `ms` of wall-clock time, then read it back. */
   wait(ms: number): Promise<AgentObservation>;
-  /** The current observation, without touching the sim. */
-  observe(radius?: number): Promise<AgentObservation>;
+  /**
+   * The current observation, without touching the sim. `detail` asks for what is
+   * left out by default (`'recipes'`: an open station's whole recipe list).
+   */
+  observe(radius?: number, detail?: ObservationDetail): Promise<AgentObservation>;
   /** A PNG screenshot of the window as a Buffer. */
   screenshot(): Promise<Buffer>;
   /** Switch the pause/real-time model; see the module notes. Returns the readback. */
@@ -289,12 +321,33 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
     let realtime = true;
     await setPaused(page, true);
 
-    // Unpause (if realtime), run the action, settle two frames, pause again, then
-    // read back the fresh observation — the whole action contract in one place.
-    // The re-pause sits in a `finally`, so an action that throws still leaves the
-    // sim frozen as promised. An action that reloads the page (a save import, a
-    // full reset) is waited out: the new document boots, its bridge registers, and
-    // the pause model is reapplied to it before the readback.
+    // Export's file download, saved where the agent can read it: a per-session
+    // temp directory, made on the first export and left behind on close (the file
+    // is the agent's to keep). The observation names the last one saved.
+    let downloadDir: string | null = null;
+    let exportPath: string | null = null;
+    async function captureDownload(download: Download): Promise<void> {
+      downloadDir ??= await mkdtemp(join(tmpdir(), 'miner-agent-'));
+      const target = join(downloadDir, download.suggestedFilename());
+      await download.saveAs(target);
+      exportPath = target;
+    }
+
+    /** The observation, with the harness's own `saveExportPath` beside the export it saved. */
+    async function readBack(radius?: number, detail?: ObservationDetail): Promise<AgentObservation> {
+      const observation = await readObservation(page, radius, detail);
+      const overlay = observation.overlay;
+      if (exportPath && overlay?.kind === 'info' && overlay.saveExport !== undefined) overlay.saveExportPath = exportPath;
+      return observation;
+    }
+
+    // Unpause (if realtime), run the action, settle until the sim has ticked past
+    // it, pause again, then read back the fresh observation — the whole action
+    // contract in one place. The re-pause sits in a `finally`, so an action that
+    // throws still leaves the sim frozen as promised. An action that reloads the
+    // page (a save import, a full reset) is waited out: the new document boots,
+    // its bridge registers, and the pause model is reapplied to it before the
+    // readback.
     async function act(run: () => Promise<void>): Promise<AgentObservation> {
       assertAlive();
       let navigated = false;
@@ -306,7 +359,7 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         if (realtime) await setPaused(page, false);
         await run();
         // A reload tears the old document down mid-settle; that is not a failure.
-        try { await settleFrames(page); } catch (error) { if (!navigated) throw error; }
+        try { await settle(page); } catch (error) { if (!navigated) throw error; }
         if (navigated) {
           await page.waitForLoadState('load');
           await waitForBridge(page, pageErrors);
@@ -315,7 +368,7 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         page.off('request', onRequest);
         await repause();
       });
-      return readObservation(page);
+      return readBack();
     }
 
     /** Freeze the sim again under the realtime model, unless the page is gone. */
@@ -365,12 +418,20 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
           if (holdOptions?.shift) { await page.keyboard.down('Shift'); shiftDown = true; }
           await page.keyboard.down(key);
           keyDown = true;
-          await sleep(ms);
+          // Held for `ms` of sim time after the first step, then frozen on the
+          // spot while the key comes up, so the step count is the hold's length
+          // rather than whatever the wall clock and the frame timing let through.
+          await holdForSimTime(page, ms);
         }, async () => {
           try {
             if (keyDown) await page.keyboard.up(key);
           } finally {
-            if (shiftDown) await page.keyboard.up('Shift');
+            try {
+              if (shiftDown) await page.keyboard.up('Shift');
+            } finally {
+              // Running again for the settle; the action's own cleanup re-pauses.
+              if (!deadReason) await setPaused(page, false);
+            }
           }
         });
       }),
@@ -381,10 +442,23 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         // Refuse a click that cannot land before the sim is unpaused, with the
         // reason, rather than let Playwright sit out its actionability timeout.
         const control = await clickableControl(page, selector, name);
-        return act(() => control.click({timeout: CLICK_TIMEOUT_MS}));
+        // Export also hands the save over as a file: catch it, so the observation
+        // can say where it landed (`overlay.saveExportPath`).
+        const exporting = name === 'exportSaveBtn';
+        return act(async () => {
+          const download = exporting ? page.waitForEvent('download', {timeout: DOWNLOAD_TIMEOUT_MS}).catch(() => null) : null;
+          await control.click({timeout: CLICK_TIMEOUT_MS});
+          const started = await download;
+          if (started) await captureDownload(started).catch(error => console.error('Could not save the exported file:', error));
+        });
       },
       pressTile: async (x, y) => {
         assertAlive();
+        // A press the game would ignore (unarmed, out of every reach) is refused
+        // with the reason rather than clicked: it would change nothing but unlock
+        // the audio, which is easy to mistake for the music button toggling.
+        const refusal = await tilePressRefusal(page, x, y);
+        if (refusal) throw new Error(refusal);
         const point = await screenPointForTile(page, x, y);
         if (!point) throw new Error(`Tile (${x}, ${y}) is off-screen; no canvas point to press.`);
         // The HUD cards and any open dialog sit above the canvas and take presses
@@ -409,11 +483,11 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
           await setPaused(page, false);
           await sleep(ms);
         }, repause);
-        return readObservation(page);
+        return readBack();
       },
-      observe: radius => {
+      observe: (radius, detail) => {
         assertAlive();
-        return readObservation(page, radius);
+        return readBack(radius, detail);
       },
       screenshot: () => {
         assertAlive();
@@ -425,7 +499,7 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         // Match the sim to the new model at once: frozen between decisions when
         // realtime, free-running otherwise.
         await setPaused(page, value);
-        return readObservation(page);
+        return readBack();
       },
       close: async () => {
         if (closed) return;
@@ -570,21 +644,74 @@ async function setPaused(page: Page, paused: boolean): Promise<void> {
   }, {spec: BRIDGE_SPECIFIER, value: paused});
 }
 
-async function settleFrames(page: Page, frames = 2): Promise<void> {
-  await page.evaluate(async count => {
-    for (let i = 0; i < count; i++) {
+/**
+ * Let the action's input be simulated before the sim is frozen again: at least
+ * two animation frames, and until `SETTLE_TICKS` sim ticks have run since the
+ * input landed. Two frames alone were not enough — resuming re-anchors the fixed
+ * stepper, so the first frame runs no tick and the second may run none either
+ * when it arrives a hair under 1/60 s later — and a press re-paused there left
+ * its move queued: the observation showed the ship where it was, and the next
+ * press of the same key overwrote the queued one, so a press was lost outright.
+ * Capped, so a page whose sim is not ticking (a hidden tab) never hangs it.
+ */
+async function settle(page: Page): Promise<void> {
+  // No named helpers in here: the function body is serialised into the page, and
+  // the esbuild that `tsx` runs this file through would wrap one in a `__name`
+  // call the page does not define.
+  await page.evaluate(async ({spec, ticks, cap}) => {
+    const module = (await import(spec)) as BridgeModule;
+    const start = module.agentBridge.tick();
+    for (let i = 0; i < cap; i++) {
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      if (i === 0) continue;
+      const now = module.agentBridge.tick();
+      if (start === null || now === null || now - start >= ticks) return;
     }
-  }, frames);
+  }, {spec: BRIDGE_SPECIFIER, ticks: SETTLE_TICKS, cap: SETTLE_FRAME_CAP});
 }
 
-async function readObservation(page: Page, radius?: number): Promise<AgentObservation> {
-  const observation = await page.evaluate(async ({spec, r}) => {
+/**
+ * Keep a held key down for `ms` of sim time after the step it lands on, then
+ * freeze the sim for the release. The first tick after the key goes down takes
+ * the step at once; the key then stays down through `ceil(ms / FIXED_STEP_MS)`
+ * more ticks, so every repeat due within `ms` of that step lands — a hold of
+ * 5 × 105 ms takes six steps, not five — and none after it, since the sim is
+ * frozen, from the page, in the very frame the last of those ticks ran, before
+ * the keyup travels back. Sleeping `ms` on the wall clock instead lost the start
+ * to the resume's anchor frame and the keydown's trip into the page, and a hold
+ * sized to its steps came up one short. Capped on the wall clock, so a page that
+ * is not ticking (a hidden tab) still lets go.
+ */
+async function holdForSimTime(page: Page, ms: number): Promise<void> {
+  // No named helpers in here either (see `settle`).
+  await page.evaluate(async ({spec, steps, cap}) => {
+    const bridge = ((await import(spec)) as BridgeModule).agentBridge;
+    const start = bridge.tick();
+    if (start === null) return;
+    const target = start + 1 + steps;
+    const deadline = performance.now() + cap;
+    for (let now = start; now < target && performance.now() < deadline;) {
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      now = bridge.tick() ?? target;
+    }
+    bridge.setPaused(true);
+  }, {spec: BRIDGE_SPECIFIER, steps: Math.ceil(ms / FIXED_STEP_MS - 1e-9), cap: ms + 2000});
+}
+
+async function readObservation(page: Page, radius?: number, detail?: ObservationDetail): Promise<AgentObservation> {
+  const observation = await page.evaluate(async ({spec, r, d}) => {
     const module = (await import(spec)) as BridgeModule;
-    return module.agentBridge.observe(r);
-  }, {spec: BRIDGE_SPECIFIER, r: radius});
+    return module.agentBridge.observe(r, d);
+  }, {spec: BRIDGE_SPECIFIER, r: radius, d: detail});
   if (!observation) throw new Error('No live game to observe; has the session been started?');
   return observation;
+}
+
+async function tilePressRefusal(page: Page, x: number, y: number): Promise<string | null> {
+  return page.evaluate(async ({spec, tx, ty}) => {
+    const module = (await import(spec)) as BridgeModule;
+    return module.agentBridge.tilePressRefusal(tx, ty);
+  }, {spec: BRIDGE_SPECIFIER, tx: x, ty: y});
 }
 
 async function screenPointForTile(page: Page, x: number, y: number): Promise<{x: number; y: number} | null> {

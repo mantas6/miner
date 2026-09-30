@@ -157,7 +157,7 @@ function describeStationDevice(kind: DeviceKind): ItemInfo {
     lines: [
       manufacturer
         ? 'Placeable Manufacturing Station: crafts and stores ore where you set it.'
-        : 'Placeable Fuel Extractor: burns coal into fuel and refuels a ship parked on it. Starts empty.',
+        : 'Placeable Fuel Extractor: burns coal into fuel and refuels a ship parked on or beside it. Starts empty.',
       `Set it down on a cleared, explored tile; up to ${STATION_DEVICE[key].maxPlaced} of each can stand in the mine.`,
       'Lift it back into the bay with the Construction Toolkit once it is empty.'
     ]

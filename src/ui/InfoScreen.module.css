@@ -253,6 +253,10 @@
 .saveData p[role="alert"] {
   color: #eef4ff;
 }
+/* The ore-aboard warning: only shown while the bay holds ore the save leaves out. */
+.saveData p.saveNote {
+  color: #ffd65c;
+}
 .saveData button {
   min-height: 44px;
 }

@@ -24,8 +24,9 @@ import {
   consumeInputs,
   craft as craftRecipe,
   findRecipe,
+  formatInputs,
   isRecipeUnlocked,
-  missingInputs,
+  pooledShortfall,
   RECIPES,
   recipeLabel,
   type Recipe
@@ -41,10 +42,11 @@ import {
 } from '../core/inventory';
 import { EXTRACTOR } from '../core/balance';
 import { itemForKind } from '../core/items';
-import { swapHull } from '../core/ship-upgrades';
-import { isShipId, nextShip, shipFor, type ShipId } from '../core/ships';
+import { formatMarkUnlock, swapHull } from '../core/ship-upgrades';
+import { formatShipGains, isShipId, nextShip, shipFor, type ShipId } from '../core/ships';
 import {
   STATION_CAPACITY,
+  extractorInReach,
   isHomeStation,
   nearestStation,
   stationAt,
@@ -135,11 +137,12 @@ export interface HomeStationsDeps {
 export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
   const {state, audio, toast, saveProgress} = deps;
   let open: PlacedStation | null = null;
-  // A ship parked on an extractor tile is refuelled every tick — so fuel a coal
-  // converts while it waits lands in the tank at once — but only the pour on
+  // A ship parked on or beside an extractor is refuelled every tick — so fuel a
+  // coal converts while it waits lands in the tank at once — but only the pour on
   // arrival toasts and plays the cue; later top-ups are silent. The flag re-arms
-  // the moment the ship leaves. A respawn drops the ship on the spawn tile, not on
-  // an extractor, so it re-arms on its own — no reset hook needed.
+  // the moment the ship leaves. The spawn tile stands beside the home extractor,
+  // but a respawn has already drawn its tank from that store (a full base tank, or
+  // the store emptied), so arriving there pours nothing — no reset hook needed.
   let wasOnExtractor = false;
 
   function show(station: PlacedStation): boolean {
@@ -278,11 +281,15 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
       return toast(`Station stock is full at ${STATION_CAPACITY} items. Take something out first.`);
     }
     manufacturer.inventory = result;
+    const markBefore = state.stats.bestMarkCrafted;
     recordCraft(state.stats, recipe.output, recipe.count);
     repaint();
     saveProgress();
     audio.craft();
     toast(`Crafted ${recipe.count} × ${itemForKind(recipe.output).label}. Take it from the station.`);
+    // The first Mk II opens every hull's last slot and the deep recipes: say so.
+    const unlocked = formatMarkUnlock(state.player.ship, markBefore, state.stats.bestMarkCrafted);
+    if (unlocked) toast(unlocked);
   }
 
   function craftShip(id: ShipId | string): void {
@@ -298,20 +305,24 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     }
     const ship = shipFor(id);
     if (!canCraft(manufacturer.inventory, ship)) {
-      const missing = missingInputs(manufacturer.inventory, ship)
-        .map(input => `${input.count} ${itemForKind(input.kind).label}`).join(', ');
+      // The bill is built from the stock, but ore still aboard counts toward it:
+      // the refusal names what is left to mine and what only needs stowing.
+      const {missing, stow} = pooledShortfall(player.inventory, manufacturer.inventory, ship);
       audio.alarm();
-      return toast(`Not enough materials for the ${ship.label}: need ${missing}.`);
+      if (missing.length === 0) return toast(`Stow the ${formatInputs(stow)} aboard to build the ${ship.label}.`);
+      return toast(`Not enough materials for the ${ship.label}: need ${formatInputs(missing)}.`
+        + (stow.length > 0 ? ` Stow the ${formatInputs(stow)} aboard too.` : ''));
     }
     // Consuming never overflows the stock, and the swap never shrinks the bay:
     // every hull up the ladder carries more on every stat.
+    const from = player.ship;
     manufacturer.inventory = consumeInputs(manufacturer.inventory, ship);
     swapHull(player, id);
     repaint();
     deps.onShipChanged();
     saveProgress();
     audio.craft();
-    toast(`Built the ${ship.label}: ${ship.slots} fitting slots. Your upgrades moved across.`);
+    toast(`Built the ${ship.label}: ${formatShipGains(from, id)}. Your upgrades moved across.`);
   }
 
   function loadCoal(): void {
@@ -409,10 +420,9 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     toast(`Refueled +${Math.round(moved)} from the extractor.`);
   }
 
-  /** The extractor the ship is parked on, or `null`. */
-  function extractorUnderShip(): ExtractorStation | null {
-    const station = stationAt(state.stations, state.player.x, state.player.y);
-    return station && station.kind === 'extractor' ? station : null;
+  /** The extractor the ship is parked on or beside, or `null`. */
+  function extractorParkedAt(): ExtractorStation | null {
+    return extractorInReach(state.stations, state.player.x, state.player.y);
   }
 
   function tick(): void {
@@ -421,12 +431,13 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     // and a ship that has left its reach (a fall, a harness tile press) is no longer
     // working it: the reach it took to open the screen is what keeps it open.
     if (open && (!state.stations.includes(open) || !isStationReachable(open, state.player.x, state.player.y))) close();
-    // Park on an extractor and it keeps the tank topped up for as long as the ship
-    // stays: every tick pours whatever the store holds and the tank has room for.
-    // The toast and cue mark the arrival only, so a coal converting mid-visit tops
-    // up quietly. Nothing to move (full tank, empty store) is silent throughout,
-    // and so is a pour that rounds to nothing — no "Refueled +0" for a crumb.
-    const parked = extractorUnderShip();
+    // Park on or beside an extractor — the reach its screen opens from — and it
+    // keeps the tank topped up for as long as the ship stays: every tick pours
+    // whatever the store holds and the tank has room for. The toast and cue mark
+    // the arrival only, so a coal converting mid-visit tops up quietly. Nothing to
+    // move (full tank, empty store) is silent throughout, and so is a pour that
+    // rounds to nothing — no "Refueled +0" for a crumb.
+    const parked = extractorParkedAt();
     if (parked) {
       const moved = pourFuel(parked);
       if (moved > 0) {

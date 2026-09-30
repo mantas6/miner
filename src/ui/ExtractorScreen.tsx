@@ -5,8 +5,9 @@
 // of fuel lands. Below sit the two transfers: "Load coal (n)" queues every coal
 // in the bay, and "Refuel ship (+n)" tops the tank up from stored fuel. Each names
 // the amount it would move and goes dead when that amount is zero. A ship parked
-// on the extractor tile is kept topped up on its own, fresh conversions included;
-// the button is for a ship working the extractor from the tile beside it. The
+// on the extractor tile or beside it — the same reach this screen opens from — is
+// kept topped up on its own, fresh conversions included, so with the screen up
+// the Refuel button has nothing left to pour and stays dead. The
 // base's own extractor adds a third: "Buy fuel (+n) $c" orders up to
 // `EXTRACTOR_FUEL_ORDER` fuel into the store for cash, dead while the store is full
 // or the wallet cannot cover a unit — and then it still quotes the rate

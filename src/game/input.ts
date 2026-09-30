@@ -11,6 +11,7 @@
 // dialog is up is read from the same store rather than from class names, and Tab
 // containment is the modal `<dialog>`'s job now, not ours.
 
+import { FIXED_STEP_MS } from '../core/fixed-step';
 import { activeSprintDirection, keyboardMovementRepeatMs } from '../core/movement';
 import type { Direction, GameState, MoveResult } from '../core/types';
 import { overlayOf, uiStore, type OverlayId } from '../ui/store';
@@ -25,6 +26,9 @@ import type { GameActions } from './actions';
  * holds the window open instead of letting it lapse unseen.
  */
 export const RESET_CONFIRM_TICKS = 210;
+
+/** Float slack on the repeat's due time (sim ms), as `fixed-step.ts` allows its steps. */
+const REPEAT_EPSILON_MS = 1e-6;
 
 /** The mine is the only surface that scrolls; the dialogs above it keep their own. */
 const ZOOM_SURFACE = '#game-panel';
@@ -248,7 +252,9 @@ export function createInput(deps: GameInputDeps): GameInput {
       state.input.keyImpulse = null;
       return;
     }
-    const now = performance.now();
+    // The repeat runs on the sim's clock, like every other tick-tuned timer: frame
+    // timing never stretches it, and a paused sim holds it still.
+    const now = state.tick * FIXED_STEP_MS;
     // Shift only sprints with a Booster fitted; without one the key does nothing.
     const sprinting = keys.has('shift') && state.player.boost;
     const impulse = state.input.keyImpulse;
@@ -271,8 +277,17 @@ export function createInput(deps: GameInputDeps): GameInput {
     // hammering the hull.
     if (bumpLocked(held, destinationOpen)) return;
     if (held) state.input.sprintDirection = activeSprintDirection(!state.gameOver && sprinting, destinationOpen, held[0], held[1]);
-    if (held && now - state.input.lastKeyboardMove >= keyboardMovementRepeatMs(state.input.keyboardRepeatMs, sprinting, destinationOpen)) {
-      state.input.lastKeyboardMove = now;
+    const interval = keyboardMovementRepeatMs(state.input.keyboardRepeatMs, sprinting, destinationOpen);
+    const since = now - state.input.lastKeyboardMove;
+    // A 1/60 s tick is not exact in binary, so a repeat due right on a tick could
+    // read a hair early and slip to the next one; the stepper allows the same slack.
+    if (held && since + REPEAT_EPSILON_MS >= interval) {
+      // Keep the cadence: the next repeat is due one interval after this one was,
+      // not one interval after the tick it landed on. Re-anchoring on the tick
+      // rounded every 105 ms repeat up to seven ticks (~117 ms), so a held key fell
+      // a tile behind its length every second. A key only now picked up again (a
+      // lock lifted, a long gap) re-anchors instead of catching up in a burst.
+      state.input.lastKeyboardMove = since < interval * 2 ? state.input.lastKeyboardMove + interval : now;
       keyboardMove(held, sprinting, destinationOpen);
     }
   }

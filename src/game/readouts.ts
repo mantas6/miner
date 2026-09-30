@@ -50,6 +50,8 @@ export interface HudReadoutFields {
   depthTarget: string;
   depthTargetKind: DepthMilestoneKind;
   depthTargetRemaining: number;
+  /** A depth record already set that the ship is back above, shown instead of the countdown; `null` otherwise. */
+  depthTargetRecord: number | null;
 }
 
 export interface HudReadouts {
@@ -125,9 +127,11 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
 
   // Depth-landmark memo.
   let milestoneY = NaN;
+  let milestoneRecordDepth = NaN;
   let milestoneTarget = '';
   let milestoneKind: DepthMilestoneKind = 'starter';
   let milestoneRemaining = 0;
+  let milestoneRecord: number | null = null;
 
   /** Depth of the landmark being approached, or -1 before the first sync. */
   let pendingDepth = -1;
@@ -267,17 +271,23 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
     const jumped = Math.abs(p.x - lastX) > 1 || Math.abs(p.y - lastY) > 1;
     lastX = p.x;
     lastY = p.y;
-    if (p.y !== milestoneY) {
+    // The target is the next landmark below the career record, so a deeper record
+    // moves it as surely as a step does.
+    const record = state.stats.maxDepth;
+    if (p.y !== milestoneY || record !== milestoneRecordDepth) {
       milestoneY = p.y;
-      const milestone = getDepthMilestone(p.y);
+      milestoneRecordDepth = record;
+      const milestone = getDepthMilestone(p.y, record);
       milestoneTarget = milestone.target;
       milestoneKind = milestone.kind;
       milestoneRemaining = milestone.remainingMeters;
+      milestoneRecord = milestone.recordMeters;
       announceCrossing(milestone, jumped);
     }
     hud.depthTarget = milestoneTarget;
     hud.depthTargetKind = milestoneKind;
     hud.depthTargetRemaining = milestoneRemaining;
+    hud.depthTargetRecord = milestoneRecord;
   }
 
   /** Re-arm the announcements from scratch: a wiped profile starts a new career. */
@@ -286,6 +296,7 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
     pendingLine = '';
     announcedDepth = -1;
     milestoneY = NaN;
+    milestoneRecordDepth = NaN;
     lastX = NaN;
     lastY = NaN;
     careerDepthAtLastSync = -1;

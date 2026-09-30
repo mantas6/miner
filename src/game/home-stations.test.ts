@@ -352,6 +352,27 @@ describe('crafting at the station', () => {
     expect(countItem(manufacturer(h.state).inventory, 'upgrade:tank:2')).toBe(1);
     expect(h.state.stats.bestMarkCrafted).toBe(2);
     expect(unlockedSlotCount(slotsFor(h.state.player.ship), h.state.stats.bestMarkCrafted)).toBe(slotsFor('scout'));
+    // The craft says what it opened: the Scout's third slot, and the deep recipes.
+    expect(h.toasts.last).toBe('Third slot unlocked — fit another upgrade from the Ship screen. New recipes: Deep Teleporter, Deep Portal.');
+  });
+
+  it('toasts the slot unlock once, naming the hull\'s own last slot', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    swapHull(h.state.player, 'hauler');
+    manufacturer(h.state).inventory = [ore('Silver', 8), ore('Copper', 6), ore('Iron', 4)].reduce(
+      (inv, stack) => addItem(inv, itemForKind(stack.kind), stack.count), createInventory()
+    );
+    h.sim.openNearest();
+
+    h.sim.craft('upgrade:tank:1');
+    expect(h.toasts.saw('slot unlocked')).toBe(false);
+    h.sim.craft('upgrade:tank:2');
+    expect(h.toasts.saw('Fourth slot unlocked')).toBe(true);
+    // A second Mk II opens nothing new.
+    const before = h.toasts.messages.length;
+    h.sim.craft('upgrade:tank:2');
+    expect(h.toasts.messages.slice(before)).toEqual(['Crafted 1 × Fuel Tank Mk II. Take it from the station.']);
   });
 });
 
@@ -387,7 +408,8 @@ describe('the shipyard', () => {
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.onShipChanged).toHaveBeenCalled();
     expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state));
-    expect(h.toasts.saw('Built the Hauler')).toBe(true);
+    // The build toast lists what the swap gained.
+    expect(h.toasts.last).toBe('Built the Hauler: +1 slot · +50 fuel · +25 hull · +10 cargo. Your upgrades moved across.');
   });
 
   it('refuses anything but the next hull up, naming the one that can be built', () => {
@@ -412,6 +434,23 @@ describe('the shipyard', () => {
     expect(h.toasts.saw('need 8 Copper, 6 Silver')).toBe(true);
     expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(16);
     expect(h.audio.played).toEqual(['alarm']);
+  });
+
+  it('counts the ore aboard in the refusal, but builds from the stock alone', () => {
+    const h = stocked(ore('Iron', 16), ore('Copper', 10));
+    h.state.player.inventory = addItem(createInventory(), itemForKind(oreKind('Silver')), 4);
+
+    h.sim.craftShip('hauler');
+    expect(h.toasts.last).toBe('Not enough materials for the Hauler: need 2 Silver. Stow the 4 Silver aboard too.');
+
+    h.state.player.inventory = addItem(createInventory(), itemForKind(oreKind('Silver')), 6);
+    h.sim.craftShip('hauler');
+    expect(h.state.player.ship).toBe('scout');
+    expect(h.toasts.last).toBe('Stow the 6 Silver aboard to build the Hauler.');
+
+    h.sim.stowAll();
+    h.sim.craftShip('hauler');
+    expect(h.state.player.ship).toBe('hauler');
   });
 
   it('refuses on the top rung, and does nothing with no manufacturer open', () => {
@@ -501,6 +540,25 @@ describe('parking on the extractor to refuel', () => {
     expect(extractor(h.state).fuel).toBe(20);
     expect(h.toasts.saw('Refueled +30 from the extractor')).toBe(true);
     expect(h.audio.played).toEqual(['refuel']);
+  });
+
+  it('pours just the same with the ship parked beside it, but not two tiles off', () => {
+    const h = harness();
+    Object.assign(h.state.player, {x: STATIONS.extractor.x + 1, y: STATIONS.extractor.y});
+    h.state.player.fuel = h.state.player.fuelMax - 30;
+    extractor(h.state).fuel = 50;
+
+    h.sim.tick();
+
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
+    expect(extractor(h.state).fuel).toBe(20);
+    expect(h.toasts.saw('Refueled +30 from the extractor')).toBe(true);
+
+    Object.assign(h.state.player, {x: STATIONS.extractor.x + 2});
+    h.state.player.fuel = h.state.player.fuelMax - 10;
+    h.sim.tick();
+    expect(h.state.player.fuel).toBe(h.state.player.fuelMax - 10);
+    expect(extractor(h.state).fuel).toBe(20);
   });
 
   it('keeps topping up from fresh conversions while parked, toasting only on arrival', () => {

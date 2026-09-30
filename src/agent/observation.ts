@@ -18,7 +18,7 @@
 
 import { MAX_WORLD_ROW, WORLD_W } from '../../shared/constants';
 import { isTileExplored } from '../../shared/exploration-codec';
-import { canCraft, missingInputs, recipeId, recipeLabel, unlockedRecipes } from '../core/crafting';
+import { canCraft, missingInputs, pooledShortfall, recipeId, recipeLabel, unlockedRecipes } from '../core/crafting';
 import { getEnemyType } from '../core/enemy-types';
 import { describeItem, recipeInputLines } from '../core/item-info';
 import { isScannerDone } from '../core/scanner-device';
@@ -35,6 +35,7 @@ import {
   isOreKind,
   isUpgradeKind,
   totalItems,
+  type Inventory,
   type InventoryItemKind,
   type UpgradeKind
 } from '../core/inventory';
@@ -46,6 +47,7 @@ import { GALLERY_TIP, PROSPECTING_TIP, SHIP_LADDER_TIP, buildProspectingGuideRow
 import type { ExpeditionStatRow } from '../core/stats';
 import type { GameState, GameStats, Tile } from '../core/types';
 import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from '../game/zoom';
+import { ORE_NOT_SAVED_NOTE } from '../persistence';
 import { CONTROL_ROWS, controlKeysText } from '../ui/info-controls';
 import { getInfoNavigationSections, type InfoTab } from '../ui/info-navigation';
 import type { InventorySlotView, OverlayId, RuntimeStatus, UiPhase, UiState } from '../ui/store';
@@ -159,8 +161,13 @@ export interface AgentShipyard {
     /** The station stock covers `inputs` (the Build button is live). */
     craftable: boolean;
     inputs: AgentRecipeInput[];
-    /** The shortfall when it does not — empty when `craftable`. */
+    /**
+     * What neither the stock nor the bay holds — still to mine. The ore aboard
+     * counts toward the bill, as the screen's shortfall line counts it.
+     */
     missing: AgentRecipeInput[];
+    /** What the stock lacks but the bay carries: stow it (data-station) before building. */
+    stow: AgentRecipeInput[];
     /** What the swap adds to each base stat (fitted upgrades carry over on top). */
     gains: ShipBase;
   }) | null;
@@ -198,7 +205,14 @@ export type AgentOverlay =
       kind: 'station';
       bay: AgentSlot[];
       stock: AgentSlot[];
+      /**
+       * The recipes the stock can craft right now. The screen lists every unlocked
+       * recipe (`recipeCount` of them); `observe` with `detail: 'recipes'` mirrors
+       * them all, the unaffordable ones with their `missing` shortfall.
+       */
       recipes: AgentRecipe[];
+      /** How many recipes the screen lists (every unlocked one), craftable or not. */
+      recipeCount: number;
       /** The home Supply counter's rows; empty at a Manufacturer outside the home cavern. */
       supply: AgentSupplyRow[];
       shipyard: AgentShipyard;
@@ -300,11 +314,18 @@ export interface AgentInfoOverlay {
   /**
    * Settings: whether the cheat menu is expanded (its grants are then clickable),
    * and whether Reset game or Import save is waiting on its inline confirm. The
-   * audio switches are the top-level `audio`.
+   * audio switches are the top-level `audio`. `oreNote` is the warning the Save
+   * data box (and the import confirm) shows while ore is aboard — a save leaves
+   * the bay's ore out, so stow it before exporting or reloading — else `null`.
    */
-  settings?: {cheatsOpen: boolean; confirmingReset: boolean; confirmingImport: boolean};
+  settings?: {cheatsOpen: boolean; confirmingReset: boolean; confirmingImport: boolean; oreNote: string | null};
   /** The save text Export just produced (Settings only, once there is one). */
   saveExport?: string;
+  /**
+   * Where the harness saved Export's file download, when it caught one (set by
+   * `agent/session.ts`, never by the game). Settings only, beside `saveExport`.
+   */
+  saveExportPath?: string;
 }
 
 /** What the tile under the ship is, and anything notable standing on it. */
@@ -384,7 +405,13 @@ export interface AgentObservation {
      * trip there costs and `margin` what is left after it.
      */
     fuelReserve: {status: FuelReserveStatus; needed: number; margin: number; exit: string};
-    depthTarget: {name: string; kind: DepthMilestoneKind; remaining: number};
+    /**
+     * The next depth landmark below the career record (`stats.maxDepth`) or the
+     * ship, whichever is deeper, and how far below the ship it is. `record` is a
+     * depth record already set that the ship has climbed back above — the HUD then
+     * reads "record: 9000 m reached" instead of the countdown — else `null`.
+     */
+    depthTarget: {name: string; kind: DepthMilestoneKind; remaining: number; record: number | null};
     stationHint: string;
     teleport: {count: number; usable: boolean};
     /**
@@ -394,12 +421,13 @@ export interface AgentObservation {
      */
     base: {fuel: number; coal: number; alert: boolean} | null;
     /**
-     * The Shipyard at a glance: the next hull up the ladder and what the (first)
-     * Manufacturer's stock still lacks to build it — empty `missing` means it is
-     * buildable now. `null` on the top rung. The same figures the objective's
-     * "build the …" rung quotes.
+     * The Shipyard at a glance: the next hull up the ladder, what neither the
+     * (first) Manufacturer's stock nor the bay holds for it (`missing`, still to
+     * mine), and what the bay carries that the stock lacks (`stow`) — both empty
+     * means it is buildable now. `null` on the top rung. The same figures the
+     * objective's "build the …" rung quotes.
      */
-    nextShip: {id: ShipId; label: string; missing: AgentRecipeInput[]} | null;
+    nextShip: {id: ShipId; label: string; missing: AgentRecipeInput[]; stow: AgentRecipeInput[]} | null;
     alerts: {fuel: boolean; hull: boolean; cargo: boolean};
     announcement: string;
     /** The HUD inventory panel is folded shut (inventoryToggleBtn opens it again). */
@@ -430,7 +458,18 @@ export interface BuildObservationOptions {
   toasts?: readonly AgentToast[];
   /** The camera zoom level (`viewport.targetZoom`); the baseline when absent. */
   zoom?: number;
+  /** Ask for the parts left out by default: `'recipes'` mirrors every recipe the station lists. */
+  detail?: ObservationDetail;
 }
+
+/**
+ * The extra detail an observation can be asked for. `'recipes'`: an open
+ * Manufacturer's full recipe list, not only the craftable rows.
+ */
+export type ObservationDetail = 'recipes';
+
+/** Every `ObservationDetail`, for a harness validating what it was asked for. */
+export const OBSERVATION_DETAILS: readonly ObservationDetail[] = ['recipes'];
 
 /** Append a toast to a capped ring buffer, dropping the oldest past the cap. */
 export function appendToast(
@@ -470,28 +509,34 @@ function shipClass(id: ShipId): AgentShipClass {
   return {id, label: ship.label, slots: ship.slots};
 }
 
-/** The Shipyard the station screen paints: the store's hull, and the next one priced from the stock. */
-function buildShipyard(current: ShipId, stock: ReturnType<typeof slotsToInventory>): AgentShipyard {
+/**
+ * The Shipyard the station screen paints: the store's hull, and the next one
+ * priced from the stock with the bay counted toward it, as its shortfall line is.
+ */
+function buildShipyard(current: ShipId, stock: Inventory, bay: Inventory): AgentShipyard {
   const next = nextShip(current);
   if (!next) return {current: shipClass(current), next: null};
   const def = shipFor(next);
-  const craftable = canCraft(stock, def);
+  const {missing, stow} = pooledShortfall(bay, stock, def);
   return {
     current: shipClass(current),
     next: {
       ...shipClass(next),
-      craftable,
+      craftable: canCraft(stock, def),
       inputs: resolveInputs(def.inputs),
-      missing: craftable ? [] : resolveInputs(missingInputs(stock, def)),
+      missing: resolveInputs(missing),
+      stow: resolveInputs(stow),
       gains: shipGains(current, next)
     }
   };
 }
 
-/** `hud.nextShip`: the next hull up and the first Manufacturer's shortfall for it. */
+/** `hud.nextShip`: the next hull up and what the first Manufacturer's stock and the bay still lack for it. */
 function buildNextShip(state: GameState): AgentObservation['hud']['nextShip'] {
-  const next = nextShipShortfall(state.player.ship, manufacturerStock(state.stations));
-  return next ? {id: next.id, label: shipFor(next.id).label, missing: resolveInputs(next.missing)} : null;
+  const next = nextShipShortfall(state.player.ship, manufacturerStock(state.stations), state.player.inventory);
+  return next
+    ? {id: next.id, label: shipFor(next.id).label, missing: resolveInputs(next.missing), stow: resolveInputs(next.stow)}
+    : null;
 }
 
 /** A fuel price as the screens print it: dollars per unit, to the cent. */
@@ -514,17 +559,21 @@ function portalRepair(state: GameState, cash: number): {missing: number; amount:
 }
 
 /** The one open overlay's mirror, or `null` when the mine is uncovered. */
-function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
+function buildOverlay(state: GameState, ui: UiState, detail: ObservationDetail | undefined): AgentOverlay | null {
   const overlay = ui.overlay;
   if (!overlay) return null;
   switch (overlay.kind) {
     case 'station': {
       const stock = slotsToInventory(overlay.slots);
+      const listed = unlockedRecipes(overlay.bestMarkCrafted);
+      // The full list runs to dozens of rows the stock mostly cannot pay for, so by
+      // default only the craftable ones are mirrored; `detail: 'recipes'` asks for all.
+      const shown = detail === 'recipes' ? listed : listed.filter(recipe => canCraft(stock, recipe));
       return {
         kind: 'station',
         bay: toSlotsWithInfo(ui.inventorySlots),
         stock: toSlotsWithInfo(overlay.slots),
-        recipes: unlockedRecipes(overlay.bestMarkCrafted).map(recipe => {
+        recipes: shown.map(recipe => {
           const craftable = canCraft(stock, recipe);
           return {
             id: recipeId(recipe),
@@ -536,13 +585,14 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
             info: [...describeItem(recipe.output).lines, ...recipeInputLines(recipe, stock)]
           };
         }),
+        recipeCount: listed.length,
         supply: overlay.supply
           ? SUPPLY_POOL.map(kind => {
               const price = supplyPrice(kind);
               return {kind, label: itemForKind(kind).label, price, affordable: ui.hud.cash >= price, info: describeItem(kind).lines};
             })
           : [],
-        shipyard: buildShipyard(ui.ship.id, stock)
+        shipyard: buildShipyard(ui.ship.id, stock, slotsToInventory(ui.inventorySlots))
       };
     }
     case 'extractor': {
@@ -655,7 +705,12 @@ function buildInfoOverlay(ui: UiState): AgentInfoOverlay {
       overlay.controls = CONTROL_ROWS.map(row => ({keys: controlKeysText(row), action: row.action}));
       break;
     case 'info-settings':
-      overlay.settings = {cheatsOpen: ui.cheatsOpen, confirmingReset: ui.confirmingReset, confirmingImport: ui.confirmingImport};
+      overlay.settings = {
+        cheatsOpen: ui.cheatsOpen,
+        confirmingReset: ui.confirmingReset,
+        confirmingImport: ui.confirmingImport,
+        oreNote: ui.inventorySlots.some(slot => isOreKind(slot.kind)) ? ORE_NOT_SAVED_NOTE : null
+      };
       if (ui.saveExport !== null) overlay.saveExport = ui.saveExport;
       break;
   }
@@ -690,7 +745,7 @@ function buildPlacement(state: GameState, get: (x: number, y: number) => Tile): 
   };
 }
 
-export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, toasts = [], zoom = DEFAULT_ZOOM}: BuildObservationOptions): AgentObservation {
+export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, toasts = [], zoom = DEFAULT_ZOOM, detail}: BuildObservationOptions): AgentObservation {
   const player = state.player;
   // Clamped both ways: a huge (or non-finite) radius must not build a giant grid.
   const radiusX = Number.isFinite(radius) ? Math.min(MAX_VIEW_RADIUS, Math.max(1, Math.floor(radius))) : DEFAULT_VIEW_RADIUS;
@@ -839,7 +894,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
         margin: hud.fuelReserveMargin,
         exit: hud.fuelReserveExit
       },
-      depthTarget: {name: hud.depthTarget, kind: hud.depthTargetKind, remaining: hud.depthTargetRemaining},
+      depthTarget: {name: hud.depthTarget, kind: hud.depthTargetKind, remaining: hud.depthTargetRemaining, record: hud.depthTargetRecord},
       stationHint: hud.stationHint,
       teleport: {count: hud.teleport.count, usable: hud.teleport.usable},
       base: hud.hasBase ? {fuel: hud.baseFuel, coal: hud.baseCoal, alert: hud.baseAlert} : null,
@@ -855,7 +910,7 @@ export function buildObservation({state, ui, get, radius = DEFAULT_VIEW_RADIUS, 
       zoom: {level: zoom, min: MIN_ZOOM, max: MAX_ZOOM}
     },
     notable,
-    overlay: buildOverlay(state, ui),
+    overlay: buildOverlay(state, ui, detail),
     toasts: [...toasts]
   };
 }

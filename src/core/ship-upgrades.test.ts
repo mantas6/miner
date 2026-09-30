@@ -17,6 +17,7 @@ import {
   equip,
   swapHull,
   firstFittingSlot,
+  formatMarkUnlock,
   hasEmptyOpenSlot,
   isSlotLocked,
   unequip,
@@ -87,6 +88,17 @@ describe('the fitting slots', () => {
     expect(hasEmptyOpenSlot(['upgrade:tank:1', 'upgrade:drill:1', null], LOCKED)).toBe(false);
     expect(hasEmptyOpenSlot(['upgrade:tank:1', 'upgrade:drill:1', null], UNLOCKED)).toBe(true);
     expect(hasEmptyOpenSlot(['upgrade:tank:1', 'upgrade:drill:1', 'upgrade:hull:1'], UNLOCKED)).toBe(false);
+  });
+
+  it('words the unlock by the flown hull\'s own last slot, once, with the recipes it opens', () => {
+    const recipes = 'New recipes: Deep Teleporter, Deep Portal.';
+    expect(formatMarkUnlock('scout', LOCKED, UNLOCKED)).toBe(`Third slot unlocked — fit another upgrade from the Ship screen. ${recipes}`);
+    expect(formatMarkUnlock('hauler', 0, UNLOCKED)).toMatch(/^Fourth slot unlocked/);
+    expect(formatMarkUnlock('corebreaker', LOCKED, 3)).toMatch(/^Seventh slot unlocked/);
+    // Nothing new: a Mk I, a second Mk II, a Mk III after the Mk II.
+    expect(formatMarkUnlock('scout', 0, LOCKED)).toBeNull();
+    expect(formatMarkUnlock('scout', UNLOCKED, UNLOCKED)).toBeNull();
+    expect(formatMarkUnlock('scout', UNLOCKED, 3)).toBeNull();
   });
 });
 
