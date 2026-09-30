@@ -107,8 +107,6 @@ export interface HomeStationsSim {
   craftShip(id: ShipId | string): void;
   /** Queue every coal aboard into the open extractor. */
   loadCoal(): void;
-  /** Top the ship's tank up from the open extractor's stored fuel. */
-  refuel(): void;
   /** Buy one of a home Supply item into the open home-cavern manufacturer's stock. */
   buySupply(kind: InventoryItemKind): void;
   /** Order fuel for cash into the open home extractor's store (`extractorFuelOrder`). */
@@ -406,20 +404,6 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     return moved;
   }
 
-  function refuel(): void {
-    const extractor = openExtractor();
-    if (!extractor || state.gameOver) return;
-    const moved = pourFuel(extractor);
-    if (moved <= 0) {
-      audio.alarm();
-      return toast(state.player.fuel >= state.player.fuelMax ? 'Fuel tank already full.' : 'No fuel stored in the extractor yet.');
-    }
-    repaint();
-    saveProgress();
-    audio.refuel();
-    toast(`Refueled +${Math.round(moved)} from the extractor.`);
-  }
-
   /** The extractor the ship is parked on or beside, or `null`. */
   function extractorParkedAt(): ExtractorStation | null {
     return extractorInReach(state.stations, state.player.x, state.player.y);
@@ -484,7 +468,6 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     craft,
     craftShip,
     loadCoal,
-    refuel,
     buySupply,
     buyExtractorFuel,
     tick

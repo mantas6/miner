@@ -947,10 +947,8 @@ describe('buildObservation', () => {
     expect(cost).toBeGreaterThan(fuelPurchase(60, 100, 200, fuelUnitPrice()).cost);
   });
 
-  it('mirrors the extractor overlay with the refuel amount the screen would show', () => {
+  it('mirrors the extractor overlay\'s buffers', () => {
     const state = createInitialState();
-    state.player.fuel = 50;
-    state.player.fuelMax = 100;
     const overlay = buildObservation({
       state,
       ui: ui({overlay: {kind: 'extractor', extractor: {coal: 5, fuel: 40, progress: 10, supply: false}}}),
@@ -959,9 +957,9 @@ describe('buildObservation', () => {
 
     expect(overlay?.kind).toBe('extractor');
     if (overlay?.kind !== 'extractor') throw new Error('expected extractor overlay');
-    expect(overlay.coal).toBe(5);
-    // Room in the tank is 50, but only 40 fuel is stored.
-    expect(overlay.refuelAmount).toBe(40);
+    expect(overlay).toMatchObject({coal: 5, fuel: 40, progress: 10});
+    // Parking tops the tank up on its own, so there is no refuel amount to mirror.
+    expect(overlay).not.toHaveProperty('refuelAmount');
     // A field extractor takes no fuel orders, so it quotes no price either.
     expect(overlay.fuelOrder).toBeNull();
     expect(overlay.fuelPrice).toBeNull();

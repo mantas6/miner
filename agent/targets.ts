@@ -24,7 +24,7 @@ export const ID_TARGETS: ReadonlySet<string> = new Set([
   // Station screen.
   'stowAllBtn', 'stationCloseBtn',
   // Fuel extractor screen (extractorBuyFuelBtn only at the base's extractor).
-  'loadCoalBtn', 'refuelBtn', 'extractorBuyFuelBtn', 'extractorCloseBtn',
+  'loadCoalBtn', 'extractorBuyFuelBtn', 'extractorCloseBtn',
   // Cargo container / wreck / chest screen.
   'cargoCloseBtn', 'lootAllBtn',
   // Trading-post screen.

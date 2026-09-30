@@ -74,7 +74,7 @@ export function MinerApp({ createRuntime }: MinerAppProps) {
           Drill for ore and bring it back to the home base before the fuel runs out.
           WASD or the arrow keys move, fly and dig. Space uses what the ship is
           parked beside — the Manufacturing Station to stow and craft, the Fuel
-          Extractor to refuel, a Portal to travel, a Trading Post to trade. E plants
+          Extractor to load coal, a Portal to travel, a Trading Post to trade. E plants
           dynamite, T uses a teleporter, C opens a container, wreck or chest the ship
           is on or beside, and plus and minus zoom. Escape closes an open screen.
           The readouts after this report cash, depth, fuel and hull; the Info

@@ -2,21 +2,19 @@
 //
 // It shows the two buffers — coal queued for conversion and fuel already stored,
 // read as `n / cap` — and, while a coal is burning, how long until the next unit
-// of fuel lands. Below sit the two transfers: "Load coal (n)" queues every coal
-// in the bay, and "Refuel ship (+n)" tops the tank up from stored fuel. Each names
-// the amount it would move and goes dead when that amount is zero. A ship parked
-// on the extractor tile or beside it — the same reach this screen opens from — is
-// kept topped up on its own, fresh conversions included, so with the screen up
-// the Refuel button has nothing left to pour and stays dead. The
-// base's own extractor adds a third: "Buy fuel (+n) $c" orders up to
-// `EXTRACTOR_FUEL_ORDER` fuel into the store for cash, dead while the store is full
-// or the wallet cannot cover a unit — and then it still quotes the rate
-// ("Buy fuel ($29 per 100)"), so the price is known before it is needed.
+// of fuel lands. There is no refuel button: a ship parked on the extractor tile or
+// beside it — the same reach this screen opens from — is kept topped up on its
+// own, fresh conversions included. Below sits "Load coal (n)", which queues every
+// coal in the bay, naming the count and going dead at zero. The base's own
+// extractor adds "Buy fuel (+n) $c", which orders up to `EXTRACTOR_FUEL_ORDER`
+// fuel into the store for cash, dead while the store is full or the wallet cannot
+// cover a unit — and then it still quotes the rate ("Buy fuel ($29 per 100)"), so
+// the price is known before it is needed.
 //
 // Everything is painted from the store: the buffers and progress animate as the
 // fixed-step extractor tick pushes fresh values in while the screen is open, and
-// the button amounts follow the bay and the tank. The screen holds no copy of any
-// of it.
+// the button amounts follow the bay and the wallet. The screen holds no copy of
+// any of it.
 //
 // The `<dialog>` itself, its focus and its close requests are `ModalShell`'s. Its
 // close is the home-station one the manufacturer's screen dispatches too.
@@ -52,14 +50,9 @@ function ExtractorCard() {
   const progress = useUiStore(state => overlayOf(state, 'extractor')?.extractor.progress ?? 0);
   const supply = useUiStore(state => overlayOf(state, 'extractor')?.extractor.supply ?? false);
   const cash = useUiStore(state => state.hud.cash);
-  // The ship's tank, off the HUD snapshot the loop refreshes every frame.
-  const playerFuel = useUiStore(state => state.hud.fuel);
-  const fuelMax = useUiStore(state => state.hud.fuelMax);
   const bayCoal = useUiStore(state => state.inventorySlots.find(slot => slot.kind === COAL_KIND)?.count ?? 0);
 
   const storedFuel = Math.round(fuel);
-  // Room the tank has left, and what one refuel would pour in: never more than is stored.
-  const refuelAmount = Math.round(Math.min(fuel, Math.max(0, fuelMax - playerFuel)));
   // Only count down while a coal is actually burning — full tank or empty queue, it idles.
   const converting = coal > 0 && fuel < EXTRACTOR.fuelCap;
   const secondsToNext = converting
@@ -91,7 +84,7 @@ function ExtractorCard() {
           {converting
             ? `Converting — next fuel in ${secondsToNext}s.`
             : coal > 0
-              ? 'Fuel store full — refuel to resume converting.'
+              ? 'Fuel store full — converting resumes once fuel is drawn.'
               : 'Idle — load coal to make fuel.'}
         </p>
         <div className={styles.actions}>
@@ -104,20 +97,11 @@ function ExtractorCard() {
           >
             Load coal ({bayCoal})
           </button>
-          <button
-            id="refuelBtn"
-            type="button"
-            className={styles.action}
-            disabled={refuelAmount <= 0}
-            onClick={() => uiCommands.refuelFromExtractor()}
-          >
-            Refuel ship (+{refuelAmount})
-          </button>
           {supply && (
             <button
               id="extractorBuyFuelBtn"
               type="button"
-              className={styles.wide}
+              className={styles.action}
               disabled={order.amount <= 0}
               onClick={() => uiCommands.buyExtractorFuel()}
             >

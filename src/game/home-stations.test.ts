@@ -498,33 +498,6 @@ describe('the fuel extractor transfers', () => {
     expect(countItem(h.state.player.inventory, oreKind('Coal'))).toBe(4);
     expect(h.toasts.saw('hopper is full')).toBe(true);
   });
-
-  it('tops the tank up via `refuel()` after `openNearest()`', () => {
-    const h = harness();
-    park(h.state, 'extractor');
-    h.state.player.fuel = h.state.player.fuelMax - 30;
-    extractor(h.state).fuel = 50;
-    h.sim.openNearest();
-
-    h.sim.refuel();
-
-    expect(h.state.player.fuel).toBe(h.state.player.fuelMax);
-    expect(extractor(h.state).fuel).toBe(20);
-    expect(h.audio.played).toEqual(['refuel']);
-  });
-
-  it('refuses with an empty extractor (`No fuel stored`)', () => {
-    const h = harness();
-    park(h.state, 'extractor');
-    extractor(h.state).fuel = 0;
-    h.state.player.fuel = h.state.player.fuelMax - 30;
-    h.sim.openNearest();
-
-    h.sim.refuel();
-
-    expect(h.state.player.fuel).toBe(h.state.player.fuelMax - 30);
-    expect(h.toasts.saw('No fuel stored')).toBe(true);
-  });
 });
 
 describe('parking on the extractor to refuel', () => {

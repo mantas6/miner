@@ -222,7 +222,6 @@ export type AgentOverlay =
       coal: number;
       fuel: number;
       progress: number;
-      refuelAmount: number;
       /**
        * What extractorBuyFuelBtn would order into the store right now (whole
        * dollars; `amount` 0 when the store is full or the wallet short). `null`
@@ -597,14 +596,12 @@ function buildOverlay(state: GameState, ui: UiState, detail: ObservationDetail |
     }
     case 'extractor': {
       const {coal, fuel, progress, supply} = overlay.extractor;
-      const refuelAmount = Math.round(Math.min(fuel, Math.max(0, state.player.fuelMax - state.player.fuel)));
       const order = supply ? extractorFuelOrder(fuel, ui.hud.cash) : null;
       return {
         kind: 'extractor',
         coal,
         fuel,
         progress,
-        refuelAmount,
         fuelOrder: order ? {amount: Math.round(order.amount), cost: order.cost} : null,
         fuelPrice: supply ? centsPerUnit(fuelUnitPrice()) : null
       };

@@ -50,9 +50,9 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Load coal, and under it the base's fuel order, each the full width of the card. */
 .actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 .action {
@@ -71,9 +71,4 @@
 .action:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-/* The base's fuel order sits under the two transfers, the full width of the card. */
-.wide {
-  composes: action;
-  grid-column: 1 / -1;
 }

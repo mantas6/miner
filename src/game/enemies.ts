@@ -39,7 +39,13 @@ export interface EnemySim {
    * reachable. Run after every step and every jump.
    */
   wakeNearShip(): void;
-  /** Recompute reachable air from the player and wake everything exposed. */
+  /**
+   * Recompute reachable air from the player and wake everything exposed. A
+   * rebuild (boot, redeploy) floods the whole tunnel network at once, so only a
+   * cocoon hatching within `REBUILD_WAKE_NOTICE_RADIUS` of the ship is announced;
+   * the rest wake quietly — no "Drill it before it chews the hull" for a fiend
+   * sixty rows below a ship parked at home.
+   */
   resetExposure(): void;
   /** Forget reachable air without re-seeding it (world reset). */
   clearExposure(): void;
@@ -64,6 +70,13 @@ export interface EnemySimDeps {
   spawnExplosion(x: number, y: number): void;
 }
 
+/**
+ * How near the ship (Chebyshev, in tiles) a cocoon hatched by a rebuild's flood
+ * must be to be announced: about the half-width of the view, so a fiend the
+ * player can see coming still gets its toast.
+ */
+export const REBUILD_WAKE_NOTICE_RADIUS = 7;
+
 export function createEnemySim(deps: EnemySimDeps): EnemySim {
   const {state, grid, audio, toast, addCash, saveProgress, damagePlayer, spawnDust, spawnExplosion} = deps;
   /** Air cells already known to be connected to the surface/player. */
@@ -72,6 +85,12 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
   function enemyAt(x: number, y: number): Enemy | undefined {
     return state.enemies.find(e => e.alive && Math.round(e.x) === x && Math.round(e.y) === y);
   }
+
+  /**
+   * While set, a hatch farther than this (Chebyshev, in tiles) from the ship
+   * wakes without its toast and cue: `resetExposure`'s flood of the whole mine.
+   */
+  let quietBeyond: number | null = null;
 
   function wakeEnemy(x: number, y: number): boolean {
     const tile = grid.get(x, y);
@@ -98,6 +117,8 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
     };
     state.enemies.push(enemy);
     spawnDust(x, y, getEnemyType(enemy.kind).glow, 18);
+    const p = state.player;
+    if (quietBeyond !== null && Math.max(Math.abs(x - p.x), Math.abs(y - p.y)) > quietBeyond) return true;
     audio.enemyWake();
     toast(`${getEnemyType(enemy.kind).name} awakened! Drill it before it chews the hull.`);
     return true;
@@ -142,7 +163,12 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
 
   function resetExposure(): void {
     reachableAir.clear();
-    wakeNearShip();
+    quietBeyond = REBUILD_WAKE_NOTICE_RADIUS;
+    try {
+      wakeNearShip();
+    } finally {
+      quietBeyond = null;
+    }
   }
 
   function enemyBounty(y: number): number {

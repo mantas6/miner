@@ -179,7 +179,7 @@ const seedSaveOnce = seedSaveScript({cash: 250, stations: WORKBENCHES}, {once: t
 /**
  * The home workbenches, the manufacturer stocked for a Fuel Tank Mk I (4 Iron,
  * 2 Copper) with coal to spare, the extractor holding fuel, and cash in the wallet
- * — so one run can buy Supply, craft, take, fit, load coal, refuel and order fuel
+ * — so one run can buy Supply, craft, take, fit, refuel by parking, load coal and order fuel
  * without a dig.
  */
 const seedWorkshop = seedSaveScript({
@@ -513,7 +513,7 @@ test('every press is one step the observation already shows, and a hold of n × 
   }
 });
 
-test('a crafted upgrade is taken from the station, fitted, unfitted, and the extractor loads coal, refuels and takes a fuel order', async () => {
+test('a crafted upgrade is taken from the station, fitted, unfitted, and the extractor refuels the parked ship, loads coal and takes a fuel order', async () => {
   const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedWorkshop});
   try {
     await s.startRun();
@@ -585,7 +585,8 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
     expect(obs.hud.base?.fuel).toBeLessThan(40);
 
-    // The extractor: load the coal aboard; there is nothing left for Refuel to pour.
+    // The extractor: load the coal aboard. Its screen has no refuel button — the
+    // parked ship is already full.
     obs = await s.pressTile(STATIONS.extractor.x, STATIONS.extractor.y);
     if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
     const coalBefore = obs.overlay.coal;
@@ -593,10 +594,9 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
     expect(obs.overlay.coal).toBe(coalBefore + 3);
     expect(countKind(obs.bay, 'ore:Coal')).toBe(0);
-    expect(obs.overlay.refuelAmount).toBe(0);
+    expect(obs.ship.fuel).toBe(obs.ship.fuelMax);
 
     // The base extractor takes fuel ordered for cash into its store.
-    if (obs.overlay?.kind !== 'extractor') throw new Error('extractor overlay expected');
     const order = obs.overlay.fuelOrder;
     if (!order) throw new Error('the home extractor should quote a fuel order');
     expect(order.amount).toBeGreaterThan(0);

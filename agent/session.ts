@@ -415,6 +415,10 @@ export async function openGameSession(options: OpenGameSessionOptions = {}): Pro
         let keyDown = false;
         await routeKeysToGame(page, key);
         await withCleanup(async () => {
+          // The key goes down on a frozen sim, so no tick can take its first step
+          // before `holdForSimTime` has read the tick it counts from — under load
+          // that round trip is several ticks, and each was a tick held too long.
+          await setPaused(page, true);
           if (holdOptions?.shift) { await page.keyboard.down('Shift'); shiftDown = true; }
           await page.keyboard.down(key);
           keyDown = true;
@@ -672,8 +676,10 @@ async function settle(page: Page): Promise<void> {
 
 /**
  * Keep a held key down for `ms` of sim time after the step it lands on, then
- * freeze the sim for the release. The first tick after the key goes down takes
- * the step at once; the key then stays down through `ceil(ms / FIXED_STEP_MS)`
+ * freeze the sim for the release. The key goes down on a frozen sim (`hold`
+ * pauses first), and this reads the tick before resuming it, so the count cannot
+ * start late however slow the round trip. The first tick after that takes the
+ * step at once; the key then stays down through `ceil(ms / FIXED_STEP_MS)`
  * more ticks, so every repeat due within `ms` of that step lands — a hold of
  * 5 × 105 ms takes six steps, not five — and none after it, since the sim is
  * frozen, from the page, in the very frame the last of those ticks ran, before
@@ -686,7 +692,9 @@ async function holdForSimTime(page: Page, ms: number): Promise<void> {
   // No named helpers in here either (see `settle`).
   await page.evaluate(async ({spec, steps, cap}) => {
     const bridge = ((await import(spec)) as BridgeModule).agentBridge;
+    // The sim was frozen for the keydown: the count starts here, then it runs.
     const start = bridge.tick();
+    bridge.setPaused(false);
     if (start === null) return;
     const target = start + 1 + steps;
     const deadline = performance.now() + cap;

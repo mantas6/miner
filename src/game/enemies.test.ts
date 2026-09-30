@@ -7,7 +7,7 @@ import { nth } from '../test-narrowing';
 import { load, save } from '../persistence';
 import { applyTileEntries, recordTileDiff, tileDiffEntries } from '../world/tile-diff';
 import { ensureWorldRow, makeTile } from '../world/world';
-import { createEnemySim, type EnemySim } from './enemies';
+import { REBUILD_WAKE_NOTICE_RADIUS, createEnemySim, type EnemySim } from './enemies';
 import { createWorldGrid } from './world-grid';
 import {
   createAudioStub,
@@ -202,6 +202,29 @@ describe('the wake radius', () => {
     state.player.y = 98;
     sim.wakeNearShip();
     expect(state.enemies.map(e => [e.x, e.y])).toEqual([[21, 97]]);
+  });
+
+  it('hatches a rebuild\'s far-off cocoons quietly, announcing only the ones near the ship', () => {
+    // A long shaft: the ship parked at its top, one cocoon off its foot far
+    // below, another just under the ship. A redeploy's rebuild floods it all.
+    const {state, sim, toasts} = slab(110);
+    nth(state.world, 110)[21] = cocoon();
+    nth(state.world, 96)[21] = cocoon();
+    Object.assign(state.player, {x: 20, y: 92});
+    toasts.messages.length = 0;
+
+    sim.resetExposure();
+
+    // Both hatch, but only the one within the notice radius gets its warning.
+    expect(state.enemies.map(e => [e.x, e.y]).sort()).toEqual([[21, 110], [21, 96]].sort());
+    expect(110 - 92).toBeGreaterThan(REBUILD_WAKE_NOTICE_RADIUS);
+    expect(96 - 92).toBeLessThanOrEqual(REBUILD_WAKE_NOTICE_RADIUS);
+    expect(toasts.messages.filter(message => message.includes('awakened'))).toHaveLength(1);
+
+    // Outside a rebuild a wake is announced wherever it is.
+    nth(state.world, 108)[19] = cocoon();
+    sim.wakeEnemiesNear(20, 108);
+    expect(toasts.messages.filter(message => message.includes('awakened'))).toHaveLength(2);
   });
 
   it('wakes what a jump lands beside, in air the exposure pass never walked', () => {

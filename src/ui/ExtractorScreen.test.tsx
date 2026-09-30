@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 //
 // The fuel extractor screen as a component: does it paint the queued coal, the
-// stored fuel against its cap, and the countdown from the store, and do the two
-// transfer buttons name their amounts, disable at zero, and reach the right
-// command? What a load/refuel or a conversion actually does — and the auto-refuel
-// on parking — lives in core/stations.test.ts and game/home-stations.test.ts.
+// stored fuel against its cap, and the countdown from the store, and do the
+// buttons name their amounts, disable at zero, and reach the right command? What a
+// load or a conversion actually does — and the auto-refuel on parking, which is
+// why the screen has no refuel button — lives in core/stations.test.ts and
+// game/home-stations.test.ts.
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -80,35 +81,23 @@ describe('fuel extractor dialog', () => {
     expect(emptyLoad.disabled).toBe(true);
   });
 
-  it('reads that the fuel store is full and to refuel to resume converting', () => {
+  it('reads that the fuel store is full and converting resumes once fuel is drawn', () => {
     open({extractor: {coal: 4, fuel: EXTRACTOR.fuelCap, progress: 0}});
-    expect(document.getElementById('extractorStatus')!.textContent).toContain('refuel to resume converting');
+    expect(document.getElementById('extractorStatus')!.textContent).toContain('converting resumes once fuel is drawn');
   });
 
-  it('labels Refuel with the amount it would pour in, capped by tank room and stored fuel', () => {
+  it('offers no refuel button: parking beside the extractor tops the tank up on its own', () => {
     open({extractor: {coal: 0, fuel: 50}, player: {fuel: 70, fuelMax: 100}});
-    const refuel = document.getElementById('refuelBtn') as HTMLButtonElement;
-    // 30 of room, 50 stored: only 30 moves.
-    expect(refuel.textContent).toContain('Refuel ship (+30)');
-    expect(refuel.disabled).toBe(false);
+    expect(document.getElementById('refuelBtn')).toBeNull();
   });
 
-  it('disables Refuel with a full tank or no stored fuel', () => {
-    open({extractor: {coal: 0, fuel: 0}, player: {fuel: 70, fuelMax: 100}});
-    expect((document.getElementById('refuelBtn') as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('routes the two buttons to their commands', () => {
+  it('routes Load coal to its command', () => {
     const loadCoal = vi.fn();
-    const refuelFromExtractor = vi.fn();
-    setUiCommands({loadCoal, refuelFromExtractor});
-    open({extractor: {coal: 0, fuel: 50}, player: {fuel: 70, fuelMax: 100}, bayCoal: 3});
+    setUiCommands({loadCoal});
+    open({bayCoal: 3});
 
     fireEvent.click(document.getElementById('loadCoalBtn')!);
     expect(loadCoal).toHaveBeenCalledOnce();
-
-    fireEvent.click(document.getElementById('refuelBtn')!);
-    expect(refuelFromExtractor).toHaveBeenCalledOnce();
   });
 
   it('offers no fuel order at an extractor away from the base', () => {

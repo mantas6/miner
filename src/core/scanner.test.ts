@@ -70,6 +70,23 @@ describe('terrain scanner helper', () => {
       .toBe('Scanner →: unexplored — advance to map terrain.');
   });
 
+  it('never offers terrain overhead as drillable: the drill cannot dig upward', () => {
+    const copper = { name: 'Copper', color: '#c47b45', value: 16, min: 7, max: 322, chance: .08 };
+    expect(formatTerrainScanner({ tile: { type: 'dirt', hp: 3, maxHp: 3 }, direction: [0, -1] }))
+      .toBe('Scanner ↑: dirt overhead — the drill cannot dig upward.');
+    expect(formatTerrainScanner({ tile: { type: 'ore', ore: copper, hp: 4, maxHp: 4 }, direction: [0, -1] }))
+      .toBe('Scanner ↑: Copper overhead — the drill cannot dig upward.');
+    expect(formatTerrainScanner({ tile: { type: 'hazard', hp: 5, maxHp: 5 }, direction: [0, -1] }))
+      .toBe('Scanner ↑: magma overhead — the drill cannot dig upward.');
+    // A cocoon overhead still passes for dirt.
+    expect(formatTerrainScanner({ tile: { type: 'enemy', kind: 'tunnelFiend', hp: 4, maxHp: 4 }, direction: [0, -1] }))
+      .toBe('Scanner ↑: dirt overhead — the drill cannot dig upward.');
+    // Open air is flown, and an awake enemy above can still be drilled by holding Up.
+    expect(formatTerrainScanner({ tile: { type: 'air' }, direction: [0, -1] })).toBe('Scanner ↑: clear route.');
+    expect(formatTerrainScanner({ tile: { type: 'air' }, direction: [0, -1], activeEnemy: 'tunnelFiend' }))
+      .toBe('Scanner ↑: active tunnel fiend — drill it before it chews hull.');
+  });
+
   it('reads a decoration as drillable', () => {
     expect(formatTerrainScanner({ tile: { type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48 }, direction: [0, 1] }))
       .toBe('Scanner ↓: decoration — drill to recover it.');
@@ -110,7 +127,7 @@ describe('terrain scanner helper', () => {
       expect(formatTerrainScanner({ tile: { type: 'air' }, direction: [0, 1], beyond: magma }))
         .toBe('Scanner ↓: clear route.');
       expect(formatTerrainScanner({ tile: dirt, direction: [0, -1], beyond: magma }))
-        .toBe('Scanner ↑: dirt — drillable, 3 hits.');
+        .toBe('Scanner ↑: dirt overhead — the drill cannot dig upward.');
       expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: magma, explored: false }))
         .toBe('Scanner ↓: unexplored — advance to map terrain.');
       expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: magma, activeEnemy: 'skitterling' }))

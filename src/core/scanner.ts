@@ -89,10 +89,30 @@ export function formatTerrainScanner({ tile, direction, activeEnemy = false, exp
     const name = typeof activeEnemy === 'string' ? getEnemyType(activeEnemy).name.toLowerCase() : 'fiend';
     return `${prefix} active ${name} — drill it before it chews hull.`;
   }
+  // The drill never digs upward (`move.ts` refuses the step), so terrain overhead
+  // is named as a ceiling rather than offered as drillable with a hit count. Rock
+  // keeps its own line — it is blocked whichever way the drill points.
+  if (direction[1] < 0 && tile.type !== 'air' && tile.type !== 'rock') {
+    return `${prefix} ${overheadLabel(tile)} overhead — the drill cannot dig upward.`;
+  }
   const line = describeTile(prefix, tile, drill, lookaheadSuffix(direction, beyond));
   // Only a tile the drill can bite warns of the surcharge: air is flown, and
   // rock already says to detour.
   return hovering && tile.type !== 'air' && tile.type !== 'rock' ? line + HOVER_SUFFIX : line;
+}
+
+/** What a solid tile above the ship is called; a cocoon keeps its dirt disguise. */
+function overheadLabel(tile: Tile): string {
+  switch (tile.type) {
+    case 'ore':
+      return tile.ore.name;
+    case 'hazard':
+      return 'magma';
+    case 'decor':
+      return 'a decoration';
+    default:
+      return 'dirt';
+  }
 }
 
 /** One target's line; `then` is the lookahead's tail, read only by a dirt target. */

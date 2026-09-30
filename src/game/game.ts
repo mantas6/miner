@@ -353,7 +353,6 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       craft: recipe => homeStations.craft(recipe),
       craftShip: id => homeStations.craftShip(id),
       loadCoal: () => homeStations.loadCoal(),
-      refuelFromExtractor: () => homeStations.refuel(),
       buySupply: kind => homeStations.buySupply(kind),
       buyExtractorFuel: () => homeStations.buyExtractorFuel(),
       openInfo: openInfoScreen,

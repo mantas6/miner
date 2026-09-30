@@ -108,8 +108,6 @@ export interface UiCommands {
   craftShip(id: ShipId): void;
   /** Queue every coal aboard into the extractor. */
   loadCoal(): void;
-  /** Top the ship's tank up from the extractor's stored fuel. */
-  refuelFromExtractor(): void;
   /** Buy one home Supply item into the open home-cavern manufacturer's stock. */
   buySupply(kind: InventoryItemKind): void;
   /** Order fuel for cash into the open home extractor's store. */
@@ -195,7 +193,6 @@ function noopCommands(): UiCommands {
     craft: noop,
     craftShip: noop,
     loadCoal: noop,
-    refuelFromExtractor: noop,
     buySupply: noop,
     buyExtractorFuel: noop,
     openInfo: noop,
