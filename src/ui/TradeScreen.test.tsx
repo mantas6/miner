@@ -18,6 +18,9 @@ const pristineCommands = {...uiCommands};
 
 const IRON = {name: 'Iron', color: '#8a7f75', value: 12, min: 0, max: 900, chance: 1};
 
+/** The fuel price of a post 2000 m down: half again the home price. */
+const POST_FUEL_PRICE = fuelUnitPrice(2000);
+
 const OFFERS: TradeOfferView[] = [
   {index: 0, kind: 'repairKit', label: 'Repair Kit', color: '#7be08a', price: 54, stock: 2},
   {index: 1, kind: 'teleporter', label: 'Teleporter', color: '#72d9ff', price: 372, stock: 1},
@@ -31,7 +34,7 @@ function open(cash = 500, cargo = 0, cargoMax = 20, fuel = 100, fuelMax = 100): 
     const store = uiStore.getState();
     uiStore.setState({hud: {...store.hud, cash, cargo, cargoMax, fuel, fuelMax}});
     store.setInventorySlots(buildInventorySlots(addItem(createInventory(), oreItem(IRON), 4)));
-    store.showOverlay({kind: 'trade', offers: OFFERS});
+    store.showOverlay({kind: 'trade', offers: OFFERS, fuelPrice: POST_FUEL_PRICE});
   });
   return rendered.container.querySelector('dialog')!;
 }
@@ -57,6 +60,8 @@ describe('trading-post dialog', () => {
     expect(dialog.open).toBe(true);
     expect(document.activeElement?.id).toBe('tradeCloseBtn');
     expect(document.getElementById('tradeCash')?.textContent).toContain('$500');
+    // The header quotes the post's own fuel price per unit.
+    expect(document.getElementById('tradeFuelPrice')?.textContent).toBe(`Fuel $${POST_FUEL_PRICE.toFixed(2)}/unit`);
 
     expect(control('sell', 'ore:Iron').closest('div')!.textContent).toContain('Iron');
     expect(control('sell', 'ore:Iron').closest('div')!.textContent).toContain('×4');
@@ -107,7 +112,9 @@ describe('trading-post dialog', () => {
     setUiCommands({buyFuelFromPost});
     open(500, 0, 20, 60, 100);
     const button = document.getElementById('tradeFuelBtn') as HTMLButtonElement;
-    const {cost} = fuelPurchase(60, 100, 500, fuelUnitPrice());
+    // Charged at the post's price, not the home one.
+    const {cost} = fuelPurchase(60, 100, 500, POST_FUEL_PRICE);
+    expect(cost).toBeGreaterThan(fuelPurchase(60, 100, 500, fuelUnitPrice()).cost);
 
     // The first row of the Buy list, ahead of the stocked offers.
     expect(document.querySelector('#tradeBuy > li')!.contains(button)).toBe(true);
@@ -138,7 +145,7 @@ describe('trading-post dialog', () => {
     expect(document.getElementById('trade-card')).toBeNull();
 
     act(() => {
-      uiStore.getState().showOverlay({kind: 'trade', offers: OFFERS});
+      uiStore.getState().showOverlay({kind: 'trade', offers: OFFERS, fuelPrice: POST_FUEL_PRICE});
     });
     expect(document.getElementById('trade-card')).not.toBeNull();
 

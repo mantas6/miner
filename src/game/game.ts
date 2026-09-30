@@ -49,7 +49,7 @@ import { clearPersistedGameData } from '../persistence-reset';
 import { rand } from '../world/world';
 import { resetUiCommands, setUiCommands } from '../ui/commands';
 import { resetAgentBridge, setAgentBridge } from '../agent/bridge';
-import { buildInventorySlots, pushToast as toast, uiStore, type ExtractorView, type PortalView, type TradeOfferView } from '../ui/store';
+import { buildInventorySlots, pushToast as toast, uiStore, type ExtractorView, type PortalView, type TradeView } from '../ui/store';
 
 import { advanceTeleportEffect } from '../core/teleporter';
 import type { AudioController } from '../core/types';
@@ -218,8 +218,8 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
     ({kind: 'extractor', extractor}), {standDown: true});
   const setPortalUi = overlays.publisher('portal', (portal: PortalView) =>
     ({kind: 'portal', portal}), {standDown: true});
-  const setTradeUi = overlays.publisher('trade', (offers: TradeOfferView[]) =>
-    ({kind: 'trade', offers}), {standDown: true});
+  const setTradeUi = overlays.publisher('trade', (view: TradeView) =>
+    ({kind: 'trade', ...view}), {standDown: true});
   // The bell (`grave`, played by the sim) is the stone's open cue.
   const setGraveUi = overlays.publisher('grave', (epitaph: Epitaph) =>
     ({kind: 'grave', epitaph}), {standDown: true, cue: false});

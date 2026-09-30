@@ -9,7 +9,8 @@
 // the button is for a ship working the extractor from the tile beside it. The
 // base's own extractor adds a third: "Buy fuel (+n) $c" orders up to
 // `EXTRACTOR_FUEL_ORDER` fuel into the store for cash, dead while the store is full
-// or the wallet cannot cover a unit.
+// or the wallet cannot cover a unit — and then it still quotes the rate
+// ("Buy fuel ($29 per 100)"), so the price is known before it is needed.
 //
 // Everything is painted from the store: the buffers and progress animate as the
 // fixed-step extractor tick pushes fresh values in while the screen is open, and
@@ -21,13 +22,16 @@
 
 import { EXTRACTOR } from '../core/balance';
 import { oreKind } from '../core/inventory';
-import { extractorFuelOrder } from '../core/trading';
+import { EXTRACTOR_FUEL_ORDER, extractorFuelOrder, extractorFuelOrderPrice } from '../core/trading';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
 import { overlayOf, useUiStore } from './store';
 import styles from './ExtractorScreen.module.css';
 
 const COAL_KIND = oreKind('Coal');
+
+/** The order button's rate while it has nothing to buy: "Buy fuel ($29 per 100)". */
+const ORDER_RATE_LABEL = `Buy fuel ($${extractorFuelOrderPrice()} per ${EXTRACTOR_FUEL_ORDER})`;
 
 /** Fixed-step ticks are 60 Hz, so this many ticks is one on-screen second. */
 const TICKS_PER_SECOND = 60;
@@ -116,7 +120,7 @@ function ExtractorCard() {
               disabled={order.amount <= 0}
               onClick={() => uiCommands.buyExtractorFuel()}
             >
-              {order.amount > 0 ? `Buy fuel (+${Math.round(order.amount)}) $${order.cost}` : 'Buy fuel'}
+              {order.amount > 0 ? `Buy fuel (+${Math.round(order.amount)}) $${order.cost}` : ORDER_RATE_LABEL}
             </button>
           )}
         </div>

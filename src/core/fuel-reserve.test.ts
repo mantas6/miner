@@ -17,21 +17,21 @@ const underground = { playerX: HOME_X, playerY: START_Y + 10, exits: [home], atS
 
 describe('fuel reserve forecast helper', () => {
   it('prices a clear-flight climb from the shared fuel balance values', () => {
-    // 10 rows × (0.25 + 0.08) × 0.5 flying × 1.35 allowance.
-    expect(FUEL.returnReserveMultiplier).toBe(1.35);
-    expect(fuelExitCost(HOME_X, START_Y + 10, home)).toBeCloseTo(2.2275);
+    // 10 rows × (0.25 + 0.08) × 0.5 flying × 1.2 allowance.
+    expect(FUEL.returnReserveMultiplier).toBe(1.2);
+    expect(fuelExitCost(HOME_X, START_Y + 10, home)).toBeCloseTo(1.98);
     const forecast = getFuelReserveForecast({ ...underground, fuel: 50 });
     expect(forecast.status).toBe('safe');
-    expect(forecast.reserve).toBeCloseTo(2.2275);
-    expect(forecast.fuelAfterReturn).toBeCloseTo(47.7725);
+    expect(forecast.reserve).toBeCloseTo(1.98);
+    expect(forecast.fuelAfterReturn).toBeCloseTo(48.02);
     expect(forecast.exit).toBe(home);
   });
 
   it('charges the sideways trip at the base move, and nothing for rows below the ship', () => {
-    // Four columns across on the same row: 4 × 0.25 × 0.5 × 1.35.
-    expect(fuelExitCost(HOME_X + 4, START_Y, home)).toBeCloseTo(0.675);
+    // Four columns across on the same row: 4 × 0.25 × 0.5 × 1.2.
+    expect(fuelExitCost(HOME_X + 4, START_Y, home)).toBeCloseTo(0.6);
     // An exit deeper than the ship is a free fall plus the sideways leg.
-    expect(fuelExitCost(HOME_X, START_Y, {x: HOME_X + 4, y: START_Y + 30})).toBeCloseTo(0.675);
+    expect(fuelExitCost(HOME_X, START_Y, {x: HOME_X + 4, y: START_Y + 30})).toBeCloseTo(0.6);
   });
 
   it('prices the reserve to the cheapest exit, a nearer portal included', () => {

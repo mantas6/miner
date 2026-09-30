@@ -1,5 +1,6 @@
 // Trading posts: opening one, selling ore for cash, buying its limited stock, and
-// filling the tank with fuel for cash (unlimited, priced by `fuelUnitPrice`).
+// filling the tank with fuel for cash (unlimited, priced by `postFuelUnitPrice` —
+// dearer the deeper the post).
 //
 // `core/trading.ts` holds the rules (what a post offers, at what price, from what
 // pool) and `world.ts` derives the post itself from its coordinate; this is the
@@ -25,9 +26,9 @@ import {
 import { tileKey } from '../../shared/tile-key';
 import { itemForKind } from '../core/items';
 import { recordItemsObtained } from '../core/stats';
-import { TRADING_POST_REACH, fuelPurchase, fuelUnitPrice, offersForPost, remainingStock, sellPrice } from '../core/trading';
+import { TRADING_POST_REACH, fuelPurchase, offersForPost, postFuelUnitPrice, remainingStock, sellPrice } from '../core/trading';
 import type { AudioController, GameState } from '../core/types';
-import type { TradeOfferView } from '../ui/store';
+import type { TradeView } from '../ui/store';
 import { tradingPostAt, type TradingPost } from '../world/world';
 
 /**
@@ -74,8 +75,8 @@ export interface TradingDeps {
   saveProgress(): void;
   /** Move the wallet (positive to earn, negative to spend); the caller saves. */
   addCash(amount: number): void;
-  /** Show the buy offers, or take the screen away with `null`. */
-  setOpenUi(offers: TradeOfferView[] | null): void;
+  /** Show the buy offers and the post's fuel price, or take the screen away with `null`. */
+  setOpenUi(view: TradeView | null): void;
 }
 
 export function createTrading(deps: TradingDeps): TradingSim {
@@ -87,11 +88,11 @@ export function createTrading(deps: TradingDeps): TradingSim {
     return Math.max(Math.abs(post.x - state.player.x), Math.abs(post.y - state.player.y)) <= TRADING_POST_REACH;
   }
 
-  /** The buy offers with their live remaining stock, for the screen to paint. */
-  function offersView(post: TradingPost): TradeOfferView[] {
+  /** The buy offers with their live remaining stock, and the post's fuel price, for the screen to paint. */
+  function tradeView(post: TradingPost): TradeView {
     const offers = offersForPost(post.x, post.y);
     const remaining = remainingStock(state.tradeLedger, post.x, post.y, offers);
-    return offers.map((offer, index) => ({
+    const views = offers.map((offer, index) => ({
       index,
       kind: offer.kind,
       label: offer.label,
@@ -100,11 +101,12 @@ export function createTrading(deps: TradingDeps): TradingSim {
       // `remainingStock` is always as long as `offers`; a gap would read sold out.
       stock: remaining[index] ?? 0
     }));
+    return {offers: views, fuelPrice: postFuelUnitPrice(post.y)};
   }
 
   function show(post: TradingPost): boolean {
     open = post;
-    deps.setOpenUi(offersView(post));
+    deps.setOpenUi(tradeView(post));
     return true;
   }
 
@@ -116,7 +118,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
 
   /** Re-publish the open post's offers after a purchase changed the stock. */
   function repaint(): void {
-    if (open) deps.setOpenUi(offersView(open));
+    if (open) deps.setOpenUi(tradeView(open));
   }
 
   function openAt(x: number, y: number): boolean {
@@ -198,7 +200,7 @@ export function createTrading(deps: TradingDeps): TradingSim {
   function buyFuel(): void {
     if (!open || state.gameOver) return;
     const p = state.player;
-    const unitPrice = fuelUnitPrice();
+    const unitPrice = postFuelUnitPrice(open.y);
     const {amount, cost} = fuelPurchase(p.fuel, p.fuelMax, state.cash, unitPrice);
     if (amount <= 0) {
       audio.alarm();

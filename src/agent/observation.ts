@@ -206,6 +206,11 @@ export type AgentOverlay =
        * away from the base's extractor, where the button is not shown.
        */
       fuelOrder: {amount: number; cost: number} | null;
+      /**
+       * Dollars per unit a fuel order pays — the home price, which the button
+       * quotes even while it has nothing to buy. `null` away from the base.
+       */
+      fuelPrice: number | null;
     }
   /** `ship`: the hull whose slots these are, as the screen's heading names it. */
   | {kind: 'ship'; ship: AgentShipClass; slots: AgentShipSlot[]; fittable: AgentSlot[]}
@@ -220,6 +225,8 @@ export type AgentOverlay =
       cash: number;
       sell: {kind: InventoryItemKind; label: string; count: number; price: number; info: string[]}[];
       buy: {kind: InventoryItemKind; label: string; price: number; stock: number; info: string[]}[];
+      /** Dollars per unit of fuel at this post, as the header quotes it: dearer the deeper the post. */
+      fuelPrice: number;
       /**
        * The fuel row (tradeFuelBtn): the price of one unit, and the fill it would
        * buy right now — `amount` 0 when the tank is full or the wallet short.
@@ -470,11 +477,15 @@ function buildNextShip(state: GameState): AgentObservation['hud']['nextShip'] {
   return next ? {id: next.id, label: shipFor(next.id).label, missing: resolveInputs(next.missing)} : null;
 }
 
-/** The trade screen's fuel row: a unit's price, and what a fill would pour and cost. */
-function tradeFuel(state: GameState, cash: number): {unitPrice: number; amount: number; cost: number} {
-  const unitPrice = fuelUnitPrice();
+/** A fuel price as the screens print it: dollars per unit, to the cent. */
+function centsPerUnit(unitPrice: number): number {
+  return Math.round(unitPrice * 100) / 100;
+}
+
+/** The trade screen's fuel row: the post's unit price, and what a fill would pour and cost. */
+function tradeFuel(state: GameState, cash: number, unitPrice: number): {unitPrice: number; amount: number; cost: number} {
   const {amount, cost} = fuelPurchase(state.player.fuel, state.player.fuelMax, cash, unitPrice);
-  return {unitPrice: Math.round(unitPrice * 100) / 100, amount: Math.round(amount), cost};
+  return {unitPrice: centsPerUnit(unitPrice), amount: Math.round(amount), cost};
 }
 
 /** The one open overlay's mirror, or `null` when the mine is uncovered. */
@@ -518,7 +529,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
         fuel,
         progress,
         refuelAmount,
-        fuelOrder: order ? {amount: Math.round(order.amount), cost: order.cost} : null
+        fuelOrder: order ? {amount: Math.round(order.amount), cost: order.cost} : null,
+        fuelPrice: supply ? centsPerUnit(fuelUnitPrice()) : null
       };
     }
     case 'ship':
@@ -549,7 +561,8 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
           .filter(slot => isOreKind(slot.kind))
           .map(slot => ({kind: slot.kind, label: slot.label, count: slot.count, price: sellPrice(slot.kind), info: describeItem(slot.kind).lines})),
         buy: overlay.offers.map(offer => ({kind: offer.kind, label: offer.label, price: offer.price, stock: offer.stock, info: describeItem(offer.kind).lines})),
-        fuel: tradeFuel(state, ui.hud.cash)
+        fuelPrice: centsPerUnit(overlay.fuelPrice),
+        fuel: tradeFuel(state, ui.hud.cash, overlay.fuelPrice)
       };
     case 'portal': {
       const {portal} = overlay;

@@ -2,6 +2,7 @@
 // contents: a test that only needs "the station screen is up" gets one with
 // nothing in it. Test-only — nothing in the game imports it.
 
+import { fuelUnitPrice } from './core/trading';
 import type { Overlay, OverlayId, OverlayOf } from './ui/store';
 
 const EMPTY: {[K in OverlayId]: () => OverlayOf<K>} = {
@@ -12,7 +13,7 @@ const EMPTY: {[K in OverlayId]: () => OverlayOf<K>} = {
   chest: () => ({kind: 'chest', slots: []}),
   station: () => ({kind: 'station', slots: [], supply: false}),
   extractor: () => ({kind: 'extractor', extractor: {coal: 0, fuel: 0, progress: 0, supply: false}}),
-  trade: () => ({kind: 'trade', offers: []}),
+  trade: () => ({kind: 'trade', offers: [], fuelPrice: fuelUnitPrice()}),
   portal: () => ({kind: 'portal', portal: {mode: 'travel', destinations: []}}),
   grave: () => ({kind: 'grave', epitaph: {name: 'A. Miner', born: 2001, died: 2042, cause: 'Lost in the dark.'}})
 };

@@ -6,7 +6,8 @@
 // never out of stock; then the post's 2–3 offers, each a finished item with its
 // price and remaining stock, its button live only while the player can afford it,
 // the post still has one, and the bay has room. The header carries the wallet,
-// which is the whole point of the screen.
+// which is the whole point of the screen, and the post's fuel price per unit —
+// dearer the deeper the post stands.
 //
 // Everything is painted from the store and is live: the sell side is the same bay
 // stacks the HUD panel shows, synced every frame; the buy side is pushed by the game
@@ -41,6 +42,7 @@ function TradeCard() {
   const cargoMax = useUiStore(state => state.hud.cargoMax);
   const baySlots = useUiStore(state => state.inventorySlots);
   const buyOffers = useUiStore(state => overlayOf(state, 'trade')?.offers ?? NO_OFFERS);
+  const fuelPrice = useUiStore(state => overlayOf(state, 'trade')?.fuelPrice ?? fuelUnitPrice());
   const oreSlots = baySlots.filter(slot => isOreKind(slot.kind));
   const bayFull = cargo >= cargoMax;
 
@@ -53,6 +55,7 @@ function TradeCard() {
         closeLabel="Close trading post"
         onClose={() => uiCommands.closeTrade()}
       >
+        <span id="tradeFuelPrice" className={styles.fuelPrice}>Fuel ${fuelPrice.toFixed(2)}/unit</span>
         <span id="tradeCash" className={styles.cash}>${cash}</span>
       </CardHeader>
       <div className={styles.body}>
@@ -75,7 +78,7 @@ function TradeCard() {
               <span>Limited stock — once it is gone, it is gone.</span>
             </div>
             <ul id="tradeBuy" className={styles.slots}>
-              <FuelRow cash={cash} />
+              <FuelRow cash={cash} unitPrice={fuelPrice} />
               {buyOffers.length === 0 && (
                 <li className={styles.empty}><span className={styles.emptyLabel}>Nothing for sale</span></li>
               )}
@@ -127,10 +130,9 @@ const FUEL_COLOR = '#e0a13a';
  * a post never runs dry of fuel — so it is its own row, dead only while the tank is
  * full or the wallet cannot cover one unit.
  */
-function FuelRow({cash}: {cash: number}) {
+function FuelRow({cash, unitPrice}: {cash: number; unitPrice: number}) {
   const fuel = useUiStore(state => state.hud.fuel);
   const fuelMax = useUiStore(state => state.hud.fuelMax);
-  const unitPrice = fuelUnitPrice();
   const {amount, cost} = fuelPurchase(fuel, fuelMax, cash, unitPrice);
   const full = fuelMax - fuel < 1;
   const poured = Math.round(amount);

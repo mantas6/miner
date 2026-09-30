@@ -58,7 +58,7 @@ describe('the overlay session', () => {
   });
 
   it('builds publishers that show, repaint and drop one screen', () => {
-    const trade = session.publisher('trade', (offers: []) => ({kind: 'trade', offers}), {standDown: true});
+    const trade = session.publisher('trade', (offers: []) => ({kind: 'trade', offers, fuelPrice: 0.29}), {standDown: true});
     const chest = session.publisher('chest', (slots: InventorySlotView[]) => ({kind: 'chest', slots}), {cue: false});
 
     trade([]);

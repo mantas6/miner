@@ -190,14 +190,14 @@ describe('return-fuel forecast', () => {
     const game = setup();
     game.descend(10);
 
-    // 10 rows of clear flight home, padded by the allowance: 2.2 fuel.
+    // 10 rows of clear flight home, padded by the allowance: 1.98 fuel.
     game.state.player.fuel = 50;
-    expect(game.sync()).toMatchObject({fuelReserveStatus: 'safe', fuelReserveNeeded: 3, fuelReserveMargin: 47, fuelReserveExit: 'Home'});
+    expect(game.sync()).toMatchObject({fuelReserveStatus: 'safe', fuelReserveNeeded: 2, fuelReserveMargin: 48, fuelReserveExit: 'Home'});
 
-    game.state.player.fuel = 3;
+    game.state.player.fuel = 2.5;
     expect(game.sync().fuelReserveStatus).toBe('caution');
 
-    game.state.player.fuel = 2;
+    game.state.player.fuel = 1.5;
     expect(game.sync()).toMatchObject({fuelReserveStatus: 'urgent', fuelReserveMargin: 0});
   });
 

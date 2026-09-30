@@ -196,6 +196,13 @@ export interface TradeOfferView {
   stock: number;
 }
 
+/** An open trading post, as the trade screen paints it: its buy offers and its fuel price. */
+export interface TradeView {
+  offers: TradeOfferView[];
+  /** Dollars per unit of fuel at this post (`postFuelUnitPrice`): dearer the deeper it stands. */
+  fuelPrice: number;
+}
+
 /** The fuel extractor's buffers, as the extractor screen paints them, plus its tick progress. */
 export interface ExtractorView {
   coal: number;
@@ -268,8 +275,11 @@ export type Overlay =
   | {kind: 'station'; slots: InventorySlotView[]; supply: boolean}
   /** The fuel extractor's buffers. */
   | {kind: 'extractor'; extractor: ExtractorView}
-  /** The open trading post's buy offers. The sell side is the bay's ore, read from `inventorySlots`. */
-  | {kind: 'trade'; offers: TradeOfferView[]}
+  /**
+   * The open trading post's buy offers and fuel price. The sell side is the bay's
+   * ore, read from `inventorySlots`.
+   */
+  | ({kind: 'trade'} & TradeView)
   /** The travel, teleporter or respawn list. */
   | {kind: 'portal'; portal: PortalView}
   /** The epitaph on the grave being read. */
@@ -510,7 +520,7 @@ function sameOverlay(current: ActiveOverlay, next: ActiveOverlay): boolean {
       return a.coal === b.coal && a.fuel === b.fuel && a.progress === b.progress && a.supply === b.supply;
     }
     case 'trade':
-      return sameTradeOffers((current as typeof next).offers, next.offers);
+      return (current as typeof next).fuelPrice === next.fuelPrice && sameTradeOffers((current as typeof next).offers, next.offers);
     case 'portal':
       return (current as typeof next).portal === next.portal;
     case 'grave':

@@ -24,6 +24,7 @@ import { openGameSession, type ClickTarget, type GameSession } from './session';
 import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
 import { EXTRACTOR } from '../src/core/balance';
 import { RECIPES } from '../src/core/crafting';
+import { EXTRACTOR_FUEL_ORDER, FUEL_DEPTH_METERS, extractorFuelOrderPrice } from '../src/core/trading';
 import { itemForKind } from '../src/core/items';
 import { HOVER_DRILL_SURCHARGE_PERCENT } from '../src/core/movement';
 import { SHIPS, SHIP_ORDER } from '../src/core/ships';
@@ -209,6 +210,8 @@ function instructions(): string {
     '    a small, limited stock of gear. `hud.cash` is your wallet; the open post\'s',
     '    sell prices and buy offers are in the `trade` overlay. tradeFuelBtn fills the',
     '    tank for cash (`trade.fuel`: unitPrice, and the amount/cost a fill buys now).',
+    `    A post's fuel costs more the deeper it stands (home price × (1 + depth / ${FUEL_DEPTH_METERS} m));`,
+    '    `trade.fuelPrice` is its rate per unit.',
     '    Find one by its beacon: `hud.postHint` ("Trading post ≈9 tiles ↙") points at',
     '    the nearest post within 12 tiles, fog or not, and goes empty once one is in',
     '    reach. Posts seen so far are listed in Info → Prospecting',
@@ -216,7 +219,8 @@ function instructions(): string {
     '  - Spend cash at home too: the home Manufacturer\'s Supply (`station.supply`,',
     '    click data-supply with the kind) sells repair kits, dynamite, scanners and',
     '    containers into its stock, and the home extractor\'s extractorBuyFuelBtn',
-    '    orders fuel into its store (`extractor.fuelOrder`).',
+    `    orders fuel into its store at the home price, $${extractorFuelOrderPrice()} per ${EXTRACTOR_FUEL_ORDER}`,
+    '    (`extractor.fuelOrder`, `extractor.fuelPrice`).',
     '  - A lost or reset ship leaves a wreck (W) on the tile it died on, holding the',
     '    ore and fitted upgrades that did not survive — up to 5 stand at once, oldest',
     '    dropped. Fly back, press its tile (or `c` alongside it), and salvage with',

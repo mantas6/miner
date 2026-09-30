@@ -8,10 +8,13 @@
 // if it fails, the terrain changed — bump `SAVE_VERSION` if that strands old
 // diffs, then paste the new hash below.
 //
-// Last moved by raising the Gold band to 1100 m and Ruby to 2300 m (`ORES` in
-// `shared/constants.ts`): only which ore an unmined tile rolls from 1100 m down
-// changed, so saved diffs (dug-out air, placed things) still line up and the save
-// version stands.
+// Last moved by running the Coal band on to 2400 m (was 1800 m; `ORES` in
+// `shared/constants.ts`), so coal overlaps the Gold band and feeds the extractor
+// on a Gold run. Only which ore an unmined ore tile rolls between 1800 m and
+// 2400 m changed — the ore/dirt/rock layout and every hp are untouched — so saved
+// diffs (dug-out air, placed things) still line up and the save version stands.
+// Before that: raising the Gold band to 1100 m and Ruby to 2300 m, likewise an
+// ore-kind-only move.
 
 import { describe, expect, it } from 'vitest';
 import { WORLD_W } from '../../shared/constants';
@@ -53,6 +56,6 @@ function worldHash(): string {
 
 describe('world generation', () => {
   it('produces the pinned terrain', () => {
-    expect(worldHash()).toBe('b65082f1');
+    expect(worldHash()).toBe('51bf401d');
   });
 });

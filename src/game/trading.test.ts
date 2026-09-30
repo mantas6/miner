@@ -5,12 +5,13 @@
 // UI paints after every change.
 
 import { describe, expect, it, vi } from 'vitest';
-import { START_Y, WORLD_W } from '../../shared/constants';
+import { START_Y, WORLD_W, rowDepthMeters } from '../../shared/constants';
 import { tileKey } from '../../shared/tile-key';
 import { addItem, countItem, createInventory, oreItem, oreKind, type Inventory } from '../core/inventory';
 import { createInitialState } from '../core/state';
-import { fuelPurchase, fuelUnitPrice, offersForPost, remainingStock } from '../core/trading';
+import { fuelPurchase, fuelUnitPrice, offersForPost, postFuelUnitPrice, remainingStock } from '../core/trading';
 import type { GameState, Ore } from '../core/types';
+import type { TradeView } from '../ui/store';
 import { tradingPostAt, type TradingPost } from '../world/world';
 import { createTrading, type TradingSim } from './trading';
 import { createAudioStub, createToastLog, type AudioStub } from './test-support';
@@ -34,7 +35,7 @@ interface Harness {
   trading: TradingSim;
   audio: AudioStub;
   toasts: ReturnType<typeof createToastLog>;
-  openUi: (unknown[] | null)[];
+  openUi: (TradeView | null)[];
   saveProgress: ReturnType<typeof vi.fn>;
   post: TradingPost;
 }
@@ -47,7 +48,7 @@ function harness(cash = 100000, accept?: (post: TradingPost) => boolean): Harnes
   state.cash = cash;
   const audio = createAudioStub();
   const toasts = createToastLog();
-  const openUi: (unknown[] | null)[] = [];
+  const openUi: (TradeView | null)[] = [];
   const saveProgress = vi.fn();
   const addCash = (amount: number) => { state.cash += amount; };
   const trading = createTrading({
@@ -56,7 +57,7 @@ function harness(cash = 100000, accept?: (post: TradingPost) => boolean): Harnes
     toast: toasts.toast,
     saveProgress,
     addCash,
-    setOpenUi: offers => openUi.push(offers)
+    setOpenUi: view => openUi.push(view)
   });
   return {state, trading, audio, toasts, openUi, saveProgress, post};
 }
@@ -66,11 +67,14 @@ function bayOre(inventory: Inventory, name = 'Iron'): number {
 }
 
 describe('opening a trading post', () => {
-  it('opens the post under a press and hands its offers to the UI', () => {
+  it('opens the post under a press and hands its offers and fuel price to the UI', () => {
     const h = harness();
     expect(h.trading.openAt(h.post.x, h.post.y)).toBe(true);
     expect(h.trading.open).toEqual(h.post);
-    expect(h.openUi.at(-1)?.length).toBe(offersForPost(h.post.x, h.post.y).length);
+    expect(h.openUi.at(-1)?.offers.length).toBe(offersForPost(h.post.x, h.post.y).length);
+    expect(h.openUi.at(-1)?.fuelPrice).toBe(postFuelUnitPrice(h.post.y));
+    // A post underground charges more than the home extractor does.
+    expect(h.openUi.at(-1)?.fuelPrice).toBeGreaterThan(fuelUnitPrice());
   });
 
   it('refuses a post the ship has flown away from', () => {
@@ -172,7 +176,7 @@ describe('buying gear', () => {
     h.trading.close();
 
     h.trading.openAt(h.post.x, h.post.y);
-    const reopened = h.openUi.at(-1) as {kind: string; stock: number}[];
+    const reopened = h.openUi.at(-1)?.offers ?? [];
     expect(reopened.find(o => o.kind === offer.kind)?.stock).toBe(offer.stock - 1);
   });
 
@@ -216,11 +220,12 @@ describe('buying gear', () => {
 });
 
 describe('buying fuel', () => {
-  it('fills the tank for cash, charging the fuel price', () => {
+  it('fills the tank for cash, charging the post\'s depth-priced fuel', () => {
     const h = harness(1000);
     h.state.player.fuel = h.state.player.fuelMax - 40;
     h.trading.openAt(h.post.x, h.post.y);
-    const expected = fuelPurchase(h.state.player.fuel, h.state.player.fuelMax, 1000, fuelUnitPrice());
+    const unitPrice = fuelUnitPrice(rowDepthMeters(h.post.y));
+    const expected = fuelPurchase(h.state.player.fuel, h.state.player.fuelMax, 1000, unitPrice);
 
     h.trading.buyFuel();
 
@@ -239,7 +244,7 @@ describe('buying fuel', () => {
 
     h.trading.buyFuel();
 
-    const units = Math.floor(2 / fuelUnitPrice());
+    const units = Math.floor(2 / postFuelUnitPrice(h.post.y));
     expect(h.state.player.fuel).toBe(10 + units);
     expect(h.state.cash).toBeGreaterThanOrEqual(0);
     expect(h.state.cash).toBeLessThan(2);

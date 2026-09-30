@@ -3,7 +3,7 @@
 // a purchase actually does to the wallet and the bay is game/trading.test.ts.
 
 import { describe, expect, it } from 'vitest';
-import { START_Y } from '../../shared/constants';
+import { START_Y, rowDepthMeters } from '../../shared/constants';
 import { tileKey } from '../../shared/tile-key';
 import { RECIPES } from './crafting';
 import { itemForKind } from './items';
@@ -11,16 +11,19 @@ import { oreKind } from './inventory';
 import { EXTRACTOR } from './balance';
 import {
   EXTRACTOR_FUEL_ORDER,
+  FUEL_DEPTH_METERS,
   FUEL_TRADE_MARKUP,
   HOME_SUPPLY_MARKUP,
   SUPPLY_POOL,
   TRADING_MARKUP,
   buyPrice,
   extractorFuelOrder,
+  extractorFuelOrderPrice,
   fuelPurchase,
   fuelUnitPrice,
   isSupplyKind,
   offersForPost,
+  postFuelUnitPrice,
   remainingStock,
   sellPrice,
   supplyPrice
@@ -132,6 +135,24 @@ describe('fuel for cash', () => {
     expect(fuelUnitPrice()).toBeCloseTo(0.29, 2);
   });
 
+  it('charges more the deeper the post, by the base price again every 4000 m', () => {
+    const base = fuelUnitPrice();
+    expect(FUEL_DEPTH_METERS).toBe(4000);
+    expect(fuelUnitPrice(0)).toBe(base);
+    expect(fuelUnitPrice(2000)).toBeCloseTo(base * 1.5);
+    expect(fuelUnitPrice(4000)).toBeCloseTo(base * 2);
+    // The deepest posts pay nearly three times the home price.
+    expect(fuelUnitPrice(7390) / base).toBeCloseTo(2.85, 2);
+    // A depth above the home row never discounts.
+    expect(fuelUnitPrice(-500)).toBe(base);
+  });
+
+  it('prices a post\'s fuel at the depth of its own row', () => {
+    expect(postFuelUnitPrice(START_Y)).toBe(fuelUnitPrice());
+    expect(postFuelUnitPrice(DEEP)).toBeCloseTo(fuelUnitPrice(rowDepthMeters(DEEP)));
+    expect(postFuelUnitPrice(DEEP)).toBeGreaterThan(postFuelUnitPrice(SHALLOW));
+  });
+
   it('fills the whole gap when the wallet covers it, rounding the cost down', () => {
     expect(fuelPurchase(60, 100, 1000, 0.29)).toEqual({amount: 40, cost: 11}); // 11.6 → 11
     // A fractional gap is topped off exactly.
@@ -164,6 +185,12 @@ describe('fuel for cash', () => {
     expect(extractorFuelOrder(EXTRACTOR.fuelCap, 10_000)).toEqual({amount: 0, cost: 0});
     expect(extractorFuelOrder(0, 0)).toEqual({amount: 0, cost: 0});
     expect(extractorFuelOrder(0, 10_000).cost).toBe(Math.floor(EXTRACTOR_FUEL_ORDER * fuelUnitPrice()));
+  });
+
+  it('quotes a whole extractor order at the home price, whatever the post depths', () => {
+    expect(extractorFuelOrderPrice()).toBe(Math.round(EXTRACTOR_FUEL_ORDER * fuelUnitPrice()));
+    expect(extractorFuelOrderPrice()).toBe(29);
+    expect(extractorFuelOrder(0, 10_000).cost).toBe(extractorFuelOrderPrice());
   });
 });
 

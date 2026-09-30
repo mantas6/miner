@@ -44,7 +44,7 @@ import {
 import { itemForKind } from './items';
 import { hasEmptyOpenSlot } from './ship-upgrades';
 import { SHIPS, nextShip, type ShipId } from './ships';
-import { EXTRACTOR_FUEL_ORDER, fuelUnitPrice, supplyPrice } from './trading';
+import { EXTRACTOR_FUEL_ORDER, extractorFuelOrderPrice, supplyPrice } from './trading';
 import type { Ore, Player } from './types';
 
 type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'hull' | 'hullMax' | 'cargoMax' | 'equipment' | 'ship'>;
@@ -130,8 +130,8 @@ const REPAIR_KIT_BILL = billText(repairKitRecipe);
 const REPAIR_KIT_PRICE = supplyPrice(REPAIR_KIT);
 const SCANNER_BILL = billText(scannerRecipe);
 const SCANNER_PRICE = supplyPrice('scanner');
-/** What one extractor fuel order costs, in whole dollars. */
-const FUEL_ORDER_PRICE = Math.round(EXTRACTOR_FUEL_ORDER * fuelUnitPrice());
+/** What one extractor fuel order costs at the home price, in whole dollars (posts charge more the deeper they stand). */
+const FUEL_ORDER_PRICE = extractorFuelOrderPrice();
 
 const MARKS: Record<UpgradeTier, string> = {1: 'Mk I', 2: 'Mk II', 3: 'Mk III'};
 

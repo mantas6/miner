@@ -11,8 +11,9 @@
 // view moves; the tests run in order against it.
 
 import { expect, test } from '@playwright/test';
-import { HOME_ROW, STATIONS } from '../shared/constants';
+import { HOME_ROW, STATIONS, rowDepthMeters } from '../shared/constants';
 import { openGameSession, type GameSession } from '../agent/session';
+import { fuelUnitPrice } from '../src/core/trading';
 import { nth } from '../src/test-narrowing';
 import { DIRT_UNDER_HOME, SAVE_VERSION, firstTradingPost, seedSaveScript } from './support/game';
 
@@ -532,6 +533,8 @@ test('a crafted upgrade is taken from the station, fitted, unfitted, and the ext
     if (!order) throw new Error('the home extractor should quote a fuel order');
     expect(order.amount).toBeGreaterThan(0);
     expect(order.cost).toBeGreaterThan(0);
+    // The home extractor always charges the base price.
+    expect(obs.overlay.fuelPrice).toBe(Math.round(fuelUnitPrice() * 100) / 100);
     const storedBefore = obs.overlay.fuel;
     const cashBeforeOrder = obs.hud.cash;
     obs = await s.click('extractorBuyFuelBtn');
@@ -769,7 +772,10 @@ test('a trading post buys ore for cash, fills the tank for cash, and sells its s
     // The fuel row quotes the fill the wallet covers; tradeFuelBtn buys it.
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
     const fill = obs.overlay.fuel;
-    expect(fill.unitPrice).toBeGreaterThan(0);
+    // A post's fuel is priced by its depth, dearer than at home.
+    expect(obs.overlay.fuelPrice).toBe(Math.round(fuelUnitPrice(rowDepthMeters(POST.y)) * 100) / 100);
+    expect(obs.overlay.fuelPrice).toBeGreaterThan(fuelUnitPrice());
+    expect(fill.unitPrice).toBe(obs.overlay.fuelPrice);
     expect(fill.amount).toBe(Math.round(obs.ship.fuelMax - obs.ship.fuel));
     expect(fill.cost).toBeGreaterThan(0);
     const cashBeforeFuel = obs.hud.cash;

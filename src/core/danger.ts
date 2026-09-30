@@ -1,7 +1,7 @@
 import { ENEMY, FUEL, HULL, RESPAWN } from './balance';
 import { DANGER, START_Y, rowDepthMeters } from '../../shared/constants';
 import { ENEMY_TYPES } from './enemy-types';
-import { EXTRACTOR_FUEL_ORDER, fuelUnitPrice } from './trading';
+import { EXTRACTOR_FUEL_ORDER, extractorFuelOrderPrice } from './trading';
 import { WRECK } from './wreck';
 
 export interface DangerGuideRow {
@@ -56,7 +56,7 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     },
     {
       title: 'Buying fuel',
-      detail: `Fuel can be bought: order it into the home Fuel Extractor ($${Math.round(EXTRACTOR_FUEL_ORDER * fuelUnitPrice())} per ${EXTRACTOR_FUEL_ORDER}), or fill the tank at a trading post. Past the Coal band, buying is how the base stays stocked.`
+      detail: `Fuel can be bought: order it into the home Fuel Extractor ($${extractorFuelOrderPrice()} per ${EXTRACTOR_FUEL_ORDER}), or fill the tank at a trading post, dearer the deeper it stands. Past the Coal band, buying is how the base stays stocked.`
     },
     {
       title: 'Losing a ship',

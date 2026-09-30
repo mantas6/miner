@@ -41,8 +41,10 @@ export const FUEL = Object.freeze({
     dig: 0.9
   }),
   // Return forecast: a clear-flight trip to the nearest exit (home or a portal),
-  // padded by a modest detour/hover allowance.
-  returnReserveMultiplier: 1.35,
+  // padded by a modest detour/hover allowance. Measured climbs cost about the
+  // clear-flight price itself (26 against a 1.35× forecast of 37 at 1550 m), so
+  // the pad stays small; the caution band below still warns well before empty.
+  returnReserveMultiplier: 1.2,
   returnReserveCautionMultiplier: 1.5,
   lowFuelFraction: 0.25,
   lowFuelWarnMs: 1400
@@ -102,13 +104,15 @@ export const ENEMY = Object.freeze({
  * it burns one queued coal into `fuelPerCoal` stored fuel. `fuelCap` bounds the
  * buffer.
  *
- * `fuelPerCoal` must clearly out-earn what harvesting one coal costs (digging to
- * it and through it), or coal is break-even and the seeded store is the whole
- * early-game fuel budget. `balance.test.ts` pins that margin.
+ * `fuelPerCoal` must clearly out-earn what a coal run burns, or coal is
+ * break-even and the seeded store is the whole early-game fuel budget. A run is a
+ * sweep: the ship digs the band's dirt and keeps whatever coal lies in its path,
+ * so the coal a stretch of mid-band dirt turns up must repay digging it 1.2 times
+ * over at drill 1.75 (Scout + Drill Mk I). `balance.test.ts` pins that margin.
  */
 export const EXTRACTOR = Object.freeze({
   ticksPerCoal: 180,
-  fuelPerCoal: 55,
+  fuelPerCoal: 115,
   fuelCap: 500
 });
 

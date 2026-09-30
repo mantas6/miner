@@ -9,7 +9,7 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXTRACTOR } from '../core/balance';
-import { EXTRACTOR_FUEL_ORDER, extractorFuelOrder } from '../core/trading';
+import { EXTRACTOR_FUEL_ORDER, extractorFuelOrder, extractorFuelOrderPrice } from '../core/trading';
 import { addItem, createInventory, oreItem } from '../core/inventory';
 import { ExtractorScreen } from './ExtractorScreen';
 import { setUiCommands, uiCommands } from './commands';
@@ -129,13 +129,18 @@ describe('fuel extractor dialog', () => {
     expect(buyExtractorFuel).toHaveBeenCalledOnce();
   });
 
-  it('disables the fuel order with a full store or an empty wallet', () => {
+  it('disables the fuel order with a full store or an empty wallet, still quoting the rate', () => {
+    const rate = `Buy fuel ($${extractorFuelOrderPrice()} per ${EXTRACTOR_FUEL_ORDER})`;
     open({extractor: {fuel: EXTRACTOR.fuelCap, supply: true}, cash: 1000});
     expect((document.getElementById('extractorBuyFuelBtn') as HTMLButtonElement).disabled).toBe(true);
+    expect(document.getElementById('extractorBuyFuelBtn')!.textContent).toBe(rate);
 
     cleanup();
     open({extractor: {fuel: 0, supply: true}, cash: 0});
-    expect((document.getElementById('extractorBuyFuelBtn') as HTMLButtonElement).disabled).toBe(true);
+    const broke = document.getElementById('extractorBuyFuelBtn') as HTMLButtonElement;
+    expect(broke.disabled).toBe(true);
+    // An empty wallet learns what an order would cost before it needs one.
+    expect(broke.textContent).toBe(rate);
   });
 
   it('is not built until opened, and dispatches close from the button and the backdrop', () => {

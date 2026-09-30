@@ -107,9 +107,11 @@ export const DANGER = Object.freeze({
 // `START_Y + n` offsets, so a shifted home row leaves the balance untouched.
 // Gold opens at 1100 m and Ruby at 2300 m (raised from 1500 m / 2600 m): a Scout
 // stalled five shaft-sinking trips short of the first Gold, so the Mk II parts and
-// the Prospector's bill now sit a trip closer to home.
+// the Prospector's bill now sit a trip closer to home. Coal runs on to 2400 m
+// (was 1800 m), past the top of the Gold band and the first Portal's depths, so
+// the extractor can still be fed from the shaft a Gold trip digs anyway.
 export const ORES = [
-  {name:'Coal', color:'#343434', value:8, min:START_Y+0, max:START_Y+180, chance:.10},
+  {name:'Coal', color:'#343434', value:8, min:START_Y+0, max:START_Y+240, chance:.10},
   {name:'Iron', color:'#8a7f75', value:12, min:START_Y+3, max:START_Y+250, chance:.09},
   {name:'Copper', color:'#c47b45', value:16, min:START_Y+6, max:START_Y+320, chance:.08},
   {name:'Silver', color:'#c8d3e0', value:36, min:START_Y+60, max:START_Y+460, chance:.055},

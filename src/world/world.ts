@@ -186,6 +186,12 @@ export function oreHpAtRow(row: number): number {
   return Math.max(min, Math.ceil((row / rowDivisor) + base));
 }
 
+/** How many hit points a dirt tile on this absolute row starts with (`TERRAIN.dirtHp`). */
+export function dirtHpAtRow(row: number): number {
+  const {min, rowDivisor, base, deepRow, deepBonus} = TERRAIN.dirtHp;
+  return Math.max(min, Math.ceil(row / rowDivisor) + base + (row > deepRow ? deepBonus : 0));
+}
+
 export function oreForDepthRoll(row: number, roll: number) {
   const eligible = ORES.filter(ore => row >= ore.min && row <= ore.max);
   const totalWeight = eligible.reduce((total, ore) => total + ore.chance, 0);
@@ -380,7 +386,7 @@ export function makeTile(x: number, y: number): Tile {
     const hp = oreHpAtRow(y);
     return {type:'ore', ore, hp, maxHp: hp};
   }
-  const {rock, hazard, enemy, dirtHp} = TERRAIN;
+  const {rock, hazard, enemy} = TERRAIN;
   const rockChance = y > rock.deepRow ? rock.deepChance : rock.chance;
   if (rand(x+9,y-3) < rockChance && y >= DANGER.rockMinRow) return {type:'rock', hp: rock.hp};
   if (y >= DANGER.hazardMinRow && rand(x+51,y-91) < Math.min(hazard.chanceMax, hazard.chanceBase + y / hazard.chanceRowDivisor)) {
@@ -392,7 +398,7 @@ export function makeTile(x: number, y: number): Tile {
     const hp = enemyHealth(kind, Math.max(enemy.hpMin, Math.ceil(enemy.hpBase + y / enemy.hpRowDivisor)));
     return {type:'enemy', kind, hp, maxHp: hp};
   }
-  const hp = Math.max(dirtHp.min, Math.ceil(y/dirtHp.rowDivisor)+dirtHp.base + (y > dirtHp.deepRow ? dirtHp.deepBonus : 0));
+  const hp = dirtHpAtRow(y);
   return {type:'dirt', hp, maxHp: hp};
 }
 

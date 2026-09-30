@@ -447,16 +447,19 @@ and drill out as usual.
   stock is full; a Manufacturing Station set down elsewhere in the mine has no Supply.
 
 - **Fuel Extractor.** Fuel comes from coal now, not a pump. Load coal here and it
-  converts on the simulation's own clock — 1 coal → 55 fuel every 180 ticks (~3 s),
-  banked up to a 500-fuel store (`EXTRACTOR` in `src/core/balance.ts`). A coal
-  repays its digging several times over (`src/core/balance.test.ts` pins the
-  margin), so coal runs are what keep the base supplied once the seeded store is
+  converts on the simulation's own clock — 1 coal → 115 fuel every 180 ticks (~3 s),
+  banked up to a 500-fuel store (`EXTRACTOR` in `src/core/balance.ts`). Coal runs
+  from the surface to 2400 m, past the top of the Gold band. A coal run pays: the
+  coal a sweep through mid-band dirt turns up repays the fuel spent digging it at
+  least 1.2 times over at drill 1.75 (`src/core/balance.test.ts` pins that sweep
+  model), so coal runs are what keep the base supplied once the seeded store is
   spent. The conversion runs whether or not you are watching; a ship parked on the
   extractor tile is kept topped up from the store for as long as it stays, fresh
   conversions included, and "Refuel ship" tops the tank up from the screen. The HUD's
   "Base" line reads the home extractor's store and hopper at a glance. The home
   extractor also takes fuel for cash: "Buy fuel" orders up to 100 fuel into its store
-  (capped by the 500 store and the wallet) at the fuel price below.
+  (capped by the 500 store and the wallet) at the home fuel price below, and quotes
+  that rate ("Buy fuel ($29 per 100)") even while it has nothing to buy.
 
 - **Portal.** The `Home` portal is the near end of the travel network. Open it to
   see the travel list of every other built portal — name, depth and distance — and
@@ -496,9 +499,12 @@ open it.
   is short, the offer is sold out, or the bay is full.
 - **Fuel.** The top row of the Buy column, "Fill tank", tops the tank up as far as
   the wallet reaches — never out of stock. Fuel is priced off the coal it is made
-  from: Coal's value over the fuel one coal converts to, marked up ×2
-  (`FUEL_TRADE_MARKUP`, `fuelUnitPrice` — about $0.29 a unit), so mining coal always
-  beats buying. It sells whole units, and the bill is rounded down to whole dollars
+  from: Coal's value over the fuel one coal converts to, marked up ×4.2
+  (`FUEL_TRADE_MARKUP`, `fuelUnitPrice` — about $0.29 a unit at home), so mining coal
+  always beats buying. A post charges more the deeper it stands — the home price
+  times `1 + depth / 4000 m` (`FUEL_DEPTH_METERS`, `postFuelUnitPrice`), so fuel at
+  4000 m is double and at 7400 m nearly triple — and its header quotes its own rate
+  ("Fuel $0.44/unit"); the home extractor always pays the base price. It sells whole units, and the bill is rounded down to whole dollars
   (never below $1), so a partial fill is never overcharged (`fuelPurchase`).
 
 ### Chests and graves
@@ -664,7 +670,9 @@ eight around it, and only once it is explored.
 - The HUD reserve readout forecasts the trip to the cheapest exit
   (safe/caution/urgent): home, or a field portal you can jump home from while a
   portal stands in the home cavern. It prices a clear flight — every row climbed
-  and column crossed — plus a 35% detour allowance, and the fuel gauge names the
+  and column crossed — plus a 20% detour allowance (`FUEL.returnReserveMultiplier`;
+  measured climbs cost about the clear-flight price), turning to caution within
+  1.5× of it, and the fuel gauge names the
   exit ("12 left after reaching Portal "Deep""). The scanner reads the tile the
   drill is aimed at, and the depth readout counts down to the next landmark and
   toasts when you first dive past one. The toasts count across the whole career:
@@ -1006,7 +1014,7 @@ what a sighted player sees, as JSON. The top-level shape:
 - `hud`: `{cash, objective, scanner, postHint, fuelReserve{status, needed, margin, exit}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, nextShip{id, label, missing}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `fuelReserve` prices the flight to the cheapest exit, which `exit` names (`"Home"` or a field portal such as `"Portal \"Deep\""`): `needed` is the fuel that trip costs and `margin` what is left after it; `postHint` is the trading-post beacon (`"Trading post ≈9 tiles ↙"` for the nearest post within 12 tiles, fog ignored; empty when none is near or one is already in reach); `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank (capped at the store's 500), and `null` with no extractor in the home cavern; `nextShip` is the next hull up the ladder and what the first Manufacturer's stock still lacks for it (`missing[{kind, count, label}]`, empty when buildable) — the Shipyard at a glance with no overlay open — or `null` on the top rung
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a wreck's adds its lifetime, e.g. `"2 items, crumbles in 2 deaths"`; a grave has none)
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base — and `shipyard{current{id, label, slots}, next}`, where `next` is `{id, label, slots, craftable, inputs, missing, gains{fuelMax, hullMax, cargoMax, drill}}` for the one hull `data-craft-ship` can build, or `null` on the top rung), `extractor` (coal, fuel, progress, refuelAmount, and `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base), `ship` (`ship{id, label, slots}` — the hull the heading names — slots `[{index, kind, label, locked, info}]` — `locked` the hull's last slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck, and `deathsLeft` — the further deaths it takes to crumble it), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]` — in respawn mode each also carries `respawnFuel`, the absolute fuel the replacement would deploy with there: at home what the extractor's store covers of the base tank (never under half of it), half of it at a field portal), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, galleries, ladder, ores, posts[{x, y, depth}]}` (`galleries` the dig-sideways hint, `ladder` the ship-ladder line, `posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base — and `shipyard{current{id, label, slots}, next}`, where `next` is `{id, label, slots, craftable, inputs, missing, gains{fuelMax, hullMax, cargoMax, drill}}` for the one hull `data-craft-ship` can build, or `null` on the top rung), `extractor` (coal, fuel, progress, refuelAmount, `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base — and `fuelPrice`, the home price per unit an order pays, `null` away from the base), `ship` (`ship{id, label, slots}` — the hull the heading names — slots `[{index, kind, label, locked, info}]` — `locked` the hull's last slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck, and `deathsLeft` — the further deaths it takes to crumble it), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, `fuelPrice` — this post's price per unit of fuel, dearer the deeper the post — and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now at that price, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]` — in respawn mode each also carries `respawnFuel`, the absolute fuel the replacement would deploy with there: at home what the extractor's store covers of the base tank (never under half of it), half of it at a field portal), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, galleries, ladder, ores, posts[{x, y, depth}]}` (`galleries` the dig-sideways hint, `ladder` the ship-ladder line, `posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in

@@ -24,7 +24,7 @@ describe('prospecting guide helpers', () => {
       name: 'Coal',
       color: '#343434',
       valueLabel: '$8',
-      depthLabel: 'starter–≈1800 m'
+      depthLabel: 'starter–≈2400 m'
     });
     expect(rows[1]).toMatchObject({
       name: 'Iron',

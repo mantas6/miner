@@ -5,9 +5,15 @@
   max-height: min(560px, 88vh);
 }
 /* The wallet sits between the title and the close, since it is what every button
-   on the screen is spent against. */
-.cash {
+   on the screen is spent against; the post's fuel price rides just ahead of it,
+   because it changes from post to post. */
+.fuelPrice {
   margin-left: auto;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.cash {
   color: #ffe39a;
   font-weight: 800;
   font-variant-numeric: tabular-nums;

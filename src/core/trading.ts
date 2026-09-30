@@ -18,12 +18,13 @@
 // to the ore the player is selling to afford it, and tunes with the recipe table.
 //
 // Cash has two more sinks, priced here too: fuel (at a post into the tank, at home
-// into the Fuel Extractor), priced off the coal it would take to make it; and the
+// into the Fuel Extractor), priced off the coal it would take to make it and
+// dearer the deeper the post; and the
 // home Supply, the base Manufacturer's short list of basics at a steeper markup.
 //
 // Everything here is pure and DOM-free.
 
-import { START_Y } from '../../shared/constants';
+import { START_Y, rowDepthMeters } from '../../shared/constants';
 import { tileKey } from '../../shared/tile-key';
 import { EXTRACTOR } from './balance';
 import { RECIPES } from './crafting';
@@ -97,13 +98,30 @@ export function buyPrice(kind: InventoryItemKind, markup = TRADING_MARKUP): numb
  * Fuel for cash — at a post straight into the tank, or at home into the Fuel
  * Extractor's store. It is priced off Coal, the ore it is made from: one coal's
  * value spread over the fuel it converts to, marked up so mining coal always
- * beats buying the fuel it would have made.
+ * beats buying the fuel it would have made. The markup holds the home price at
+ * about $0.29 a unit whatever a coal converts to.
  */
-export const FUEL_TRADE_MARKUP = 2;
+export const FUEL_TRADE_MARKUP = 4.2;
 
-/** What one unit of bought fuel costs, in dollars (fractional: ~$0.29). */
-export function fuelUnitPrice(): number {
-  return itemForKind(oreKind('Coal')).value / EXTRACTOR.fuelPerCoal * FUEL_TRADE_MARKUP;
+/**
+ * Fuel dearer by depth at a post: the price climbs by the base price again every
+ * this many metres (`1 + depth / FUEL_DEPTH_METERS`), so 4000 m pays double and
+ * the deepest posts nearly triple. The home extractor always pays the base price.
+ */
+export const FUEL_DEPTH_METERS = 4000;
+
+/**
+ * What one unit of bought fuel costs, in dollars (fractional: ~$0.29 at home), at
+ * `depthMeters` — a post's own depth; 0, the default, is the home price.
+ */
+export function fuelUnitPrice(depthMeters = 0): number {
+  const base = itemForKind(oreKind('Coal')).value / EXTRACTOR.fuelPerCoal * FUEL_TRADE_MARKUP;
+  return base * (1 + Math.max(0, depthMeters) / FUEL_DEPTH_METERS);
+}
+
+/** The fuel price at the post standing on `row`: `fuelUnitPrice` at its depth. */
+export function postFuelUnitPrice(row: number): number {
+  return fuelUnitPrice(rowDepthMeters(row));
 }
 
 /** A fuel order: how much fuel it pours, and the whole dollars it costs. */
@@ -140,11 +158,21 @@ export const EXTRACTOR_FUEL_ORDER = 100;
 
 /**
  * One extractor fuel order: up to `EXTRACTOR_FUEL_ORDER` into the store holding
- * `stored`, capped by `EXTRACTOR.fuelCap` and by what `cash` covers.
+ * `stored`, capped by `EXTRACTOR.fuelCap` and by what `cash` covers, at the
+ * home price.
  */
 export function extractorFuelOrder(stored: number, cash: number): FuelPurchase {
   const target = Math.min(EXTRACTOR.fuelCap, stored + EXTRACTOR_FUEL_ORDER);
   return fuelPurchase(stored, target, cash, fuelUnitPrice());
+}
+
+/**
+ * What a whole `EXTRACTOR_FUEL_ORDER` costs at the home price, in whole dollars —
+ * the rate the extractor's button, the objective and the hazards guide quote
+ * ("$29 per 100").
+ */
+export function extractorFuelOrderPrice(): number {
+  return Math.round(EXTRACTOR_FUEL_ORDER * fuelUnitPrice());
 }
 
 /** Home Supply's markup: the base sells the basics, dearer than a post, for convenience. */

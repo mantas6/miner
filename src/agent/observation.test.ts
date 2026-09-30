@@ -818,7 +818,7 @@ describe('buildObservation', () => {
     const overlay = buildObservation({
       state,
       ui: ui({
-        overlay: {kind: 'trade', offers},
+        overlay: {kind: 'trade', offers, fuelPrice: fuelUnitPrice()},
         hud: {...uiStore.getState().hud, cash: 200},
         inventorySlots: [oreSlot('Iron', 5)]
       }),
@@ -836,20 +836,23 @@ describe('buildObservation', () => {
     expect(overlay.fuel).toEqual({unitPrice: Math.round(fuelUnitPrice() * 100) / 100, amount: 0, cost: 0});
   });
 
-  it('mirrors the trade fuel row: the fill a tank short of fuel would buy', () => {
+  it('mirrors the trade fuel row: the fill a tank short of fuel would buy, at the post\'s own price', () => {
     const state = createInitialState();
     state.player.fuelMax = 100;
     state.player.fuel = 60;
+    // A post 4000 m down charges twice the home price.
+    const deepPrice = fuelUnitPrice(4000);
     const overlay = buildObservation({
       state,
-      ui: ui({overlay: {kind: 'trade', offers: []}, hud: {...uiStore.getState().hud, cash: 200}}),
+      ui: ui({overlay: {kind: 'trade', offers: [], fuelPrice: deepPrice}, hud: {...uiStore.getState().hud, cash: 200}}),
       get: tileSource({})
     }).overlay;
 
     if (overlay?.kind !== 'trade') throw new Error('expected trade overlay');
-    const {cost} = fuelPurchase(60, 100, 200, fuelUnitPrice());
-    expect(overlay.fuel).toMatchObject({amount: 40, cost});
-    expect(cost).toBeGreaterThan(0);
+    const {cost} = fuelPurchase(60, 100, 200, deepPrice);
+    expect(overlay.fuelPrice).toBe(Math.round(deepPrice * 100) / 100);
+    expect(overlay.fuel).toMatchObject({unitPrice: overlay.fuelPrice, amount: 40, cost});
+    expect(cost).toBeGreaterThan(fuelPurchase(60, 100, 200, fuelUnitPrice()).cost);
   });
 
   it('mirrors the extractor overlay with the refuel amount the screen would show', () => {
@@ -867,8 +870,9 @@ describe('buildObservation', () => {
     expect(overlay.coal).toBe(5);
     // Room in the tank is 50, but only 40 fuel is stored.
     expect(overlay.refuelAmount).toBe(40);
-    // A field extractor takes no fuel orders.
+    // A field extractor takes no fuel orders, so it quotes no price either.
     expect(overlay.fuelOrder).toBeNull();
+    expect(overlay.fuelPrice).toBeNull();
   });
 
   it('mirrors the base extractor\'s fuel order: what the button would buy right now', () => {
@@ -880,12 +884,14 @@ describe('buildObservation', () => {
         get: tileSource({})
       }).overlay;
       if (overlay?.kind !== 'extractor') throw new Error('expected extractor overlay');
-      return overlay.fuelOrder;
+      return overlay;
     };
 
-    expect(view(0, 1000)).toEqual({amount: EXTRACTOR_FUEL_ORDER, cost: extractorFuelOrder(0, 1000).cost});
-    expect(view(EXTRACTOR.fuelCap, 1000)).toEqual({amount: 0, cost: 0});
-    expect(view(0, 0)).toEqual({amount: 0, cost: 0});
+    expect(view(0, 1000).fuelOrder).toEqual({amount: EXTRACTOR_FUEL_ORDER, cost: extractorFuelOrder(0, 1000).cost});
+    expect(view(EXTRACTOR.fuelCap, 1000).fuelOrder).toEqual({amount: 0, cost: 0});
+    expect(view(0, 0).fuelOrder).toEqual({amount: 0, cost: 0});
+    // The home price, quoted even when the button has nothing to buy.
+    expect(view(0, 0).fuelPrice).toBe(Math.round(fuelUnitPrice() * 100) / 100);
   });
 
   it('mirrors the ship overlay, listing bay upgrades as fittable', () => {

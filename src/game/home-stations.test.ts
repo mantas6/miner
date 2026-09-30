@@ -483,6 +483,8 @@ describe('parking on the extractor to refuel', () => {
   it('keeps topping up from fresh conversions while parked, toasting only on arrival', () => {
     const h = harness();
     park(h.state, 'extractor');
+    // A tank with room for the stored fuel and a whole coal's worth on top of it.
+    h.state.player.fuelMax = 30 + EXTRACTOR.fuelPerCoal + 10;
     h.state.player.fuel = 10;
     // Less stored than the tank needs, and one coal queued to convert.
     Object.assign(extractor(h.state), {fuel: 20, coal: 1, progress: 0});
