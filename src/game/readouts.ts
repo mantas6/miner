@@ -12,6 +12,7 @@
 // and allocates nothing; only a moved ship, a chewed tile, a spent litre of fuel
 // or a placed/lifted/renamed portal costs a string.
 
+import { WORLD_W } from '../../shared/constants';
 import { isTileExplored } from '../../shared/exploration-codec';
 import {
   formatDepthMilestoneReached,
@@ -91,6 +92,8 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
   let scanExplored = false;
   let scanDrill = NaN;
   let scanHovering = false;
+  let scanBeyond: Tile | undefined;
+  let scanBeyondType = '';
   let scannerLine = '';
 
   // Trading-post beacon memo: posts never move, so the ship's tile is the whole input.
@@ -156,16 +159,26 @@ export function createReadouts({state, grid, enemies, audio, atSurface, toast}: 
     const explored = isTileExplored(state.exploredTiles, x, y);
     // The same predicate `move()` prices the dig with, so the readout never drifts.
     const hovering = isHoverSideDrill(dx, dy, grid.get(p.x, p.y + 1));
+    // The drill line's lookahead: the tile behind the target, while the target is
+    // dirt the drill can break into (a cocoon passes for dirt). Read through fog —
+    // the line names it, the map stays dark — and only inside the columns the ship
+    // can reach, so the world's edge walls are never reported.
+    const bx = x + dx;
+    const by = y + dy;
+    const beyond = (tile.type === 'dirt' || tile.type === 'enemy') && explored && bx >= 1 && bx <= WORLD_W - 2
+      ? grid.get(bx, by)
+      : undefined;
+    const beyondType = beyond?.type ?? '';
 
     if (x !== scanX || y !== scanY || dx !== scanDx || dy !== scanDy
       || tile !== scanTile || hp !== scanHp || enemyId !== scanEnemyId || explored !== scanExplored
-      || p.drill !== scanDrill || hovering !== scanHovering) {
+      || p.drill !== scanDrill || hovering !== scanHovering || beyond !== scanBeyond || beyondType !== scanBeyondType) {
       scanX = x; scanY = y; scanDx = dx; scanDy = dy;
       scanTile = tile; scanHp = hp; scanEnemyId = enemyId; scanExplored = explored; scanDrill = p.drill;
-      scanHovering = hovering;
+      scanHovering = hovering; scanBeyond = beyond; scanBeyondType = beyondType;
       scanDirection[0] = dx;
       scanDirection[1] = dy;
-      scannerLine = formatTerrainScanner({tile, direction: scanDirection, activeEnemy: enemy?.kind ?? false, explored, drill: p.drill, hovering});
+      scannerLine = formatTerrainScanner({tile, direction: scanDirection, activeEnemy: enemy?.kind ?? false, explored, drill: p.drill, hovering, beyond});
     }
     hud.scanner = scannerLine;
   }

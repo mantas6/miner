@@ -22,9 +22,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { openGameSession, type ClickTarget, type GameSession } from './session';
 import { VIEW_LEGEND, type AgentObservation } from '../src/agent/observation';
-import { EXTRACTOR } from '../src/core/balance';
+import { EXTRACTOR, HULL } from '../src/core/balance';
+import { COCOON_WAKE_RADIUS } from '../src/core/enemy-exposure';
 import { RECIPES } from '../src/core/crafting';
-import { EXTRACTOR_FUEL_ORDER, FUEL_DEPTH_METERS, extractorFuelOrderPrice } from '../src/core/trading';
+import { EXTRACTOR_FUEL_ORDER, FUEL_DEPTH_METERS, POST_REPAIR_KIT_STOCK, extractorFuelOrderPrice } from '../src/core/trading';
 import { itemForKind } from '../src/core/items';
 import { HOVER_DRILL_SURCHARGE_PERCENT } from '../src/core/movement';
 import { SHIPS, SHIP_ORDER } from '../src/core/ships';
@@ -87,6 +88,10 @@ function instructions(): string {
     '    moving into open space flies. Falling straight down through open air is free;',
     '    every other move burns fuel. The drill never digs upward; a side dig with open',
     `    air under the ship costs ${HOVER_DRILL_SURCHARGE_PERCENT}% more fuel (\`hud.scanner\` ends "Hover: +${HOVER_DRILL_SURCHARGE_PERCENT} % fuel.").`,
+    '    `hud.scanner` reads the tile the drill is aimed at; behind known dirt it also',
+    '    names what the drill line breaks into next, fog or not ("…, 3 hits, then magma.").',
+    `    Rock costs ${HULL.rockBump} hull a bump; a held Down that falls onto rock stops without one.`,
+    `    A dormant enemy wakes once the ship is within ${COCOON_WAKE_RADIUS} tiles of it with open air between.`,
     '  Shift (hold with a direction, `hold key ms shift:true`) — sprint/boost. Inert',
     '    unless a Booster is fitted to the ship.',
     '  Space — open the station-like thing the ship is parked beside: a home station',
@@ -120,6 +125,11 @@ function instructions(): string {
     '  Naming a portal: in the travel overlay, `click` portalNameInput to focus it,',
     '    `type` the new name (max 16 chars), then `click` portalNameSaveBtn (Enter also',
     '    saves). The new name echoes back in `overlay.name` and the portal notable.',
+    '  Repairing at a portal: the travel overlay of any portal (Home included) patches',
+    '    the hull for cash while it is short — `click` portalRepairBtn. It costs what a',
+    '    post\'s Repair Kits would for the same hull and repairs as much as the wallet',
+    '    covers; `overlay.repair` ({missing, amount, cost, affordable}, `null` when the',
+    '    hull is whole) quotes it.',
     '  + (or =) / - — step the camera zoom in / out in 0.25 steps, between',
     `    ${MIN_ZOOM}x and ${MAX_ZOOM}x (remembered). \`view.zoom\` reports the level. The ASCII`,
     '    window does not change with it, but zooming in leaves fewer tiles on screen,',
@@ -207,7 +217,8 @@ function instructions(): string {
     `    \`alert\` means the two could no longer fill a tank (capped at the ${EXTRACTOR.fuelCap} the store`,
     '    holds) — mine coal, or order fuel once the career is deeper than Coal grows.',
     '  - Trading Posts (T) stand deep in the mine: sell ore for cash there, and buy',
-    '    a small, limited stock of gear. `hud.cash` is your wallet; the open post\'s',
+    `    a small, limited stock of gear — every post keeps ${POST_REPAIR_KIT_STOCK} Repair Kits on the shelf`,
+    '    beside its rolled offers. `hud.cash` is your wallet; the open post\'s',
     '    sell prices and buy offers are in the `trade` overlay. tradeFuelBtn fills the',
     '    tank for cash (`trade.fuel`: unitPrice, and the amount/cost a fill buys now).',
     `    A post's fuel costs more the deeper it stands (home price × (1 + depth / ${FUEL_DEPTH_METERS} m));`,
@@ -399,7 +410,8 @@ server.registerTool(
       'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +
       '"ore:Iron" to sell or "repairKit" to buy; tradeFuelBtn fills the tank for cash). ' +
       'extractorBuyFuelBtn orders fuel for cash into the home Fuel Extractor. A portal travel/respawn row is target ' +
-      '"data-portal", value the destination "x,y" (e.g. "48,20"). An info tab is target ' +
+      '"data-portal", value the destination "x,y" (e.g. "48,20"); portalRepairBtn in the travel ' +
+      'overlay patches the hull for cash (`overlay.repair`). An info tab is target ' +
       '"data-info-section", value e.g. "info-settings". data-craft-ship builds the next hull ' +
       'at a Manufacturer (value its id, e.g. "hauler"). data-ship-unequip takes the ' +
       '0-based fitting-slot index (e.g. "0"). Inventory slot buttons such as ' +

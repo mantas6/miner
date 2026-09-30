@@ -31,8 +31,8 @@ export const ID_TARGETS: ReadonlySet<string> = new Set([
   'tradeFuelBtn', 'tradeCloseBtn',
   // Grave stone.
   'graveOkBtn',
-  // Portal screen.
-  'portalCloseBtn', 'portalNameInput', 'portalNameSaveBtn',
+  // Portal screen (portalRepairBtn only in travel mode, while the hull is short).
+  'portalCloseBtn', 'portalNameInput', 'portalNameSaveBtn', 'portalRepairBtn',
   // Info / cargo screen.
   'infoCloseBtn',
   // Info → Settings tab (reach it with data-info-section=info-settings). The two

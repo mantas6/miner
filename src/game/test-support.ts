@@ -65,6 +65,7 @@ export function createEnemySimStub(): EnemySimStub {
     standingEnemy: undefined,
     enemyAt: () => stub.standingEnemy,
     wakeEnemiesNear: vi.fn(),
+    wakeNearShip: vi.fn(),
     resetExposure: vi.fn(),
     clearExposure: vi.fn(),
     damageEnemy: vi.fn(),
@@ -97,6 +98,7 @@ export function createPortalsSimStub(): PortalsSimStub {
     close: vi.fn(),
     rename: vi.fn(),
     travelTo: vi.fn(() => true),
+    repairHull: vi.fn(),
     tick: vi.fn()
   };
 }

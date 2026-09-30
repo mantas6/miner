@@ -26,7 +26,7 @@ import { nextShip, nextShipShortfall, shipFor, shipGains, type ShipBase, type Sh
 import { manufacturerStock, stationAt } from '../core/stations';
 import { itemForKind } from '../core/items';
 import { formatWreckLifetime } from '../core/wreck';
-import { SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, sellPrice, supplyPrice } from '../core/trading';
+import { SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, hullRepair, sellPrice, supplyPrice } from '../core/trading';
 import { chestAt, graveAt, tradingPostAt } from '../world/world';
 import { chestContents, isChestLooted } from '../core/chest';
 import {
@@ -240,6 +240,14 @@ export type AgentOverlay =
       source?: {x: number; y: number; name: string};
       /** The source portal's current name, echoed in travel mode for rename feedback. */
       name?: string;
+      /**
+       * Travel mode only: the paid hull repair row (portalRepairBtn), priced like a
+       * post's Repair Kits. `missing` is the hull short of whole; `amount`/`cost`
+       * what a press restores and charges right now (a partial repair when the
+       * wallet is short); `affordable` whether the press does anything. `null`
+       * while the hull is whole, when the row is not shown.
+       */
+      repair?: {missing: number; amount: number; cost: number; affordable: boolean} | null;
       /**
        * `respawnFuel` (respawn mode only): the absolute fuel units the replacement
        * ship deploys with at that portal — at home what the extractor's store
@@ -488,6 +496,14 @@ function tradeFuel(state: GameState, cash: number, unitPrice: number): {unitPric
   return {unitPrice: centsPerUnit(unitPrice), amount: Math.round(amount), cost};
 }
 
+/** The travel list's hull-repair row, as the screen paints it: `null` while the hull is whole. */
+function portalRepair(state: GameState, cash: number): {missing: number; amount: number; cost: number; affordable: boolean} | null {
+  const {hull, hullMax} = state.player;
+  if (hullMax - hull < 1) return null;
+  const {amount, cost} = hullRepair(hull, hullMax, cash);
+  return {missing: Math.round(hullMax - hull), amount: Math.round(amount), cost, affordable: amount > 0};
+}
+
 /** The one open overlay's mirror, or `null` when the mine is uncovered. */
 function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
   const overlay = ui.overlay;
@@ -566,11 +582,13 @@ function buildOverlay(state: GameState, ui: UiState): AgentOverlay | null {
       };
     case 'portal': {
       const {portal} = overlay;
+      const travel = portal.mode === 'travel' && portal.source !== undefined;
       return {
         kind: 'portal',
         mode: portal.mode,
         source: portal.source,
         name: portal.source?.name,
+        ...(travel ? {repair: portalRepair(state, ui.hud.cash)} : {}),
         destinations: portal.destinations.map(destination => {
           const row: {x: number; y: number; name: string; depth: number; distance: number; respawnFuel?: number} = {
             x: destination.x,

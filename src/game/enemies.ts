@@ -2,11 +2,12 @@
 //
 // The pure pieces live in core/ (`enemy-types`, `enemy-movement`,
 // `enemy-exposure`); this module owns the stateful side: which air is reachable,
-// waking cocoons into entities, the drill's kill path, and the per-tick
-// movement/bite pass.
+// waking cocoons into entities — when air reaches them, and when the ship comes
+// within the wake radius of one with a way out — the drill's kill path, and the
+// per-tick movement/bite pass.
 
 import { ENEMY } from '../core/balance';
-import { expandReachableAir } from '../core/enemy-exposure';
+import { COCOON_WAKE_RADIUS, cocoonsInWakeRadius, expandReachableAir, type TileCoordinate } from '../core/enemy-exposure';
 import { findEnemyPathStep } from '../core/enemy-movement';
 import { enemyBiteCooldown, enemyBiteDamage, enemyMoveDelay, getEnemyType } from '../core/enemy-types';
 import type { AudioController, Enemy, GameState } from '../core/types';
@@ -32,6 +33,12 @@ export interface EnemySim {
   enemyAt(x: number, y: number): Enemy | undefined;
   /** Wake every cocoon newly reachable through air from this coordinate. */
   wakeEnemiesNear(x: number, y: number): void;
+  /**
+   * Wake every cocoon within the wake radius of the ship that has an air path to
+   * it (`cocoonsInWakeRadius`), after making sure the ship's own air is known
+   * reachable. Run after every step and every jump.
+   */
+  wakeNearShip(): void;
   /** Recompute reachable air from the player and wake everything exposed. */
   resetExposure(): void;
   /** Forget reachable air without re-seeding it (world reset). */
@@ -96,25 +103,46 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
     return true;
   }
 
-  function wakeEnemiesNear(x: number, y: number): void {
-    let seeds = [{x, y}];
-    while (seeds.length) {
-      const exposed = expandReachableAir(state.world, reachableAir, seeds);
+  /**
+   * Grow reachable air from `seeds`, waking every cocoon it touches, and keep
+   * going from each hatched tile (now air) until nothing new is exposed. `force`
+   * admits the first seeds even when they join no air already known reachable.
+   */
+  function expose(seeds: TileCoordinate[], force = false): void {
+    let next = seeds;
+    let forceSeeds = force;
+    while (next.length) {
+      const exposed = expandReachableAir(state.world, reachableAir, next, forceSeeds);
       for (const enemy of exposed) wakeEnemy(enemy.x, enemy.y);
-      seeds = exposed;
+      next = exposed;
+      forceSeeds = false;
     }
+  }
+
+  function wakeEnemiesNear(x: number, y: number): void {
+    expose([{x, y}]);
+  }
+
+  /**
+   * The wake radius. The ship's own tile is reachable air by definition, so it is
+   * forced into the set (a portal jump can land it in air the pass never walked);
+   * then every cocoon within `COCOON_WAKE_RADIUS` that opens onto that air hatches,
+   * even one the flood missed because its rows were generated after the air
+   * beside it was walked.
+   */
+  function wakeNearShip(): void {
+    const p = state.player;
+    expose([{x: p.x, y: p.y}], true);
+    // The rows the radius reads, generated now, so a cocoon there is not missed.
+    for (let y = p.y - COCOON_WAKE_RADIUS; y <= p.y + COCOON_WAKE_RADIUS; y++) grid.ensureRow(y);
+    const near = cocoonsInWakeRadius(state.world, reachableAir, p, COCOON_WAKE_RADIUS);
+    for (const cocoon of near) wakeEnemy(cocoon.x, cocoon.y);
+    if (near.length) expose(near);
   }
 
   function resetExposure(): void {
     reachableAir.clear();
-    let seeds = [{x: state.player.x, y: state.player.y}];
-    let forceSeeds = true;
-    while (seeds.length) {
-      const exposed = expandReachableAir(state.world, reachableAir, seeds, forceSeeds);
-      for (const enemy of exposed) wakeEnemy(enemy.x, enemy.y);
-      seeds = exposed;
-      forceSeeds = false;
-    }
+    wakeNearShip();
   }
 
   function enemyBounty(y: number): number {
@@ -226,6 +254,7 @@ export function createEnemySim(deps: EnemySimDeps): EnemySim {
   return {
     enemyAt,
     wakeEnemiesNear,
+    wakeNearShip,
     resetExposure,
     clearExposure: () => reachableAir.clear(),
     damageEnemy,

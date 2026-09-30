@@ -396,11 +396,11 @@ describe('expedition objective helper', () => {
         .toBe('Objective: hull is low — use a Repair Kit from its bay slot.');
     });
 
-    it('sends a ship with no kit home for one, or to a trading post once one is known', () => {
+    it('sends a ship with no kit home for one, or to any trading post (every one keeps kits) once one is known', () => {
       expect(formatExpeditionObjective({...hurt, postsFound: 0}))
         .toBe('Objective: hull is low — return home: craft a Repair Kit (2 Iron + 1 Copper) or buy one ($80).');
       expect(formatExpeditionObjective(hurt))
-        .toBe('Objective: hull is low — buy a Repair Kit at a trading post, or return home to craft one (2 Iron + 1 Copper).');
+        .toBe('Objective: hull is low — buy a Repair Kit at any trading post ($60), or return home to craft one (2 Iron + 1 Copper).');
     });
 
     it('at home, takes a stocked kit, or crafts or buys one', () => {

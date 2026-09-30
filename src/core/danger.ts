@@ -1,7 +1,8 @@
 import { ENEMY, FUEL, HULL, RESPAWN } from './balance';
 import { DANGER, START_Y, rowDepthMeters } from '../../shared/constants';
+import { COCOON_WAKE_RADIUS } from './enemy-exposure';
 import { ENEMY_TYPES } from './enemy-types';
-import { EXTRACTOR_FUEL_ORDER, extractorFuelOrderPrice } from './trading';
+import { EXTRACTOR_FUEL_ORDER, POST_REPAIR_KIT, buyPrice, extractorFuelOrderPrice, supplyPrice } from './trading';
 import { WRECK } from './wreck';
 
 export interface DangerGuideRow {
@@ -15,6 +16,23 @@ function depthLabel(row: number, startY = START_Y): string {
 
 function percent(fraction: number): string {
   return `${Math.round(fraction * 100)}%`;
+}
+
+/**
+ * Hull damage one drill hit on a magma pocket at `row` deals. The hit that
+ * `breaches` an untouched pocket takes the burst (`HULL.hazardBase` plus a step
+ * every `HULL.hazardDepthDivisor` rows); every later hit to vent it only the small
+ * tail. The curve and its numbers are documented at `HULL.hazardBase`.
+ */
+export function magmaHitDamage(row: number, breaches: boolean): number {
+  if (breaches) return HULL.hazardBase + Math.floor(Math.max(0, row) / HULL.hazardDepthDivisor);
+  return HULL.hazardTail.base + Math.floor(Math.max(0, row) / HULL.hazardTail.depthDivisor);
+}
+
+/** A whole pocket's damage when it takes `hits` hits to vent: the burst, then the tail on each later hit. */
+export function magmaPocketDamage(row: number, hits: number): number {
+  if (hits <= 0) return 0;
+  return magmaHitDamage(row, true) + (hits - 1) * magmaHitDamage(row, false);
 }
 
 /** The one-line lead-in the Hazards guide opens with. */
@@ -32,11 +50,11 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     },
     {
       title: 'Magma pockets',
-      detail: `Start around ${depthLabel(DANGER.hazardMinRow)}. Vent them with repeated drilling, but each hit burns extra fuel and scorches the hull — the damage is per hit and rises with depth, so a stronger drill that vents it in fewer hits takes less.`
+      detail: `Start around ${depthLabel(DANGER.hazardMinRow)}. Vent them with repeated drilling, each hit burning extra fuel. Breaking into a pocket scorches the hull once — ${magmaHitDamage(DANGER.hazardMinRow, true)} hull there, more the deeper it lies — and every further hit to vent it only a little (${magmaHitDamage(DANGER.hazardMinRow, false)} hull there), so a stronger drill takes less but is never immune.`
     },
     {
       title: 'Dormant tunnel fiends',
-      detail: `Appear from about ${depthLabel(DANGER.enemyMinRow)}. Drilling nearby blocks can wake one, so leave room to retreat.`
+      detail: `Appear from about ${depthLabel(DANGER.enemyMinRow)}. One wakes when a tunnel opens onto it, or when the ship comes within ${COCOON_WAKE_RADIUS} tiles of one with open air to crawl out through — so leave room to retreat.`
     },
     {
       title: 'Active fiends',
@@ -49,6 +67,10 @@ export function buildDangerGuideRows(): DangerGuideRow[] {
     {
       title: 'Fiend bounties',
       detail: `A destroyed fiend pays $${ENEMY.bounty.base}, plus $${ENEMY.bounty.step} for every ${ENEMY.bounty.depthDivisor} rows of depth.`
+    },
+    {
+      title: 'Patching the hull',
+      detail: `A Repair Kit restores ${percent(HULL.repairKitFraction)} of the hull. Craft one at the Manufacturing Station, buy one from the home Supply ($${supplyPrice(POST_REPAIR_KIT)}) or at any trading post ($${buyPrice(POST_REPAIR_KIT)}) — every post keeps a few on the shelf. Any portal, Home included, also patches the hull for cash at the posts' kit rate.`
     },
     {
       title: 'Fuel discipline',

@@ -1,8 +1,8 @@
 // The portal overlay: one screen for the whole travel network.
 //
 // It wears three hats, told apart by `portal.mode`. In `travel` it hangs off the
-// portal the ship is parked at: a rename field over the list of every *other*
-// portal the ship can jump to for free. In `teleporter` it is the same list,
+// portal the ship is parked at: a rename field, a paid hull repair while the hull
+// is short, and the list of every *other* portal the ship can jump to for free. In `teleporter` it is the same list,
 // filtered to the portals out of reach, that a carried teleporter charge would
 // spend to reach. In `respawn` it is the no-close redeploy prompt a lost ship
 // with two or more portals answers before the world is rebuilt.
@@ -20,6 +20,7 @@
 import { useRef } from 'react';
 import { MAX_PORTAL_NAME_LENGTH } from '../core/portal';
 import { shipFor } from '../core/ships';
+import { hullRepair, hullRepairPointPrice } from '../core/trading';
 import { uiCommands } from './commands';
 import { CardHeader, ModalShell } from './ModalShell';
 import { overlayOf, useUiStore, type PortalDestinationView, type PortalView } from './store';
@@ -75,6 +76,7 @@ function PortalCard() {
       />
       <div className={styles.body}>
         {mode === 'travel' && source && <NameEditor key={source.name} name={source.name} />}
+        {mode === 'travel' && source && <RepairRow />}
         <ul id="portalList" className={styles.slots}>
           {destinations.length === 0 && (
             <li className={styles.empty}><span className={styles.emptyLabel}>{emptyLineFor(mode)}</span></li>
@@ -116,6 +118,36 @@ function NameEditor({name}: {name: string}) {
         className={styles.action}
         onClick={save}
       >Save</button>
+    </div>
+  );
+}
+
+/**
+ * The travel-mode hull repair: patch as much of the missing hull as the wallet
+ * covers, priced like a post's Repair Kits (`hullRepair`). Painted live from the
+ * HUD's hull and wallet, so it follows every bite and every sale; only shown while
+ * the hull is short of whole, and dead while the wallet cannot cover one point.
+ */
+function RepairRow() {
+  const hull = useUiStore(state => state.hud.hull);
+  const hullMax = useUiStore(state => state.hud.hullMax);
+  const cash = useUiStore(state => state.hud.cash);
+  if (hullMax - hull < 1) return null;
+  const {amount, cost} = hullRepair(hull, hullMax, cash);
+  const restored = Math.round(amount);
+  const rate = `$${hullRepairPointPrice(hullMax).toFixed(2)} a hull point`;
+  return (
+    <div className={styles.repair} title={`Hull repair: ${rate}.`}>
+      <span className={styles.label}>Repair hull</span>
+      <span className={styles.meta}>{amount > 0 ? `+${restored}` : rate}</span>
+      <button
+        id="portalRepairBtn"
+        type="button"
+        className={styles.action}
+        disabled={amount <= 0}
+        aria-label={amount > 0 ? `Repair hull +${restored} for $${cost}` : 'Repair hull'}
+        onClick={() => uiCommands.repairHullAtPortal()}
+      >{amount > 0 ? `$${cost}` : '—'}</button>
     </div>
   );
 }

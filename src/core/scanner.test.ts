@@ -75,6 +75,54 @@ describe('terrain scanner helper', () => {
       .toBe('Scanner ↓: decoration — drill to recover it.');
   });
 
+  describe('the drill-line lookahead', () => {
+    const dirt = { type: 'dirt', hp: 3, maxHp: 3 } as const;
+
+    it('names what lies behind known dirt, two tiles ahead in the aimed direction', () => {
+      expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: { type: 'hazard', hp: 9, maxHp: 9 } }))
+        .toBe('Scanner ↓: dirt — drillable, 3 hits, then magma.');
+      expect(formatTerrainScanner({ tile: dirt, direction: [1, 0], beyond: { type: 'rock', hp: 999 } }))
+        .toBe('Scanner →: dirt — drillable, 3 hits, then solid rock.');
+      expect(formatTerrainScanner({ tile: dirt, direction: [-1, 0], beyond: { type: 'air' } }))
+        .toBe('Scanner ←: dirt — drillable, 3 hits, then open air.');
+      expect(formatTerrainScanner({
+        tile: dirt, direction: [0, 1],
+        beyond: { type: 'ore', ore: { name: 'Silver', color: '#ccc', value: 30, min: 0, max: 1, chance: 1 }, hp: 5, maxHp: 5 }
+      })).toBe('Scanner ↓: dirt — drillable, 3 hits, then Silver.');
+      expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: { type: 'decor', decor: 'steelPlate', hp: 48, maxHp: 48 } }))
+        .toBe('Scanner ↓: dirt — drillable, 3 hits, then a decoration.');
+    });
+
+    it('says nothing of plain dirt behind dirt, and passes a cocoon off as dirt', () => {
+      expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: dirt }))
+        .toBe('Scanner ↓: dirt — drillable, 3 hits.');
+      expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: { type: 'enemy', kind: 'tunnelFiend', hp: 4, maxHp: 4 } }))
+        .toBe('Scanner ↓: dirt — drillable, 3 hits.');
+      // A cocoon as the target keeps its dirt disguise, lookahead and all.
+      expect(formatTerrainScanner({ tile: { type: 'enemy', kind: 'tunnelFiend', hp: 4, maxHp: 4 }, direction: [0, 1], beyond: { type: 'hazard', hp: 9, maxHp: 9 } }))
+        .toBe('Scanner ↓: dirt — drillable, 4 hits, then magma.');
+    });
+
+    it('only looks past dirt, never upward, and never through a fogged target', () => {
+      const magma = { type: 'hazard', hp: 9, maxHp: 9 } as const;
+      expect(formatTerrainScanner({ tile: { type: 'hazard', hp: 5, maxHp: 5 }, direction: [0, 1], beyond: magma }))
+        .toBe('Scanner ↓: magma — hull risk, 5 hits to vent.');
+      expect(formatTerrainScanner({ tile: { type: 'air' }, direction: [0, 1], beyond: magma }))
+        .toBe('Scanner ↓: clear route.');
+      expect(formatTerrainScanner({ tile: dirt, direction: [0, -1], beyond: magma }))
+        .toBe('Scanner ↑: dirt — drillable, 3 hits.');
+      expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: magma, explored: false }))
+        .toBe('Scanner ↓: unexplored — advance to map terrain.');
+      expect(formatTerrainScanner({ tile: dirt, direction: [0, 1], beyond: magma, activeEnemy: 'skitterling' }))
+        .toBe('Scanner ↓: active skitterling — drill it before it chews hull.');
+    });
+
+    it('keeps the hover surcharge after the lookahead', () => {
+      expect(formatTerrainScanner({ tile: dirt, direction: [1, 0], hovering: true, beyond: { type: 'hazard', hp: 9, maxHp: 9 } }))
+        .toBe('Scanner →: dirt — drillable, 3 hits, then magma. Hover: +25 % fuel.');
+    });
+  });
+
   it('does not leak terrain, rewards, or enemies through unexplored fog', () => {
     expect(formatTerrainScanner({
       tile: {type:'ore', ore:{name:'Gold', color:'#ffd65c', value:70, min:152, max:602, chance:.04}, hp:7, maxHp:7},

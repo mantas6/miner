@@ -86,8 +86,26 @@ export const HULL = Object.freeze({
    * and lethal to a ship that was already limping home.
    */
   dynamiteBlast: 35,
-  hazardBase: 3.5,
+  /**
+   * Magma is charged per pocket, not per hit (`magmaHitDamage` in `danger.ts`):
+   * the hit that breaks into an untouched pocket takes the burst,
+   * `hazardBase + floor(row / hazardDepthDivisor)`, and every hit after it to vent
+   * the rest only the tail, `hazardTail.base + floor(row / hazardTail.depthDivisor)`.
+   * A pocket's hp still climbs with depth (`TERRAIN.hazard`), so a weak drill pays
+   * more tail hits — but never the old burst per hit. Whole pockets (burst + tail ×
+   * later hits; the old per-hit rule in brackets):
+   *
+   *   1500 m (hp 7):  drill 1 → 15 (31.5) · drill 1.75 → 12 (18) · drill 3.5 → 10 (9)
+   *   4000 m (hp 11): drill 1.75 → 24 (52.5) · drill 3.75 → 16 (22.5) · drill 10 → 14 (15)
+   *   5400 m (hp 14): drill 3.75 → 20 (38) · drill 10 → 16 (19)
+   *   7000 m (hp 17): drill 3.75 → 28 (57.5) · drill 10 → 19 (23)
+   *
+   * So a top drill is never immune and a starter drill is never shredded;
+   * `danger.test.ts` pins the curve.
+   */
+  hazardBase: 8,
   hazardDepthDivisor: 90,
+  hazardTail: Object.freeze({ base: 1, depthDivisor: 300 }),
   enemyBite: Object.freeze({
     base: 6,
     perDepth: 70,

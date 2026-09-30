@@ -23,7 +23,7 @@ import { appendToast, buildObservation, MAX_VIEW_RADIUS, VIEW_LEGEND } from './o
 import { createReadouts } from '../game/readouts';
 import { createAudioStub, createEnemySimStub, createFakeGrid } from '../game/test-support';
 import { nth } from '../test-narrowing';
-import { EXTRACTOR_FUEL_ORDER, SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, supplyPrice } from '../core/trading';
+import { EXTRACTOR_FUEL_ORDER, SUPPLY_POOL, extractorFuelOrder, fuelPurchase, fuelUnitPrice, hullRepair, supplyPrice } from '../core/trading';
 
 /** A tile grid backed by a map; anything unset reads as plain dirt. */
 function tileSource(overrides: Record<string, Tile>) {
@@ -497,6 +497,30 @@ describe('buildObservation', () => {
     // Travel mode echoes the source name for rename feedback, and maps depth.
     expect(overlay.name).toBe('Home');
     expect(overlay.destinations).toEqual([{x: 20, y: 200, name: 'Depot', depth: 180, distance: 208}]);
+  });
+
+  it('quotes the travel list\'s hull repair from the live hull and the wallet, and only in travel mode', () => {
+    const state = createInitialState();
+    const base = uiStore.getState();
+    const travel: UiState['overlay'] = {kind: 'portal', portal: {mode: 'travel', source: {x: 48, y: 20, name: 'Home'}, destinations: []}};
+    const repairOf = (cash: number, overlay: UiState['overlay'] = travel) => {
+      const mirrored = buildObservation({state, ui: ui({overlay, hud: {...base.hud, cash}}), get: tileSource({})}).overlay;
+      if (mirrored?.kind !== 'portal') throw new Error('expected portal overlay');
+      return mirrored.repair;
+    };
+
+    // A whole hull shows no repair row.
+    expect(repairOf(1000)).toBeNull();
+
+    state.player.hull = 40;
+    expect(repairOf(1000)).toEqual({missing: 60, amount: 60, cost: 144, affordable: true});
+    expect(repairOf(1000)).toEqual({missing: 60, ...hullRepair(40, state.player.hullMax, 1000), affordable: true});
+    // A thin wallet quotes the part it covers; an empty one, nothing.
+    expect(repairOf(30)).toEqual({missing: 60, amount: 12, cost: 28, affordable: true});
+    expect(repairOf(0)).toEqual({missing: 60, amount: 0, cost: 0, affordable: false});
+
+    // Away from a portal (a teleporter list) there is no repair at all.
+    expect(repairOf(1000, {kind: 'portal', portal: {mode: 'teleporter', destinations: []}})).toBeUndefined();
   });
 
   it('mirrors the portal overlay in teleporter and respawn modes', () => {

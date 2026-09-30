@@ -153,6 +153,46 @@ describe('portal overlay', () => {
     expect(document.getElementById('portalList')?.textContent).toContain('Every portal is within reach.');
   });
 
+  /** Put the HUD's hull and wallet where a repair test needs them. */
+  function vitals(hull: number, hullMax: number, cash: number): void {
+    act(() => {
+      uiStore.setState({hud: {...uiStore.getState().hud, hull, hullMax, cash}});
+    });
+  }
+
+  it('offers a paid hull repair in travel mode while the hull is short, and presses it', () => {
+    const repairHullAtPortal = vi.fn();
+    setUiCommands({repairHullAtPortal});
+    open();
+    vitals(40, 100, 1000);
+
+    const button = document.getElementById('portalRepairBtn') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    // 60 points at the post kit rate ($2.40 a point).
+    expect(button.textContent).toBe('$144');
+    expect(button.getAttribute('aria-label')).toBe('Repair hull +60 for $144');
+    fireEvent.click(button);
+    expect(repairHullAtPortal).toHaveBeenCalledOnce();
+
+    // A thin wallet quotes the part it covers; an empty one leaves the button dead.
+    vitals(40, 100, 30);
+    expect(button.getAttribute('aria-label')).toBe('Repair hull +12 for $28');
+    vitals(40, 100, 0);
+    expect(button.disabled).toBe(true);
+    expect(button.parentElement?.textContent).toContain('$2.40 a hull point');
+  });
+
+  it('hides the repair while the hull is whole, and outside travel mode', () => {
+    open();
+    vitals(100, 100, 1000);
+    expect(document.getElementById('portalRepairBtn')).toBeNull();
+
+    cleanup();
+    open({mode: 'teleporter', source: undefined});
+    vitals(40, 100, 1000);
+    expect(document.getElementById('portalRepairBtn')).toBeNull();
+  });
+
   it('is not built until opened', () => {
     render(<PortalScreen />);
     expect(document.getElementById('portal-card')).toBeNull();

@@ -51,3 +51,37 @@ export function expandReachableAir(
 
   return [...exposed.values()];
 }
+
+/**
+ * How close, in tiles (Manhattan, the distance enemies aggro and bite by), a ship
+ * has to come to a dormant cocoon to wake it — provided the cocoon has a way out
+ * to it (`cocoonsInWakeRadius`). Two tiles gives a hatching fiend one step of
+ * warning before it is alongside, instead of being drilled out asleep.
+ */
+export const COCOON_WAKE_RADIUS = 2;
+
+/**
+ * The dormant cocoons within `radius` (Manhattan) of `center` that have a
+ * reachable air path: at least one side opens onto air already known connected to
+ * the ship (`reachableAir`). A cocoon sealed in dirt or rock — however close — has
+ * no way out and stays asleep; only drilling next to it (or into it) changes that.
+ * Rows missing from `world` (not generated yet) hold nothing to wake.
+ */
+export function cocoonsInWakeRadius(
+  world: Tile[][],
+  reachableAir: ReadonlySet<string>,
+  center: TileCoordinate,
+  radius = COCOON_WAKE_RADIUS
+): TileCoordinate[] {
+  const woken: TileCoordinate[] = [];
+  for (let dy = -radius; dy <= radius; dy++) {
+    const reach = radius - Math.abs(dy);
+    for (let dx = -reach; dx <= reach; dx++) {
+      const x = center.x + dx;
+      const y = center.y + dy;
+      if (world[y]?.[x]?.type !== 'enemy') continue;
+      if (DIRECTIONS.some(([ox, oy]) => reachableAir.has(key(x + ox, y + oy)))) woken.push({x, y});
+    }
+  }
+  return woken;
+}

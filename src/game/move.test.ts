@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DECOR_HP, ORES, START_Y, WORLD_W } from '../../shared/constants';
 import { FUEL, HULL, STARTING } from '../core/balance';
+import { magmaHitDamage, magmaPocketDamage } from '../core/danger';
 import { addOre, countItem, countOres, createInventory, oreKind } from '../core/inventory';
 import { createInitialState } from '../core/state';
 import type { Enemy, GameState, Tile } from '../core/types';
@@ -80,7 +81,8 @@ describe('flying through open space', () => {
     expect(h.state.player).toMatchObject({x: 11, y: 40, facing: 1, bob: 1});
     expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - FUEL.baseMove * FUEL.flyMult);
     expect(h.revealAtPlayer).toHaveBeenCalled();
-    expect(h.enemies.wakeEnemiesNear).toHaveBeenCalledWith(11, 40);
+    // Arriving is what the wake radius hangs off: every step checks for cocoons in reach.
+    expect(h.enemies.wakeNearShip).toHaveBeenCalledOnce();
   });
 
   it('records a new depth record in metres', () => {
@@ -455,22 +457,52 @@ describe('hazards and hostile tiles', () => {
     expect(h.state.player.y).toBe(40);
     expect(h.state.player.fuel).toBeCloseTo(STARTING.fuel - DIG_COST(0, 1));
     expect(h.grid.writes).toHaveLength(0);
+    // The toast names what the bump cost.
+    expect(h.toasts.last).toBe(`Solid rock — hull −${HULL.rockBump}.`);
   });
 
-  it('scorches the hull per magma hit and vents the pocket on the last one', () => {
+  it('scorches the hull once on breaching a magma pocket, then a small tail per hit, and vents it on the last', () => {
     const h = harness();
     h.state.player.drill = 1;
-    h.grid.put(10, 41, {type: 'hazard', hp: 2, maxHp: 2});
+    h.grid.put(10, 41, {type: 'hazard', hp: 3, maxHp: 3});
 
     h.movement.move(0, 1);
-    expect(h.damage).toHaveBeenCalledWith(HULL.hazardBase + Math.floor(41/HULL.hazardDepthDivisor));
-    expect(h.grid.get(10, 41)).toMatchObject({type: 'hazard', hp: 1});
+    expect(h.damage).toHaveBeenLastCalledWith(magmaHitDamage(41, true));
+    expect(magmaHitDamage(41, true)).toBe(HULL.hazardBase + Math.floor(41/HULL.hazardDepthDivisor));
+    expect(h.grid.get(10, 41)).toMatchObject({type: 'hazard', hp: 2});
 
     h.movement.move(0, 1);
+    expect(h.damage).toHaveBeenLastCalledWith(magmaHitDamage(41, false));
+    h.movement.move(0, 1);
+    expect(h.damage).toHaveBeenLastCalledWith(magmaHitDamage(41, false));
     expect(h.grid.get(10, 41)).toEqual({type: 'air'});
     // Venting clears the tile but does not carry the ship into it.
     expect(h.state.player.y).toBe(40);
-    expect(h.damage).toHaveBeenCalledTimes(2);
+    expect(h.damage).toHaveBeenCalledTimes(3);
+    const total = h.damage.mock.calls.reduce((sum, [amount]) => sum + (amount as number), 0);
+    expect(total).toBe(magmaPocketDamage(41, 3));
+  });
+
+  it('charges only the tail on a pocket some earlier hit already breached', () => {
+    const h = harness();
+    h.state.player.drill = 1;
+    h.grid.put(10, 41, {type: 'hazard', hp: 2, maxHp: 5});
+
+    h.movement.move(0, 1);
+
+    expect(h.damage).toHaveBeenCalledWith(magmaHitDamage(41, false));
+  });
+
+  it('reads the rock beneath for the input layer\'s landing lock', () => {
+    const h = harness();
+    h.grid.put(10, 41, {type: 'rock', hp: 999});
+    h.grid.put(11, 40, dirt(2));
+
+    expect(h.movement.isRockDestination(0, 1)).toBe(true);
+    expect(h.movement.isRockDestination(1, 0)).toBe(false);
+    // A live enemy standing on it is fought, not bumped.
+    h.enemies.standingEnemy = liveEnemy(10, 41);
+    expect(h.movement.isRockDestination(0, 1)).toBe(false);
   });
 
   it('routes a dormant cocoon to the enemy simulation instead of digging it out', () => {

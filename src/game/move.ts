@@ -8,6 +8,7 @@
 
 import { WORLD_W, rowDepthMeters } from '../../shared/constants';
 import { FUEL, HULL } from '../core/balance';
+import { magmaHitDamage } from '../core/danger';
 import { decorKindForId } from '../core/decor';
 import { addItem, addOre, isFull } from '../core/inventory';
 import { itemForKind } from '../core/items';
@@ -68,6 +69,8 @@ export interface GameMovement {
   move(dx: number, dy: number, sprinting?: boolean): MoveResult;
   /** Whether the ship would fly (not drill) into this direction's destination. */
   isOpenMovementDestination(dx: number, dy: number): boolean;
+  /** Whether this direction's destination is solid rock, which a move only bumps. */
+  isRockDestination(dx: number, dy: number): boolean;
 }
 
 export interface GameMovementDeps {
@@ -98,6 +101,14 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     return isOpenSpaceDestination(nx !== p.x || ny !== p.y, grid.get(nx, ny), Boolean(enemies.enemyAt(nx, ny)));
   }
 
+  function isRockDestination(dx: number, dy: number): boolean {
+    const p = state.player;
+    const {x: nx, y: ny} = movementDestination(p.x, p.y, dx, dy, WORLD_W);
+    if (nx === p.x && ny === p.y) return false;
+    // A live enemy standing on it is fought, not bumped.
+    return grid.get(nx, ny).type === 'rock' && !enemies.enemyAt(nx, ny);
+  }
+
   function flyThroughAir(_tile: AirTile, {dy, useFuel, flyCost}: MoveContext): MoveOutcome {
     useFuel(flyCost);
     if (performance.now() - audio.lastMove > 120) {
@@ -113,7 +124,7 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     useFuel(dig(0));
     spawnDust(nx, ny, '#444857', 8);
     audio.bump();
-    toast('Solid rock blocks the drill.');
+    toast(`Solid rock — hull −${HULL.rockBump}.`);
     return 'bumped';
   }
 
@@ -126,9 +137,11 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
 
   function drillHazard(tile: HazardTile, {dx, dy, nx, ny, player, useFuel, dig}: MoveContext): MoveOutcome {
     player.drillDx = dx; player.drillDy = dy; player.drillAnim = 1.65;
+    // The first hit into an untouched pocket takes the burst; the rest only the tail.
+    const breaches = tile.hp >= tile.maxHp;
     tile.hp -= player.drill;
     useFuel(dig(FUEL.dig.hazard));
-    damage(HULL.hazardBase + Math.floor(ny/HULL.hazardDepthDivisor));
+    damage(magmaHitDamage(ny, breaches));
     spawnDust(nx, ny, '#ff5f24', 18);
     audio.alarm();
     if (tile.hp <= 0) {
@@ -236,7 +249,9 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     deps.scheduleSave();
     deps.revealAtPlayer();
     state.stats.maxDepth = Math.max(state.stats.maxDepth, rowDepthMeters(p.y));
-    enemies.wakeEnemiesNear(p.x, p.y);
+    // Every cocoon within the wake radius with a way out to the ship hatches now,
+    // not only once the drill reaches it.
+    enemies.wakeNearShip();
   }
 
   /**
@@ -302,5 +317,5 @@ export function createMovement(deps: GameMovementDeps): GameMovement {
     return result;
   }
 
-  return {move, isOpenMovementDestination};
+  return {move, isOpenMovementDestination, isRockDestination};
 }

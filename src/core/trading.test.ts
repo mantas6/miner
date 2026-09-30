@@ -8,12 +8,15 @@ import { tileKey } from '../../shared/tile-key';
 import { RECIPES } from './crafting';
 import { itemForKind } from './items';
 import { oreKind } from './inventory';
-import { EXTRACTOR } from './balance';
+import { EXTRACTOR, HULL } from './balance';
+import { nth } from '../test-narrowing';
 import {
   EXTRACTOR_FUEL_ORDER,
   FUEL_DEPTH_METERS,
   FUEL_TRADE_MARKUP,
   HOME_SUPPLY_MARKUP,
+  POST_REPAIR_KIT,
+  POST_REPAIR_KIT_STOCK,
   SUPPLY_POOL,
   TRADING_MARKUP,
   buyPrice,
@@ -21,6 +24,8 @@ import {
   extractorFuelOrderPrice,
   fuelPurchase,
   fuelUnitPrice,
+  hullRepair,
+  hullRepairPointPrice,
   isSupplyKind,
   offersForPost,
   postFuelUnitPrice,
@@ -75,20 +80,35 @@ describe('offersForPost', () => {
     expect(offersForPost(12, 512)).toEqual(offersForPost(12, 512));
   });
 
-  it('offers two or three wares, each with a 1–3 stock and a positive price', () => {
+  it('offers two or three rolled wares beside the kit shelf, each with a 1–3 stock and a positive price', () => {
     for (const [x, y] of [[40, DEEP], [7, 320], [61, 640], [20, SHALLOW]] as const) {
-      const offers = offersForPost(x, y);
-      expect(offers.length).toBeGreaterThanOrEqual(2);
-      expect(offers.length).toBeLessThanOrEqual(3);
-      for (const offer of offers) {
+      const [, ...rolled] = offersForPost(x, y);
+      expect(rolled.length).toBeGreaterThanOrEqual(2);
+      expect(rolled.length).toBeLessThanOrEqual(3);
+      for (const offer of rolled) {
         expect(offer.stock).toBeGreaterThanOrEqual(1);
         expect(offer.stock).toBeLessThanOrEqual(3);
         expect(offer.price).toBeGreaterThan(0);
         expect(offer.label).toBe(itemForKind(offer.kind).label);
       }
-      // No kind is offered twice.
+      // No kind is offered twice — the kit is never rolled on top of its shelf.
+      const offers = offersForPost(x, y);
       expect(new Set(offers.map(o => o.kind)).size).toBe(offers.length);
     }
+  });
+
+  it('stocks two Repair Kits at every post, first on the list, whatever it rolls', () => {
+    expect(POST_REPAIR_KIT).toBe('repairKit');
+    expect(POST_REPAIR_KIT_STOCK).toBe(2);
+    // Every post along a shallow and a deep row, and the shallowest row a post may stand on.
+    for (const y of [SHALLOW, START_Y + 40, DEEP, START_Y + 900]) {
+      for (let x = 2; x < 80; x += 3) {
+        const offers = offersForPost(x, y);
+        expect(offers[0]).toEqual({kind: 'repairKit', label: 'Repair Kit', price: buyPrice('repairKit'), stock: 2});
+        expect(offers.filter(offer => offer.kind === 'repairKit')).toHaveLength(1);
+      }
+    }
+    expect(nth(offersForPost(40, DEEP), 0).price).toBe(60);
   });
 
   it('restricts a shallow post to the base tier, and lets a deep post reach upgrades', () => {
@@ -191,6 +211,33 @@ describe('fuel for cash', () => {
     expect(extractorFuelOrderPrice()).toBe(Math.round(EXTRACTOR_FUEL_ORDER * fuelUnitPrice()));
     expect(extractorFuelOrderPrice()).toBe(29);
     expect(extractorFuelOrder(0, 10_000).cost).toBe(extractorFuelOrderPrice());
+  });
+});
+
+describe('hull repairs at a portal', () => {
+  it('prices a hull point so a kit\'s worth of repair costs what a post\'s kit does', () => {
+    // A Scout's kit restores 25 of 100 hull for $60: $2.40 a point.
+    expect(hullRepairPointPrice(100)).toBeCloseTo(2.4);
+    for (const hullMax of [100, 125, 200, 450]) {
+      expect(hullRepairPointPrice(hullMax) * hullMax * HULL.repairKitFraction).toBeCloseTo(buyPrice('repairKit'));
+      // A full repair from nothing is four kits, whatever the hull.
+      expect(hullRepair(0, hullMax, 1e9).cost).toBe(Math.floor(buyPrice('repairKit') / HULL.repairKitFraction));
+    }
+    expect(hullRepairPointPrice(0)).toBe(0);
+  });
+
+  it('patches the whole gap a wallet covers, or as many whole points as it can', () => {
+    expect(hullRepair(40, 100, 1000)).toEqual({amount: 60, cost: 144});
+    expect(hullRepair(40, 100, 30)).toEqual({amount: 12, cost: 28});
+    // A fractional gap is patched exactly.
+    expect(hullRepair(61.5, 100, 1000)).toEqual({amount: 38.5, cost: 92});
+  });
+
+  it('repairs nothing for a whole hull, an empty wallet, or a hull-less ship', () => {
+    expect(hullRepair(100, 100, 1000)).toEqual({amount: 0, cost: 0});
+    expect(hullRepair(99.5, 100, 1000)).toEqual({amount: 0, cost: 0});
+    expect(hullRepair(40, 100, 2)).toEqual({amount: 0, cost: 0});
+    expect(hullRepair(0, 0, 1000)).toEqual({amount: 0, cost: 0});
   });
 });
 

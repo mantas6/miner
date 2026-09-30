@@ -141,6 +141,34 @@ describe('terrain scanner readout', () => {
     game.state.player.drillDy = 1;
     expect(game.sync().scanner).toBe('Scanner ↓: clear route.');
   });
+
+  it('looks one tile past known dirt, through the fog, without mapping it', () => {
+    const game = setup();
+    game.descend(2);
+    const {x, y} = game.state.player;
+    const behind = explorationIndex(x, y + 2);
+    // The tile behind the target is fogged, and magma.
+    game.state.exploredTiles.delete(behind);
+    game.grid.put(x, y + 2, {type: 'hazard', hp: 7, maxHp: 7});
+    expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 3 hits, then magma.');
+    expect(game.state.exploredTiles.has(behind)).toBe(false);
+
+    // The pocket vents (or anything else changes there): the line follows.
+    game.grid.put(x, y + 2, {type: 'air'});
+    expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 3 hits, then open air.');
+
+    // A fogged target says nothing of what lies behind it.
+    game.state.exploredTiles.delete(explorationIndex(x, y + 1));
+    expect(game.sync().scanner).toBe('Scanner ↓: unexplored — advance to map terrain.');
+  });
+
+  it('keeps a cocoon behind the target secret, as it is up close', () => {
+    const game = setup();
+    game.descend(2);
+    const {x, y} = game.state.player;
+    game.grid.put(x, y + 2, {type: 'enemy', kind: 'tunnelFiend', hp: 4, maxHp: 4});
+    expect(game.sync().scanner).toBe('Scanner ↓: dirt — drillable, 3 hits.');
+  });
 });
 
 describe('trading-post beacon', () => {

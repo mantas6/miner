@@ -1,5 +1,6 @@
 // The portal network at runtime: opening the travel list, jumping between built
-// portals, spending a carried teleporter, renaming, and the lost-ship respawn.
+// portals, spending a carried teleporter, renaming, the paid hull repair at the
+// portal the ship is parked at, and the lost-ship respawn.
 //
 // `core/portal.ts` holds the pure rules — which portals a tile can reach, how a
 // raw rename is sanitized, which portals a lost ship may redeploy at — and
@@ -25,6 +26,7 @@ import {
   type PortalDestination
 } from '../core/portal';
 import { homeStoredFuel, respawnVitals } from '../core/state';
+import { hullRepair, hullRepairPointPrice } from '../core/trading';
 import type { PortalStation } from '../core/stations';
 import { TELEPORTER_ITEM, createTeleportEffect, movePlayerTo } from '../core/teleporter';
 import type { AudioController, GameState } from '../core/types';
@@ -50,6 +52,11 @@ export interface PortalsSim {
   rename(name: string): void;
   /** Travel to a listed destination; refuses coordinates not on the current list. */
   travelTo(x: number, y: number): boolean;
+  /**
+   * Patch the hull for cash at the portal the travel list hangs off: as much of
+   * the missing hull as the wallet covers (`hullRepair`). Travel mode only.
+   */
+  repairHull(): void;
   /** One fixed 60 Hz step: close if the source portal was lifted (never in respawn). */
   tick(): void;
 }
@@ -66,6 +73,10 @@ export interface PortalsDeps {
   setPortalUi(view: PortalView | null, quiet?: boolean): void;
   /** Reveal the fog footprint around the ship after a jump. */
   revealAtPlayer(): void;
+  /** Wake the cocoons in reach of the ship where a jump set it down. */
+  wakeNearShip(): void;
+  /** Move the wallet (negative to spend) for a hull repair; the caller saves. */
+  addCash(amount: number): void;
 }
 
 export function createPortalsSim(deps: PortalsDeps): PortalsSim {
@@ -175,6 +186,9 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     state.camX = Math.max(0, p.x - Math.floor(viewport.tilesX / 2));
     state.camY = Math.max(0, p.y - Math.floor(viewport.tilesY / 2));
     deps.revealAtPlayer();
+    // A jump lands in air the exposure pass may never have walked: whatever is
+    // curled up within reach of the landing wakes now, not only once it is drilled.
+    deps.wakeNearShip();
     saveProgress();
   }
 
@@ -211,6 +225,23 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     return true;
   }
 
+  function repairHull(): void {
+    if (mode !== 'travel' || !source || state.gameOver) return;
+    const p = state.player;
+    const {amount, cost} = hullRepair(p.hull, p.hullMax, state.cash);
+    if (amount <= 0) {
+      audio.alarm();
+      return toast(p.hullMax - p.hull < 1
+        ? 'Hull is already whole.'
+        : `Not enough cash for a repair ($${hullRepairPointPrice(p.hullMax).toFixed(2)} a hull point).`);
+    }
+    deps.addCash(-cost);
+    p.hull = Math.min(p.hullMax, p.hull + amount);
+    saveProgress();
+    audio.repair();
+    toast(`Hull repaired +${Math.round(amount)} for $${cost}.`);
+  }
+
   function tick(): void {
     if (!mode) return;
     // The respawn prompt never auto-closes, even though a death has set gameOver.
@@ -230,6 +261,7 @@ export function createPortalsSim(deps: PortalsDeps): PortalsSim {
     close,
     rename,
     travelTo,
+    repairHull,
     tick
   };
 }

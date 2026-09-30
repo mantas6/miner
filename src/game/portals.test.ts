@@ -5,8 +5,9 @@
 // The pure rules (which portals a tile reaches, how a name is sanitized) live in
 // core/portal.ts; what is checked here is the wiring — a jump moves the ship and
 // saves, a teleporter jump spends exactly one charge, an unlisted target is
-// refused, a rename persists, a lifted source closes the list, and the respawn
-// prompt never closes itself but hands its pick to the callback.
+// refused, a rename persists, a paid repair patches the hull for cash, a lifted
+// source closes the list, and the respawn prompt never closes itself but hands
+// its pick to the callback.
 
 import { describe, expect, it, vi } from 'vitest';
 import { addItem, countItem, createInventory } from '../core/inventory';
@@ -14,6 +15,7 @@ import { createInitialState } from '../core/state';
 import { STATIONS } from '../../shared/constants';
 import { createExtractor, createPortal, type PortalStation } from '../core/stations';
 import { TELEPORTER_ITEM } from '../core/teleporter';
+import { hullRepair } from '../core/trading';
 import type { GameState } from '../core/types';
 import type { PortalView } from '../ui/store';
 import { createPortalsSim, type PortalsSim } from './portals';
@@ -27,6 +29,7 @@ interface Harness {
   toasts: ReturnType<typeof createToastLog>;
   saveProgress: ReturnType<typeof vi.fn>;
   revealAtPlayer: ReturnType<typeof vi.fn>;
+  wakeNearShip: ReturnType<typeof vi.fn>;
   views: (PortalView | null)[];
   /** The `quiet` flag of each `setPortalUi` call, in step with `views`. */
   quiet: (boolean | undefined)[];
@@ -43,6 +46,7 @@ function harness(): Harness {
     toasts: createToastLog(),
     saveProgress: vi.fn(),
     revealAtPlayer: vi.fn(),
+    wakeNearShip: vi.fn(),
     views,
     quiet
   };
@@ -52,7 +56,9 @@ function harness(): Harness {
     toast: context.toasts.toast,
     saveProgress: context.saveProgress,
     setPortalUi: (view, silent) => { views.push(view); quiet.push(silent); },
-    revealAtPlayer: context.revealAtPlayer
+    revealAtPlayer: context.revealAtPlayer,
+    wakeNearShip: context.wakeNearShip,
+    addCash: amount => { state.cash += amount; }
   });
   return {...context, sim, lastView: () => views.at(-1) ?? null};
 }
@@ -79,6 +85,8 @@ describe('travelling between portals', () => {
     expect(h.state.player).toMatchObject({x: 50, y: 100, drawX: 50, drawY: 100});
     expect(h.state.teleportEffect).not.toBeNull();
     expect(h.revealAtPlayer).toHaveBeenCalled();
+    // The landing is a place the ship has arrived: cocoons in reach of it wake.
+    expect(h.wakeNearShip).toHaveBeenCalledOnce();
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.toasts.saw('Travelled to "Deep"')).toBe(true);
     // The overlay closes itself once the jump lands — quietly, under the whoosh.
@@ -214,6 +222,70 @@ describe('renaming the source portal', () => {
     h.sim.rename('Nope');
 
     expect(h.state.stations.some(s => s.kind === 'portal' && s.name === 'Nope')).toBe(false);
+  });
+});
+
+describe('repairing the hull at a portal', () => {
+  it('patches the whole gap for cash at the posts\' kit rate, and saves', () => {
+    const h = harness();
+    h.sim.openTravel(homePortal(h.state));
+    Object.assign(h.state.player, {hull: 40, hullMax: 100});
+    h.state.cash = 1000;
+    const quote = hullRepair(40, 100, 1000);
+    // 60 points is 2.4 kits' worth (a kit restores 25): 2.4 × $60 = $144.
+    expect(quote).toEqual({amount: 60, cost: 144});
+
+    h.sim.repairHull();
+
+    expect(h.state.player.hull).toBe(100);
+    expect(h.state.cash).toBe(1000 - 144);
+    expect(h.saveProgress).toHaveBeenCalled();
+    expect(h.audio.played).toEqual(['repair']);
+    expect(h.toasts.saw('Hull repaired +60 for $144')).toBe(true);
+    // The list stays up: a repair is not a jump.
+    expect(h.sim.mode).toBe('travel');
+  });
+
+  it('repairs only as far as a thin wallet reaches', () => {
+    const h = harness();
+    h.sim.openTravel(homePortal(h.state));
+    Object.assign(h.state.player, {hull: 40, hullMax: 100});
+    h.state.cash = 30;
+
+    h.sim.repairHull();
+
+    // $30 at $2.40 a point buys 12 whole points, for $28.
+    expect(h.state.player.hull).toBe(52);
+    expect(h.state.cash).toBe(2);
+  });
+
+  it('refuses a whole hull or an empty wallet, spending nothing', () => {
+    const h = harness();
+    h.sim.openTravel(homePortal(h.state));
+    h.state.cash = 500;
+    h.sim.repairHull();
+    expect(h.state.cash).toBe(500);
+    expect(h.toasts.saw('already whole')).toBe(true);
+
+    Object.assign(h.state.player, {hull: 40});
+    h.state.cash = 0;
+    h.sim.repairHull();
+    expect(h.state.player.hull).toBe(40);
+    expect(h.toasts.saw('Not enough cash for a repair')).toBe(true);
+    expect(h.audio.played).toEqual(['alarm', 'alarm']);
+  });
+
+  it('does nothing outside the travel list', () => {
+    const h = harness();
+    Object.assign(h.state.player, {x: 5, y: 5, hull: 40});
+    h.state.stations = [dugPortal(h.state, 50, 100, 'Deep')];
+    h.state.cash = 500;
+    h.sim.openTeleporter();
+
+    h.sim.repairHull();
+
+    expect(h.state.player.hull).toBe(40);
+    expect(h.state.cash).toBe(500);
   });
 });
 

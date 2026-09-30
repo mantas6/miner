@@ -310,6 +310,7 @@ zooming the camera with the wheel or a trackpad (the `+`/`-` keys zoom too).
 | Open a trading post in reach | `Space` | Press the post tile on the mine |
 | Spend cash: fill the tank at a post, buy Supply at the home station, order fuel into the home extractor | — | Fill tank row / a Supply row / Buy fuel button |
 | Open a portal in reach (its travel list of the other portals) | `Space` | Press the portal tile on the mine |
+| Repair the hull for cash at a portal (while it is short) | — | Repair hull button in the travel list |
 | Read a grave in reach (on it or beside it) | `Space` | Press the grave on the mine |
 | Put a grave's stone away | `Space`, `Enter` or `Escape` | OK button |
 | Ship equipment (fit/unfit upgrades) | — | Ship button |
@@ -464,7 +465,8 @@ and drill out as usual.
 - **Portal.** The `Home` portal is the near end of the travel network. Open it to
   see the travel list of every other built portal — name, depth and distance — and
   press a row to jump the ship there for free. Rename it from the text input in the
-  travel screen (up to 16 characters). It is also a respawn point: a lost ship can
+  travel screen (up to 16 characters). While the hull is short, the travel screen
+  also offers **Repair hull** for cash (see "Portals" below). It is also a respawn point: a lost ship can
   redeploy here (see "Death and redeploying"). Portals are placed entities like the
   other stations (see "Crafting & ship equipment").
 
@@ -491,9 +493,11 @@ open it.
 - **Sell.** A post buys any ore at the ore table's own `value`, with no limit — the
   Sell column lists the ore aboard, whole-stack or one at a time, and the takings
   land in your cash.
-- **Buy.** A post stocks 2–3 finished items drawn from a depth-tiered pool (repair
-  kit, dynamite, scanner, container, then upgrades, the toolkit and the teleporter
-  deeper), each with a small stock of 1–3. A buy price is the item recipe's
+- **Buy.** Every post keeps a Repair Kit shelf — two kits, first on the list
+  (`POST_REPAIR_KIT_STOCK`) — so a hurt ship that finds any post can patch up. Beside
+  it a post stocks 2–3 finished items drawn from a depth-tiered pool (dynamite,
+  scanner, container, then upgrades, the toolkit and the teleporter deeper), each
+  with a small stock of 1–3. A buy price is the item recipe's
   ore-value marked up ×1.5 (`TRADING_MARKUP` in `src/core/trading.ts`), so it is
   always sane against the ore you sell to afford it. A buy is refused when the wallet
   is short, the offer is sold out, or the bay is full.
@@ -596,8 +600,9 @@ eight around it, and only once it is explored.
   returns the Scout. Bigger hulls draw ~4% larger
   per rung, each in its own colour. The Ship screen's heading names the hull and its
   slot count.
-- The **Repair Kit** is crafted, carried in the bay, and spent from its own slot to
-  patch 25% of the hull maximum; it is refused at a full hull.
+- The **Repair Kit** is crafted (or bought — every trading post keeps two, and the
+  home Supply sells them), carried in the bay, and spent from its own slot to patch
+  25% of the hull maximum; it is refused at a full hull.
 - The **Fuel Cell** is crafted two at a time from one Uranium, carried in the bay,
   and spent from its own slot to fill the tank to full anywhere in the mine; it is
   refused while the tank is already full.
@@ -642,7 +647,14 @@ eight around it, and only once it is explored.
   name, renameable up to 16 characters from the travel screen. Open one (press its
   tile, or `Space` alongside it) to see the travel list of every other built portal
   and jump the ship there for free; a portal is also a respawn point for a lost ship
-  (see "Death and redeploying").
+  (see "Death and redeploying"). The travel screen of any portal, `Home` included,
+  patches the hull for cash while it is short: **Repair hull** restores as much of
+  the missing hull as the wallet covers, at the rate a trading post's Repair Kits
+  work out to (`hullRepair`, `hullRepairPointPrice` in `src/core/trading.ts`: a
+  kit's $60 over the 25% of the hull maximum it restores, so a full repair from
+  nothing is four kits' worth, $240, whatever the hull). The convenience — no bay
+  slot, no trip to a post, any amount — is the portal's reward; the price never
+  undercuts the kits.
 - **Trading posts** (`src/core/trading.ts`, `src/game/trading.ts`) stand in cleared
   air pockets deep in the mine, derived from their coordinate in `src/world/world.ts`
   rather than stored. Open one to sell ore for cash at the ore table's value, buy
@@ -674,7 +686,11 @@ eight around it, and only once it is explored.
   measured climbs cost about the clear-flight price), turning to caution within
   1.5× of it, and the fuel gauge names the
   exit ("12 left after reaching Portal "Deep""). The scanner reads the tile the
-  drill is aimed at, and the depth readout counts down to the next landmark and
+  drill is aimed at — and, when that tile is known dirt, looks one tile further
+  along the drill line, through the fog, and names anything but more dirt behind it
+  ("Scanner ↓: dirt — drillable, 3 hits, then magma."). The map's fog is left as it
+  is, a cocoon still passes for dirt, and the lookahead never points upward, where
+  the drill cannot dig. The depth readout counts down to the next landmark and
   toasts when you first dive past one. The toasts count across the whole career:
   a seam some earlier ship already reached, or one a portal jump skipped past,
   stays quiet.
@@ -688,16 +704,28 @@ eight around it, and only once it is explored.
 - Rock, magma pockets, depth, and enemies make deeper mining more dangerous:
   Tunnel Fiends first, then Skitterlings, Ironbacks, and Abyss Stalkers. They are
   drawn as rusted, haunted versions of the player's own ship.
-- Enemies wake when exposed nearby; drill them before they chew through the hull.
-  Fight from above in a one-tile shaft; an awake biter above you can still be
-  drilled by holding Up into it — only a dormant cocoon overhead is out of reach,
-  since the drill never digs upward.
-- Magma damage is per hit, so a stronger drill that vents a pocket in fewer hits
-  takes less of it. Climbing an open shaft is cheap and falling is free: drilling
-  is what burns the tank.
+- Enemies wake when a tunnel opens onto their cocoon, and when the ship comes
+  within 2 tiles (Manhattan, `COCOON_WAKE_RADIUS` in `src/core/enemy-exposure.ts`)
+  of one with a reachable air path out to it — checked after every step and every
+  portal or teleporter jump — so a cocoon beside the shaft hatches before the drill
+  gets to it rather than being drilled out asleep for its bounty. A cocoon sealed in
+  dirt stays asleep until it is drilled; the bounty is paid either way. Drill them
+  before they chew through the hull. Fight from above in a one-tile shaft; an awake
+  biter above you can still be drilled by holding Up into it — only a dormant
+  cocoon overhead is out of reach, since the drill never digs upward.
+- Magma is charged per pocket (`magmaHitDamage` in `src/core/danger.ts`, curve
+  documented at `HULL.hazardBase`): the hit that breaks into an untouched pocket
+  scorches the hull once — 9 at the first pockets (≈1490 m), rising with depth —
+  and each further hit to vent it only a small tail (1, rising slowly), so a top
+  drill is never immune (≈19 a pocket at 7000 m, drill 10) and a starter drill is
+  never shredded (≈15 at 1500 m, drill 1). Climbing an open shaft is cheap and
+  falling is free: drilling is what burns the tank.
+- A rock bump costs 4 hull, and its toast says so ("Solid rock — hull −4."). A held
+  key bumps once, then stops; a held Down that falls onto rock stops on it without
+  the bump at all. Only a fresh press into the rock bumps again.
 - The HUD objective walks a ladder, first match wins (`src/core/objective.ts`):
   refuel at the cheapest exit; patch a low hull (a Repair Kit aboard, in stock, or
-  crafted/bought at home or a trading post); unload a full bay; feed a dry base —
+  crafted/bought at home or at any trading post, each of which stocks them); unload a full bay; feed a dry base —
   coal while the career is shallower than Coal grows, a fuel order past it; fit or
   salvage upgrades; the first upgrade; a Mk II, then a Mk III; the next hull once
   half its bill is in the Manufacturer's stock ("build the Prospector … (still
@@ -984,7 +1012,8 @@ trading post (`data-trade` with values `sell`/`sell-one`/`buy` and a `data-trade
 — an `ore:*` kind to sell, a catalog item kind to buy — `tradeFuelBtn` to fill the
 tank, `tradeCloseBtn`), the
 portal travel/teleporter/respawn screen (`data-portal` with the destination `"x,y"`
-as its value, `portalNameInput`, `portalNameSaveBtn`, `portalCloseBtn`), the
+as its value, `portalNameInput`, `portalNameSaveBtn`, `portalRepairBtn` — the paid
+hull repair, in travel mode while the hull is short — `portalCloseBtn`), the
 info tabs (`data-info-section`, `infoCloseBtn`), the Settings tab
 (`data-info-section=info-settings`: `settingsMusicBtn`, `settingsSfxBtn`,
 `cheatsToggleBtn`, the valueless cheat grants `data-developer-grant-ores` and
@@ -1011,10 +1040,10 @@ what a sighted player sees, as JSON. The top-level shape:
 - `bay`: the cargo bay as `{kind, label, count}` stacks (lean — no `info`); `armedPlacement`: the item armed for placement, or `null`
 - `placement`: while a placeable device is armed, `{kind, target, valid, sites[]}` — the valid `sites` the canvas grid tints green around the ship, and the hovered/last-pressed `target` tile with whether the device fits there (`null` with no target); `null` when nothing placeable is armed (the toolkit included)
 - `audio`: `{music, sfx, musicLabel, sfxLabel}` — the two switches and the tooltips their buttons carry (the next action, or why sound is blocked; the accessible names stay a fixed "Music" / "Sound effects"); `runtime`: `{status, error}` — `booting`/`ready`/`failed` and the failure notice's detail
-- `hud`: `{cash, objective, scanner, postHint, fuelReserve{status, needed, margin, exit}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, nextShip{id, label, missing}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `fuelReserve` prices the flight to the cheapest exit, which `exit` names (`"Home"` or a field portal such as `"Portal \"Deep\""`): `needed` is the fuel that trip costs and `margin` what is left after it; `postHint` is the trading-post beacon (`"Trading post ≈9 tiles ↙"` for the nearest post within 12 tiles, fog ignored; empty when none is near or one is already in reach); `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank (capped at the store's 500), and `null` with no extractor in the home cavern; `nextShip` is the next hull up the ladder and what the first Manufacturer's stock still lacks for it (`missing[{kind, count, label}]`, empty when buildable) — the Shipyard at a glance with no overlay open — or `null` on the top rung
+- `hud`: `{cash, objective, scanner, postHint, fuelReserve{status, needed, margin, exit}, depthTarget{name, kind, remaining}, stationHint, teleport{count, usable}, base{fuel, coal, alert}, nextShip{id, label, missing}, alerts{fuel, hull, cargo}, announcement, inventoryCollapsed}` — `scanner` reads the tile the drill is aimed at, and behind a known-dirt target names what the drill line breaks into next, fog or not (`"Scanner ↓: dirt — drillable, 3 hits, then magma."`; plain dirt behind, or a cocoon, adds nothing); `fuelReserve` prices the flight to the cheapest exit, which `exit` names (`"Home"` or a field portal such as `"Portal \"Deep\""`): `needed` is the fuel that trip costs and `margin` what is left after it; `postHint` is the trading-post beacon (`"Trading post ≈9 tiles ↙"` for the nearest post within 12 tiles, fog ignored; empty when none is near or one is already in reach); `teleport.count` is the charges aboard and `teleport.usable` whether pressing `t` would open the portal list right now; `base` is the home extractor's stored fuel and queued coal, `alert` once the two could no longer fill a tank (capped at the store's 500), and `null` with no extractor in the home cavern; `nextShip` is the next hull up the ladder and what the first Manufacturer's stock still lacks for it (`missing[{kind, count, label}]`, empty when buildable) — the Shipyard at a glance with no overlay open — or `null` on the top rung
 - `view`: `{origin:{x, y}, rows:[…], legend, zoom:{level, min, max}}` — a `2·radius+1`-wide (default 15) by `~11`-tall ASCII grid centred on the ship, and the camera zoom (which the grid does not follow)
 - `notable`: unfogged things worth attention, each `{x, y, what, detail?}` where `what` is `ore | hazard | enemy | container | wreck | chest | grave | scanner | dynamite | station | tradingPost` (a chest's `detail` is its item count, e.g. `"3 items"`; a wreck's adds its lifetime, e.g. `"2 items, crumbles in 2 deaths"`; a grave has none)
-- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base — and `shipyard{current{id, label, slots}, next}`, where `next` is `{id, label, slots, craftable, inputs, missing, gains{fuelMax, hullMax, cargoMax, drill}}` for the one hull `data-craft-ship` can build, or `null` on the top rung), `extractor` (coal, fuel, progress, refuelAmount, `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base — and `fuelPrice`, the home price per unit an order pays, `null` away from the base), `ship` (`ship{id, label, slots}` — the hull the heading names — slots `[{index, kind, label, locked, info}]` — `locked` the hull's last slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck, and `deathsLeft` — the further deaths it takes to crumble it), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, `fuelPrice` — this post's price per unit of fuel, dearer the deeper the post — and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now at that price, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, and `destinations:[{x, y, name, depth, distance}]` — in respawn mode each also carries `respawnFuel`, the absolute fuel the replacement would deploy with there: at home what the extractor's store covers of the base tank (never under half of it), half of it at a field portal), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, galleries, ladder, ores, posts[{x, y, depth}]}` (`galleries` the dig-sideways hint, `ladder` the ship-ladder line, `posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
+- `overlay`: the single open screen mirrored only while it is up — `station` (bay, stock, recipes with `craftable`/`missing`, and `supply[{kind, label, price, affordable, info}]` — the home Supply rows, empty at a station away from the base — and `shipyard{current{id, label, slots}, next}`, where `next` is `{id, label, slots, craftable, inputs, missing, gains{fuelMax, hullMax, cargoMax, drill}}` for the one hull `data-craft-ship` can build, or `null` on the top rung), `extractor` (coal, fuel, progress, refuelAmount, `fuelOrder{amount, cost}` — what `extractorBuyFuelBtn` would buy now, `null` away from the base — and `fuelPrice`, the home price per unit an order pays, `null` away from the base), `ship` (`ship{id, label, slots}` — the hull the heading names — slots `[{index, kind, label, locked, info}]` — `locked` the hull's last slot before any Mk II is crafted — and fittable), `container` (ship, container), `wreck` (ship, wreck, and `deathsLeft` — the further deaths it takes to crumble it), `chest` (ship, chest), `grave` (name, born, died, cause), `trade` (cash, sell offers, buy offers, `fuelPrice` — this post's price per unit of fuel, dearer the deeper the post — and `fuel{unitPrice, amount, cost}` — the fill `tradeFuelBtn` would buy now at that price, `amount` 0 when the tank is full or the wallet short), `portal` (`mode` `travel`/`teleporter`/`respawn`, the `source` portal `{x, y, name}` and echoed `name` in travel mode, `repair{missing, amount, cost, affordable}` in travel mode — the hull short of whole and what `portalRepairBtn` would restore and charge now (a partial repair when the wallet is short; `affordable` whether the press does anything), `null` while the hull is whole — and `destinations:[{x, y, name, depth, distance}]` — in respawn mode each also carries `respawnFuel`, the absolute fuel the replacement would deploy with there: at home what the extractor's store covers of the base tank (never under half of it), half of it at a field portal), or `info` (`tab`, the tablist as `sections:[{id, label}]`, and the visible tab's contents only — `objective{status, cargo}`, `stats`, `prospecting{tip, galleries, ladder, ores, posts[{x, y, depth}]}` (`galleries` the dig-sideways hint, `ladder` the ship-ladder line, `posts` the trading posts found — explored post tiles, shallowest first, depth in metres), `hazards{tip, rows}`, `controls[{keys, action}]`, or `settings{cheatsOpen, confirmingReset, confirmingImport}` plus `saveExport` — the JSON the last **Export save** produced — once there is one) — else `null`. Each item row inside an overlay (station stock/bay, recipes, ship slots/fittable, container, wreck, chest, trade sell/buy, Supply rows) carries an `info: string[]` — the same tooltip lines a human reads on hover; a recipe's `info` also lists each input's `have/need` count. The top-level `bay` omits `info` to stay lean.
 - `toasts`: the last ~10 toast lines, each `{tick, message}` (a bridge-owned ring buffer, since toasts flash and vanish between snapshots)
 
 Fog is honoured: a tile the player has not explored is `?` and never appears in
@@ -1126,7 +1155,7 @@ the boot flow gets from the splash to a live run without the browser complaining
 | `e2e/dialogs.spec.ts` | Ship, station and info dialogs opening with focus inside the dialog; `Escape`, the × button and the backdrop each closing it and restoring focus to the trigger; Tab never escaping into the HUD behind; the info tablist's click and arrow-key navigation; the ship and info overlays handing the screen over rather than stacking. |
 | `e2e/focus-visible.spec.ts` | The ring drawn for `Tab` (3px, and inset on the canvas) and gone for a click that moves focus, including the focus a clicked-shut dialog restores. |
 | `e2e/failure.spec.ts` | A refused 2D context — stubbed with an init script — surfacing as the "Mine offline" notice with its detail line, its `role="alert"` and a working Reload, while the crash boundary stays out of it. |
-| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; then every info tab by `data-info-section`, the Settings flags and cheat grant, the `+`/`-` zoom and the inventory fold; plus the craft → take → fit/unfit (fuel carried with the tank, third slot locked until a Mk II craft opens it), extractor load-coal/refuel, container store/take, dynamite arm-and-plant, trading (from a saved part-empty tank), wreck (with its lifetime), chest, grave, portal (a respawn at a field portal on half a tank), toolkit and save export/import flows. |
+| `e2e/agent.spec.ts` | The programmatic-play harness end to end and headless: it drives `openGameSession` itself (reusing the suite's webServer), seeds a soft dirt tile under the spawn, and checks the observation sees the ship at the home base, the default pause model freezes `tick` between decisions, `start_run` brings the player into play, `Space` opens the station overlay in the observation, and holding `ArrowDown` burns fuel, advances the tick and scrolls the ASCII view down; then every info tab by `data-info-section`, the Settings flags and cheat grant, the `+`/`-` zoom and the inventory fold; plus the craft → take → fit/unfit (fuel carried with the tank, third slot locked until a Mk II craft opens it), extractor load-coal/refuel, container store/take, dynamite arm-and-plant, trading (from a saved part-empty tank), wreck (with its lifetime), chest, grave, portal (a paid hull repair from the travel list, a respawn at a field portal on half a tank), toolkit and save export/import flows. |
 
 Two notes on how the suite is wired:
 

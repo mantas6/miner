@@ -39,6 +39,8 @@ export interface UiCommands {
   renamePortal(name: string): void;
   /** Travel to the listed portal at these coordinates (free, teleporter, or respawn). */
   travelToPortal(x: number, y: number): void;
+  /** Patch the hull for cash at the portal the travel overlay hangs off. */
+  repairHullAtPortal(): void;
   /**
    * Arm the Construction Toolkit, or stand it down. The press that follows on a
    * station or container tile packs the empty entity back into the bay.
@@ -163,6 +165,7 @@ function noopCommands(): UiCommands {
     closePortal: noop,
     renamePortal: noop,
     travelToPortal: noop,
+    repairHullAtPortal: noop,
     toggleToolkit: noop,
     closeTrade: noop,
     sellToPost: noop,

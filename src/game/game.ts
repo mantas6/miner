@@ -332,6 +332,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       closePortal: () => portals.close(),
       renamePortal: name => portals.rename(name),
       travelToPortal: (x, y) => portals.travelTo(x, y),
+      repairHullAtPortal: () => portals.repairHull(),
       useTeleporter: () => actions.useTeleporter(),
       openShip: openShipScreen,
       closeShip: closeShipScreen,
@@ -633,7 +634,9 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       toast,
       saveProgress: scheduleSave,
       setPortalUi,
-      revealAtPlayer
+      revealAtPlayer,
+      wakeNearShip: () => enemies.wakeNearShip(),
+      addCash
     });
     actions = createActions({
       state,
@@ -757,6 +760,7 @@ export function createGameRuntime(options: GameRuntimeOptions): GameRuntime {
       actions,
       move: movement.move,
       isOpenMovementDestination: movement.isOpenMovementDestination,
+      isRockDestination: movement.isRockDestination,
       // A replacement ship deploys with empty fitting slots, so the Ship screen's
       // store snapshot has to be re-synced or it would still paint the dead ship's
       // upgrades until the screen is next reopened.

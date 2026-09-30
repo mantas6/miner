@@ -32,6 +32,7 @@ interface Harness {
   actions: ReturnType<typeof createActionsSpy>;
   move: ReturnType<typeof vi.fn>;
   isOpenMovementDestination: ReturnType<typeof vi.fn>;
+  isRockDestination: ReturnType<typeof vi.fn>;
   restartGame: ReturnType<typeof vi.fn>;
   closeShipScreen: ReturnType<typeof vi.fn>;
   closeInfoScreen: ReturnType<typeof vi.fn>;
@@ -61,6 +62,7 @@ function harness(): Harness {
     actions: createActionsSpy(),
     move: vi.fn(),
     isOpenMovementDestination: vi.fn(() => true),
+    isRockDestination: vi.fn(() => false),
     restartGame: vi.fn(),
     closeShipScreen: vi.fn(),
     closeInfoScreen: vi.fn(),
@@ -850,5 +852,74 @@ describe('the rock bump lock', () => {
     h.input.tick();
     h.input.reset();
     expect(h.state.input.bumpLock).toBeNull();
+  });
+
+  /**
+   * A held Down falling through open air, one row per move, until it lands on
+   * rock after `drop` rows: the fake move carries the ship down each time.
+   */
+  function fallingOntoRock(drop: number): Harness {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    let fallen = 0;
+    const falling = () => fallen < drop;
+    h.isOpenMovementDestination.mockImplementation((dx: number, dy: number) => dx === 0 && dy > 0 && falling());
+    h.isRockDestination.mockImplementation((dx: number, dy: number) => dx === 0 && dy > 0 && !falling());
+    h.move.mockImplementation(() => {
+      if (!falling()) return 'bumped';
+      fallen++;
+      h.state.player.y++;
+      return 'advanced';
+    });
+    return h;
+  }
+
+  it('stops a held fall on the rock it lands on, without the bump', () => {
+    const h = fallingOntoRock(2);
+
+    press('s');
+    h.input.tick();
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+    // Landed: the next repeat would only bump the rock below, so it never runs…
+    repeatTick(h);
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+    // …and the landing holds the lock, as a bump would have.
+    expect(h.state.input.bumpLock).toEqual({direction: [0, 1], x: h.state.player.x, y: h.state.player.y});
+  });
+
+  it('still bumps on a fresh press after the landing', () => {
+    const h = fallingOntoRock(1);
+
+    press('s');
+    h.input.tick();
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(1);
+
+    // Let go and press again: a deliberate press into rock is a bump like any other.
+    release('s');
+    h.input.tick();
+    press('s');
+    h.input.tick();
+    expect(h.move).toHaveBeenCalledTimes(2);
+    expect(h.move).toHaveLastReturnedWith('bumped');
+  });
+
+  it('bumps as before when a held drill, not a fall, reaches rock', () => {
+    const h = harness();
+    uiStore.getState().setPhase('playing');
+    h.isOpenMovementDestination.mockReturnValue(false);
+    h.isRockDestination.mockReturnValue(true);
+
+    // Drilling down, not falling: the rock below is walked into once.
+    h.move.mockReturnValue('drilled');
+    press('s');
+    h.input.tick();
+    h.move.mockReturnValue('bumped');
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
+    repeatTick(h);
+    expect(h.move).toHaveBeenCalledTimes(2);
   });
 });

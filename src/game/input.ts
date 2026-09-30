@@ -84,6 +84,8 @@ export interface GameInputDeps {
   move(dx: number, dy: number, sprinting: boolean): MoveResult;
   /** Whether the ship would fly (not drill) into this direction's destination. */
   isOpenMovementDestination(dx: number, dy: number): boolean;
+  /** Whether this direction's destination is solid rock, which a move only bumps. */
+  isRockDestination(dx: number, dy: number): boolean;
   restartGame(): void;
   closeShipScreen(): void;
   closeInfoScreen(): void;
@@ -118,10 +120,16 @@ export function createInput(deps: GameInputDeps): GameInput {
   const {state, actions} = deps;
   /** Lower-cased keys currently held down. */
   const keys = new Set<string>();
+  /**
+   * Where the last keyboard step fell to: a downward step through open air. A held
+   * Down that lands on rock from there stops without the bump (`landsOnRock`).
+   */
+  let fellTo: {x: number; y: number} | null = null;
 
   function clearKeys(): void {
     keys.clear();
     state.input.keyImpulse = null;
+    fellTo = null;
   }
 
   /**
@@ -155,6 +163,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     state.input.sprintMomentum = null;
     state.input.lastKeyboardMove = 0;
     state.input.bumpLock = null;
+    fellTo = null;
   }
 
   function heldKeyDirection(): Direction | null {
@@ -179,11 +188,36 @@ export function createInput(deps: GameInputDeps): GameInput {
     deps.toast('Press R again to scuttle the ship. It counts as a death.');
   }
 
-  /** Run one keyboard move, arming the bump lock if it only met rock. */
-  function keyboardMove(direction: Direction, sprinting: boolean): void {
+  /**
+   * Run one keyboard move, arming the bump lock if it only met rock, and noting
+   * where a step down through open air (`destinationOpen`) fell to.
+   */
+  function keyboardMove(direction: Direction, sprinting: boolean, destinationOpen: boolean): void {
     const result = deps.move(direction[0], direction[1], sprinting);
     const p = state.player;
     state.input.bumpLock = result === 'bumped' ? {direction, x: p.x, y: p.y} : null;
+    fellTo = result === 'advanced' && destinationOpen && direction[0] === 0 && direction[1] > 0 ? {x: p.x, y: p.y} : null;
+  }
+
+  /**
+   * Whether a held Down that has just fallen onto rock stops without hitting it.
+   * A fall is not a press into the rock — the ship was dropping through open air
+   * and the key was simply still down when it landed — so the landing arms the
+   * bump lock as if it had bumped, without the bump or its hull damage. Letting go
+   * and pressing again still bumps, as any fresh press does.
+   */
+  function landsOnRock(held: Direction | null): boolean {
+    const fall = fellTo;
+    if (!fall || !held || held[0] !== 0 || held[1] <= 0) return false;
+    const p = state.player;
+    if (p.x !== fall.x || p.y !== fall.y) {
+      fellTo = null;
+      return false;
+    }
+    if (!deps.isRockDestination(held[0], held[1])) return false;
+    fellTo = null;
+    state.input.bumpLock = {direction: held, x: p.x, y: p.y};
+    return true;
   }
 
   /**
@@ -221,14 +255,17 @@ export function createInput(deps: GameInputDeps): GameInput {
     if (impulse) {
       state.input.keyImpulse = null;
       state.input.lastKeyboardMove = now;
-      state.input.sprintDirection = activeSprintDirection(!state.gameOver && sprinting, deps.isOpenMovementDestination(impulse[0], impulse[1]), impulse[0], impulse[1]);
+      const impulseOpen = deps.isOpenMovementDestination(impulse[0], impulse[1]);
+      state.input.sprintDirection = activeSprintDirection(!state.gameOver && sprinting, impulseOpen, impulse[0], impulse[1]);
       // A fresh press always acts, into rock included: the lock only holds back
       // the auto-repeat of a key kept down.
-      keyboardMove(impulse, sprinting);
+      keyboardMove(impulse, sprinting, impulseOpen);
       return;
     }
     const held = heldKeyDirection();
     const destinationOpen = held ? deps.isOpenMovementDestination(held[0], held[1]) : false;
+    // A held fall that lands on rock stops on it, locked, without the bump.
+    if (landsOnRock(held)) return;
     // A held key that bumped rock stops there: one bump per press, not one per
     // repeat, so leaning on a key into rock (or with a fiend biting) does not keep
     // hammering the hull.
@@ -236,7 +273,7 @@ export function createInput(deps: GameInputDeps): GameInput {
     if (held) state.input.sprintDirection = activeSprintDirection(!state.gameOver && sprinting, destinationOpen, held[0], held[1]);
     if (held && now - state.input.lastKeyboardMove >= keyboardMovementRepeatMs(state.input.keyboardRepeatMs, sprinting, destinationOpen)) {
       state.input.lastKeyboardMove = now;
-      keyboardMove(held, sprinting);
+      keyboardMove(held, sprinting, destinationOpen);
     }
   }
 

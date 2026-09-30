@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { START_Y, WORLD_W } from '../../shared/constants';
 import { ENEMY } from '../core/balance';
 import { createInitialState } from '../core/state';
-import type { Enemy, GameState } from '../core/types';
+import type { Enemy, GameState, Tile } from '../core/types';
+import { nth } from '../test-narrowing';
 import { load, save } from '../persistence';
 import { applyTileEntries, recordTileDiff, tileDiffEntries } from '../world/tile-diff';
 import { ensureWorldRow, makeTile } from '../world/world';
@@ -136,6 +137,84 @@ describe('dormant cocoons', () => {
     const h = harness();
 
     expect(h.sim.damageEnemyTile(4, 80)).toBe(false);
+  });
+});
+
+describe('the wake radius', () => {
+  const cocoon = (): Tile => ({type: 'enemy', kind: 'tunnelFiend', hp: 4, maxHp: 4});
+
+  /**
+   * A hand-built slab of dirt (rows 90–110) with a 1-wide shaft down column 20
+   * from row 92 to `bottom`, the ship at its foot, and a real grid and sim over it.
+   */
+  function slab(bottom = 100) {
+    const state = createInitialState();
+    for (let y = 90; y <= 110; y++) state.world[y] = Array.from({length: WORLD_W}, (): Tile => ({type: 'dirt', hp: 3, maxHp: 3}));
+    for (let y = 92; y <= bottom; y++) nth(state.world, y)[20] = {type: 'air'};
+    Object.assign(state.player, {x: 20, y: bottom});
+    const grid = createWorldGrid({state, invalidateTerrain: () => {}, onTileSet: () => {}});
+    const toasts = createToastLog();
+    const sim = createEnemySim({
+      state, grid, audio: createAudioStub(), toast: toasts.toast, addCash: vi.fn(), saveProgress: vi.fn(),
+      damagePlayer: vi.fn(), spawnDust: vi.fn(), spawnExplosion: vi.fn()
+    });
+    sim.resetExposure();
+    return {state, sim, toasts};
+  }
+
+  it('wakes a cocoon within two tiles that opens onto the ship\'s air, even one the flood missed', () => {
+    const {state, sim, toasts} = slab();
+    // Beside the shaft a row up — the way a row generated after the air beside
+    // it was walked leaves it: next to reachable air, never seen by the flood.
+    nth(state.world, 99)[21] = cocoon();
+
+    sim.wakeNearShip();
+
+    expect(state.enemies.map(e => [e.x, e.y])).toEqual([[21, 99]]);
+    expect(state.world[99]?.[21]).toEqual({type: 'air'});
+    expect(toasts.saw('awakened')).toBe(true);
+  });
+
+  it('leaves a cocoon sealed in dirt asleep, however close — it can only be drilled out', () => {
+    const {state, sim} = slab();
+    // Two rows under the ship with dirt between: no way out to the ship.
+    nth(state.world, 102)[20] = cocoon();
+    // Diagonal to the ship, touching no air.
+    nth(state.world, 101)[21] = cocoon();
+
+    sim.wakeNearShip();
+
+    expect(state.enemies).toEqual([]);
+    expect(state.world[102]?.[20]?.type).toBe('enemy');
+    expect(state.world[101]?.[21]?.type).toBe('enemy');
+  });
+
+  it('waits until the ship is within two tiles', () => {
+    const {state, sim} = slab();
+    // Beside the shaft three rows up: four tiles off, then three — too far.
+    nth(state.world, 97)[21] = cocoon();
+    sim.wakeNearShip();
+    state.player.y = 99;
+    sim.wakeNearShip();
+    expect(state.enemies).toEqual([]);
+
+    // Another row up the shaft and it is in reach.
+    state.player.y = 98;
+    sim.wakeNearShip();
+    expect(state.enemies.map(e => [e.x, e.y])).toEqual([[21, 97]]);
+  });
+
+  it('wakes what a jump lands beside, in air the exposure pass never walked', () => {
+    const {state, sim} = slab();
+    // A sealed pocket off to the side, a cocoon in its wall — until the ship lands in it.
+    nth(state.world, 95)[40] = {type: 'air'};
+    nth(state.world, 95)[41] = cocoon();
+    sim.wakeNearShip();
+    expect(state.enemies).toEqual([]);
+
+    Object.assign(state.player, {x: 40, y: 95});
+    sim.wakeNearShip();
+    expect(state.enemies.map(e => [e.x, e.y])).toEqual([[41, 95]]);
   });
 });
 

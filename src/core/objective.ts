@@ -44,7 +44,7 @@ import {
 import { itemForKind } from './items';
 import { hasEmptyOpenSlot } from './ship-upgrades';
 import { SHIPS, nextShip, type ShipId } from './ships';
-import { EXTRACTOR_FUEL_ORDER, extractorFuelOrderPrice, supplyPrice } from './trading';
+import { EXTRACTOR_FUEL_ORDER, POST_REPAIR_KIT, buyPrice, extractorFuelOrderPrice, supplyPrice } from './trading';
 import type { Ore, Player } from './types';
 
 type ObjectivePlayer = Pick<Player, 'y' | 'fuel' | 'fuelMax' | 'hull' | 'hullMax' | 'cargoMax' | 'equipment' | 'ship'>;
@@ -128,6 +128,8 @@ function inputCount(recipe: HasInputs | undefined, kind: InventoryItemKind): num
 
 const REPAIR_KIT_BILL = billText(repairKitRecipe);
 const REPAIR_KIT_PRICE = supplyPrice(REPAIR_KIT);
+/** Every post keeps Repair Kits on the shelf (`POST_REPAIR_KIT`), at the post markup. */
+const POST_REPAIR_KIT_PRICE = buyPrice(POST_REPAIR_KIT);
 const SCANNER_BILL = billText(scannerRecipe);
 const SCANNER_PRICE = supplyPrice('scanner');
 /** What one extractor fuel order costs at the home price, in whole dollars (posts charge more the deeper they stand). */
@@ -481,7 +483,7 @@ function formatStep(step: ObjectiveStep): string {
       if (step.variant === 1) return 'Objective: hull is low — take the Repair Kit from the station and use it.';
       if (step.variant === 2) return `Objective: hull is low — craft a Repair Kit (${REPAIR_KIT_BILL}) or buy one from Supply ($${REPAIR_KIT_PRICE}).`;
       if (step.variant === 3) return `Objective: hull is low — return home: craft a Repair Kit (${REPAIR_KIT_BILL}) or buy one ($${REPAIR_KIT_PRICE}).`;
-      return `Objective: hull is low — buy a Repair Kit at a trading post, or return home to craft one (${REPAIR_KIT_BILL}).`;
+      return `Objective: hull is low — buy a Repair Kit at any trading post ($${POST_REPAIR_KIT_PRICE}), or return home to craft one (${REPAIR_KIT_BILL}).`;
     case 'stow':
       return step.variant === 1
         ? 'Objective: stow cargo at home, or sell it at a trading post.'

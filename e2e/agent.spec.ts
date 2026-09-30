@@ -13,7 +13,7 @@
 import { expect, test } from '@playwright/test';
 import { HOME_ROW, STATIONS, rowDepthMeters } from '../shared/constants';
 import { openGameSession, type GameSession } from '../agent/session';
-import { fuelUnitPrice } from '../src/core/trading';
+import { POST_REPAIR_KIT_STOCK, buyPrice, fuelUnitPrice, hullRepair } from '../src/core/trading';
 import { nth } from '../src/test-narrowing';
 import { DIRT_UNDER_HOME, SAVE_VERSION, firstTradingPost, seedSaveScript } from './support/game';
 
@@ -105,6 +105,18 @@ const seedFittedUpgrade = seedSaveScript({
  */
 const seedPortalTravel = seedSaveScript({
   x: HOME_PORTAL.x + 1, y: HOME_ROW,
+  tiles: [DEEP_PORTAL_TILE],
+  stations: [...WORKBENCHES, HOME_PORTAL, DEEP_PORTAL]
+});
+
+/**
+ * The same parking spot beside `Home`, the hull down to 40 of 100 (hull is
+ * persisted) and $1000 in the wallet, so the travel overlay offers a paid repair.
+ */
+const seedPortalRepair = seedSaveScript({
+  x: HOME_PORTAL.x + 1, y: HOME_ROW,
+  hull: 40,
+  cash: 1000,
   tiles: [DEEP_PORTAL_TILE],
   stations: [...WORKBENCHES, HOME_PORTAL, DEEP_PORTAL]
 });
@@ -785,9 +797,12 @@ test('a trading post buys ore for cash, fills the tank for cash, and sells its s
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
     expect(obs.overlay.fuel).toMatchObject({amount: 0, cost: 0});
 
-    // Buy an offered item; it lands in the bay and its stock drops.
+    // Buy an offered item; it lands in the bay and its stock drops. The first is
+    // the Repair Kit shelf every post keeps, beside its rolled wares.
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
     const offer = nth(obs.overlay.buy, 0);
+    expect(offer).toMatchObject({kind: 'repairKit', price: buyPrice('repairKit'), stock: POST_REPAIR_KIT_STOCK});
+    expect(obs.overlay.buy.length).toBeGreaterThanOrEqual(3);
     obs = await s.click({target: 'data-trade', value: 'buy', kind: offer.kind});
     expect(countKind(obs.bay, offer.kind)).toBeGreaterThanOrEqual(1);
     if (obs.overlay?.kind !== 'trade') throw new Error('trade overlay expected');
@@ -1003,6 +1018,36 @@ test('a portal can be renamed from the travel overlay', async () => {
     expect(obs.overlay.name).toBe('Depot');
     // The renamed portal, one tile from the ship, carries the new name in notable.
     expect(obs.notable.some(n => n.what === 'station' && n.detail === 'Portal "Depot"')).toBe(true);
+  } finally {
+    await s.close();
+  }
+});
+
+test('the travel overlay patches a damaged hull for cash with portalRepairBtn', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedPortalRepair});
+  try {
+    await s.startRun();
+    let obs = await s.observe();
+    expect(obs.ship).toMatchObject({hull: 40, hullMax: 100});
+    expect(obs.hud.cash).toBe(1000);
+
+    obs = await s.press(' ');
+    expect(obs.overlay?.kind).toBe('portal');
+    if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
+    expect(obs.overlay.mode).toBe('travel');
+    // 60 hull points at the posts' kit rate ($60 a kit, 25 hull a kit): $144.
+    const quote = hullRepair(40, 100, 1000);
+    expect(obs.overlay.repair).toEqual({missing: 60, amount: quote.amount, cost: quote.cost, affordable: true});
+    expect(quote).toEqual({amount: 60, cost: 144});
+
+    obs = await s.click('portalRepairBtn');
+    expect(obs.ship.hull).toBe(100);
+    expect(obs.hud.cash).toBe(1000 - quote.cost);
+    expect(obs.toasts.some(toast => toast.message === `Hull repaired +60 for $${quote.cost}.`)).toBe(true);
+    // Still at the portal, with the hull whole: the repair row is gone.
+    expect(obs.overlay?.kind).toBe('portal');
+    if (obs.overlay?.kind !== 'portal') throw new Error('portal overlay expected');
+    expect(obs.overlay.repair).toBeNull();
   } finally {
     await s.close();
   }
