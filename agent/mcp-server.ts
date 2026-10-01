@@ -229,8 +229,10 @@ function instructions(): string {
     '  that the stock lacks (stow it, then build). `hud.nextShip` ({id, label, missing, stow})',
     '  is the same next hull with no overlay open, read against the first Manufacturer\'s',
     '  stock (both empty = buildable), `null` on the top rung. `hud.objective` names it too',
-    '  once half its bill is stocked or aboard, and a Scout with a Mk I fitted is pointed at the',
-    '  Hauler whenever nothing more pressing (fuel, hull, cargo, scanner, post) comes first.',
+    '  once half its bill is stocked or aboard. A Scout with a Mk I fitted is pointed at the',
+    '  Drill Mk I first (+75 % drill power: fewer hits, less fuel per ore) while no drill is',
+    '  fitted or held and a slot is free, then at the Hauler, whenever nothing more pressing',
+    '  (fuel, hull, cargo, scanner, post) comes first.',
     '  The hull survives a death (its slots come back empty); only a full player-data',
     '  reset returns the Scout.',
     '',
@@ -448,7 +450,9 @@ server.registerTool(
       'Manufacturer target "data-supply", value e.g. "repairKit", buys a Supply item for ' +
       'cash into the station stock); the ' +
       'transfer controls also need `kind` — the station (target "data-station", value ' +
-      '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal"), the cargo container ' +
+      '"take"|"take-one"|"stow"|"stow-one", kind e.g. "ore:Coal" — any stack, kits included; ' +
+      'stowAllBtn ("Stow ore") moves only the ore stacks, leaving Repair Kits, Fuel Cells, Dynamite, ' +
+      'Scanners, Teleporters, devices, upgrades and decorations aboard), the cargo container ' +
       '(target "data-cargo", value "store"|"store-one"|"take"|"take-one", kind e.g. "ore:Iron"; ' +
       'a wreck or chest menu takes only "take"|"take-one", and lootAllBtn hauls it all), ' +
       'and the trading post (target "data-trade", value "sell"|"sell-one"|"buy", kind e.g. ' +

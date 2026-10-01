@@ -51,7 +51,7 @@ import {
   nearestStation,
   stationAt,
   isStationReachable,
-  stowAll as stowAllStation,
+  stowOre,
   stowStack as stowStackStation,
   takeFromStation,
   tickExtractor,
@@ -88,7 +88,10 @@ export interface HomeStationsSim {
   openAt(x: number, y: number): boolean;
   /** Shut whichever station screen is up. Idempotent. */
   close(): void;
-  /** Move everything that fits from the bay into the open manufacturer's stock. */
+  /**
+   * Move every ore stack that fits from the bay into the open manufacturer's stock
+   * (`stowOre`): the trip kit, devices, upgrades and decorations stay aboard.
+   */
   stowAll(): void;
   /** Move a stack (or one unit) of `kind` from the bay into the station stock. */
   stow(kind: InventoryItemKind, single?: boolean): void;
@@ -209,17 +212,17 @@ export function createHomeStations(deps: HomeStationsDeps): HomeStationsSim {
     const manufacturer = openManufacturer();
     if (!manufacturer || state.gameOver) return;
     const before = totalItems(state.player.inventory);
-    const {bay, station} = stowAllStation(state.player.inventory, manufacturer.inventory);
+    const {bay, station} = stowOre(state.player.inventory, manufacturer.inventory);
     if (totalItems(bay) === before) {
       audio.alarm();
-      return toast('Nothing to stow, or the station stock is full.');
+      return toast('No ore to stow, or the station stock is full.');
     }
     state.player.inventory = bay;
     manufacturer.inventory = station;
     repaint();
     saveProgress();
     audio.stow();
-    toast('Stowed cargo at the station.');
+    toast(`Stowed ${before - totalItems(bay)} ore at the station.`);
   }
 
   function stow(kind: InventoryItemKind, single = false): void {

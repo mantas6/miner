@@ -239,6 +239,15 @@ const seedShipyard = seedSaveScript({
   ]
 });
 
+/**
+ * The trip kit aboard at the home base, and Iron in the manufacturer to bring
+ * aboard (a save leaves the ore aboard out, so it cannot be seeded in the bay).
+ */
+const seedTripKit = seedSaveScript({
+  bay: [{kind: 'repairKit', count: 1}, {kind: 'fuelCell', count: 1}, {kind: 'dynamite', count: 2}],
+  stations: [{...WORKBENCHES[0], items: [{kind: 'ore:Iron', count: 4}]}, WORKBENCHES[1]]
+});
+
 /** A cargo container and three sticks of dynamite aboard, at the home base. */
 const seedDeployables = seedSaveScript({
   bay: [{kind: 'container', count: 1}, {kind: 'dynamite', count: 3}],
@@ -666,6 +675,33 @@ test('a Mk I loadout keeps the third slot locked, and crafting a Mk II unlocks i
     expect(obs.ship.equipment).toEqual(['upgrade:drill:1', 'upgrade:tank:1', 'upgrade:drill:2']);
     // Base 1 + Mk I 0.75 + Mk II 1.75.
     expect(obs.ship.drill).toBe(3.5);
+  } finally {
+    await s.close();
+  }
+});
+
+test('Stow ore moves only the ore, and the trip kit aboard still stows by its own stack', async () => {
+  const s = await openGameSession({headless: true, port: PORT, freshSave: true, initScript: seedTripKit});
+  try {
+    await s.startRun();
+    const opened = await s.pressTile(STATIONS.manufacturer.x, STATIONS.manufacturer.y);
+    expect(opened.overlay?.kind).toBe('station');
+    let obs = await s.click({target: 'data-station', value: 'take', kind: 'ore:Iron'});
+    expect(countKind(obs.bay, 'ore:Iron')).toBe(4);
+    await expect(s.page.locator('#stowAllBtn')).toHaveText('Stow ore');
+
+    obs = await s.click('stowAllBtn');
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(obs.overlay.stock, 'ore:Iron')).toBe(4);
+    expect(countKind(obs.bay, 'ore:Iron')).toBe(0);
+    expect(obs.bay.map(slot => [slot.kind, slot.count])).toEqual(expect.arrayContaining([['repairKit', 1], ['fuelCell', 1], ['dynamite', 2]]));
+    expect(obs.bay).toHaveLength(3);
+    expect(obs.toasts.some(toast => toast.message === 'Stowed 4 ore at the station.')).toBe(true);
+
+    obs = await s.click({target: 'data-station', value: 'stow', kind: 'repairKit'});
+    if (obs.overlay?.kind !== 'station') throw new Error('station overlay expected');
+    expect(countKind(obs.overlay.stock, 'repairKit')).toBe(1);
+    expect(countKind(obs.bay, 'repairKit')).toBe(0);
   } finally {
     await s.close();
   }

@@ -96,7 +96,7 @@ export interface UiCommands {
    * also what either dialog's close reports.
    */
   closeStation(): void;
-  /** Move everything that fits from the bay into the station stock. */
+  /** Move every ore stack that fits from the bay into the station stock; the rest stays aboard. */
   stowAll(): void;
   /** Move a stack (or one unit) of `kind` from the bay into the station stock. */
   stowStack(kind: InventoryItemKind, single?: boolean): void;

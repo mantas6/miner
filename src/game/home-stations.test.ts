@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { START_Y, STATIONS } from '../../shared/constants';
 import { EXTRACTOR } from '../core/balance';
-import { addItem, countItem, createInventory, oreKind, totalItems } from '../core/inventory';
+import { addItem, countItem, createInventory, oreKind, totalItems, type InventoryItemKind } from '../core/inventory';
 import { itemForKind } from '../core/items';
 import { applyEquipment, swapHull, unlockedSlotCount } from '../core/ship-upgrades';
 import { slotsFor } from '../core/ships';
@@ -194,6 +194,32 @@ describe('moving cargo through the station', () => {
     expect(h.saveProgress).toHaveBeenCalled();
     expect(h.setStationUi).toHaveBeenLastCalledWith(manufacturer(h.state));
     expect(h.audio.played).toEqual(['stow']);
+    expect(h.toasts.last).toBe('Stowed 6 ore at the station.');
+  });
+
+  it('stows only the ore in bulk, keeping the trip kit aboard, which still stows by its stack', () => {
+    const h = harness();
+    park(h.state, 'manufacturer');
+    const stacks: [InventoryItemKind, number][] = [
+      [oreKind('Iron'), 3], ['repairKit', 2], ['fuelCell', 1], ['dynamite', 2], ['scanner', 1], ['teleporter', 1]
+    ];
+    h.state.player.inventory = stacks.reduce((inv, [kind, count]) => addItem(inv, itemForKind(kind), count), createInventory());
+    h.sim.openNearest();
+
+    h.sim.stowAll();
+    expect(countItem(manufacturer(h.state).inventory, oreKind('Iron'))).toBe(3);
+    expect(totalItems(manufacturer(h.state).inventory)).toBe(3);
+    expect(totalItems(h.state.player.inventory)).toBe(7);
+    expect(countItem(h.state.player.inventory, 'repairKit')).toBe(2);
+
+    // Nothing left that the bulk stow moves: refused, and the kit stays.
+    h.sim.stowAll();
+    expect(h.toasts.last).toBe('No ore to stow, or the station stock is full.');
+    expect(totalItems(h.state.player.inventory)).toBe(7);
+
+    h.sim.stow('repairKit', true);
+    expect(countItem(manufacturer(h.state).inventory, 'repairKit')).toBe(1);
+    expect(countItem(h.state.player.inventory, 'repairKit')).toBe(1);
   });
 
   it('stows a single stack of one kind, leaving the rest of the bay aboard', () => {

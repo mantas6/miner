@@ -204,11 +204,11 @@ test.describe('keyboard and hover inside an open dialog', () => {
     expect(Math.min(Math.abs(tipBox.y - (rowBox.y + rowBox.height)), Math.abs(tipBox.y + tipBox.height - rowBox.y))).toBeLessThan(20);
   });
 
-  test('Space on a focused Stow all presses it, and does not also shut the station', async ({page}) => {
+  test('Space on a focused Stow ore presses it, and does not also shut the station', async ({page}) => {
     const failures = collectPageFailures(page);
     await openStationWithIron(page);
 
-    // Bring the iron aboard first, so Stow all has something to put back.
+    // Bring the iron aboard first, so Stow ore has something to put back.
     await page.locator('[data-station="take"][data-station-kind="ore:Iron"]').click();
     await expect(page.locator('#stationBay [data-station="stow"][data-station-kind="ore:Iron"]')).toBeVisible();
 

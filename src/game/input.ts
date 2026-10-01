@@ -35,7 +35,7 @@ const ZOOM_SURFACE = '#game-panel';
 
 /**
  * Controls that answer Space/Enter themselves. A keyboard press on one of these is
- * the control's (a focused Stow all, a tab, the rename field), never the mine's
+ * the control's (a focused Stow ore, a tab, the rename field), never the mine's
  * station toggle as well.
  */
 const SELF_ACTIVATING = 'button, input, [role=tab], a';

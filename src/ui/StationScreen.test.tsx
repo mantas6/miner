@@ -60,7 +60,7 @@ describe('manufacturing station dialog', () => {
     expect(nth(bay, 0).textContent).toContain('×2');
   });
 
-  it('routes Take/Stow, their single-unit "1" buttons, Stow all, and Craft to their commands', () => {
+  it('routes Take/Stow, their single-unit "1" buttons, Stow ore, and Craft to their commands', () => {
     const takeFromStation = vi.fn();
     const stowStack = vi.fn();
     const stowAll = vi.fn();
@@ -80,6 +80,8 @@ describe('manufacturing station dialog', () => {
     fireEvent.click(document.querySelector<HTMLButtonElement>('[data-station="stow-one"][data-station-kind="ore:Coal"]')!);
     expect(stowStack).toHaveBeenCalledWith('ore:Coal', true);
 
+    // The bulk stow says what it moves: the ore, not the kit aboard.
+    expect(document.getElementById('stowAllBtn')!.textContent).toBe('Stow ore');
     fireEvent.click(document.getElementById('stowAllBtn')!);
     expect(stowAll).toHaveBeenCalledOnce();
 

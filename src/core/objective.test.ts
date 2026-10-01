@@ -185,19 +185,49 @@ describe('expedition objective helper', () => {
     })).toBe('Objective: dig toward Silver around 600 m while keeping fuel for the trip home.');
   });
 
-  it('names the Hauler to a Scout with a Mk I fitted, before the next ore band', () => {
-    const scout = {...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null, null] as (UpgradeKind | null)[]};
-    const input: ObjectiveInput = {player: scout, cargoCount: 0, atSurface: false, bay: empty, station: empty};
-    expect(formatExpeditionObjective(input))
-      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 16 Iron, 10 Copper, 6 Silver).');
-    expect(formatExpeditionObjective({...input, station: withOre('Iron', 6)}))
-      .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 10 Iron, 10 Copper, 6 Silver).');
-    // Only a Mk I fitted names it: a Mk II alone leaves the ore band in charge.
-    const markTwo = {...scout, equipment: ['upgrade:drill:2', null, null] as (UpgradeKind | null)[]};
-    expect(formatExpeditionObjective({...input, player: markTwo, bestMarkCrafted: 2})).toContain('dig toward Silver');
-    // The Scanner and trading-post nudges still come first.
-    expect(formatExpeditionObjective({...input, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH})).toContain('craft a Scanner');
-    expect(formatExpeditionObjective({...input, maxDepthMeters: POST_OBJECTIVE_DEPTH})).toContain('find a trading post');
+  describe('a Scout past its first upgrade', () => {
+    const tanked = {...player, y: START_Y + 8, equipment: ['upgrade:tank:1', null, null] as (UpgradeKind | null)[]};
+    const drilled = {...tanked, equipment: ['upgrade:tank:1', 'upgrade:drill:1', null] as (UpgradeKind | null)[]};
+    const input: ObjectiveInput = {player: tanked, cargoCount: 0, atSurface: false, bay: empty, station: empty};
+    const why = ' — +75 % drill power, less fuel per ore.';
+
+    it('is pointed at the Drill Mk I first while no drill is fitted', () => {
+      expect(formatExpeditionObjective(input)).toBe(`Objective: mine Iron and Copper for Drill Mk I (4 Iron + 2 Copper)${why}`);
+      expect(formatExpeditionObjective({...input, station: tankMaterials()}))
+        .toBe(`Objective: craft Drill Mk I at the Manufacturing Station${why}`);
+      expect(formatExpeditionObjective({...input, bay: withOre('Iron', 4), station: withOre('Copper', 2)}))
+        .toBe(`Objective: stow your ore and craft Drill Mk I${why}`);
+      // The Scanner and trading-post nudges still come first.
+      expect(formatExpeditionObjective({...input, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH})).toContain('for a Scanner');
+      expect(formatExpeditionObjective({...input, maxDepthMeters: POST_OBJECTIVE_DEPTH})).toContain('find a trading post');
+    });
+
+    it('sends a drill waiting in the stock or the bay to the Ship screen', () => {
+      expect(formatExpeditionObjective({...input, station: withItem('upgrade:drill:1')}))
+        .toBe('Objective: take the Drill Mk I from the station and fit it from the Ship screen.');
+      expect(formatExpeditionObjective({...input, bay: withItem('upgrade:drill:1')}))
+        .toBe('Objective: fit the Drill Mk I from the Ship screen.');
+    });
+
+    it('names the Hauler and its bill once a drill is fitted', () => {
+      const hauler = 'Objective: build the Hauler at the Manufacturing Station (still needs 16 Iron, 10 Copper, 6 Silver).';
+      expect(formatExpeditionObjective({...input, player: drilled})).toBe(hauler);
+      expect(formatExpeditionObjective({...input, player: drilled, station: withOre('Iron', 6)}))
+        .toBe('Objective: build the Hauler at the Manufacturing Station (still needs 10 Iron, 10 Copper, 6 Silver).');
+      // Any drill counts, a Drill Mk I alone among the Mk Is included.
+      const drillOnly = {...tanked, equipment: ['upgrade:drill:1', null, null] as (UpgradeKind | null)[]};
+      expect(formatExpeditionObjective({...input, player: drillOnly})).toBe(hauler);
+      // No open slot for a drill: the Hauler, whose extra slot takes one.
+      const full = {...tanked, equipment: ['upgrade:tank:1', 'upgrade:cargo:1', null] as (UpgradeKind | null)[]};
+      expect(formatExpeditionObjective({...input, player: full})).toBe(hauler);
+      // Nor is a drill crafted with no slot free for it asked for again.
+      expect(formatExpeditionObjective({...input, player: full, station: withItem('upgrade:drill:1')})).toBe(hauler);
+    });
+
+    it('leaves the ore band in charge with only a Mk II fitted', () => {
+      const markTwo = {...tanked, equipment: ['upgrade:drill:2', null, null] as (UpgradeKind | null)[]};
+      expect(formatExpeditionObjective({...input, player: markTwo, bestMarkCrafted: 2})).toContain('dig toward Silver');
+    });
   });
 
   it('counts an upgrade waiting in the station as progress made once no slot is free', () => {
@@ -298,7 +328,7 @@ describe('expedition objective helper', () => {
         .toBe('Objective: fit the Core Drill from the Ship screen.');
       // Past the Scanner line with none ever held, that rung still comes first.
       const deep = {...veteran, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH, scannersObtained: 0};
-      expect(formatExpeditionObjective({...deep, bay: withItem('upgrade:drill:4')})).toContain('craft a Scanner');
+      expect(formatExpeditionObjective({...deep, bay: withItem('upgrade:drill:4')})).toContain('for a Scanner');
     });
   });
 
@@ -360,14 +390,46 @@ describe('expedition objective helper', () => {
     expect(formatExpeditionObjective({...veteran, station: deepStock, bestMarkCrafted: 2, fieldPortals: 1})).not.toContain('Portal');
   });
 
-  it('asks for a Scanner past the Silver line when the career never had one', () => {
-    const deep = {...veteran, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH, scannersObtained: 0};
-    expect(formatExpeditionObjective(deep))
-      .toBe('Objective: craft a Scanner (2 Copper + 1 Silver) or buy one from Supply for $136 — Silver hides beside shafts, so dig sideways galleries.');
-    // One aboard from a chest counts, and so does any obtained before.
-    expect(formatExpeditionObjective({...deep, bay: withItem('scanner')})).not.toContain('Scanner');
-    expect(formatExpeditionObjective({...deep, scannersObtained: 1})).not.toContain('Scanner');
-    expect(formatExpeditionObjective({...deep, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH - 10})).not.toContain('Scanner');
+  describe('a Scanner past the Silver line, when the career never had one', () => {
+    const deep = {...veteran, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH, scannersObtained: 0, cash: 0};
+    const silverDepth = (ORES.find(ore => ore.name === 'Silver')!.min - START_Y) * 10;
+
+    it('crafts one once the Silver is stocked or aboard', () => {
+      const text = 'Objective: craft a Scanner (2 Copper + 1 Silver) — set down, it maps the fog around it, ore and all.';
+      expect(formatExpeditionObjective({...deep, station: withOre('Silver', 1)})).toBe(text);
+      expect(formatExpeditionObjective({...deep, bay: withOre('Silver', 1)})).toBe(text);
+      // The Silver beats the cash: crafting spends none.
+      expect(formatExpeditionObjective({...deep, station: withOre('Silver', 1), cash: 500})).toBe(text);
+    });
+
+    it('buys one from Supply once the wallet covers it', () => {
+      expect(formatExpeditionObjective({...deep, cash: 136}))
+        .toBe('Objective: buy a Scanner from Supply ($136) — set down, it maps the fog around it, ore and all.');
+      expect(formatExpeditionObjective({...deep, cash: 135})).not.toContain('buy a Scanner');
+    });
+
+    it('short of both, sends the ship digging galleries at the Silver band — or selling ore, once a post is known', () => {
+      expect(silverDepth).toBe(600);
+      expect(formatExpeditionObjective({...deep, postsFound: 0}))
+        .toBe(`Objective: for a Scanner (2 Copper + 1 Silver, or $136 at Supply), dig sideways galleries around ${silverDepth} m — Silver hides beside shafts.`);
+      expect(formatExpeditionObjective(deep))
+        .toBe(`Objective: for a Scanner (2 Copper + 1 Silver, or $136 at Supply), dig sideways galleries around ${silverDepth} m or sell ore at a trading post.`);
+      // The wallet left out counts as empty.
+      expect(formatExpeditionObjective({...deep, cash: undefined})).toContain('dig sideways galleries');
+    });
+
+    it('settles once one is held or was ever obtained, and waits for the Silver line', () => {
+      // One aboard from a chest counts, and so does any obtained before.
+      expect(formatExpeditionObjective({...deep, bay: withItem('scanner')})).not.toContain('Scanner');
+      expect(formatExpeditionObjective({...deep, scannersObtained: 1})).not.toContain('Scanner');
+      expect(formatExpeditionObjective({...deep, maxDepthMeters: SCANNER_OBJECTIVE_DEPTH - 10})).not.toContain('Scanner');
+    });
+
+    it('re-reads the wallet every frame in the memoised formatter', () => {
+      const format = createExpeditionObjectiveFormatter();
+      expect(format(deep)).toContain('dig sideways galleries');
+      expect(format({...deep, cash: 200})).toContain('buy a Scanner');
+    });
   });
 
   it('sends a career past 400 m with no post found to find one', () => {
@@ -575,6 +637,15 @@ describe('memoised expedition objective', () => {
     // The career record deepening past the Scanner line, then a scanner obtained.
     input.maxDepthMeters = 900;
     check();
+    // No Silver in stock: the wallet filling past a Scanner's price, then emptying.
+    const stocked = input.station;
+    input.station = empty;
+    check();
+    input.cash = 200;
+    check();
+    input.cash = 0;
+    check();
+    input.station = stocked;
     input.scannersObtained = 1;
     check();
     input.postsFound = 0;

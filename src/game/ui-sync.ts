@@ -176,6 +176,7 @@ export function createUiSync(deps: UiSyncDeps): UiSync {
     objectiveScratch.bestMarkCrafted = state.stats.bestMarkCrafted;
     objectiveScratch.oresMined = state.stats.oresMined;
     objectiveScratch.postsFound = currentPosts().length;
+    objectiveScratch.cash = state.cash;
     objectiveScratch.nearestExit = readouts.fuelExit;
     objectiveScratch.gameOver = state.gameOver;
     objectiveScratch.wreckWithUpgrade = latestWreckWithUpgrade(state.wrecks);

@@ -14,12 +14,14 @@
 //      aboard → build it (stow first, when the rest of the bill is in the bay)
 //   8. a Portal is craftable (or held; the Deep Portal once unlocked) and none
 //      stands in the field → set one down deep
-//   9. 600 m reached, never a Scanner → craft or buy one: ore hides in the fog
+//   9. 600 m reached, never a Scanner → craft one (the Silver is home), buy one (the
+//      cash is), or else dig galleries at the Silver band / sell ore at a post
 //  10. 400 m reached, no trading post found → go find one
 //  11. the late game: craft (then fit) the Core Drill; turn spare Uranium into Fuel
 //      Cells; with the drill fitted, build the next hull, then — in the Core Breaker —
 //      push the depth record past the next 1000 m
-//  12. a Scout with a Mk I fitted   → name the Hauler and its bill
+//  12. a Scout with a Mk I fitted   → the Drill Mk I first, while no drill is fitted
+//      or held and a slot is free (mine, stow, craft); then name the Hauler and its bill
 //  13. the deepest ore band reached, until a few of its ore are mined
 //  14. the next ore band below the career's deepest descent
 //
@@ -44,7 +46,7 @@ import {
   type UpgradeTier
 } from './inventory';
 import { FUEL_CELL_FUEL, itemForKind } from './items';
-import { hasEmptyOpenSlot } from './ship-upgrades';
+import { hasEmptyOpenSlot, upgradeBonus } from './ship-upgrades';
 import { SHIPS, nextShip, type ShipId } from './ships';
 import { EXTRACTOR_FUEL_ORDER, POST_REPAIR_KIT, buyPrice, extractorFuelOrderPrice, supplyPrice } from './trading';
 import type { Ore, Player } from './types';
@@ -81,6 +83,8 @@ export interface ObjectiveInput {
   oresMined?: Readonly<Record<string, number>>;
   /** Trading posts the player has found (explored). */
   postsFound?: number;
+  /** The wallet (`state.cash`), to tell a Scanner the player can buy from one it cannot. */
+  cash?: number;
   /** The exit the fuel reserve is priced to; home when left out. */
   nearestExit?: Pick<FuelExit, 'kind' | 'name'> | null;
   /** The ship is lost (`state.gameOver`): every other rung waits for a new one. */
@@ -91,7 +95,12 @@ export interface ObjectiveInput {
 
 /** The first ship upgrade the guidance nudges a fresh save toward crafting. */
 const FIRST_UPGRADE = 'upgrade:tank:1';
-const FIRST_UPGRADE_LABEL = 'Fuel Tank Mk I';
+/**
+ * The Scout's next upgrade after its first, ahead of the Hauler: at drill 1 an ore
+ * takes a hit per hit point, so a trip brings home only a handful and the Hauler's
+ * bill would take many trips.
+ */
+const SCOUT_DRILL = 'upgrade:drill:1';
 
 /** Career depth from which a ship that never had a Scanner is told to craft one. */
 export const SCANNER_OBJECTIVE_DEPTH = 600;
@@ -108,6 +117,7 @@ export const BAND_ORE_TARGET = 3;
 export const SHIP_OBJECTIVE_SHARE = 0.5;
 
 const firstUpgradeRecipe = RECIPES.find(entry => entry.output === FIRST_UPGRADE);
+const scoutDrillRecipe = RECIPES.find(entry => entry.output === SCOUT_DRILL);
 const markTwoRecipes = RECIPES.filter(entry => isUpgradeKind(entry.output) && entry.output.endsWith(':2'));
 const markThreeRecipes = RECIPES.filter(entry => isUpgradeKind(entry.output) && entry.output.endsWith(':3'));
 const portalRecipe = standardRecipe('device:portal');
@@ -117,6 +127,7 @@ const coreDrillRecipe = RECIPES.find(entry => entry.output === CORE_DRILL_KIND);
 const repairKitRecipe = RECIPES.find(entry => entry.output === 'repairKit');
 const scannerRecipe = RECIPES.find(entry => entry.output === 'scanner');
 const COAL = oreKind('Coal');
+const SILVER = oreKind('Silver');
 const URANIUM = oreKind('Uranium');
 const REPAIR_KIT = 'repairKit';
 
@@ -130,6 +141,40 @@ function inputCount(recipe: HasInputs | undefined, kind: InventoryItemKind): num
   return recipe?.inputs.find(input => input.kind === kind)?.count ?? 0;
 }
 
+/** A recipe's inputs by name alone, e.g. "Iron and Copper". */
+function inputNames(recipe: HasInputs | undefined): string {
+  const names = recipe ? recipe.inputs.map(input => itemForKind(input.kind).label) : [];
+  const last = names.pop() ?? '';
+  return names.length > 0 ? `${names.join(', ')} and ${last}` : last;
+}
+
+/** How a Mk I the ladder steers toward reads on its mine / craft / stow lines. */
+interface MarkOneGoal {
+  label: string;
+  /** What to mine for it, e.g. "Iron and Copper". */
+  ores: string;
+  /** Added to the mine line after the label: the bill, for a goal that gives its reason. */
+  mineNote: string;
+  /** Added to every line: why this upgrade, or ''. */
+  note: string;
+}
+
+type MarkOneKind = typeof FIRST_UPGRADE | typeof SCOUT_DRILL;
+
+/** What the Drill Mk I adds over the Scout's own drill, in percent: fewer hits per ore, so less fuel. */
+const SCOUT_DRILL_GAIN = Math.round(upgradeBonus(SCOUT_DRILL) / SHIPS.scout.base.drill * 100);
+
+const MARK_ONE_GOALS: Record<MarkOneKind, MarkOneGoal> = {
+  [FIRST_UPGRADE]: {label: itemForKind(FIRST_UPGRADE).label, ores: inputNames(firstUpgradeRecipe), mineNote: '', note: ''},
+  [SCOUT_DRILL]: {
+    label: itemForKind(SCOUT_DRILL).label,
+    ores: inputNames(scoutDrillRecipe),
+    mineNote: ` (${billText(scoutDrillRecipe)})`,
+    // Every hit burns the same fuel, so a stronger drill saves it on every ore.
+    note: ` — +${SCOUT_DRILL_GAIN} % drill power, less fuel per ore`
+  }
+};
+
 const REPAIR_KIT_BILL = billText(repairKitRecipe);
 const REPAIR_KIT_PRICE = supplyPrice(REPAIR_KIT);
 /** Every post keeps Repair Kits on the shelf (`POST_REPAIR_KIT`), at the post markup. */
@@ -137,6 +182,8 @@ const POST_REPAIR_KIT_PRICE = buyPrice(POST_REPAIR_KIT);
 const SCANNER_BILL = billText(scannerRecipe);
 const DEEP_PORTAL_BILL = billText(deepPortalRecipe);
 const SCANNER_PRICE = supplyPrice('scanner');
+/** The Silver a Scanner takes: what a career short of it has to dig for (or buy around). */
+const SCANNER_SILVER = inputCount(scannerRecipe, SILVER);
 /** What one extractor fuel order costs at the home price, in whole dollars (posts charge more the deeper they stand). */
 const FUEL_ORDER_PRICE = extractorFuelOrderPrice();
 
@@ -187,6 +234,8 @@ export function nextOreMilestone(depthMeters: number, ores: Ore[] = ORES, startY
 /** What the station stock can make, for the craft rungs: a function of the stock alone. */
 interface CraftFacts {
   firstUpgrade: boolean;
+  /** The Scout's Drill Mk I. */
+  scoutDrill: boolean;
   markTwo: boolean;
   markThree: boolean;
   portal: boolean;
@@ -216,6 +265,10 @@ interface HoldFacts {
   upgrade: boolean;
   /** A Mk I upgrade (the Booster included) in a fitting slot. */
   markOneFitted: boolean;
+  /** A drill upgrade of any mark fitted, aboard, or stored. */
+  drill: boolean;
+  /** The Scanner's Silver aboard or stored. */
+  scannerSilver: boolean;
   /** A crafted Portal waiting to be set down, aboard or stored. */
   portal: boolean;
   /** A Scanner aboard or stored — however it was come by (a chest counts). */
@@ -241,6 +294,8 @@ interface HoldFacts {
   unfitted: {label: string; stored: boolean} | null;
   /** The bay and the stock together cover the Fuel Tank Mk I: stow, then craft. */
   firstUpgradeWithBay: boolean;
+  /** The same for the Scout's Drill Mk I. */
+  scoutDrillWithBay: boolean;
 }
 
 function craftable(recipe: Recipe | undefined, station: Inventory): boolean {
@@ -271,6 +326,7 @@ function unfittedUpgrade(bay: Inventory, station: Inventory): HoldFacts['unfitte
 function craftFacts(station: Inventory): CraftFacts {
   return {
     firstUpgrade: craftable(firstUpgradeRecipe, station),
+    scoutDrill: craftable(scoutDrillRecipe, station),
     markTwo: markTwoRecipes.some(recipe => canCraft(station, recipe)),
     markThree: markThreeRecipes.some(recipe => canCraft(station, recipe)),
     portal: craftable(portalRecipe, station),
@@ -305,11 +361,18 @@ function holds(bay: Inventory, station: Inventory, kind: InventoryItemKind): boo
   return countItem(bay, kind) > 0 || countItem(station, kind) > 0;
 }
 
+function isDrillKind(kind: InventoryItemKind | null): boolean {
+  return kind !== null && isUpgradeKind(kind) && parseUpgradeKind(kind).id === 'drill';
+}
+
 function holdFacts(player: ObjectivePlayer, bay: Inventory, station: Inventory): HoldFacts {
   return {
     upgrade: player.equipment.some(slot => slot !== null)
       || bay.some(stack => isUpgradeKind(stack.kind)) || station.some(stack => isUpgradeKind(stack.kind)),
     markOneFitted: player.equipment.some(slot => slot !== null && parseUpgradeKind(slot).tier === 1),
+    drill: player.equipment.some(isDrillKind) || bay.some(stack => isDrillKind(stack.kind))
+      || station.some(stack => isDrillKind(stack.kind)),
+    scannerSilver: countItem(bay, SILVER) + countItem(station, SILVER) >= SCANNER_SILVER,
     portal: holds(bay, station, 'device:portal'),
     scanner: holds(bay, station, 'scanner'),
     coal: countItem(bay, COAL),
@@ -320,7 +383,8 @@ function holdFacts(player: ObjectivePlayer, bay: Inventory, station: Inventory):
     coreDrillFitted: player.equipment.includes(CORE_DRILL_KIND),
     coreDrillHeld: holds(bay, station, CORE_DRILL_KIND),
     unfitted: unfittedUpgrade(bay, station),
-    firstUpgradeWithBay: craftableTogether(firstUpgradeRecipe, bay, station)
+    firstUpgradeWithBay: craftableTogether(firstUpgradeRecipe, bay, station),
+    scoutDrillWithBay: craftableTogether(scoutDrillRecipe, bay, station)
   };
 }
 
@@ -338,7 +402,8 @@ interface ObjectiveStep {
    * 1 or a post; base 0 no extractor / 1 load coal / 2 mine coal / 3 order fuel;
    * fit 0 aboard / 1 in stock; firstUpgrade 0 mine / 1 craft / 2 stow and craft;
    * ship 0 build (or still needs) / 1 stow the ore aboard and build;
-   * portal 0 craft / 1 set down / 2 craft the Deep Portal; coreDrill 0 craft /
+   * portal 0 craft / 1 set down / 2 craft the Deep Portal; scanner 0 craft / 1 buy /
+   * 2 dig for Silver / 3 dig for it or sell ore at a post; coreDrill 0 craft /
    * 1 fit; band 0 none mined yet, here / 1 work it; depth 0 mind the trip home /
    * 1 a portal stands.
    */
@@ -348,9 +413,15 @@ interface ObjectiveStep {
    * (salvage), or the band's ore mined so far (band).
    */
   amount: number;
-  /** The exit label (refuel), the upgrade's label (fit), the hull's (ship) or the ore name (band, depth, richest). */
+  /**
+   * The exit label (refuel), the upgrade's label (fit), the Mk I's kind
+   * (firstUpgrade), the hull's label (ship) or the ore name (band, depth, richest).
+   */
   name: string;
-  /** The ore band's depth (band, depth), the record to beat (record) in metres, or the wreck's y (salvage). */
+  /**
+   * The ore band's depth (band, depth; the Silver band's for scanner), the record
+   * to beat (record) in metres, or the wreck's y (salvage).
+   */
   depth: number;
   /** What the next hull still needs (ship), e.g. "10 Iron, 6 Silver"; empty otherwise. */
   detail: string;
@@ -372,6 +443,11 @@ function setStep(out: ObjectiveStep, rung: Rung, variant = 0, amount = 0, name =
 
 function shipStep(out: ObjectiveStep, ships: ShipFacts): ObjectiveStep {
   return setStep(out, 'ship', !ships.buildable && ships.covered ? 1 : 0, 0, ships.label, 0, ships.missing);
+}
+
+/** A Mk I to make: craft it once stocked, stow and craft once the bay covers the rest, else mine for it. */
+function markOneStep(out: ObjectiveStep, kind: MarkOneKind, craftableNow: boolean, withBay: boolean): ObjectiveStep {
+  return setStep(out, 'firstUpgrade', craftableNow ? 1 : withBay ? 2 : 0, 0, kind);
 }
 
 /** Walk the ladder into `out`; the first rung that applies wins. */
@@ -424,9 +500,7 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, ships: ShipFacts, h
   if (wreck && player.equipment.every(slot => slot === null)) return setStep(out, 'salvage', 0, wreck.x, '', wreck.y);
 
   // 5. The first upgrade: mine for it, stow what is aboard, then craft.
-  if (!held.upgrade) {
-    return setStep(out, 'firstUpgrade', crafts.firstUpgrade ? 1 : held.firstUpgradeWithBay ? 2 : 0);
-  }
+  if (!held.upgrade) return markOneStep(out, FIRST_UPGRADE, crafts.firstUpgrade, held.firstUpgradeWithBay);
 
   // 6. The first Mk II, then the first Mk III, once their materials are in the stock.
   if (crafts.markTwo && bestMark < 2) return setStep(out, 'markTwo');
@@ -444,8 +518,15 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, ships: ShipFacts, h
   }
 
   // 9. Past the Silver line with no Scanner ever: the richer ore is behind the fog.
+  // Only the way the player can actually take is named — the Silver to craft one,
+  // the cash to buy one — and, short of both, where the Silver is (and, once a post
+  // is known, that ore sells there for the cash).
   if (careerDepth >= SCANNER_OBJECTIVE_DEPTH && (input.scannersObtained ?? 0) === 0 && !held.scanner) {
-    return setStep(out, 'scanner');
+    if (held.scannerSilver) return setStep(out, 'scanner', 0);
+    if ((input.cash ?? 0) >= SCANNER_PRICE) return setStep(out, 'scanner', 1);
+    const silver = ores.find(ore => ore.name === 'Silver');
+    const bandDepth = silver ? rowDepthMeters(silver.min, startY) : SCANNER_OBJECTIVE_DEPTH;
+    return setStep(out, 'scanner', postsFound > 0 ? 3 : 2, 0, '', bandDepth);
   }
 
   // 10. Deep enough for posts, and none found yet.
@@ -466,8 +547,16 @@ function evaluate(input: ObjectiveInput, crafts: CraftFacts, ships: ShipFacts, h
     return setStep(out, 'record', 0, 0, '', record);
   }
 
-  // 12. A Scout past its first upgrade: name the Hauler, so the grind has a goal.
-  if (held.markOneFitted && ships.next === 'hauler') return shipStep(out, ships);
+  // 12. A Scout past its first upgrade: the Drill Mk I first — at drill 1 every ore
+  // takes a hit per hit point, so a trip brings home a handful — while no drill is
+  // fitted or held and a slot is free for it (one made goes to the fit rung above);
+  // then name the Hauler, so the grind has a goal.
+  if (held.markOneFitted && ships.next === 'hauler') {
+    if (!held.drill && hasEmptyOpenSlot(player.equipment, bestMark)) {
+      return markOneStep(out, SCOUT_DRILL, crafts.scoutDrill, held.scoutDrillWithBay);
+    }
+    return shipStep(out, ships);
+  }
 
   // 13. The band the career has reached, until a few of its ore are mined — arriving
   // at a band is not the same as working it.
@@ -522,10 +611,12 @@ function formatStep(step: ObjectiveStep): string {
         : `Objective: fit the ${step.name} from the Ship screen.`;
     case 'salvage':
       return `Objective: salvage the wreck at (${step.amount}, ${step.depth}) — it holds your upgrades.`;
-    case 'firstUpgrade':
-      if (step.variant === 1) return `Objective: craft ${FIRST_UPGRADE_LABEL} at the Manufacturing Station.`;
-      if (step.variant === 2) return `Objective: stow your ore and craft ${FIRST_UPGRADE_LABEL}.`;
-      return `Objective: mine Iron and Copper for ${FIRST_UPGRADE_LABEL}.`;
+    case 'firstUpgrade': {
+      const goal = MARK_ONE_GOALS[step.name as MarkOneKind];
+      if (step.variant === 1) return `Objective: craft ${goal.label} at the Manufacturing Station${goal.note}.`;
+      if (step.variant === 2) return `Objective: stow your ore and craft ${goal.label}${goal.note}.`;
+      return `Objective: mine ${goal.ores} for ${goal.label}${goal.mineNote}${goal.note}.`;
+    }
     case 'markTwo':
       return 'Objective: craft a Mk II upgrade at the Manufacturing Station.';
     case 'markThree':
@@ -540,7 +631,11 @@ function formatStep(step: ObjectiveStep): string {
       if (step.variant === 2) return `Objective: craft a Deep Portal (${DEEP_PORTAL_BILL}) and set it down deep — a free ride home.`;
       return 'Objective: craft a Portal and set it down deep — a free ride home.';
     case 'scanner':
-      return `Objective: craft a Scanner (${SCANNER_BILL}) or buy one from Supply for $${SCANNER_PRICE} — Silver hides beside shafts, so dig sideways galleries.`;
+      if (step.variant === 0) return `Objective: craft a Scanner (${SCANNER_BILL}) — set down, it maps the fog around it, ore and all.`;
+      if (step.variant === 1) return `Objective: buy a Scanner from Supply ($${SCANNER_PRICE}) — set down, it maps the fog around it, ore and all.`;
+      return step.variant === 3
+        ? `Objective: for a Scanner (${SCANNER_BILL}, or $${SCANNER_PRICE} at Supply), dig sideways galleries around ${step.depth} m or sell ore at a trading post.`
+        : `Objective: for a Scanner (${SCANNER_BILL}, or $${SCANNER_PRICE} at Supply), dig sideways galleries around ${step.depth} m — Silver hides beside shafts.`;
     case 'post':
       return `Objective: find a trading post below ${POST_OBJECTIVE_DEPTH} m to turn ore into cash.`;
     case 'coreDrill':

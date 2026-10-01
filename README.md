@@ -417,7 +417,10 @@ coal; like the cavern's air they are derived from the coordinate rather than sav
 and drill out as usual.
 
 - **Manufacturing Station.** Stow cargo here (its stock holds up to 500 items),
-  take stacks back aboard, and craft. Crafting consumes from the station stock and
+  take stacks back aboard, and craft. **Stow ore** moves every ore stack aboard at
+  once; the trip kit (Repair Kits, Fuel Cells, Dynamite, Scanners, Teleporters,
+  Containers), devices, upgrades and decorations stay aboard — stow those by their
+  own stack's Stow / 1. Crafting consumes from the station stock and
   the result lands back in the stock — take it aboard afterwards. The recipe table
   lives in `src/core/crafting.ts`:
 
@@ -777,11 +780,15 @@ eight around it, and only once it is explored.
   half its bill is in the Manufacturer's stock or aboard ("build the Prospector …
   (still needs 9 Gold, 4 Ruby)", or "stow your ore and build …" once the bay holds
   the rest); a field portal (the Deep Portal and its bill once the
-  deep recipes are unlocked and only it is stocked); a Scanner past 600 m (craft or buy, and
-  dig sideways galleries for Silver); a trading post past 400 m; the Core Drill,
+  deep recipes are unlocked and only it is stocked); a Scanner past 600 m — crafted
+  once its Silver is stocked or aboard, else bought from Supply once the wallet
+  covers it, else "dig sideways galleries around 600 m" at the Silver band (or sell
+  ore at a trading post, once one is known); a trading post past 400 m; the Core Drill,
   then Fuel Cells only from Uranium the Core Drill and the next hull can spare,
   then the next hull, and in the Core Breaker the depth record. A Scout with a Mk I
-  fitted is pointed at the Hauler. Last come the ore bands: the deepest band the
+  fitted is pointed at the Drill Mk I first (mine, stow and craft it, then fit it —
+  +75 % drill power, so fewer hits and less fuel per ore) while no drill is fitted
+  or held and a slot is free, and then at the Hauler. Last come the ore bands: the deepest band the
   career has reached stays the goal until 3 of its ore are mined (`stats.oresMined`),
   and only then the next band below. "Base low" means the extractor's store plus
   queued coal could not fill a tank, capped at the store's 500 — so a bigger tank
@@ -1053,7 +1060,7 @@ slots (`scannerSlotBtn`, `dynamiteSlotBtn`, `containerSlotBtn`, `repairKitSlotBt
 `manufacturerSlotBtn`, `extractorSlotBtn`, `portalSlotBtn`, `toolkitSlotBtn`, the `decor:*SlotBtn`
 panels — derived from `src/ui/inventory-slot-ids.ts`, the table the panel renders
 from), the ship screen (`data-ship-equip` with an upgrade kind,
-`data-ship-unequip` with the 0-based fitting-slot index, `shipCloseBtn`), the station (`stowAllBtn`, `data-station`
+`data-ship-unequip` with the 0-based fitting-slot index, `shipCloseBtn`), the station (`stowAllBtn` — Stow ore, the ore stacks only —, `data-station`
 with values `take`/`take-one`/`stow`/`stow-one` and a `data-station-kind`,
 `data-craft` with a recipe row's id — its output kind, or the output plus `:alt` for a
 deep alternate such as `device:portal:alt` —, `data-craft-ship` with the next hull's id (e.g. `hauler`),

@@ -2,8 +2,9 @@
 //
 // Two halves. On top, the transfer: the ship's bay beside the station's own
 // stock. Every bay stack carries a Stow and a "1" button that push the whole stack
-// or a single unit into the station; a "Stow all" empties what fits of the bay in
-// one press. Every station stack carries a Take and a "1" that pull the whole
+// or a single unit into the station; a "Stow ore" moves every ore stack that fits
+// in one press, leaving the trip kit, devices, upgrades and decorations aboard
+// (`stowOre`). Every station stack carries a Take and a "1" that pull the whole
 // stack or a single unit back aboard. Below, the recipes: one row each, its inputs
 // listed, a Craft button that is live only while the station holds the materials
 // and names what is missing when it does not (aria-disabled, so it stays focusable).
@@ -92,7 +93,7 @@ function StationCard() {
                 type="button"
                 className={styles.action}
                 onClick={() => uiCommands.stowAll()}
-              >Stow all</button>
+              >Stow ore</button>
             </div>
             <ul id="stationBay" className={styles.slots}>
               {baySlots.length === 0 && (

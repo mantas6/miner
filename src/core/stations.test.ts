@@ -17,7 +17,7 @@ import {
   stationAt,
   stationDeviceItemKind,
   stationPlacementRefusal,
-  stowAll,
+  stowOre,
   stowStack,
   takeFromStation,
   tickExtractor
@@ -123,19 +123,34 @@ describe('the base extractor', () => {
 });
 
 describe('stowing cargo at the station', () => {
-  it('moves everything that fits, ore and equipment alike', () => {
-    const bay = inventory([oreKind('Iron'), 5], ['dynamite', 2]);
-    const {bay: nextBay, station} = stowAll(bay, createInventory());
+  it('bulk-stows every ore stack, and leaves everything else aboard', () => {
+    const kept = [
+      'repairKit', 'fuelCell', 'dynamite', 'scanner', 'teleporter', 'container',
+      'device:portal', 'toolkit', 'upgrade:drill:1', 'decor:lampPanel'
+    ] as const;
+    const bay = inventory([oreKind('Iron'), 5], ...kept.map((kind): [string, number] => [kind, 1]), [oreKind('Gold'), 2]);
+    const {bay: nextBay, station} = stowOre(bay, createInventory());
 
-    expect(totalItems(nextBay)).toBe(0);
     expect(countItem(station, oreKind('Iron'))).toBe(5);
-    expect(countItem(station, 'dynamite')).toBe(2);
+    expect(countItem(station, oreKind('Gold'))).toBe(2);
+    expect(totalItems(station)).toBe(7);
+    for (const kind of kept) expect(countItem(nextBay, kind)).toBe(1);
+    expect(totalItems(nextBay)).toBe(kept.length);
+  });
+
+  it('still stows a kit by its own stack', () => {
+    const bay = inventory([oreKind('Iron'), 2], ['repairKit', 2]);
+    const {bay: nextBay, station, moved} = stowStack(bay, createInventory(), 'repairKit', 1);
+
+    expect(moved).toBe(1);
+    expect(countItem(station, 'repairKit')).toBe(1);
+    expect(countItem(nextBay, 'repairKit')).toBe(1);
   });
 
   it('takes only what the station has room for, leaving the rest aboard', () => {
     const bay = inventory([oreKind('Coal'), 10]);
     const nearlyFull = inventory([oreKind('Iron'), STATION_CAPACITY - 4]);
-    const {bay: nextBay, station} = stowAll(bay, nearlyFull);
+    const {bay: nextBay, station} = stowOre(bay, nearlyFull);
 
     expect(totalItems(station)).toBe(STATION_CAPACITY);
     expect(countItem(nextBay, oreKind('Coal'))).toBe(6);

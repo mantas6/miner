@@ -20,6 +20,7 @@ import {
   addItem,
   createInventory,
   findStack,
+  isOreKind,
   removeItem,
   roomLeft,
   type DeviceKind,
@@ -235,14 +236,19 @@ export function manufacturerStock(stations: readonly PlacedStation[]): Inventory
 }
 
 /**
- * Move everything that fits from the ship's bay into a manufacturer's stock, ore
- * and equipment alike, capped by the station's capacity. A partial move is honest:
+ * The bulk stow: move every ore stack that fits from the ship's bay into a
+ * manufacturer's stock, capped by the station's capacity. Only ore — the haul a
+ * trip brings home. Everything else aboard was taken aboard on purpose and is left
+ * there: the trip kit (Repair Kits, Fuel Cells, Dynamite, Scanners, Teleporters,
+ * Containers), devices and the toolkit to set down, upgrades to fit, decorations to
+ * place. Each still stows by its own stack (`stowStack`). A partial move is honest:
  * a station near full takes what it can and the rest stays aboard.
  */
-export function stowAll(bay: Inventory, station: Inventory): {bay: Inventory; station: Inventory} {
+export function stowOre(bay: Inventory, station: Inventory): {bay: Inventory; station: Inventory} {
   let nextBay = bay;
   let nextStation = station;
   for (const stack of bay) {
+    if (!isOreKind(stack.kind)) continue;
     const room = roomLeft(nextStation, STATION_CAPACITY);
     if (room <= 0) break;
     const moved = Math.min(stack.count, room);

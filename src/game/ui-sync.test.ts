@@ -84,6 +84,21 @@ describe('objective inputs', () => {
     expect(uiStore.getState().hud.objective).toBe('Objective: fit the Fuel Tank Mk I from the Ship screen.');
   });
 
+  it('reads the wallet for the Scanner rung: bought once the cash covers it', () => {
+    const {state, sync} = setup();
+    state.player.ship = 'hauler';
+    state.player.equipment = ['upgrade:tank:1', null, null, null];
+    state.player.y = START_Y + 70;
+    state.stats.maxDepth = 700;
+    state.cash = 0;
+    sync.sync();
+    expect(uiStore.getState().hud.objective).toContain('dig sideways galleries around 600 m');
+
+    state.cash = 136;
+    sync.sync();
+    expect(uiStore.getState().hud.objective).toBe('Objective: buy a Scanner from Supply ($136) — set down, it maps the fog around it, ore and all.');
+  });
+
   it('points a ship low on fuel at the portal the reserve is priced to', () => {
     const portal = createPortal(20, START_Y + 40, 'Deep');
     const {state, sync} = setup({sync() {}, reset() {}, fuelExit: portal});
